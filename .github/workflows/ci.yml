@@ -12,29 +12,40 @@ on:
       - ready_for_review
 
 jobs:
-  setup-and-placeholder:
-    name: Stack 定義待ち (Lint/Test 追加予定)
+  frontend-quality-gates:
+    name: Next.js チェック
     runs-on: ubuntu-latest
     steps:
       - name: ソースチェックアウト
         uses: actions/checkout@v4
-      - name: 言語ランタイムのセットアップ例
-        if: ${{ false }} # TODO: プロジェクトの言語が決まったら条件とセットアップを更新
+
+      - name: Node.js セットアップ
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: 依存関係インストール例
-        if: ${{ false }} # TODO: package manager を決めたら有効化
-        run: |
-          npm ci
-      - name: Lint 実行プレースホルダー
-        if: ${{ false }} # TODO: 実際のコマンドを定義
-        run: |
-          npm run lint
-      - name: Test 実行プレースホルダー
-        if: ${{ false }}
-        run: |
-          npm test -- --runInBand
-      - name: TODO メッセージ
-        run: |
-          echo "CI はプレースホルダーです。プロジェクトの技術スタックとテスト戦略を定義したら上記ステップを更新してください。"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: 依存関係インストール
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+
+      - name: 依存関係インストール (fallback)
+        if: ${{ hashFiles('package-lock.json') == '' && hashFiles('package.json') != '' }}
+        run: npm install
+
+      - name: TypeScript 型チェック
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm run typecheck --if-present
+
+      - name: ESLint
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm run lint --if-present
+
+      - name: Vitest
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm run test --if-present -- --runInBand
+
+      - name: Storybook テスト
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm run test-storybook --if-present
