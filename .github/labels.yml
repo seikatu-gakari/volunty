@@ -16,3 +16,6 @@
 - name: ai-generated
   color: bfdadc
   description: Contains code or content primarily drafted by Copilot.
+- name: ai-managed-service
+  color: 7289da
+  description: Uses external inference platforms (e.g., AWS Bedrock) instead of custom ML.

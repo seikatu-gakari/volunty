@@ -15,6 +15,7 @@
 - `vibe-coding`: AI 主導の実験的タスクに必須。完了後は **結論を Decision Log に追記**。
 - `ai-generated`: コードの主要部分を Copilot が提案した場合に付与。レビュー時に追加チェックを促す。
 - `experiment`: 時限的なスパイクや検証タスク。期限満了時に結果をまとめてクローズ。
+- `ai-managed-service`: AWS Bedrock 等の推論サービス利用を含む Issue / PR に付与し、コスト・セキュリティチェックを明示。
 
 ## レビューと承認フロー
 - CODEOWNERS に指定されたメンバーは最低 1 名レビュー必須。

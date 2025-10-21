@@ -9,6 +9,7 @@
 - Reflect the current architecture first. If the relevant document is empty or missing, call it out and request guidance.
 - Defer dependency additions unless they are requested or unblock critical work; explain the impact when suggesting new tooling.
 - Never overwrite user-authored prose or configuration without mentioning the change and rationale.
+- When implementing AI features, use managed services (e.g., AWS Bedrock) for inference and avoid training custom deep learning models within this project.
 
 ## Knowledge Sources (highest to lowest priority)
 1. docs/architecture.md (system intent, modules, vocab)
