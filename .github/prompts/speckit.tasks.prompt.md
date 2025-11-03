@@ -55,6 +55,12 @@ Context for task generation: $ARGUMENTS
 
 The tasks.md should be immediately executable - each task must be specific enough that an LLM can complete it without additional context.
 
+6. Verify that current tasks contain properly encoded Japanese text without character corruption. If corrupted characters are detected, rewrite the file.
+
+## Language Requirement
+
+- `tasks.md` を含むすべてのドキュメント出力は日本語で記載する。説明文・コメントは自然な日本語を用い、コード断片やファイルパスは必要に応じて英数字を使用すること。
+
 ## Task Generation Rules
 
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.

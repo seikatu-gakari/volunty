@@ -1,0 +1,27 @@
+openapi: 3.1.0
+info:
+  title: 仕様駆動ワークフロー文書化
+  version: 1.0.0
+  description: >-
+    本フィーチャーはワークフローの手順を文書化するのみで、実行時 API の変更は伴わないことを示す情報用コントラクト。
+paths: {}
+components:
+  schemas:
+    WorkflowGuide:
+      type: object
+      properties:
+        prerequisites:
+          type: array
+          items:
+            type: string
+          description: ワークフロー開始前に満たすべき条件
+        steps:
+          type: array
+          items:
+            type: string
+          description: 実行ステップの概要
+        troubleshooting:
+          type: array
+          items:
+            type: string
+          description: 想定される問題と対処法

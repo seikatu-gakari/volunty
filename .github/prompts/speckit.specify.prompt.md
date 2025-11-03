@@ -14,6 +14,10 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 The text the user typed after `/speckit.specify` in the triggering message **is** the feature description. Assume you always have it available in this conversation even if `$ARGUMENTS` appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
+## Language Requirement
+
+- 仕様書、チェックリスト、補助ドキュメントなど生成するドキュメントはすべて日本語で作成する。コード例やコマンド以外の叙述部分は自然な日本語で表現すること。
+
 Given that feature description, do this:
 
 1. **Generate a concise short name** (2-4 words) for the branch:
@@ -182,6 +186,8 @@ Given that feature description, do this:
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
 7. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+
+8. Verify that SPEC_FILE contains properly encoded Japanese text without character corruption. If corrupted characters are detected, rewrite the file.
 
 **NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
 

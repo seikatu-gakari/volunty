@@ -27,6 +27,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 4. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
 
+5. Verify that current plan contains properly encoded Japanese text without character corruption. If corrupted characters are detected, rewrite the file.
+
+## Language Requirement
+
+- 生成するすべてのドキュメント（`plan.md`、`research.md`、`data-model.md`、`quickstart.md`、`contracts/` 配下、README など）は日本語で記載すること。コード、コマンド、ファイルパス以外の説明文は自然な日本語でまとめる。
+
 ## Phases
 
 ### Phase 0: Outline & Research
