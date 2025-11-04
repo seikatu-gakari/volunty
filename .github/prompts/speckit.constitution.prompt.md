@@ -1,5 +1,6 @@
+````prompt
 ---
-description: Create or update the project constitution from interactive or provided principle inputs, ensuring all dependent templates stay in sync
+description: インタラクティブまたは提供された原則入力からプロジェクト憲章を作成または更新し、すべての依存テンプレートが同期されることを保証する。
 ---
 
 ## User Input

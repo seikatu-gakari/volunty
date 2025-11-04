@@ -1,5 +1,6 @@
+````prompt
 ---
-description: Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec.
+description: 現在の機能仕様で不十分に指定された部分を特定し、最大5つの高度にターゲット化された明確化質問を行い、その回答を仕様に反映する。
 ---
 
 ## User Input

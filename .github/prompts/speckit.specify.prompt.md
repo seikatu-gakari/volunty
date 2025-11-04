@@ -1,5 +1,6 @@
+````prompt
 ---
-description: Create or update the feature specification from a natural language feature description.
+description: 自然言語の機能記述から機能仕様を作成または更新する。
 ---
 
 ## User Input

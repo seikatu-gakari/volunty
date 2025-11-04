@@ -1,5 +1,6 @@
+````prompt
 ---
-description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation.
+description: タスク生成後に、spec.md、plan.md、tasks.mdの各成果物間で非破壊的な一貫性と品質分析を実行する。
 ---
 
 ## User Input

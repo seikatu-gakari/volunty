@@ -1,7 +1,7 @@
 # Implementation Plan: Speckit ワークフロー日本語ドキュメント整備
 
-**Branch**: `001-speckit-template-doc` | **Date**: 2025-11-03 | **Spec**: `/Users/apple/dev/volunty/specs/001-speckit-template-doc/spec.md`
-**Input**: Feature specification from `/Users/apple/dev/volunty/specs/001-speckit-template-doc/spec.md`
+**Branch**: `001-speckit-template-doc` | **Date**: 2025-11-03 | **Spec**: `/(project root)/specs/001-speckit-template-doc/spec.md`
+**Input**: Feature specification from `/(project root)/specs/001-speckit-template-doc/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 

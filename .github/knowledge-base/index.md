@@ -5,6 +5,8 @@ AI 主導の vibe coding と人間の協調作業に役立つ情報をここに�
 ## 主要ドキュメント
 - `docs/architecture.md`: システム構成・データフロー・テスト戦略の概要。大きな変更後は必ず更新。
 - `docs/translation-table.md`: ドメイン用語とシステム内表記の対応表。UI 文言との齟齬があれば注記。
+- **`serena-setup.md`**: Serena MCP のセットアップガイド。初めて開発に参加する際は必読。
+- **`process-guide.md`**: Speckit を用いた仕様駆動開発のプロセスガイド。
 
 ## 決定ログ (Decision Log)
 - 日付・概要・判断理由・関係者・参照リンクを最小単位で記録。

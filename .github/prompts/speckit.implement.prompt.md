@@ -1,5 +1,6 @@
+````prompt
 ---
-description: Execute the implementation plan by processing and executing all tasks defined in tasks.md
+description: tasks.mdで定義されたすべてのタスクを処理・実行することで実装計画を実行する。
 ---
 
 ## User Input

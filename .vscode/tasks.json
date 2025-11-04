@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Check Serena MCP Status",
+      "type": "shell",
+      "command": "echo '⚠️  重要: Serena MCPが起動していることを確認してください。\\n🔧 VS Code左下のステータスバーでMCPサーバーの状態を確認できます。\\n📚 起動していない場合: コマンドパレット > \"MCP: Restart Server\" > \"serena\" を選択'",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "close": false
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    }
+  ]
+}

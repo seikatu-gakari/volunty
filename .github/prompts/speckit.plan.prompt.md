@@ -1,5 +1,6 @@
+```prompt
 ---
-description: Execute the implementation planning workflow using the plan template to generate design artifacts.
+description: プランテンプレートを使用して設計成果物を生成するための実装計画ワークフローを実行する。
 ---
 
 ## User Input

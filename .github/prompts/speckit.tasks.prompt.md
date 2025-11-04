@@ -1,5 +1,6 @@
+````prompt
 ---
-description: Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts.
+description: 利用可能な設計成果物に基づいて、機能のための実行可能で依存関係順序付きのtasks.mdを生成する。
 ---
 
 ## User Input

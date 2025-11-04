@@ -4,9 +4,9 @@
 - 実行日時: 2025-11-03
 - コマンド: `.specify/scripts/bash/setup-plan.sh --json`
 - 出力値:
-  - `FEATURE_SPEC`: `/Users/apple/dev/volunty/specs/001-speckit-template-doc/spec.md`
-  - `IMPL_PLAN`: `/Users/apple/dev/volunty/specs/001-speckit-template-doc/plan.md`
-  - `SPECS_DIR`: `/Users/apple/dev/volunty/specs/001-speckit-template-doc`
+  - `FEATURE_SPEC`: `/(project root)/specs/001-speckit-template-doc/spec.md`
+  - `IMPL_PLAN`: `/(project root)/specs/001-speckit-template-doc/plan.md`
+  - `SPECS_DIR`: `/(project root)/specs/001-speckit-template-doc`
   - `BRANCH`: `001-speckit-template-doc`
   - `HAS_GIT`: `true`
 - メモ: plan.md がテンプレートに上書きされたため、日本語版の内容を再適用済み。
