@@ -69,6 +69,7 @@ git checkout -b 001-your-feature-name
 
 ## 📚 目次
 
+- [Next.js 開発環境](#nextjs-開発環境)
 - [テンプレート使用時の事前準備](#テンプレート使用時の事前準備)
 - [プロジェクト構造](#プロジェクト構造)
 - [前提条件](#前提条件)
@@ -82,6 +83,36 @@ git checkout -b 001-your-feature-name
 - [ガバナンス状況](#ガバナンス状況)
 
 ---
+
+## Next.js 開発環境
+
+- リポジトリルートで `docker compose up --build` を実行すると、`app` ディレクトリをビルドし `http://localhost:3000` で Next.js 開発サーバーが起動します。
+- 依存関係を追加した場合は `docker compose up --build` で再ビルドするか、`docker compose run --rm next-app npm install` を実行してください。
+- 停止するには `Ctrl+C` でプロセスを中断するか、別ターミナルから `docker compose down` を実行します。
+
+### 前提ソフトウェアの確認
+
+- Docker Desktop もしくは互換エンジン（Docker Engine + Docker Compose v2）をインストールし、稼働していることを確認します。
+- Node.js と npm をホストに入れておくと、コンテナを使わない検証（`npm run build` など）が容易になります。
+- macOS 利用時は追加で GNU Make が利用可能か `make --version` でチェックしてください（Xcode Command Line Tools に同梱）。
+
+### 初回セットアップ
+
+- 依存関係をホストで解決したい場合はリポジトリルートで `make install` を実行します。`app/package-lock.json` に基づき npm install を行います。
+- Docker イメージを明示的に作成したい場合は `make build`（内部で `docker compose build`）を実行します。
+- ここまでで `app/` 以下に Next.js + TypeScript + Tailwind CSS の雛形と、Docker/Makefile による開発用インフラがそろいます。
+
+### ローカル開発サーバーの起動
+
+- `make up` でコンテナを前面起動し、`http://localhost:3000` でアプリを確認できます。バックグラウンド起動にしたい場合は `make up-detached`。
+- ログは別ターミナルから `make logs` で追跡し、コンテナシェルに入るときは `make shell` を利用します。
+- ESLint や型検査はそれぞれ `make lint`、`make type-check` でコンテナ内部から実行できます。
+
+### メンテナンスとトラブルシューティング
+
+- 環境を停止するときは `make down`、ボリュームも含めて初期化したい場合は `make clean` を使用します。
+- 依存関係の更新や Next.js の本番ビルドをローカルで試す際は `make build-next` を実行します。
+- 何らかの理由で環境が不安定になった場合は、一度 `make clean` で停止・削除したのち `make build` → `make up` の順に再作成してください。
 
 ## テンプレート使用時の事前準備
 - プロジェクト内で`volunty`と検索し、本来のアプリ名に置き換える
