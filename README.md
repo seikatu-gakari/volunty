@@ -80,9 +80,7 @@
 
 ## Next.js 開発環境
 
-- リポジトリルートで `docker compose up --build` を実行すると、`app` ディレクトリをビルドし `http://localhost:3000` で Next.js 開発サーバーが起動します。
-- 依存関係を追加した場合は `docker compose up --build` で再ビルドするか、`docker compose run --rm next-app npm install` を実行してください。
-- 停止するには `Ctrl+C` でプロセスを中断するか、別ターミナルから `docker compose down` を実行します。
+このプロジェクトでは `Makefile` を使用して開発環境を簡単に構築・管理できます。
 
 ### 前提ソフトウェアの確認
 
@@ -90,23 +88,49 @@
 - Node.js と npm をホストに入れておくと、コンテナを使わない検証（`npm run build` など）が容易になります。
 - macOS 利用時は追加で GNU Make が利用可能か `make --version` でチェックしてください（Xcode Command Line Tools に同梱）。
 
+### 利用可能なコマンド
+
+以下のコマンドをリポジトリルートで実行できます。
+
+```bash
+make help
+```
+
+上記コマンドで利用可能な全コマンドと説明が表示されます。各コマンドの詳細な説明は `Makefile` を参照してください。
+
 ### 初回セットアップ
 
-- 依存関係をホストで解決したい場合はリポジトリルートで `make install` を実行します。`app/package-lock.json` に基づき npm install を行います。
-- Docker イメージを明示的に作成したい場合は `make build`（内部で `docker compose build`）を実行します。
-- ここまでで `app/` 以下に Next.js + TypeScript + Tailwind CSS の雛形と、Docker/Makefile による開発用インフラがそろいます。
+1. **依存関係のインストール（オプション）**
+   ```bash
+   make install
+   ```
+   ホストマシンで依存関係を解決したい場合に実行します。
 
-### ローカル開発サーバーの起動
+2. **Docker イメージのビルド**
+   ```bash
+   make build
+   ```
 
-- `make up` でコンテナを前面起動し、`http://localhost:3000` でアプリを確認できます。バックグラウンド起動にしたい場合は `make up-detached`。
-- ログは別ターミナルから `make logs` で追跡し、コンテナシェルに入るときは `make shell` を利用します。
-- ESLint や型検査はそれぞれ `make lint`、`make type-check` でコンテナ内部から実行できます。
+3. **開発サーバーの起動**
+   ```bash
+   make up
+   ```
+   `http://localhost:3000` でアプリにアクセスできます。
+
+### 日常的な開発フロー
+
+- **開発サーバーの起動**: `make up` または `make up-detached`
+- **ログの確認**: `make logs`
+- **コンテナ内でコマンド実行**: `make shell`
+- **Lint チェック**: `make lint`
+- **型チェック**: `make type-check`
+- **サーバーの停止**: `make down` または `Ctrl+C`（フォアグラウンド実行時）
 
 ### メンテナンスとトラブルシューティング
 
-- 環境を停止するときは `make down`、ボリュームも含めて初期化したい場合は `make clean` を使用します。
-- 依存関係の更新や Next.js の本番ビルドをローカルで試す際は `make build-next` を実行します。
-- 何らかの理由で環境が不安定になった場合は、一度 `make clean` で停止・削除したのち `make build` → `make up` の順に再作成してください。
+- **依存関係の追加**: パッケージを追加後 `make build` で再ビルド
+- **環境のリセット**: `make clean` で完全クリーンアップ後、`make build` → `make up` で再構築
+- **本番ビルドのテスト**: `make build-next` でホスト上で本番ビルドを実行
 
 ## テンプレート使用時の事前準備
 - プロジェクト内で`{app name}`と検索し、本来のアプリ名に置き換える
@@ -129,6 +153,13 @@
 │   ├── templates/                   # ドキュメントテンプレート
 │   └── memory/
 │       └── constitution.md          # プロジェクト憲章
+├── app/                             # Next.js アプリケーション
+│   ├── Dockerfile                   # Next.js 用 Dockerfile
+│   ├── package.json                 # Node.js 依存関係
+│   ├── tsconfig.json                # TypeScript 設定
+│   ├── next.config.ts               # Next.js 設定
+│   ├── src/                         # ソースコード
+│   └── public/                      # 静的ファイル
 ├── specs/                           # フィーチャー仕様ディレクトリ
 │   └── NNN-feature-name/           # 各フィーチャーのドキュメント
 │       ├── spec.md                 # 機能仕様
@@ -140,6 +171,8 @@
 │       ├── quickstart.md           # クイックスタート
 │       └── contracts/              # API契約
 ├── docs/                            # プロジェクトドキュメント
+├── docker-compose.yml               # Docker Compose 設定
+├── Makefile                         # 開発コマンド定義
 └── README.md                        # このファイル
 ```
 

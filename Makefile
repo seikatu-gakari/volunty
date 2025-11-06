@@ -4,41 +4,41 @@ APP_DIR ?= app
 
 .PHONY: help install build up up-detached down restart logs shell lint type-check build-next clean
 
-help: ## Show available targets
+help: ## 利用可能なコマンド一覧を表示
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?##"} {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-install: ## Install dependencies on the host machine
+install: ## ホストマシンに依存関係をインストール（app/package.jsonに基づきnpm installを実行）
 	cd $(APP_DIR) && npm install
 
-build: ## Build the Docker image
+build: ## Dockerイメージをビルド（開発環境の構築）
 	$(COMPOSE) build
 
-up: ## Start the development server in the foreground
+up: ## 開発サーバーを前面起動（フォアグラウンド、http://localhost:3000でアクセス可能）
 	$(COMPOSE) up
 
-up-detached: ## Start the development server in the background
+up-detached: ## 開発サーバーをバックグラウンド起動（デーモンモード）
 	$(COMPOSE) up -d
 
-down: ## Stop the development server and remove containers
+down: ## 開発サーバーを停止してコンテナを削除
 	$(COMPOSE) down
 
-restart: ## Restart the development server
+restart: ## 開発サーバーを再起動（down → up）
 	$(COMPOSE) down && $(COMPOSE) up
 
-logs: ## Tail logs from the Next.js container
+logs: ## Next.jsコンテナのログをリアルタイム表示
 	$(COMPOSE) logs -f $(SERVICE)
 
-shell: ## Open a shell inside the Next.js container
+shell: ## Next.jsコンテナ内でシェルを起動（デバッグやコマンド実行用）
 	$(COMPOSE) run --rm $(SERVICE) sh
 
-lint: ## Run ESLint inside the container
+lint: ## ESLintをコンテナ内で実行（コード品質チェック）
 	$(COMPOSE) run --rm $(SERVICE) npm run lint
 
-type-check: ## Run the Next.js build for type-checking inside the container
+type-check: ## TypeScriptの型チェックをコンテナ内で実行（npm run buildで検証）
 	$(COMPOSE) run --rm $(SERVICE) npm run build
 
-build-next: ## Run the Next.js production build on the host machine
+build-next: ## Next.jsの本番ビルドをホストマシンで実行（本番デプロイ前の検証用）
 	cd $(APP_DIR) && npm run build
 
-clean: ## Stop containers and remove volumes
+clean: ## コンテナを停止してボリュームも削除（完全クリーンアップ）
 	$(COMPOSE) down -v
