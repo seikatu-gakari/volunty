@@ -25,41 +25,35 @@
 
 ✅ **メモリファイル（`.serena/memories/`）は永続化されているため、基本的なプロジェクト理解は起動なしでも可能です。**
 
-### 1. フィーチャーブランチの作成
-```bash
-git checkout -b 001-your-feature-name
-```
-※ 先頭3桁の番号は必須です
-
-### 2. 計画ファイルの準備
-```bash
-.specify/scripts/bash/setup-plan.sh --json
-```
-生成される `specs/001-your-feature-name/plan.md` に実装計画を記入
-
-### 3. GitHub Copilot で仕様を作成
+### 1. GitHub Copilot で仕様を作成
 ```
 /speckit.specify ユーザー認証機能を追加したい...
 ```
-`spec.md` が生成されます
+- フィーチャーブランチが自動的に作成されます（形式: `NNN-feature-name`）
+- `spec.md` が生成されます
 
-### 4. 設計成果物を整備
-- `data-model.md`: データモデル定義
-- `contracts/`: API契約
-- `quickstart.md`: 動作確認手順
+### 2. 実装計画と設計成果物を生成
+```
+/speckit.plan
+```
+- `plan.md`（実装計画）が生成されます
+- 対話形式で以下の設計成果物も生成されます：
+  - `data-model.md`: データモデル定義
+  - `contracts/`: API契約
+  - `quickstart.md`: 動作確認手順
 
-### 5. Copilot のコンテキストを更新
+### 3. Copilot のコンテキストを更新
 ```bash
 .specify/scripts/bash/update-agent-context.sh copilot
 ```
 
-### 6. タスクリストを生成
+### 4. タスクリストを生成
 ```
 /speckit.tasks
 ```
 `tasks.md` が生成されます
 
-### 7. 実装を開始
+### 5. 実装を開始
 ```
 /speckit.implement
 ```
@@ -84,7 +78,7 @@ git checkout -b 001-your-feature-name
 ---
 
 ## テンプレート使用時の事前準備
-- プロジェクト内で`volunty`と検索し、本来のアプリ名に置き換える
+- プロジェクト内で`{app name}`と検索し、本来のアプリ名に置き換える
 
 ## プロジェクト構造
 
@@ -128,12 +122,13 @@ git checkout -b 001-your-feature-name
 
 ## フェーズ 0: 計画の雛形作成と調査
 
-1. **フィーチャーブランチの作成／切り替え**
-   ```bash
-   git checkout -b 001-your-feature
+1. **GitHub Copilot で仕様を作成**
    ```
-   - 先頭 3 桁の番号は必須。番号なしで実行すると `ERROR: Not on a feature branch` が出力される。
-   - 既存ブランチを流用する場合も `git checkout 00X-...` の形式に揃える。
+   /speckit.specify ユーザー認証機能を追加したい...
+   ```
+   - フィーチャーブランチが自動的に作成されます（形式: `NNN-feature-name`）
+   - `spec.md` と `plan.md` の雛形が生成されます
+   - 先頭 3 桁の番号は自動で採番されます
 
 2. **環境チェック**
    ```bash
@@ -142,32 +137,51 @@ git checkout -b 001-your-feature-name
    - `FEATURE_DIR` と `AVAILABLE_DOCS` が表示されれば準備完了。
    - 欠損があれば `.specify/` 配下の権限やブランチ名を再確認する。
 
-3. **計画用ファイルの生成**
-   ```bash
-   .specify/scripts/bash/setup-plan.sh --json
+3. **`plan.md` のレビューと修正**
+   
+   `/speckit.specify` で生成された `plan.md` を確認し、必要に応じて修正します：
+   
+   **a) 直接編集による修正**
+   - `specs/<feature>/plan.md` を開いて直接編集
+   - フィーチャー概要、技術コンテキスト、未確定事項を整理
+   - 未確定事項は `NEEDS CLARIFICATION` と明記
+   
+   **b) Copilot を使った対話的な修正**
    ```
-   出力される JSON から次の値を控える:
-   - `FEATURE_SPEC`: フィーチャー仕様の雛形
-   - `IMPL_PLAN`: 実装計画 (`plan.md`)
-   - `SPECS_DIR`: 当該フィーチャーの成果物ディレクトリ
+   plan.mdの認証方式について、JWT だけでなく OAuth2.0 も検討すべきでは？
+   ```
+   - Copilot に修正案や追加検討事項を提案してもらえます
+   - `/speckit.plan` を再実行して計画を更新することも可能
+   
+   **c) `/speckit.clarify` で曖昧な部分を明確化**
+   ```
+   /speckit.clarify
+   ```
+   - 仕様の不十分な部分を特定し、最大5つの質問で明確化
+   - 回答を元に `spec.md` と `plan.md` が更新されます
 
-2. **`plan.md` の記入**（`IMPL_PLAN` で示されたパス）
-   - フィーチャー概要と技術コンテキストを整理し、未確定事項は `NEEDS CLARIFICATION` と明記する。
-   - プロジェクト構造や憲章に関する不明点も記録する。
-   - 対象ファイル: `specs/<feature>/plan.md` （例: `specs/001-speckit-template-doc/plan.md`）。
-   - または GitHub Copilot Chat で `/speckit.plan` を実行して自動生成することもできる。
-
-5. **`research.md` で不明点を解消**
+4. **`research.md` で不明点を解消**
    `specs/<feature>/research.md` に Decision / Rationale / Alternatives を記載し、`NEEDS CLARIFICATION` がなくなるまで更新する。
    - 対象ファイル: `specs/<feature>/research.md` （例: `specs/001-speckit-template-doc/research.md`）。
 
 ## フェーズ 1: 設計成果物と Copilot 連携
 
-1. **設計成果物の整備**（`specs/<feature>/` 配下）
-   - `data-model.md`: エンティティ、関係、バリデーションルール。
-   - `contracts/`: REST・OpenAPI・GraphQL 変更、または「変更なし」の記録。
-   - `quickstart.md`: 今後のコントリビューター向けチェックリスト。
-
+1. **設計成果物の生成**（`specs/<feature>/` 配下）
+   
+   `/speckit.plan` プロンプトを実行すると、対話形式で以下の設計成果物が生成されます：
+   
+   ```
+   /speckit.plan
+   ```
+   
+   生成される成果物：
+   - `plan.md`: 実装計画書
+   - `data-model.md`: エンティティ、関係、バリデーションルール
+   - `contracts/`: REST・OpenAPI・GraphQL 契約、または「変更なし」の記録
+   - `quickstart.md`: コントリビューター向けチェックリスト
+   
+   **手動で作成する場合：**
+   
    | ファイル                        | 目的                       | 検証観点                                     |
    | ------------------------------- | -------------------------- | -------------------------------------------- |
    | `specs/<feature>/data-model.md` | 用語とエンティティの整理   | エンティティと README 用語が一致しているか   |
@@ -390,8 +404,33 @@ graph TD
 
 ## ワークフローの再実行
 
+### `plan.md` 修正後のワークフロー
+
+`plan.md` を修正した場合、以下の手順で関連成果物を同期してください：
+
+1. **Copilot コンテキストの更新**
+   ```bash
+   .specify/scripts/bash/update-agent-context.sh copilot
+   ```
+   - `.github/copilot-instructions.md` に最新の計画内容を反映
+   - 以降の Copilot プロンプトが更新された計画を参照可能に
+
+2. **タスクリストの再生成**
+   ```
+   /speckit.tasks
+   ```
+   - 修正された `plan.md` に基づいて `tasks.md` を更新
+   - 新しい技術スタックや設計変更がタスクに反映される
+
+3. **影響範囲の確認**
+   - `spec.md`: 機能仕様に変更がある場合は `/speckit.specify` で更新
+   - `data-model.md`: データモデルに影響がある場合は手動更新
+   - `contracts/`: API 設計に影響がある場合は手動更新
+
+### その他の再実行パターン
+
 - フィーチャーを切り替える際は `.specify/scripts/bash/setup-plan.sh --json` を再実行してパスを確認し、`notes.md` 等にアップデートを追記する。
-- `plan.md` や `research.md` を更新したら、必ず `.specify/scripts/bash/update-agent-context.sh copilot` を再度実行し、Copilot へ最新情報を供給する。
+- `research.md` を更新したら、必要に応じて `plan.md` にも反映し、上記の同期手順を実行する。
 - `data-model.md` / `contracts/` / `quickstart.md` を改訂した場合、GitHub Copilot Chat で `/speckit.tasks` を再実行してタスクとの整合性を維持する。
 - 実装前レビューでは `tasks.md` と README の手順が一致しているかを突き合わせ、差異があれば再生成を行う。
 
