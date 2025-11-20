@@ -1,0 +1,28 @@
+{
+	"servers": {
+		"github": {
+			"type": "http",
+			"url": "https://api.githubcopilot.com/mcp/",
+			"gallery": true,
+			"version": "0.0.1"
+		},
+		"figma": {
+			"type": "http",
+			"url": "http://127.0.0.1:3845/mcp",
+			"gallery": true,
+			"version": "0.0.1"
+		},
+    "serena": {
+			"command": "uvx",
+			"args": [
+				"--from",
+				"git+https://github.com/oraios/serena",
+				"serena",
+				"start-mcp-server",
+				"--context",
+				"ide-assistant"
+			]
+		},
+	},
+	"inputs": []
+}
