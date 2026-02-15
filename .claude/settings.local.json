@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:openai.com)",
+      "WebSearch",
+      "WebFetch(domain:note.com)",
+      "WebFetch(domain:www.anthropic.com)",
+      "Bash(npm run test:*)"
+    ]
+  }
+}

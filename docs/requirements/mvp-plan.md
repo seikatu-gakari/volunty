@@ -278,8 +278,8 @@ volunty.app
 ## 付録A: 関連ドキュメント
 
 - [要件定義書](./requirements-definition.md)
-- [基本設計書](./basic-design.md)
-- [アーキテクチャ概要](./architecture.md)
-- [性格診断アルゴリズム設計書](./personality-diagnosis-design-big5.md)
-- [データベース設計書](./database-design.md)
-- [API アーキテクチャ設計書](./api-architecture-big5.md)
+- [基本設計書](../architecture/basic-design.md)
+- [アーキテクチャ概要](../architecture/overview.md)
+- [性格診断アルゴリズム設計書](../design/personality-diagnosis-big5.md)
+- [データベース設計書](../design/database-design.md)
+- [API アーキテクチャ設計書](../design/api-architecture-big5.md)
