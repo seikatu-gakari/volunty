@@ -1,3 +1,142 @@
+# トップページ（認証なし）実装プラン
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Figmaデザイン通りの認証不要ランディングページを `/` ルートに実装する
+
+**Architecture:** Server Componentとして `page.tsx` を1ファイルで実装。`layout.tsx` にNoto Sans JPフォントとメタデータを追加。`globals.css` にデザイントークンを定義。lucide-react でアイコン表示。
+
+**Tech Stack:** Next.js 16 (App Router) / React 19 / TypeScript 5 / Tailwind CSS 4 / lucide-react
+
+**Design doc:** `docs/plans/2026-02-15-top-page-no-auth-design.md`
+
+---
+
+### Task 1: layout.tsx にNoto Sans JPフォントとメタデータを追加
+
+**Files:**
+- Modify: `app/src/app/layout.tsx`
+
+**Step 1: layout.tsx を書き換え**
+
+Noto Sans JP を `next/font/google` で読み込み、メタデータを日本語に、lang を "ja" に変更する。
+既存の Geist フォントは削除する。
+
+```tsx
+import type { Metadata } from "next";
+import { Noto_Sans_JP } from "next/font/google";
+import "./globals.css";
+
+const notoSansJP = Noto_Sans_JP({
+  variable: "--font-noto-sans-jp",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "ボランティアマッチング | あなたにぴったりの活動を見つけよう",
+  description:
+    "簡単な診断を通じて、あなたの特性に最も適したボランティア活動をご提案します",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="ja">
+      <body className={`${notoSansJP.variable} antialiased`}>{children}</body>
+    </html>
+  );
+}
+```
+
+**Step 2: ビルド確認**
+
+Run: `cd app && npm run build`
+Expected: ビルド成功
+
+**Step 3: コミット**
+
+```bash
+git add app/src/app/layout.tsx
+git commit -m "feat: layout.txsにNoto Sans JPフォントとメタデータを追加"
+```
+
+---
+
+### Task 2: globals.css にデザイントークンを追加
+
+**Files:**
+- Modify: `app/src/app/globals.css`
+
+**Step 1: globals.css を書き換え**
+
+ダークモードを削除し、Voluntyのカラーパレットをカスタムプロパティとして定義する。
+
+```css
+@import "tailwindcss";
+
+:root {
+  --background: #ffeee2;
+  --foreground: #6d2700;
+  --primary: #fb5b01;
+  --primary-dark: #c74700;
+  --text-dark: #6d2700;
+  --text-body: #8b4513;
+  --card-border: rgba(203, 71, 0, 0.2);
+  --header-border: rgba(203, 71, 0, 0.1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-text-dark: var(--text-dark);
+  --color-text-body: var(--text-body);
+  --color-card-border: var(--card-border);
+  --color-header-border: var(--header-border);
+  --font-sans: var(--font-noto-sans-jp);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+```
+
+**Step 2: ビルド確認**
+
+Run: `cd app && npm run build`
+Expected: ビルド成功
+
+**Step 3: コミット**
+
+```bash
+git add app/src/app/globals.css
+git commit -m "feat: globals.cssにVoluntyデザイントークンを追加"
+```
+
+---
+
+### Task 3: page.tsx にトップページを実装
+
+**Files:**
+- Modify: `app/src/app/page.tsx`
+
+**Step 1: page.tsx を書き換え**
+
+Figmaデザインに忠実にランディングページを実装する。5セクション構成:
+1. ヘッダー（ロゴ + ナビボタン）
+2. ヒーロー（タイトル + CTA）
+3. 特徴カード（3列）
+4. 診断の種類（2列比較）
+5. 利用の流れ（3ステップ）
+
+```tsx
 import Link from "next/link";
 import {
   Heart,
@@ -236,3 +375,44 @@ export default function Home() {
     </div>
   );
 }
+```
+
+**Step 2: lint確認**
+
+Run: `cd app && npm run lint`
+Expected: エラーなし
+
+**Step 3: ビルド確認**
+
+Run: `cd app && npm run build`
+Expected: ビルド成功
+
+**Step 4: コミット**
+
+```bash
+git add app/src/app/page.tsx
+git commit -m "feat: Figmaデザインに基づくトップページを実装"
+```
+
+---
+
+### Task 4: 目視確認とスナップショットテスト
+
+**Files:**
+- なし（手動確認）
+
+**Step 1: dev serverで目視確認**
+
+Run: `cd app && npm run dev`
+
+ブラウザで `http://localhost:3000` にアクセスし、以下を確認:
+- ヘッダーにロゴ・ボタンが表示される
+- ヒーローセクションにタイトル・CTAが表示される
+- 特徴カード3枚が横並び（デスクトップ）
+- 診断の種類カード2枚が横並び（デスクトップ）
+- 利用の流れ3ステップが表示される
+- モバイルサイズでレスポンシブ動作
+
+**Step 2: Figmaスクリーンショットと見比べて差異を確認**
+
+大きな差異があれば修正してコミット。

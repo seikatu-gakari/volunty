@@ -5,7 +5,13 @@
       "WebSearch",
       "WebFetch(domain:note.com)",
       "WebFetch(domain:www.anthropic.com)",
-      "Bash(npm run test:*)"
+      "Bash(npm run test:*)",
+      "Bash(wc:*)",
+      "mcp__plugin_figma_figma-desktop__get_design_context",
+      "mcp__plugin_figma_figma-desktop__get_screenshot",
+      "Bash(npm run lint)",
+      "Bash(cd:*)",
+      "Bash(node --version:*)"
     ]
   }
 }
