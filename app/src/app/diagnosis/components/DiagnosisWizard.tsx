@@ -52,7 +52,7 @@ export function DiagnosisWizard() {
           canGoBack={currentQuestionIndex > 0}
           currentStep={currentQuestionIndex + 1}
           totalSteps={BIG5_QUESTIONS.length}
-          onSkip={process.env.NODE_ENV === 'development' ? handleDebugFill : undefined}
+          onSkip={handleDebugFill}
         />
       </div>
     )
