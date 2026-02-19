@@ -52,19 +52,8 @@ export function DiagnosisWizard() {
           canGoBack={currentQuestionIndex > 0}
           currentStep={currentQuestionIndex + 1}
           totalSteps={BIG5_QUESTIONS.length}
+          onSkip={process.env.NODE_ENV === 'development' ? handleDebugFill : undefined}
         />
-
-        {/* 開発環境のみ表示するデバッグボタン */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-8 text-center">
-            <button
-              onClick={handleDebugFill}
-              className="text-xs text-gray-400 hover:text-gray-600 underline"
-            >
-              [Debug] 残りをランダム回答して完了させる
-            </button>
-          </div>
-        )}
       </div>
     )
   }

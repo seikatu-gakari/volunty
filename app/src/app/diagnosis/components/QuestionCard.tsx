@@ -8,6 +8,7 @@ interface QuestionCardProps {
   canGoBack: boolean
   currentStep: number
   totalSteps: number
+  onSkip?: () => void
 }
 
 export function QuestionCard({
@@ -16,7 +17,8 @@ export function QuestionCard({
   onBack,
   canGoBack,
   currentStep,
-  totalSteps
+  totalSteps,
+  onSkip
 }: QuestionCardProps) {
   return (
     <div className="w-full max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-lg">
@@ -56,7 +58,7 @@ export function QuestionCard({
         ))}
       </div>
 
-      <div className="mt-8 flex justify-start">
+      <div className="mt-8 flex justify-between items-center">
         <button
           onClick={onBack}
           disabled={!canGoBack}
@@ -68,6 +70,14 @@ export function QuestionCard({
         >
           ← Back
         </button>
+        {onSkip && (
+          <button
+            onClick={onSkip}
+            className="text-xs text-gray-400 hover:text-gray-600 underline px-2 py-1"
+          >
+            [Debug] 残りをランダム回答
+          </button>
+        )}
       </div>
     </div>
   )
