@@ -1,6 +1,5 @@
 'use client'
 
-import React from 'react'
 import { useMachine } from '@xstate/react'
 import { diagnosisMachine } from '@/lib/personality/machine'
 import { BIG5_QUESTIONS } from '@/lib/personality/constants'
