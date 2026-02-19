@@ -23,7 +23,7 @@ export default function Home() {
               <span className="text-lg font-medium leading-7 text-text-dark">
                 ボランティアマッチング
               </span>
-              <span className="text-xs leading-4 text-text-body">
+              <span className="hidden text-xs leading-4 text-text-body sm:block">
                 あなたにぴったりの活動を見つけよう
               </span>
             </div>
