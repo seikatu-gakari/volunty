@@ -57,6 +57,9 @@ XState machine が診断フローの single source of truth。DiagnosisWizard �
 ### Reference — `docs/reference/`
 - [`translation-table.md`](docs/reference/translation-table.md) — 用語対訳表
 
+### Development — `docs/`
+- [`branch-workflow.md`](docs/branch-workflow.md) — ブランチ運用・Vercelデプロイ・Claude Code Webフロー
+
 ### Quality — `docs/quality/`
 - [`status.md`](docs/quality/status.md) — ドメイン別品質グレーディング・ギャップ追跡
 
