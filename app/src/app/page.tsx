@@ -7,11 +7,15 @@ import {
   ArrowRight,
   Target,
   Users,
-  LogIn,
-  UserPlus,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { HeaderAuth } from "./components/HeaderAuth";
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* ヘッダー */}
@@ -28,22 +32,7 @@ export default function Home() {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-medium text-primary hover:bg-primary/5"
-            >
-              <LogIn className="size-4" />
-              ログイン
-            </Link>
-            <Link
-              href="/register"
-              className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark"
-            >
-              <UserPlus className="size-4" />
-              新規登録
-            </Link>
-          </div>
+          <HeaderAuth user={user} />
         </div>
       </header>
 
