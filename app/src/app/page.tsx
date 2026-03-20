@@ -12,10 +12,14 @@ import { createClient } from "@/lib/supabase/server";
 import { HeaderAuth } from "./components/HeaderAuth";
 
 export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // Supabase未設定・接続エラー時はログインなしで表示
+  }
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* ヘッダー */}
