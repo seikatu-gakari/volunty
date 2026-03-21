@@ -7,10 +7,12 @@ import Link from "next/link";
 export default function LoginPage() {
   const handleGoogleLogin = async () => {
     const supabase = createClient();
+    // 0.0.0.0 でアクセスした場合は localhost に補正（Supabase Redirect URLs との一致のため）
+    const origin = location.origin.replace("//0.0.0.0:", "//localhost:");
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${location.origin}/auth/callback`,
+        redirectTo: `${origin}/auth/callback`,
       },
     });
   };
