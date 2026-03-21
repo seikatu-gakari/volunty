@@ -1,0 +1,136 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Mail, Lock, X } from "lucide-react";
+import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { Input } from "@/app/components/ui/Input";
+import { Divider } from "@/app/components/ui/Divider";
+import { ProgressBar } from "@/app/components/ui/ProgressBar";
+import {
+  RoleTabSwitcher,
+  type AuthRole,
+} from "@/app/components/auth/RoleTabSwitcher";
+import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
+import { AuthFooter } from "@/app/components/auth/AuthFooter";
+
+export default function SignupPage() {
+  const router = useRouter();
+  const [role, setRole] = useState<AuthRole>("participant");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleGoogleSignup = async () => {
+    const supabase = createClient();
+    const origin = location.origin.replace("//0.0.0.0:", "//localhost:");
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${origin}/auth/callback`,
+      },
+    });
+  };
+
+  const handleEmailSignup = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      // 登録成功 — 確認メール送信済み、またはホームへリダイレクト
+      router.push("/");
+    } catch {
+      setError("登録中にエラーが発生しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-1 items-center justify-center px-4 py-12">
+      <Card className="relative w-full max-w-[640px]">
+        <CardHeader className="flex flex-row items-start justify-between">
+          <div className="flex w-full flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold tracking-tight text-text-dark">
+                新規登録
+              </h1>
+              <button
+                type="button"
+                onClick={() => router.push("/")}
+                className="flex size-10 cursor-pointer items-center justify-center rounded-lg text-text-body hover:bg-tab-bg hover:text-text-dark"
+                aria-label="閉じる"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <ProgressBar value={33} />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <RoleTabSwitcher role={role} onRoleChange={setRole} />
+
+          <GoogleAuthButton
+            label="Googleで登録"
+            onClick={handleGoogleSignup}
+          />
+
+          <Divider text="または" />
+
+          <form onSubmit={handleEmailSignup} className="flex flex-col gap-4">
+            <Input
+              label="メールアドレス"
+              icon={Mail}
+              type="email"
+              placeholder="volunteer@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+            <Input
+              label="パスワード"
+              icon={Lock}
+              type="password"
+              placeholder="パスワードを入力"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              showPasswordToggle
+              required
+              autoComplete="new-password"
+            />
+
+            {error && (
+              <p className="text-center text-sm text-red-600">{error}</p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "登録中..." : "次へ (詳細情報の入力)"}
+            </Button>
+          </form>
+
+          <AuthFooter
+            message="既にアカウントをお持ちですか？"
+            linkText="ログインはこちら"
+            linkHref="/login"
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

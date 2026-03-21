@@ -23,7 +23,7 @@ export function HeaderAuth({ user }: { user: User | null }) {
         </span>
         <button
           onClick={handleLogout}
-          className="flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-medium text-primary hover:bg-primary/5"
+          className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-primary hover:bg-primary/5"
         >
           <LogOut className="size-4" />
           ログアウト
@@ -36,14 +36,14 @@ export function HeaderAuth({ user }: { user: User | null }) {
     <div className="flex items-center gap-2">
       <Link
         href="/login"
-        className="flex h-9 items-center gap-2 rounded-lg px-4 text-sm font-medium text-primary hover:bg-primary/5"
+        className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-primary hover:bg-primary/5"
       >
         <LogIn className="size-4" />
         ログイン
       </Link>
       <Link
-        href="/login"
-        className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark"
+        href="/signup"
+        className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-white hover:bg-primary-dark"
       >
         <UserPlus className="size-4" />
         新規登録

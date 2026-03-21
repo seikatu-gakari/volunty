@@ -8,37 +8,13 @@ import {
   Target,
   Users,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { HeaderAuth } from "./components/HeaderAuth";
+import { Header } from "./components/Header";
 
 export default async function Home() {
-  let user = null;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch {
-    // Supabase未設定・接続エラー時はログインなしで表示
-  }
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* ヘッダー */}
-      <header className="sticky top-0 z-10 border-b border-header-border bg-background/60 backdrop-blur-sm">
-        <div className="mx-auto flex h-[77px] max-w-5xl items-center justify-between px-8 pt-4 pb-[1px]">
-          <div className="flex items-center gap-2">
-            <Heart className="size-8 text-primary" fill="#fb5b01" />
-            <div className="flex flex-col">
-              <span className="text-lg font-medium leading-7 text-text-dark">
-                ボランティアマッチング
-              </span>
-              <span className="hidden text-xs leading-4 text-text-body sm:block">
-                あなたにぴったりの活動を見つけよう
-              </span>
-            </div>
-          </div>
-          <HeaderAuth user={user} />
-        </div>
-      </header>
+      <Header />
 
       {/* メインコンテンツ */}
       <main className="mx-auto max-w-3xl px-6 pt-6">

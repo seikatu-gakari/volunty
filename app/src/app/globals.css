@@ -9,6 +9,9 @@
   --text-body: #8b4513;
   --card-border: rgba(203, 71, 0, 0.2);
   --header-border: rgba(203, 71, 0, 0.1);
+  --tab-bg: #f5dcc8;
+  --input-border: rgba(251, 91, 1, 0.3);
+  --divider-border: #f5dcc8;
 }
 
 @theme inline {
@@ -20,6 +23,9 @@
   --color-text-body: var(--text-body);
   --color-card-border: var(--card-border);
   --color-header-border: var(--header-border);
+  --color-tab-bg: var(--tab-bg);
+  --color-input-border: var(--input-border);
+  --color-divider-border: var(--divider-border);
   --font-sans: var(--font-noto-sans-jp);
 }
 
