@@ -20,7 +20,7 @@ export async function Header() {
           <Heart className="size-8 text-primary" fill="#fb5b01" />
           <div className="flex flex-col">
             <span className="text-lg font-medium leading-7 text-text-dark">
-              ボランティアマッチング
+              ボランティー
             </span>
             <span className="hidden text-xs leading-4 text-text-body sm:block">
               あなたにぴったりの活動を見つけよう
