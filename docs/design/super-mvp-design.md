@@ -148,7 +148,107 @@ Supabaseクエリを利用するServer Actionsを主要エンドポイントと�
 
 ---
 
-## 6. スコープ外（Phase 2以降へ見送り）
+## 6. 実装順序戦略
+
+### 6.1 方針: 基盤→縦スライス
+
+UI を全部先に作る／API を全部先に作る、いずれの水平分割も採用しない。
+
+- **UI先行のリスク**: 仮データで構築すると実際の DB 構造との乖離で手戻りが発生する
+- **API先行のリスク**: 動く画面がないため検証が遅れ、UI 接続時に設計ミスが発覚する
+
+**最適解は「共通基盤を固めた後、画面と API をセットで機能単位（縦スライス）に開発する」** こと。
+各フェーズの完了時点で動作するサブセットが得られ、インクリメンタルにテスト・検証できる。
+
+### 6.2 実装済み機能（着手前の現状）
+
+| ステータス | 機能 | 備考 |
+|:---:|------|------|
+| ✅ | BIG5 性格診断エンジン（50問 + XState） | P-3, P-4 テスト済み |
+| ✅ | 診断結果表示（10類型 + BIG5スコア） | ResultView |
+| ✅ | トップページ（LP） | Server Component |
+| ✅ | ログイン / サインアップ UI | Google OAuth ボタン含む |
+| ✅ | Supabase クライアント / サーバー設定 | client.ts, server.ts, middleware.ts |
+| ✅ | UI コンポーネント基盤 | Button, Card, Input, ProgressBar 等 |
+
+### 6.3 フェーズ別実装計画
+
+#### フェーズ 0: 基盤（全機能の前提条件）
+
+> **目的**: DB・認証・ルーティング保護を整備し、以降の全フェーズが動作する土台を作る。
+
+| # | タスク | 種別 | 成果物 |
+|---|--------|------|--------|
+| 0-1 | Supabase DB スキーマ構築 | DB | `users`, `participants`, `organizations`, `opportunities`, `applications` テーブル + RLS ポリシー |
+| 0-2 | OAuth コールバック実装 | API | `/auth/callback/route.ts`（認証後の `users` レコード作成含む） |
+| 0-3 | ロールベースミドルウェア | Auth | 未認証→`/login`、未登録→`/onboarding` へのリダイレクト制御 |
+
+**完了条件**: Google ログイン → `users` テーブルにレコード作成 → ロールに応じたリダイレクトが動作する。
+
+---
+
+#### フェーズ 1: 参加者フロー（縦スライス）
+
+> **目的**: アプリのコアバリュー（診断→マッチング→応募）を一気通貫で実装する。
+
+| # | タスク | 種別 | 成果物 |
+|---|--------|------|--------|
+| 1-1 | オンボーディング（ロール選択 → 参加者プロフィール登録） | UI + Server Action | `/onboarding/role`, `/onboarding/participant` + `registerParticipant()` |
+| 1-2 | 既存診断の DB 保存接続 | Server Action | `submitDiagnosis()` — 計算結果を `participants.diagnosis_type` / `diagnosis_scores` に保存 |
+| 1-3 | おすすめ案件一覧 | UI + Server Action | `/recommendations` + `fetchRecommendations()` — スコア距離順ソート |
+| 1-4 | 案件詳細 + 応募 | UI + Server Action | `/opportunities/:id` + `applyToOpportunity()` |
+
+**完了条件**: 参加者がログイン→プロフィール登録→診断→おすすめ案件閲覧→応募、の一連フローが動作する。
+
+> **備考**: フェーズ 1 のテスト時は団体・案件データをシードデータとして投入する。
+
+---
+
+#### フェーズ 2: 団体フロー（縦スライス）
+
+> **目的**: 団体側の案件管理と応募者管理を実装し、双方向のマッチングフローを完成させる。
+
+| # | タスク | 種別 | 成果物 |
+|---|--------|------|--------|
+| 2-1 | 団体オンボーディング + 審査待ち画面 | UI + Server Action | `/onboarding/organization`, `/onboarding/pending` + `registerOrganization()` |
+| 2-2 | ダッシュボード + 案件 CRUD | UI + Server Action | `/dashboard`, `/dashboard/opportunities/new`, `/dashboard/opportunities/:id/edit` + `createOpportunity()`, `updateOpportunity()`, `fetchMyOpportunities()` |
+| 2-3 | 応募者管理（承認 / 辞退） | UI + Server Action | `/dashboard/opportunities/:id` + `fetchApplicantsForOpportunity()`, `updateApplicationStatus()` |
+
+**完了条件**: 団体がログイン→登録→案件作成→応募者確認→承認/辞退、の一連フローが動作する。
+
+---
+
+#### フェーズ 3: 横断機能 + 仕上げ
+
+> **目的**: 両フロー統合後の横断的な機能実装と品質担保。
+
+| # | タスク | 種別 | 成果物 |
+|---|--------|------|--------|
+| 3-1 | マイページ | UI + Server Action | `/mypage` + `fetchMyApplications()` — 応募進捗・成立時の LINE ID 表示 |
+| 3-2 | 総合テスト + バグ修正 | QA | 全フロー結合テスト、エッジケース対応 |
+| 3-3 | Vercel デプロイ + 動作確認 | Infra | 本番環境での手動団体審査フロー含む動作確認 |
+
+**完了条件**: 参加者・団体の両フローが本番環境で正常に動作し、マッチング成立→連絡先開示まで完結する。
+
+### 6.4 依存関係図
+
+```text
+フェーズ 0（基盤: DB + Auth + Middleware）
+    │
+    ├──→ フェーズ 1（参加者フロー）
+    │        │
+    │        └──→ フェーズ 3（横断機能 + 仕上げ）
+    │                  ↑
+    └──→ フェーズ 2（団体フロー）──┘
+```
+
+- フェーズ 0 は全フェーズの前提条件（最優先で着手）
+- フェーズ 1・2 はフェーズ 0 完了後に着手可能（並行開発も可）
+- フェーズ 3 はフェーズ 1・2 の両方が完了してから着手
+
+---
+
+## 7. スコープ外（Phase 2以降へ見送り）
 - 管理専用UIの構築（団体の審査は Supabase Dashboard から `organizations.status` を手動変更する）
 - 参加者リストからのスカウト・アプローチ機能
 - 参加証明書の発行履歴管理
