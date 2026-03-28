@@ -10,7 +10,7 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "ボランティアマッチング | あなたにぴったりの活動を見つけよう",
+  title: "ボランティー | あなたにぴったりの活動を見つけよう",
   description:
     "簡単な診断を通じて、あなたの特性に最も適したボランティア活動をご提案します",
 };
