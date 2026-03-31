@@ -50,7 +50,7 @@ export default function SignupProfilePage() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: signupData.email,
         password,
         options: {
@@ -66,9 +66,16 @@ export default function SignupProfilePage() {
         return;
       }
 
-      // 一時データを削除して登録完了 → ホームへ
+      // 一時データを削除
       sessionStorage.removeItem(SIGNUP_TEMP_KEY);
-      router.push("/");
+
+      if (data?.session) {
+        // メール確認不要の場合: セッション確立済み → フルリロードでホームへ
+        window.location.href = "/";
+      } else {
+        // メール確認が必要な場合: 確認メール送信済みページへ
+        router.push("/signup/complete");
+      }
     } catch {
       setError("登録中にエラーが発生しました");
     } finally {
