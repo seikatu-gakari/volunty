@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Mail, Lock, X } from "lucide-react";
+import { Mail, X } from "lucide-react";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
@@ -16,11 +16,13 @@ import {
 import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { AuthFooter } from "@/app/components/auth/AuthFooter";
 
+/** Step 1 で一時保存するキー（パスワード以外の情報のみ） */
+export const SIGNUP_TEMP_KEY = "volunty_signup_temp";
+
 export default function SignupPage() {
   const router = useRouter();
   const [role, setRole] = useState<AuthRole>("participant");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,33 +32,25 @@ export default function SignupPage() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback`,
+        redirectTo: `${origin}/auth/callback?next=/signup/profile`,
       },
     });
   };
 
-  const handleEmailSignup = async (e: FormEvent) => {
+  const handleNext = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) {
-        setError(error.message);
-        return;
-      }
-
-      // 登録成功 — 確認メール送信済み、またはホームへリダイレクト
-      router.push("/");
+      // メールアドレスとロールのみを一時保存（パスワードは次のステップで入力）
+      sessionStorage.setItem(
+        SIGNUP_TEMP_KEY,
+        JSON.stringify({ email, role })
+      );
+      router.push("/signup/profile");
     } catch {
-      setError("登録中にエラーが発生しました");
-    } finally {
+      setError("ページ遷移中にエラーが発生しました");
       setLoading(false);
     }
   };
@@ -92,7 +86,7 @@ export default function SignupPage() {
 
           <Divider text="または" />
 
-          <form onSubmit={handleEmailSignup} className="flex flex-col gap-4">
+          <form onSubmit={handleNext} className="flex flex-col gap-4">
             <Input
               label="メールアドレス"
               icon={Mail}
@@ -103,24 +97,13 @@ export default function SignupPage() {
               required
               autoComplete="email"
             />
-            <Input
-              label="パスワード"
-              icon={Lock}
-              type="password"
-              placeholder="パスワードを入力"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              showPasswordToggle
-              required
-              autoComplete="new-password"
-            />
 
             {error && (
               <p className="text-center text-sm text-red-600">{error}</p>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "登録中..." : "次へ (詳細情報の入力)"}
+              {loading ? "処理中..." : "次へ (詳細情報の入力)"}
             </Button>
           </form>
 
