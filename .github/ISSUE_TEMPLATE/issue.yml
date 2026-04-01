@@ -1,0 +1,68 @@
+name: "📝 Issue"
+description: "機能追加・バグ報告・タスクなど、すべてのIssueに使用"
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: 種別
+      options:
+        - "✨ 機能追加"
+        - "🐛 バグ修正"
+        - "📋 タスク（リファクタ・設定・ドキュメント等）"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: カテゴリ
+      options:
+        - 性格診断（BIG5）
+        - マッチング
+        - 認証・オンボーディング
+        - 参加者向け機能
+        - 団体向け機能
+        - UI/UX
+        - API
+        - インフラ・デプロイ
+        - その他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      options:
+        - "高（Super MVP に必須）"
+        - "中（MVP に必要）"
+        - "低（将来的に対応）"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 概要
+      description: |
+        - 機能追加：追加したい機能と背景
+        - バグ：発生している問題と再現手順
+        - タスク：作業内容の説明
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: 完了条件
+      description: この Issue が完了したとみなす条件を記載してください
+      placeholder: |
+        - [ ] 〇〇ができる
+        - [ ] テストが追加・通過している
+        - [ ] lint / build が通る
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 備考
+      description: 関連する設計書・スクリーンショット・参考リンクなどがあれば記載してください

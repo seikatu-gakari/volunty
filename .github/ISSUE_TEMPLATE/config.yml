@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "📖 設計ドキュメント"
+    url: https://github.com/YOUR_ORG/volunty/tree/main/docs
+    about: "設計書・仕様書はこちらを参照してください"
