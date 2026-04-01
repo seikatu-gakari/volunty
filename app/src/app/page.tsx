@@ -9,15 +9,29 @@ import {
   Users,
 } from "lucide-react";
 import { Header } from "./components/Header";
+import { AuthenticatedHome } from "./components/AuthenticatedHome";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
+  let user = null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // Supabase未設定・接続エラー時はログインなしで表示
+  }
+
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* ヘッダー */}
       <Header />
 
-      {/* メインコンテンツ */}
-      <main className="mx-auto max-w-3xl px-6 pt-6">
+      {/* 認証済みユーザーは専用ホーム画面を表示 */}
+      {user && <AuthenticatedHome user={user} />}
+
+      {/* 未ログインユーザー向けランディングページ */}
+      {!user && <main className="mx-auto max-w-3xl px-6 pt-6">
         {/* ヒーローセクション */}
         <section className="flex flex-col items-center gap-6 py-12">
           <div className="relative">
@@ -201,7 +215,7 @@ export default async function Home() {
             ))}
           </div>
         </section>
-      </main>
+      </main>}
     </div>
   );
 }
