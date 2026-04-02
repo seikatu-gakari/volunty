@@ -20,8 +20,11 @@ export default async function RecommendationsPage() {
     const supabase = await createClient()
     const { data } = await supabase.auth.getUser()
     user = data.user
-  } catch {
+  } catch (err) {
     // Supabase未設定・接続エラー時は未ログインとして扱う
+    if (process.env.NODE_ENV === "development") {
+      console.error("[RecommendationsPage] Supabase接続エラー:", err)
+    }
   }
 
   if (!user) {

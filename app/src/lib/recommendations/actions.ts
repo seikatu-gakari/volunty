@@ -112,7 +112,10 @@ export async function fetchRecommendations(): Promise<RecommendationResult> {
       .sort((a, b) => b.matchScore - a.matchScore)
 
     return { recommendations, hasCompletedDiagnosis: true }
-  } catch {
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[fetchRecommendations] 予期しないエラー:", err)
+    }
     return { recommendations: [], hasCompletedDiagnosis: false }
   }
 }
