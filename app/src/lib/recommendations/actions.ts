@@ -92,23 +92,29 @@ export async function fetchRecommendations(): Promise<RecommendationResult> {
       title: string
       description: string | null
       required_traits: Record<string, unknown> | null
-      organizations: { name: string } | null
+      organizations: { name: string }[] | { name: string } | null
     }
 
     // マッチングスコアを計算してソート
     const recommendations: OpportunityRecommendation[] = (
-      opportunities as OpportunityRow[]
+      opportunities as unknown as OpportunityRow[]
     )
-      .map((opp) => ({
-        id: opp.id,
-        title: opp.title,
-        description: opp.description,
-        organizationName: opp.organizations?.name ?? "不明",
-        matchScore: calculateMatchScore(
-          rawScores,
-          toPartialBIG5Scores(opp.required_traits ?? {})
-        ),
-      }))
+      .map((opp) => {
+        // Supabaseのリレーションは配列または単一オブジェクトで返る場合がある
+        const org = Array.isArray(opp.organizations)
+          ? opp.organizations[0]
+          : opp.organizations
+        return {
+          id: opp.id,
+          title: opp.title,
+          description: opp.description,
+          organizationName: org?.name ?? "不明",
+          matchScore: calculateMatchScore(
+            rawScores,
+            toPartialBIG5Scores(opp.required_traits ?? {})
+          ),
+        }
+      })
       .sort((a, b) => b.matchScore - a.matchScore)
 
     return { recommendations, hasCompletedDiagnosis: true }
