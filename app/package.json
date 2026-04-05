@@ -19,12 +19,14 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.98.0",
     "@xstate/react": "^6.0.0",
     "lucide-react": "^0.554.0",
     "next": "^16.1.6",
+    "pg": "^8.20.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "xstate": "^5.24.0"
@@ -34,6 +36,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4.7.0",
