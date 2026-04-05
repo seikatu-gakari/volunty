@@ -1,0 +1,228 @@
+// Volunty — Prisma スキーマ定義
+// database-design.md に準拠。テーブル命名規則: マスタ系 m_xxx / トランザクション系 t_xxx
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// Enums
+// ============================================
+
+/// ユーザーロール
+enum UserRole {
+  participant // ボランティア参加者
+  organization // 募集団体
+  admin // 管理者
+
+  @@map("user_role")
+}
+
+/// 募集案件ステータス
+enum OpportunityStatus {
+  draft // 下書き
+  published // 公開中
+  closed // 締切済み
+
+  @@map("opportunity_status")
+}
+
+/// マッチング（応募）ステータス
+enum MatchingStatus {
+  queued // キュー待ち（レコメンド生成済み）
+  applied // 応募済み
+  accepted // 承認済み
+  declined // 辞退・不採用
+  completed // 完了
+
+  @@map("matching_status")
+}
+
+/// マッチング手法
+enum MatchingMethod {
+  rule_based    @map("rule-based") // ルールベース
+  collaborative // 協調フィルタリング
+  ai_enhanced   @map("ai-enhanced") // AI強化
+  hybrid // ハイブリッド
+
+  @@map("matching_method")
+}
+
+// ============================================
+// マスタテーブル（m_ プレフィックス）
+// ============================================
+
+/// ユーザー — Supabase Auth と連携
+/// id は auth.users.id と一致させる（トリガーで自動作成）
+model User {
+  id          String    @id @db.Uuid
+  role        UserRole  @default(participant)
+  email       String?   @db.VarChar(255)
+  name        String?   @db.VarChar(100)
+  avatarUrl   String?   @map("avatar_url")
+  isActive    Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // リレーション
+  participantProfile  ParticipantProfile?
+  organizationProfile OrganizationProfile?
+  diagnosisResults    DiagnosisResult[]
+  matchingCandidates  MatchingCandidate[]
+
+  @@index([email])
+  @@index([role])
+  @@map("m_user")
+}
+
+/// 参加者プロフィール — ボランティア参加希望者の詳細情報
+model ParticipantProfile {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  bio               String?  @db.Text
+  interests         Json? // 興味分野 ["環境保全", "子ども支援"]
+  availability      Json? // {"weekdays": ["土", "日"], "time": "午前"}
+  preferredLocation String?  @map("preferred_location") @db.VarChar(100)
+  publicProfile     Boolean  @default(true) @map("public_profile")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // リレーション
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([preferredLocation])
+  @@map("m_participant_profile")
+}
+
+/// 団体プロフィール — ボランティア募集団体の情報
+model OrganizationProfile {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+  organizationName   String   @map("organization_name") @db.VarChar(255)
+  description        String?  @db.Text
+  contactLineId      String?  @map("contact_line_id") @db.VarChar(100)
+  contactLineUrl     String?  @map("contact_line_url")
+  websiteUrl         String?  @map("website_url")
+  representativeName String?  @map("representative_name") @db.VarChar(100)
+  activityAreas      Json?    @map("activity_areas") // ["渋谷区", "世田谷区"]
+  verified           Boolean  @default(false)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // リレーション
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@index([verified])
+  @@index([organizationName])
+  @@map("m_organization_profile")
+}
+
+/// 人物タイプマスタ — BIG5 から判定される10人物タイプの定義
+model PersonalityType {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  typeId             String   @unique @map("type_id") @db.VarChar(50)
+  nameJa             String   @map("name_ja") @db.VarChar(100)
+  nameEn             String   @map("name_en") @db.VarChar(100)
+  description        String?  @db.Text
+  criteria           Json // {"extraversion": {"min": 75}, ...}
+  priority           Int
+  strengths          Json? // ["プロジェクトリーダー", "企画立案"]
+  suitableActivities Json?    @map("suitable_activities") // ["イベント統括", ...]
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // リレーション
+  diagnosisResults DiagnosisResult[]
+
+  @@index([priority])
+  @@map("m_personality_type")
+}
+
+/// 募集案件 — 団体が投稿するボランティア募集情報
+model Opportunity {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String            @map("organization_id") @db.Uuid
+  title             String            @db.VarChar(255)
+  description       String?           @db.Text
+  requirementTraits Json?             @map("requirement_traits") // 求める性格特性
+  location          String?           @db.VarChar(255)
+  startDate         DateTime?         @map("start_date") @db.Date
+  endDate           DateTime?         @map("end_date") @db.Date
+  capacity          Int?
+  currentApplicants Int               @default(0) @map("current_applicants")
+  status            OpportunityStatus @default(draft)
+  publishedAt       DateTime?         @map("published_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  // リレーション
+  organization       OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  matchingCandidates MatchingCandidate[]
+
+  @@index([status])
+  @@index([publishedAt])
+  @@index([organizationId])
+  @@map("m_opportunity")
+}
+
+// ============================================
+// トランザクションテーブル（t_ プレフィックス）
+// ============================================
+
+/// 診断結果 — 参加者の BIG5 診断結果と判定された人物タイプ
+model DiagnosisResult {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  personalityTypeId   String?  @map("personality_type_id") @db.Uuid
+  big5Scores          Json     @map("big5_scores") // {"extraversion": 85, "agreeableness": 70, ...}
+  closestTypeDistance Float?   @map("closest_type_distance")
+  concludedAt         DateTime @default(now()) @map("concluded_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  // リレーション
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personalityType    PersonalityType?    @relation(fields: [personalityTypeId], references: [id], onDelete: SetNull)
+  matchingCandidates MatchingCandidate[]
+
+  @@index([userId])
+  @@index([personalityTypeId])
+  @@index([concludedAt])
+  @@map("t_diagnosis_result")
+}
+
+/// マッチング候補 — 参加者と募集案件のマッチング・応募状態を管理
+model MatchingCandidate {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  participantId     String         @map("participant_id") @db.Uuid
+  opportunityId     String         @map("opportunity_id") @db.Uuid
+  diagnosisResultId String?        @map("diagnosis_result_id") @db.Uuid
+  matchScore        Float          @map("match_score")
+  scoreBreakdown    Json?          @map("score_breakdown") // {"ruleBasedScore": 75, ...}
+  status            MatchingStatus @default(queued)
+  method            MatchingMethod @default(rule_based)
+  message           String?        @db.Text // 応募メッセージ
+  appliedAt         DateTime?      @map("applied_at")
+  statusChangedAt   DateTime       @default(now()) @map("status_changed_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  // リレーション
+  participant     User             @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  opportunity     Opportunity      @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  diagnosisResult DiagnosisResult? @relation(fields: [diagnosisResultId], references: [id], onDelete: SetNull)
+
+  @@unique([participantId, opportunityId])
+  @@index([status])
+  @@index([participantId])
+  @@index([opportunityId])
+  @@index([matchScore(sort: Desc)])
+  @@map("t_matching_candidate")
+}
