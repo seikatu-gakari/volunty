@@ -1,6 +1,7 @@
 import React from 'react'
 import { Question } from '@/lib/personality/types'
 import { ArrowLeft } from 'lucide-react'
+import { Card } from '@/app/components/ui/Card'
 
 interface QuestionCardProps {
   question: Question
@@ -22,14 +23,14 @@ export function QuestionCard({
   const progress = Math.round((currentStep / totalSteps) * 100)
 
   return (
-    <div className="rounded-[10px] border border-card-border bg-white p-6 shadow-sm">
+    <Card className="p-6">
       {/* プログレスバー */}
       <div className="mb-8">
         <div className="mb-2 flex justify-between text-sm text-text-body">
           <span>質問 {currentStep} / {totalSteps}</span>
           <span>{progress}%</span>
         </div>
-        <div className="h-3 w-full overflow-hidden rounded-full bg-primary/20">
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-primary/20">
           <div
             className="h-full rounded-full bg-primary transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -77,6 +78,6 @@ export function QuestionCard({
           戻る
         </button>
       </div>
-    </div>
+    </Card>
   )
 }

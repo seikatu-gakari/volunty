@@ -5,6 +5,7 @@ import { diagnosisMachine } from '@/lib/personality/machine'
 import { BIG5_QUESTIONS } from '@/lib/personality/constants'
 import { QuestionCard } from './QuestionCard'
 import { ResultView } from './ResultView'
+import { Card, CardContent } from '@/app/components/ui/Card'
 import { Loader2, Sparkles } from 'lucide-react'
 
 export function DiagnosisWizard() {
@@ -24,26 +25,28 @@ export function DiagnosisWizard() {
 
   if (state.matches('idle')) {
     return (
-      <div className="flex flex-col items-center gap-6 rounded-[10px] border border-card-border bg-white px-8 py-12 text-center shadow-sm">
-        <Sparkles className="size-16 text-primary" />
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold text-text-dark">
-            ボランティア性格診断
-          </h1>
-          <p className="text-sm leading-6 text-text-body">
-            あなたの性格特性を分析し、最適なボランティア活動を提案します。
-            <br />
-            全50問、所要時間は約5分です。
-          </p>
-        </div>
-        <button
-          onClick={() => send({ type: 'START' })}
-          className="flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-medium text-white hover:bg-primary-dark"
-        >
-          <Sparkles className="size-5" />
-          診断を開始する
-        </button>
-      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
+          <Sparkles className="size-16 text-primary" />
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-bold text-text-dark">
+              ボランティア性格診断
+            </h1>
+            <p className="text-sm leading-6 text-text-body">
+              あなたの性格特性を分析し、最適なボランティア活動を提案します。
+              <br />
+              全50問、所要時間は約5分です。
+            </p>
+          </div>
+          <button
+            onClick={() => send({ type: 'START' })}
+            className="flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-medium text-white hover:bg-primary-dark"
+          >
+            <Sparkles className="size-5" />
+            診断を開始する
+          </button>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -76,10 +79,12 @@ export function DiagnosisWizard() {
 
   if (state.matches('calculating')) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 rounded-[10px] border border-card-border bg-white px-8 py-24 shadow-sm">
-        <Loader2 className="size-16 animate-spin text-primary" />
-        <p className="text-lg text-text-body">診断結果を計算中...</p>
-      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center gap-4 py-24">
+          <Loader2 className="size-16 animate-spin text-primary" />
+          <p className="text-lg text-text-body">診断結果を計算中...</p>
+        </CardContent>
+      </Card>
     )
   }
 

@@ -23,7 +23,7 @@ function ScoreBar({
         <span className="text-sm font-medium text-text-body">{label}</span>
         <span className="text-sm font-bold text-text-dark">{score}%</span>
       </div>
-      <div className="h-2.5 w-full rounded-full bg-primary/10">
+      <div className="h-2.5 w-full rounded-full bg-primary/20">
         <div
           className={`h-2.5 rounded-full ${color}`}
           style={{ width: `${score}%` }}
@@ -68,7 +68,7 @@ function ScoreSection({ scores }: { scores: BIG5Scores }) {
             color="bg-purple-500"
           />
         </div>
-        <div className="rounded-lg bg-background p-4 text-xs text-text-body">
+        <div className="mt-6 rounded-lg bg-background p-4 text-xs text-text-body">
           <p>※ スコアは0-100で表示されています。</p>
           <p>
             ※ 神経症傾向は数値が高いほど「敏感・繊細」であることを示します。
