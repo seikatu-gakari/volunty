@@ -24,10 +24,7 @@ vi.mock("@/lib/supabase/server", () => ({
       update: (data: unknown) => {
         mockUpdate(data);
         return {
-          eq: (...args: unknown[]) => {
-            mockEq(...args);
-            return mockEq();
-          },
+          eq: (...args: unknown[]) => mockEq(...args),
         };
       },
     }),
