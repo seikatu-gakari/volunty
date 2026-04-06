@@ -22,3 +22,9 @@ export interface DiagnosisResultData {
   /** 完全一致か近似一致か */
   isExactMatch: boolean;
 }
+
+/** submitDiagnosis の戻り値 */
+export interface SubmitDiagnosisResult {
+  success: boolean;
+  error?: string;
+}

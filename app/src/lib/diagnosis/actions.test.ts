@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
 const mockSingle = vi.fn();
+const mockUpdateEq = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -15,12 +16,15 @@ vi.mock("@/lib/supabase/server", () => ({
           single: () => mockSingle(),
         }),
       }),
+      update: () => ({
+        eq: () => mockUpdateEq(),
+      }),
     }),
   }),
 }));
 
 // "use server" ディレクティブを含むモジュールの動的インポート
-const { fetchDiagnosisResult } = await import("./actions");
+const { fetchDiagnosisResult, submitDiagnosis } = await import("./actions");
 
 describe("fetchDiagnosisResult", () => {
   beforeEach(() => {
@@ -171,5 +175,89 @@ describe("fetchDiagnosisResult", () => {
     const result = await fetchDiagnosisResult();
 
     expect(result).toBeNull();
+  });
+});
+
+// submitDiagnosis テスト用のダミー回答データ（50問分）
+function createMockAnswers() {
+  const traits = ["e", "a", "c", "n", "o"];
+  return traits.flatMap((prefix) =>
+    Array.from({ length: 10 }, (_, i) => ({
+      questionId: `${prefix}${i + 1}`,
+      value: 3,
+      timestamp: new Date().toISOString(),
+    }))
+  );
+}
+
+describe("submitDiagnosis", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("未認証の場合、エラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: null },
+      error: { message: "Not authenticated" },
+    });
+
+    const result = await submitDiagnosis(createMockAnswers());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("ログインが必要です");
+  });
+
+  it("参加者レコードが存在しない場合、エラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockSingle.mockReturnValue({ data: null });
+
+    const result = await submitDiagnosis(createMockAnswers());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("参加者登録が必要です");
+  });
+
+  it("正常に診断結果を保存できる場合、success: true を返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockSingle.mockReturnValue({ data: { id: "user-123" } });
+    mockUpdateEq.mockReturnValue({ error: null });
+
+    const result = await submitDiagnosis(createMockAnswers());
+
+    expect(result.success).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("DB 更新エラーの場合、エラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockSingle.mockReturnValue({ data: { id: "user-123" } });
+    mockUpdateEq.mockReturnValue({
+      error: { message: "Update failed" },
+    });
+
+    const result = await submitDiagnosis(createMockAnswers());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("診断結果の保存に失敗しました");
+  });
+
+  it("予期しない例外が発生した場合、エラーを返す", async () => {
+    mockGetUser.mockImplementation(() => {
+      throw new Error("Connection refused");
+    });
+
+    const result = await submitDiagnosis(createMockAnswers());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("予期しないエラーが発生しました");
   });
 });

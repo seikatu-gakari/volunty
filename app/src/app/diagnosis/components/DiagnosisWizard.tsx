@@ -1,22 +1,67 @@
 'use client'
 
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useMachine } from '@xstate/react'
 import { diagnosisMachine } from '@/lib/personality/machine'
 import { BIG5_QUESTIONS } from '@/lib/personality/constants'
+import { submitDiagnosis } from '@/lib/diagnosis/actions'
 import { QuestionCard } from './QuestionCard'
 import { ResultView } from './ResultView'
 import { Card, CardContent } from '@/app/components/ui/Card'
 import { Loader2, Sparkles } from 'lucide-react'
 
 export function DiagnosisWizard() {
+  const router = useRouter()
   const [state, send] = useMachine(diagnosisMachine)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const savingRef = useRef(false)
 
   const currentQuestionIndex = state.context.currentQuestionIndex
   const currentQuestion = BIG5_QUESTIONS[currentQuestionIndex]
 
+  // 診断完了時に結果を DB に保存し、結果ページへ遷移
+  useEffect(() => {
+    if (!state.matches('completed') || !state.context.result) return
+    if (savingRef.current) return
+    savingRef.current = true
+
+    submitDiagnosis(state.context.answers)
+      .then((res) => {
+        if (res.success) {
+          router.push('/diagnosis/result')
+        } else {
+          setSaveError(res.error ?? '保存に失敗しました')
+          savingRef.current = false
+        }
+      })
+      .catch(() => {
+        setSaveError('予期しないエラーが発生しました')
+        savingRef.current = false
+      })
+  }, [state, router])
+
+  // 保存リトライ
+  const handleRetry = () => {
+    setSaveError(null)
+    savingRef.current = true
+    submitDiagnosis(state.context.answers)
+      .then((res) => {
+        if (res.success) {
+          router.push('/diagnosis/result')
+        } else {
+          setSaveError(res.error ?? '保存に失敗しました')
+          savingRef.current = false
+        }
+      })
+      .catch(() => {
+        setSaveError('予期しないエラーが発生しました')
+        savingRef.current = false
+      })
+  }
+
   // デバッグ用：ランダム回答機能
   const handleDebugFill = () => {
-    // 現在の質問から最後までランダムに回答
     const remainingQuestions = BIG5_QUESTIONS.slice(currentQuestionIndex)
     remainingQuestions.forEach(() => {
       send({ type: 'ANSWER', value: Math.floor(Math.random() * 5) + 1 })
@@ -77,23 +122,44 @@ export function DiagnosisWizard() {
     )
   }
 
-  if (state.matches('calculating')) {
+  // 計算中 or 保存中（完了後エラーなし = 保存進行中）
+  if (state.matches('calculating') || (state.matches('completed') && !saveError)) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center gap-4 py-24">
           <Loader2 className="size-16 animate-spin text-primary" />
-          <p className="text-lg text-text-body">診断結果を計算中...</p>
+          <p className="text-lg text-text-body">
+            {state.matches('calculating') ? '診断結果を計算中...' : '診断結果を保存中...'}
+          </p>
         </CardContent>
       </Card>
     )
   }
 
-  if (state.matches('completed') && state.context.result) {
+  // 保存エラー時は結果表示 + エラーメッセージ
+  if (state.matches('completed') && state.context.result && saveError) {
     return (
-      <ResultView
-        result={state.context.result}
-        onReset={() => send({ type: 'RESET' })}
-      />
+      <div>
+        <Card className="mb-6">
+          <CardContent className="py-4 text-center">
+            <p className="text-sm text-red-600">{saveError}</p>
+            <button
+              onClick={handleRetry}
+              className="mt-2 text-sm font-medium text-primary underline hover:text-primary-dark"
+            >
+              再試行する
+            </button>
+          </CardContent>
+        </Card>
+        <ResultView
+          result={state.context.result}
+          onReset={() => {
+            savingRef.current = false
+            setSaveError(null)
+            send({ type: 'RESET' })
+          }}
+        />
+      </div>
     )
   }
 
