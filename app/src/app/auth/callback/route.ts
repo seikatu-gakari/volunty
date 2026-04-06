@@ -12,6 +12,27 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // 新規ユーザーの場合はオンボーディングへリダイレクト
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data: userData } = await supabase
+            .from("users")
+            .select("role")
+            .eq("id", user.id)
+            .single();
+
+          if (!userData?.role) {
+            return NextResponse.redirect(`${origin}/onboarding/role`);
+          }
+        }
+      } catch {
+        // DB エラー時は通常フローへ（グレースフルデグラデーション）
+      }
+
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
