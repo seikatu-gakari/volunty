@@ -21,7 +21,7 @@ export function ParticipantProfileForm() {
     setLoading(true);
 
     try {
-      const result = await registerParticipant({ name, region });
+      const result = await registerParticipant({ name, region: region || undefined });
 
       if (!result.success) {
         setError(result.error ?? "登録に失敗しました");
