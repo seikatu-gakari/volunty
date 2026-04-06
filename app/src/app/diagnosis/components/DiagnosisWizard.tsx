@@ -20,7 +20,7 @@ export function DiagnosisWizard() {
   const currentQuestionIndex = state.context.currentQuestionIndex
   const currentQuestion = BIG5_QUESTIONS[currentQuestionIndex]
 
-  // 診断完了時に結果を DB に保存し、結果ページへ遷移
+  // 診断完了時に自動保存（同期的な setState なし）
   useEffect(() => {
     if (!state.matches('completed') || !state.context.result) return
     if (savingRef.current) return

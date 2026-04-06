@@ -11,40 +11,42 @@ import { DiagnosisWizard } from "./components/DiagnosisWizard";
  * - ロール = participant のみ（参加者レコードが存在すること）
  */
 export default async function DiagnosisPage() {
-  // 認証チェック
   let user = null;
+
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
     user = data.user;
-
-    if (!user) {
-      redirect("/login");
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[DiagnosisPage] Supabase接続エラー:", err);
     }
+  }
 
-    // 参加者ロールチェック
+  // 認証チェック（redirect は try/catch の外で呼び出す）
+  if (!user) {
+    redirect("/login");
+  }
+
+  // 参加者ロールチェック
+  let isParticipant = false;
+  try {
+    const supabase = await createClient();
     const { data: participant } = await supabase
       .from("participants")
       .select("id")
       .eq("id", user.id)
       .single();
 
-    if (!participant) {
-      redirect("/");
-    }
+    isParticipant = !!participant;
   } catch (err) {
-    // redirect() は内部で例外をスローするため、それ以外のエラーのみ処理
-    if (
-      err instanceof Error &&
-      (err.message === "NEXT_REDIRECT" ||
-        "digest" in err)
-    ) {
-      throw err;
-    }
     if (process.env.NODE_ENV === "development") {
-      console.error("[DiagnosisPage] エラー:", err);
+      console.error("[DiagnosisPage] 参加者チェックエラー:", err);
     }
-    redirect("/login");
+  }
+
+  if (!isParticipant) {
+    redirect("/");
   }
 
   return (
