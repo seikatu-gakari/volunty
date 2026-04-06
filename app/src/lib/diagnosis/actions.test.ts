@@ -90,7 +90,26 @@ describe("fetchDiagnosisResult", () => {
     expect(result).not.toBeNull();
     expect(result!.isExactMatch).toBe(true);
     expect(result!.personalityType.id).toBe("innovator-leader");
+    expect(result!.personalityType.name).toBe("イノベーター・リーダータイプ");
+    expect(result!.personalityType.nameEn).toBe("Innovator Leader");
+    expect(result!.personalityType.description).toBeTruthy();
+    expect(result!.personalityType.strengths.length).toBeGreaterThan(0);
+    expect(result!.personalityType.suitableActivities.length).toBeGreaterThan(0);
     expect(result!.scores.extraversion).toBe(85);
+  });
+
+  it("DB クエリ中に例外が発生した場合、null を返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockSingle.mockImplementation(() => {
+      throw new Error("Database query error");
+    });
+
+    const result = await fetchDiagnosisResult();
+
+    expect(result).toBeNull();
   });
 
   it("diagnosis_type が不明な場合、近似一致のタイプを返す", async () => {
