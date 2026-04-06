@@ -36,8 +36,11 @@ export default async function OnboardingRolePage() {
       const rawRole = (userData as UserData | null)?.role;
       existingRole = typeof rawRole === "string" ? rawRole : null;
     }
-  } catch {
+  } catch (err) {
     // Supabase 未設定時はページを表示（開発環境対応）
+    if (process.env.NODE_ENV === "development") {
+      console.error("[OnboardingRolePage] Supabase error:", err);
+    }
   }
 
   if (!isAuthenticated) {
