@@ -4,7 +4,7 @@ import { Header } from "@/app/components/Header";
 import { RoleSelectView } from "./RoleSelectView";
 
 /** users テーブルから取得するロール情報 */
-type UserData = { role: string | null };
+type UserData = { role: unknown };
 
 /**
  * /onboarding/role — ロール選択ページ
@@ -33,7 +33,8 @@ export default async function OnboardingRolePage() {
         .eq("id", user.id)
         .single();
 
-      existingRole = (userData as UserData | null)?.role ?? null;
+      const rawRole = (userData as UserData | null)?.role;
+      existingRole = typeof rawRole === "string" ? rawRole : null;
     }
   } catch {
     // Supabase 未設定時はページを表示（開発環境対応）

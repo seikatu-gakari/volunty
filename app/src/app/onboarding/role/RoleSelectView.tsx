@@ -25,7 +25,7 @@ export function RoleSelectView() {
         setError(result.error);
       }
     } catch {
-      // redirect() は内部的に例外をスローするため、ここでは何もしない
+      setError("予期しないエラーが発生しました");
     } finally {
       setLoading(null);
     }
