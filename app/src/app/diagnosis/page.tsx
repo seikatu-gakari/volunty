@@ -1,12 +1,13 @@
-import React from 'react'
-import { DiagnosisWizard } from './components/DiagnosisWizard'
+import { Header } from "@/app/components/Header";
+import { DiagnosisWizard } from "./components/DiagnosisWizard";
 
 export default function DiagnosisPage() {
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen bg-background font-sans">
+      <Header />
+      <main className="mx-auto max-w-3xl px-6 py-10">
         <DiagnosisWizard />
-      </div>
-    </main>
-  )
+      </main>
+    </div>
+  );
 }
