@@ -99,8 +99,11 @@ export async function createOpportunity(
   }
 
   // フォームデータの取得
-  const title = (formData.get("title") as string)?.trim();
-  const description = (formData.get("description") as string)?.trim();
+  const rawTitle = formData.get("title");
+  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
+  const rawDescription = formData.get("description");
+  const description =
+    typeof rawDescription === "string" ? rawDescription.trim() : "";
 
   // バリデーション
   if (!title) {

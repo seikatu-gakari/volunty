@@ -71,7 +71,7 @@ export function OpportunityForm() {
   };
 
   return (
-    <Card className="w-full max-w-2xl">
+    <Card className="w-full">
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
@@ -140,7 +140,7 @@ export function OpportunityForm() {
                       id={`enable_${trait.key}`}
                       checked={enabledTraits[trait.key]}
                       onChange={() => handleTraitToggle(trait.key)}
-                      className="size-4 accent-primary"
+                      className="size-4 accent-primary focus:ring-2 focus:ring-primary/50"
                     />
                     <label
                       htmlFor={`enable_${trait.key}`}
@@ -166,6 +166,7 @@ export function OpportunityForm() {
                         onChange={(e) =>
                           handleTraitChange(trait.key, Number(e.target.value))
                         }
+                        aria-label={`${trait.label}のスコア`}
                         className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-card-border accent-primary"
                       />
                       <span className="text-xs text-text-body">100</span>
