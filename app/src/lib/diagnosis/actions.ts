@@ -1,10 +1,13 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { BIG5Scores } from "@/lib/personality/types";
+import type { BIG5Scores, QuestionAnswer } from "@/lib/personality/types";
 import { PERSONALITY_TYPES } from "@/lib/personality/constants";
-import { findClosestPersonalityType } from "@/lib/personality/logic";
-import type { DiagnosisResultData } from "./types";
+import {
+  findClosestPersonalityType,
+  calculateBIG5Diagnosis,
+} from "@/lib/personality/logic";
+import type { DiagnosisResultData, SubmitDiagnosisResult } from "./types";
 
 const BIG5_TRAIT_KEYS = [
   "extraversion",
@@ -91,5 +94,67 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
       console.error("[fetchDiagnosisResult] 予期しないエラー:", err);
     }
     return null;
+  }
+}
+
+/**
+ * 診断結果を DB に保存する
+ *
+ * - 回答データから BIG5 スコアを計算（既存 logic.ts を利用）
+ * - participants.diagnosis_type に 10類型の結果ID を保存
+ * - participants.diagnosis_scores に BIG5 スコア（JSONB）を保存
+ */
+export async function submitDiagnosis(
+  answers: QuestionAnswer[]
+): Promise<SubmitDiagnosisResult> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "ログインが必要です" };
+    }
+
+    // 参加者であることを確認
+    const { data: participant } = await supabase
+      .from("participants")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+
+    if (!participant) {
+      return { success: false, error: "参加者登録が必要です" };
+    }
+
+    // 回答データから BIG5 スコアを計算
+    const profile = await calculateBIG5Diagnosis(answers);
+
+    // 人物タイプ ID を決定（完全一致 or 近似一致）
+    const diagnosisType = profile.personalityType
+      ? profile.personalityType.id
+      : profile.closestType.id;
+
+    // DB に保存
+    const { error: updateError } = await supabase
+      .from("participants")
+      .update({
+        diagnosis_type: diagnosisType,
+        diagnosis_scores: profile.scores,
+      })
+      .eq("id", user.id);
+
+    if (updateError) {
+      return { success: false, error: "診断結果の保存に失敗しました" };
+    }
+
+    return { success: true };
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[submitDiagnosis] 予期しないエラー:", err);
+    }
+    return { success: false, error: "予期しないエラーが発生しました" };
   }
 }

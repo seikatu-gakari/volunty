@@ -1,7 +1,54 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { Header } from "@/app/components/Header";
 import { DiagnosisWizard } from "./components/DiagnosisWizard";
 
-export default function DiagnosisPage() {
+/**
+ * 診断ページ（/diagnosis）
+ *
+ * アクセス条件:
+ * - ログイン済み（未ログイン → /login へリダイレクト）
+ * - ロール = participant のみ（参加者レコードが存在すること）
+ */
+export default async function DiagnosisPage() {
+  let user = null;
+
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[DiagnosisPage] Supabase接続エラー:", err);
+    }
+  }
+
+  // 認証チェック（redirect は try/catch の外で呼び出す）
+  if (!user) {
+    redirect("/login");
+  }
+
+  // 参加者ロールチェック
+  let isParticipant = false;
+  try {
+    const supabase = await createClient();
+    const { data: participant } = await supabase
+      .from("participants")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+
+    isParticipant = !!participant;
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[DiagnosisPage] 参加者チェックエラー:", err);
+    }
+  }
+
+  if (!isParticipant) {
+    redirect("/");
+  }
+
   return (
     <div className="min-h-screen bg-background font-sans">
       <Header />
