@@ -15,6 +15,7 @@ export type ApplicationStatus = "pending" | "approved" | "rejected";
 
 /** 募集団体情報 */
 export interface OrganizationInfo {
+  id: string;
   name: string;
   description: string | null;
 }

@@ -109,7 +109,7 @@ describe("fetchOpportunityDetail", () => {
       required_traits: { extraversion: 70, agreeableness: 80 },
       status: "open",
       created_at: "2026-01-01T00:00:00Z",
-      organizations: { name: "NPO法人テスト", description: "テスト団体です" },
+      organizations: { id: "org-1", name: "NPO法人テスト", description: "テスト団体です" },
     };
 
     // 参加者データ
@@ -158,7 +158,7 @@ describe("fetchOpportunityDetail", () => {
       required_traits: null,
       status: "open",
       created_at: "2026-01-01T00:00:00Z",
-      organizations: { name: "支援団体A", description: null },
+      organizations: { id: "org-2", name: "支援団体A", description: null },
     };
 
     const mockApp = {

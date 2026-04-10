@@ -169,9 +169,12 @@ export default async function OpportunityDetailPage({
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-text-dark">
+              <Link
+                href={`/organizations/${opportunity.organization.id}`}
+                className="text-sm font-medium text-primary hover:underline"
+              >
                 {opportunity.organization.name}
-              </p>
+              </Link>
               {opportunity.organization.description && (
                 <p className="text-sm leading-6 text-text-body">
                   {opportunity.organization.description}

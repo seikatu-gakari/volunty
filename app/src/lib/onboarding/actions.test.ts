@@ -5,87 +5,81 @@ const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     mockRedirect(url);
-    // Next.js の redirect() は内部的に NEXT_REDIRECT エラーをスローする
     throw new Error("NEXT_REDIRECT");
   },
 }));
 
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
-const mockUpdate = vi.fn();
-const mockEq = vi.fn();
+const mockUpdateUser = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: {
       getUser: () => mockGetUser(),
+      updateUser: (data: unknown) => mockUpdateUser(data),
     },
-    from: () => ({
-      update: (data: unknown) => {
-        mockUpdate(data);
-        return {
-          eq: (...args: unknown[]) => mockEq(...args),
-        };
-      },
-    }),
   }),
 }));
 
-// "use server" ディレクティブを含むモジュールの動的インポート
-const { setUserRole } = await import("./actions");
+// Prisma のモック
+const mockPrismaUserUpdate = vi.fn();
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    user: {
+      update: (...args: unknown[]) => mockPrismaUserUpdate(...args),
+    },
+  },
+}));
 
-describe("setUserRole", () => {
+// "use server" ディレクティブを含むモジュールの動的インポート
+const { selectRole } = await import("./actions");
+
+describe("selectRole", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("未認証の場合、/login にリダイレクトする", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: null },
-      error: { message: "Not authenticated" },
-    });
+  it("未認証の場合、エラーをスローする", async () => {
+    mockGetUser.mockReturnValue({ data: { user: null } });
 
-    await expect(setUserRole("participant")).rejects.toThrow("NEXT_REDIRECT");
-    expect(mockRedirect).toHaveBeenCalledWith("/login");
+    await expect(selectRole("participant")).rejects.toThrow("認証が必要です");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("参加者ロール設定成功後、/onboarding/participant にリダイレクトする", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+    mockUpdateUser.mockReturnValue({ error: null });
+    mockPrismaUserUpdate.mockResolvedValue({});
+
+    await expect(selectRole("participant")).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(mockUpdateUser).toHaveBeenCalledWith({ data: { role: "participant" } });
+    expect(mockPrismaUserUpdate).toHaveBeenCalledWith({
+      where: { id: "user-123" },
+      data: { role: "participant" },
     });
-    mockEq.mockReturnValue({ error: null });
-
-    await expect(setUserRole("participant")).rejects.toThrow("NEXT_REDIRECT");
-
-    expect(mockUpdate).toHaveBeenCalledWith({ role: "participant" });
-    expect(mockEq).toHaveBeenCalledWith("id", "user-123");
     expect(mockRedirect).toHaveBeenCalledWith("/onboarding/participant");
   });
 
   it("団体ロール設定成功後、/onboarding/organization にリダイレクトする", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-456" } },
-      error: null,
-    });
-    mockEq.mockReturnValue({ error: null });
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-456" } } });
+    mockUpdateUser.mockReturnValue({ error: null });
+    mockPrismaUserUpdate.mockResolvedValue({});
 
-    await expect(setUserRole("organization")).rejects.toThrow("NEXT_REDIRECT");
+    await expect(selectRole("organization")).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(mockUpdate).toHaveBeenCalledWith({ role: "organization" });
+    expect(mockUpdateUser).toHaveBeenCalledWith({ data: { role: "organization" } });
     expect(mockRedirect).toHaveBeenCalledWith("/onboarding/organization");
   });
 
-  it("DB 更新エラー時、エラーオブジェクトを返しリダイレクトしない", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    mockEq.mockReturnValue({ error: { message: "DB error" } });
+  it("Supabase Auth 更新エラー時、エラーをスローしリダイレクトしない", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+    mockUpdateUser.mockReturnValue({ error: { message: "Auth error" } });
 
-    const result = await setUserRole("participant");
-
-    expect(result).toEqual({ error: "ロールの設定に失敗しました" });
+    await expect(selectRole("participant")).rejects.toThrow(
+      "ロール更新に失敗しました: Auth error"
+    );
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 });
