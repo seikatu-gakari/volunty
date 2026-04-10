@@ -22,3 +22,9 @@ export interface DashboardOpportunity {
 export interface DashboardData {
   opportunities: DashboardOpportunity[];
 }
+
+/** createOpportunity の戻り値 */
+export interface CreateOpportunityResult {
+  success: boolean;
+  error?: string;
+}
