@@ -230,7 +230,9 @@ export async function fetchApplicantsForOpportunity(
       .eq("opportunity_id", opportunityId)
       .order("created_at", { ascending: false });
 
-    const requiredTraits = (oppData.required_traits as Record<string, number>) ?? null;
+    const requiredTraits = oppData.required_traits
+      ? (oppData.required_traits as Record<string, number>)
+      : null;
 
     const applicants: Applicant[] = (appData ?? []).map((app) => {
       const participant = app.participants as unknown as {
@@ -245,7 +247,7 @@ export async function fetchApplicantsForOpportunity(
       if (isBIG5Scores(rawScores) && requiredTraits) {
         matchScore = calculateMatchScore(
           rawScores,
-          toPartialBIG5Scores(requiredTraits as Record<string, unknown>)
+          toPartialBIG5Scores(requiredTraits)
         );
       }
 
