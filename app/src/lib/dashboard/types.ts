@@ -28,3 +28,58 @@ export interface CreateOpportunityResult {
   success: boolean;
   error?: string;
 }
+
+/** 応募ステータス */
+export type ApplicationStatus = "pending" | "approved" | "rejected";
+
+/** 応募者情報（applications + participants JOIN 結果） */
+export interface Applicant {
+  /** 応募ID */
+  id: string;
+  /** 応募ステータス */
+  status: ApplicationStatus;
+  /** 応募メッセージ */
+  message: string | null;
+  /** 応募日 */
+  created_at: string;
+  /** 参加者名 */
+  participant_name: string;
+  /** 診断タイプ（10類型名） */
+  diagnosis_type: string | null;
+  /** BIG5 スコア（JSONB） */
+  diagnosis_scores: Record<string, number> | null;
+  /** マッチングスコア (0-100) */
+  match_score: number | null;
+}
+
+/** 案件詳細 + 応募者一覧（団体ダッシュボード用） */
+export interface OpportunityWithApplicants {
+  /** 案件ID */
+  id: string;
+  /** 案件タイトル */
+  title: string;
+  /** 案件説明 */
+  description: string | null;
+  /** 案件ステータス */
+  status: OpportunityStatus;
+  /** 求める性格特性 */
+  required_traits: Record<string, number> | null;
+  /** 作成日 */
+  created_at: string;
+  /** 応募者一覧 */
+  applicants: Applicant[];
+}
+
+/** fetchApplicantsForOpportunity の戻り値 */
+export interface ApplicantsResult {
+  /** 案件 + 応募者データ（自団体の案件でない場合は null） */
+  data: OpportunityWithApplicants | null;
+  /** エラーメッセージ */
+  error?: string;
+}
+
+/** updateApplicationStatus の戻り値 */
+export interface UpdateApplicationStatusResult {
+  success: boolean;
+  error?: string;
+}
