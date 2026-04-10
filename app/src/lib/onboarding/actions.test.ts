@@ -1,18 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Next.js navigation モック（redirect は NEXT_REDIRECT エラーをスローする）
+// Next.js redirect のモック
+const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  redirect: vi.fn((url: string) => {
-    throw Object.assign(new Error(`NEXT_REDIRECT: ${url}`), {
-      digest: `NEXT_REDIRECT;replace;${url};`,
-    });
-  }),
+  redirect: (url: string) => {
+    mockRedirect(url);
+    throw new Error("NEXT_REDIRECT");
+  },
 }));
 
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
 const mockUpdateUser = vi.fn();
-const mockPrismaUserUpdate = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -23,11 +22,12 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-// Prisma モック
+// Prisma のモック
+const mockPrismaUserUpdate = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
-      update: (args: unknown) => mockPrismaUserUpdate(args),
+      update: (...args: unknown[]) => mockPrismaUserUpdate(...args),
     },
   },
 }));
@@ -41,67 +41,45 @@ describe("selectRole", () => {
   });
 
   it("未認証の場合、エラーをスローする", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: null },
-      error: { message: "Not authenticated" },
-    });
+    mockGetUser.mockReturnValue({ data: { user: null } });
 
     await expect(selectRole("participant")).rejects.toThrow("認証が必要です");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it("participant を選択すると /onboarding/participant へリダイレクトする", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
+  it("参加者ロール設定成功後、/onboarding/participant にリダイレクトする", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
     mockUpdateUser.mockReturnValue({ error: null });
     mockPrismaUserUpdate.mockResolvedValue({});
 
-    await expect(selectRole("participant")).rejects.toMatchObject({
-      digest: expect.stringContaining("/onboarding/participant"),
-    });
+    await expect(selectRole("participant")).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(mockUpdateUser).toHaveBeenCalledWith({
-      data: { role: "participant" },
-    });
+    expect(mockUpdateUser).toHaveBeenCalledWith({ data: { role: "participant" } });
     expect(mockPrismaUserUpdate).toHaveBeenCalledWith({
       where: { id: "user-123" },
       data: { role: "participant" },
     });
+    expect(mockRedirect).toHaveBeenCalledWith("/onboarding/participant");
   });
 
-  it("organization を選択すると /onboarding/organization へリダイレクトする", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-456" } },
-      error: null,
-    });
+  it("団体ロール設定成功後、/onboarding/organization にリダイレクトする", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-456" } } });
     mockUpdateUser.mockReturnValue({ error: null });
     mockPrismaUserUpdate.mockResolvedValue({});
 
-    await expect(selectRole("organization")).rejects.toMatchObject({
-      digest: expect.stringContaining("/onboarding/organization"),
-    });
+    await expect(selectRole("organization")).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(mockUpdateUser).toHaveBeenCalledWith({
-      data: { role: "organization" },
-    });
-    expect(mockPrismaUserUpdate).toHaveBeenCalledWith({
-      where: { id: "user-456" },
-      data: { role: "organization" },
-    });
+    expect(mockUpdateUser).toHaveBeenCalledWith({ data: { role: "organization" } });
+    expect(mockRedirect).toHaveBeenCalledWith("/onboarding/organization");
   });
 
-  it("Supabase Auth の updateUser が失敗した場合、エラーをスローする", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    mockUpdateUser.mockReturnValue({
-      error: { message: "Update failed" },
-    });
+  it("Supabase Auth 更新エラー時、エラーをスローしリダイレクトしない", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+    mockUpdateUser.mockReturnValue({ error: { message: "Auth error" } });
 
     await expect(selectRole("participant")).rejects.toThrow(
-      "ロール更新に失敗しました: Update failed"
+      "ロール更新に失敗しました: Auth error"
     );
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });
