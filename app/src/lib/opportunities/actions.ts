@@ -79,6 +79,7 @@ export async function fetchOpportunityDetail(
         status,
         created_at,
         organizations (
+          id,
           name,
           description
         )
@@ -98,6 +99,7 @@ export async function fetchOpportunityDetail(
 
     // Supabase の JOIN 結果を型変換
     const org = oppData.organizations as unknown as {
+      id: string;
       name: string;
       description: string | null;
     } | null;
@@ -110,6 +112,7 @@ export async function fetchOpportunityDetail(
         (oppData.required_traits as Record<string, number>) ?? null,
       status: oppData.status as OpportunityDetail["status"],
       organization: {
+        id: org?.id ?? "",
         name: org?.name ?? "",
         description: org?.description ?? null,
       },
