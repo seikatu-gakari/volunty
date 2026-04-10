@@ -11,6 +11,7 @@ import {
   Sparkles,
   Brain,
   User,
+  ChevronRight,
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
@@ -78,7 +79,13 @@ function ScoresSummary({
 }
 
 /** 応募者カード */
-function ApplicantCard({ applicant }: { applicant: Applicant }) {
+function ApplicantCard({
+  applicant,
+  opportunityId,
+}: {
+  applicant: Applicant;
+  opportunityId: string;
+}) {
   return (
     <div className="rounded-lg border border-card-border p-4">
       <div className="flex flex-col gap-3">
@@ -144,10 +151,19 @@ function ApplicantCard({ applicant }: { applicant: Applicant }) {
           </div>
         )}
 
-        {/* 応募日 */}
-        <div className="flex items-center gap-1 text-xs text-text-body/70">
-          <Clock className="size-3" />
-          応募日: {new Date(applicant.created_at).toLocaleDateString("ja-JP")}
+        {/* 応募日 + 詳細リンク */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1 text-xs text-text-body/70">
+            <Clock className="size-3" />
+            応募日: {new Date(applicant.created_at).toLocaleDateString("ja-JP")}
+          </div>
+          <Link
+            href={`/dashboard/opportunities/${opportunityId}/applicants/${applicant.id}`}
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            詳細を見る
+            <ChevronRight className="size-3.5" />
+          </Link>
         </div>
       </div>
     </div>
@@ -257,7 +273,7 @@ export default async function OpportunityApplicantsPage({
             {data.applicants.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {data.applicants.map((applicant) => (
-                  <ApplicantCard key={applicant.id} applicant={applicant} />
+                  <ApplicantCard key={applicant.id} applicant={applicant} opportunityId={id} />
                 ))}
               </div>
             ) : (
