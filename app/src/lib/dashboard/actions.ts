@@ -15,7 +15,10 @@ import type {
   Applicant,
   ApplicantsResult,
   UpdateApplicationStatusResult,
+  ApplicantDetail,
+  ApplicantDetailResult,
 } from "./types";
+import { PERSONALITY_TYPES } from "@/lib/personality/constants";
 
 /**
  * 団体ダッシュボード用：自団体の募集案件一覧を取得
@@ -476,5 +479,120 @@ export async function updateApplicationStatus(
       console.error("[updateApplicationStatus] 予期しないエラー:", err);
     }
     return { success: false, error: "予期しないエラーが発生しました" };
+  }
+}
+
+/**
+ * 応募者詳細を取得する（団体ダッシュボード用）
+ *
+ * - applications + participants を JOIN して取得
+ * - opportunities テーブルで自団体の案件であることを検証（認可チェック）
+ * - PERSONALITY_TYPES から診断タイプの詳細情報を引き当て
+ * - マッチングスコアを計算
+ */
+export async function fetchApplicantDetail(
+  applicationId: string
+): Promise<ApplicantDetailResult> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { data: null, error: "ログインが必要です" };
+    }
+
+    // 応募データ + 参加者情報を取得
+    const { data: appData, error: appError } = await supabase
+      .from("applications")
+      .select(
+        `
+        id,
+        status,
+        message,
+        created_at,
+        opportunity_id,
+        participants (
+          name,
+          diagnosis_type,
+          diagnosis_scores
+        )
+      `
+      )
+      .eq("id", applicationId)
+      .single();
+
+    if (appError || !appData) {
+      return { data: null, error: "応募が見つかりません" };
+    }
+
+    // 案件データを取得（自団体の案件であることを確認）
+    const { data: oppData, error: oppError } = await supabase
+      .from("opportunities")
+      .select("id, title, required_traits")
+      .eq("id", appData.opportunity_id)
+      .eq("organization_id", user.id)
+      .single();
+
+    if (oppError || !oppData) {
+      return { data: null, error: "この操作を行う権限がありません" };
+    }
+
+    const participant = appData.participants as unknown as {
+      name: string;
+      diagnosis_type: string | null;
+      diagnosis_scores: Record<string, number> | null;
+    } | null;
+
+    // マッチングスコアを計算
+    const requiredTraits = oppData.required_traits
+      ? (oppData.required_traits as Record<string, number>)
+      : null;
+    let matchScore: number | null = null;
+    const rawScores = participant?.diagnosis_scores;
+    if (isBIG5Scores(rawScores) && requiredTraits) {
+      matchScore = calculateMatchScore(
+        rawScores,
+        toPartialBIG5Scores(requiredTraits)
+      );
+    }
+
+    // PERSONALITY_TYPES から詳細を引き当て
+    const diagnosisType = participant?.diagnosis_type ?? null;
+    const typeDetail = diagnosisType
+      ? PERSONALITY_TYPES.find((t) => t.name === diagnosisType) ?? null
+      : null;
+
+    return {
+      data: {
+        id: appData.id as string,
+        status: appData.status as ApplicantDetail["status"],
+        message: (appData.message as string) ?? null,
+        created_at: appData.created_at as string,
+        participant_name: participant?.name ?? "不明",
+        diagnosis_type: diagnosisType,
+        diagnosis_scores: participant?.diagnosis_scores ?? null,
+        match_score: matchScore,
+        opportunity_id: oppData.id as string,
+        opportunity_title: oppData.title as string,
+        personality_type_detail: typeDetail
+          ? {
+              name: typeDetail.name,
+              nameEn: typeDetail.nameEn,
+              description: typeDetail.description,
+              strengths: typeDetail.strengths,
+              suitableActivities: typeDetail.suitableActivities,
+            }
+          : null,
+      },
+    };
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[fetchApplicantDetail] 予期しないエラー:", err);
+    }
+    return { data: null, error: "予期しないエラーが発生しました" };
   }
 }

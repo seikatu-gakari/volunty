@@ -104,3 +104,43 @@ export interface UpdateApplicationStatusResult {
   success: boolean;
   error?: string;
 }
+
+/** 応募者詳細情報（applications + participants + personalityType JOIN） */
+export interface ApplicantDetail {
+  /** 応募ID */
+  id: string;
+  /** 応募ステータス */
+  status: ApplicationStatus;
+  /** 応募メッセージ */
+  message: string | null;
+  /** 応募日 */
+  created_at: string;
+  /** 参加者名 */
+  participant_name: string;
+  /** 診断タイプ名（10類型名） */
+  diagnosis_type: string | null;
+  /** BIG5 スコア（JSONB） */
+  diagnosis_scores: Record<string, number> | null;
+  /** マッチングスコア (0-100) */
+  match_score: number | null;
+  /** 案件ID */
+  opportunity_id: string;
+  /** 案件タイトル */
+  opportunity_title: string;
+  /** 人物タイプ詳細（PERSONALITY_TYPES から引き当て） */
+  personality_type_detail: {
+    name: string;
+    nameEn: string;
+    description: string;
+    strengths: string[];
+    suitableActivities: string[];
+  } | null;
+}
+
+/** fetchApplicantDetail の戻り値 */
+export interface ApplicantDetailResult {
+  /** 応募者詳細データ（見つからない場合は null） */
+  data: ApplicantDetail | null;
+  /** エラーメッセージ */
+  error?: string;
+}
