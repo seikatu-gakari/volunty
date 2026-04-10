@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { createClient } from "@/lib/supabase/server";
-import { OpportunityForm } from "./components/OpportunityForm";
+import { OpportunityForm_New } from "./components/OpportunityForm";
 
 export default async function NewOpportunityPage() {
   // 認証チェック
@@ -23,7 +23,7 @@ export default async function NewOpportunityPage() {
       <Header />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
-        <OpportunityForm />
+        <OpportunityForm_New />
       </main>
     </div>
   );
