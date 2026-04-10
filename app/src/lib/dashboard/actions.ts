@@ -6,6 +6,10 @@ import type {
   DashboardData,
   DashboardOpportunity,
   CreateOpportunityResult,
+  OpportunityEditResult,
+  OpportunityEditData,
+  OpportunityStatus,
+  UpdateOpportunityResult,
 } from "./types";
 
 /**
@@ -145,4 +149,133 @@ export async function createOpportunity(
   }
 
   redirect("/dashboard");
+}
+
+/**
+ * 編集用：自団体の募集案件を1件取得する
+ *
+ * - opportunities テーブルから id で取得
+ * - organization_id が現在のユーザーIDと一致することを検証
+ * - 一致しない or 存在しない場合は null を返す
+ */
+export async function fetchOpportunityForEdit(
+  id: string
+): Promise<OpportunityEditResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { opportunity: null, error: "ログインが必要です" };
+  }
+
+  try {
+    const { data, error: fetchError } = await supabase
+      .from("opportunities")
+      .select("id, title, description, required_traits, status")
+      .eq("id", id)
+      .eq("organization_id", user.id)
+      .single();
+
+    if (fetchError || !data) {
+      return { opportunity: null };
+    }
+
+    const opportunity: OpportunityEditData = {
+      id: data.id as string,
+      title: data.title as string,
+      description: (data.description as string) ?? "",
+      required_traits:
+        (data.required_traits as Record<string, number> | null) ?? null,
+      status: data.status as OpportunityStatus,
+    };
+
+    return { opportunity };
+  } catch {
+    return { opportunity: null, error: "データの取得に失敗しました" };
+  }
+}
+
+/**
+ * 募集案件を更新する
+ *
+ * - opportunities テーブルを UPDATE
+ * - organization_id が現在のユーザーIDと一致する案件のみ更新可能
+ * - 成功後、/dashboard/opportunities/:id へリダイレクト
+ */
+export async function updateOpportunity(
+  id: string,
+  formData: FormData
+): Promise<UpdateOpportunityResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, error: "ログインが必要です" };
+  }
+
+  // フォームデータの取得
+  const rawTitle = formData.get("title");
+  const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
+  const rawDescription = formData.get("description");
+  const description =
+    typeof rawDescription === "string" ? rawDescription.trim() : "";
+
+  // バリデーション
+  if (!title) {
+    return { success: false, error: "タイトルは必須です" };
+  }
+  if (!description) {
+    return { success: false, error: "説明は必須です" };
+  }
+
+  // ステータスの取得
+  const rawStatus = formData.get("status");
+  const status =
+    rawStatus === "open" || rawStatus === "closed" ? rawStatus : undefined;
+
+  // required_traits の構築（BIG5各特性のスコア）
+  const requiredTraits: Record<string, number> = {};
+  for (const trait of BIG5_TRAIT_KEYS) {
+    const value = formData.get(`trait_${trait}`);
+    if (value !== null && value !== "") {
+      const numValue = Number(value);
+      if (!Number.isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+        requiredTraits[trait] = numValue;
+      }
+    }
+  }
+
+  try {
+    const updateData: Record<string, unknown> = {
+      title,
+      description,
+      required_traits:
+        Object.keys(requiredTraits).length > 0 ? requiredTraits : null,
+    };
+    if (status) {
+      updateData.status = status;
+    }
+
+    const { error: updateError } = await supabase
+      .from("opportunities")
+      .update(updateData)
+      .eq("id", id)
+      .eq("organization_id", user.id);
+
+    if (updateError) {
+      return { success: false, error: "案件の更新に失敗しました" };
+    }
+  } catch {
+    return { success: false, error: "予期しないエラーが発生しました" };
+  }
+
+  redirect(`/dashboard/opportunities/${id}`);
 }
