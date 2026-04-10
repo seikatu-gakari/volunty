@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import type { BIG5Scores } from "@/lib/personality/types";
+import { calculateMatchScore } from "@/lib/recommendations/matching";
 import type {
   DashboardData,
   DashboardOpportunity,
@@ -10,6 +12,9 @@ import type {
   OpportunityEditData,
   OpportunityStatus,
   UpdateOpportunityResult,
+  Applicant,
+  ApplicantsResult,
+  UpdateApplicationStatusResult,
 } from "./types";
 
 /**
@@ -152,6 +157,29 @@ export async function createOpportunity(
 }
 
 /**
+ * 未知の値が BIG5Scores 型かどうかを実行時に検証するタイプガード
+ */
+function isBIG5Scores(value: unknown): value is BIG5Scores {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, unknown>;
+  return BIG5_TRAIT_KEYS.every((t) => typeof obj[t] === "number");
+}
+
+/**
+ * データベースの JSONB 値から有効な BIG5 特性キーのみを抽出する。
+ */
+function toPartialBIG5Scores(
+  value: Record<string, unknown>
+): Partial<BIG5Scores> {
+  const result: Partial<BIG5Scores> = {};
+  for (const trait of BIG5_TRAIT_KEYS) {
+    const v = value[trait];
+    if (typeof v === "number") result[trait] = v;
+  }
+  return result;
+}
+
+/**
  * 編集用：自団体の募集案件を1件取得する
  *
  * - opportunities テーブルから id で取得
@@ -278,4 +306,175 @@ export async function updateOpportunity(
   }
 
   redirect(`/dashboard/opportunities/${id}`);
+}
+
+/**
+ * 特定の案件に対する応募者一覧を取得する（団体ダッシュボード用）
+ *
+ * - opportunities テーブルから案件情報を取得
+ * - applications + participants を JOIN して応募者一覧を取得
+ * - 参加者の診断結果（diagnosis_type, diagnosis_scores）を含める
+ * - マッチングスコアを計算
+ * - 自団体の案件のみアクセス可能（認可チェック）
+ */
+export async function fetchApplicantsForOpportunity(
+  opportunityId: string
+): Promise<ApplicantsResult> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { data: null, error: "ログインが必要です" };
+    }
+
+    // 案件データを取得（自団体の案件であることを確認）
+    const { data: oppData, error: oppError } = await supabase
+      .from("opportunities")
+      .select("id, title, description, status, required_traits, created_at")
+      .eq("id", opportunityId)
+      .eq("organization_id", user.id)
+      .single();
+
+    if (oppError || !oppData) {
+      return { data: null, error: "案件が見つかりません" };
+    }
+
+    // 応募者一覧を取得（participants JOIN）
+    const { data: appData } = await supabase
+      .from("applications")
+      .select(
+        `
+        id,
+        status,
+        message,
+        created_at,
+        participants (
+          name,
+          diagnosis_type,
+          diagnosis_scores
+        )
+      `
+      )
+      .eq("opportunity_id", opportunityId)
+      .order("created_at", { ascending: false });
+
+    const requiredTraits = oppData.required_traits
+      ? (oppData.required_traits as Record<string, number>)
+      : null;
+
+    const applicants: Applicant[] = (appData ?? []).map((app) => {
+      const participant = app.participants as unknown as {
+        name: string;
+        diagnosis_type: string | null;
+        diagnosis_scores: Record<string, number> | null;
+      } | null;
+
+      // マッチングスコアを計算
+      let matchScore: number | null = null;
+      const rawScores = participant?.diagnosis_scores;
+      if (isBIG5Scores(rawScores) && requiredTraits) {
+        matchScore = calculateMatchScore(
+          rawScores,
+          toPartialBIG5Scores(requiredTraits)
+        );
+      }
+
+      return {
+        id: app.id as string,
+        status: app.status as Applicant["status"],
+        message: (app.message as string) ?? null,
+        created_at: app.created_at as string,
+        participant_name: participant?.name ?? "不明",
+        diagnosis_type: participant?.diagnosis_type ?? null,
+        diagnosis_scores: participant?.diagnosis_scores ?? null,
+        match_score: matchScore,
+      };
+    });
+
+    return {
+      data: {
+        id: oppData.id as string,
+        title: oppData.title as string,
+        description: (oppData.description as string) ?? null,
+        status: oppData.status as "open" | "closed",
+        required_traits: requiredTraits,
+        created_at: oppData.created_at as string,
+        applicants,
+      },
+    };
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[fetchApplicantsForOpportunity] 予期しないエラー:", err);
+    }
+    return { data: null, error: "予期しないエラーが発生しました" };
+  }
+}
+
+/**
+ * 応募ステータスを更新する（承認/辞退）
+ *
+ * - applications.status を 'approved' or 'rejected' に更新
+ * - 自団体の案件への応募のみ操作可能（認可チェック）
+ */
+export async function updateApplicationStatus(
+  applicationId: string,
+  newStatus: "approved" | "rejected"
+): Promise<UpdateApplicationStatusResult> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "ログインが必要です" };
+    }
+
+    // 応募データを取得
+    const { data: appData, error: appError } = await supabase
+      .from("applications")
+      .select("id, opportunity_id")
+      .eq("id", applicationId)
+      .single();
+
+    if (appError || !appData) {
+      return { success: false, error: "応募が見つかりません" };
+    }
+
+    // 自団体の案件への応募であることを確認（認可チェック）
+    const { data: oppData } = await supabase
+      .from("opportunities")
+      .select("id")
+      .eq("id", appData.opportunity_id)
+      .eq("organization_id", user.id)
+      .single();
+
+    if (!oppData) {
+      return { success: false, error: "この操作を行う権限がありません" };
+    }
+
+    // ステータスを更新
+    const { error: updateError } = await supabase
+      .from("applications")
+      .update({ status: newStatus })
+      .eq("id", applicationId);
+
+    if (updateError) {
+      return { success: false, error: "ステータスの更新に失敗しました" };
+    }
+
+    return { success: true };
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[updateApplicationStatus] 予期しないエラー:", err);
+    }
+    return { success: false, error: "予期しないエラーが発生しました" };
+  }
 }
