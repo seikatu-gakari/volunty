@@ -42,8 +42,8 @@ export async function selectRole(role: "participant" | "organization") {
 /**
  * 参加者プロフィールを登録する
  *
- * - participants テーブルに INSERT
- * - id は認証済みユーザーの UUID を使用
+ * - m_participant_profile テーブルを Prisma 経由で upsert
+ * - 成功後、/diagnosis へリダイレクト（初回は診断を促す）
  */
 export async function registerParticipant(
   data: RegisterParticipantData
@@ -79,28 +79,36 @@ export async function registerParticipant(
       return { success: false, error: "都道府県は必須です" };
     }
 
-    const { error: insertError } = await supabase.from("participants").insert({
-      id: user.id,
-      name: data.name,
-      birthday: data.birthday,
-      gender: data.gender || null,
-      region: data.region,
-      bio: data.bio || null,
-      interests:
-        data.interests && data.interests.length > 0 ? data.interests : null,
+    await prisma.participantProfile.upsert({
+      where: { userId: user.id },
+      update: {
+        name: data.name.trim(),
+        birthday: new Date(data.birthday),
+        gender: data.gender || null,
+        region: data.region,
+        bio: data.bio?.trim() || null,
+        interests:
+          data.interests && data.interests.length > 0 ? data.interests : null,
+      },
+      create: {
+        userId: user.id,
+        name: data.name.trim(),
+        birthday: new Date(data.birthday),
+        gender: data.gender || null,
+        region: data.region,
+        bio: data.bio?.trim() || null,
+        interests:
+          data.interests && data.interests.length > 0 ? data.interests : null,
+      },
     });
-
-    if (insertError) {
-      return { success: false, error: "プロフィールの登録に失敗しました" };
-    }
-
-    return { success: true };
   } catch (err) {
     if (process.env.NODE_ENV === "development") {
       console.error("[registerParticipant] 予期しないエラー:", err);
     }
     return { success: false, error: "予期しないエラーが発生しました" };
   }
+
+  redirect("/diagnosis");
 }
 
 /**
