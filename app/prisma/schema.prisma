@@ -105,18 +105,22 @@ model ParticipantProfile {
 
 /// 団体プロフィール — ボランティア募集団体の情報
 model OrganizationProfile {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId             String   @unique @map("user_id") @db.Uuid
-  organizationName   String   @map("organization_name") @db.VarChar(255)
-  description        String?  @db.Text
-  contactLineId      String?  @map("contact_line_id") @db.VarChar(100)
-  contactLineUrl     String?  @map("contact_line_url")
-  websiteUrl         String?  @map("website_url")
-  representativeName String?  @map("representative_name") @db.VarChar(100)
-  activityAreas      Json?    @map("activity_areas") // ["渋谷区", "世田谷区"]
-  verified           Boolean  @default(false)
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String   @unique @map("user_id") @db.Uuid
+  organizationName    String   @map("organization_name") @db.VarChar(255)
+  representativeName  String?  @map("representative_name") @db.VarChar(100)
+  contactEmail        String?  @map("contact_email") @db.VarChar(255)
+  activityAreas       Json?    @map("activity_areas") // ["渋谷区", "世田谷区"]
+  description         String?  @db.Text
+  activityCategories  Json?    @map("activity_categories") // ["環境保全", "子ども支援"]
+  websiteUrl          String?  @map("website_url")
+  logoUrl             String?  @map("logo_url")
+  contactLineId       String?  @map("contact_line_id") @db.VarChar(100)
+  contactLineUrl      String?  @map("contact_line_url")
+  verified            Boolean  @default(false)
+  profileCompleteness Int      @default(0) @map("profile_completeness")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   // リレーション
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)

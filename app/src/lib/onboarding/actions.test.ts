@@ -28,16 +28,20 @@ vi.mock("@/lib/supabase/server", () => ({
 
 // Prisma のモック
 const mockPrismaUserUpdate = vi.fn();
+const mockPrismaOrgUpsert = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
       update: (...args: unknown[]) => mockPrismaUserUpdate(...args),
     },
+    organizationProfile: {
+      upsert: (...args: unknown[]) => mockPrismaOrgUpsert(...args),
+    },
   },
 }));
 
 // "use server" ディレクティブを含むモジュールの動的インポート
-const { selectRole, registerParticipant } = await import("./actions");
+const { selectRole, registerParticipant, registerOrganization } = await import("./actions");
 
 describe("selectRole", () => {
   beforeEach(() => {
@@ -208,6 +212,161 @@ describe("registerParticipant", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("プロフィールの登録に失敗しました");
+  });
+});
+
+describe("registerOrganization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("未認証の場合、エラーを返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: null } });
+
+    const result = await registerOrganization({
+      organizationName: "NPO法人テスト",
+      representativeName: "山田 太郎",
+      contactEmail: "contact@example.org",
+      activityAreas: ["東京都"],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("ログインが必要です");
+    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
+  });
+
+  it("団体名が空の場合、バリデーションエラーを返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+
+    const result = await registerOrganization({
+      organizationName: "",
+      representativeName: "山田 太郎",
+      contactEmail: "contact@example.org",
+      activityAreas: ["東京都"],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("団体名は必須です");
+    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
+  });
+
+  it("代表者名が空の場合、バリデーションエラーを返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+
+    const result = await registerOrganization({
+      organizationName: "NPO法人テスト",
+      representativeName: "",
+      contactEmail: "contact@example.org",
+      activityAreas: ["東京都"],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("代表者名は必須です");
+    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
+  });
+
+  it("連絡先メールが空の場合、バリデーションエラーを返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+
+    const result = await registerOrganization({
+      organizationName: "NPO法人テスト",
+      representativeName: "山田 太郎",
+      contactEmail: "",
+      activityAreas: ["東京都"],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("連絡先メールアドレスは必須です");
+    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
+  });
+
+  it("活動地域が空の場合、バリデーションエラーを返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+
+    const result = await registerOrganization({
+      organizationName: "NPO法人テスト",
+      representativeName: "山田 太郎",
+      contactEmail: "contact@example.org",
+      activityAreas: [],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("活動地域を1つ以上選択してください");
+    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
+  });
+
+  it("必須フィールドのみで正常登録できる（充実度40）", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+    mockPrismaOrgUpsert.mockResolvedValue({});
+    mockUpdateUser.mockReturnValue({ error: null });
+
+    const result = await registerOrganization({
+      organizationName: "NPO法人テスト",
+      representativeName: "山田 太郎",
+      contactEmail: "contact@example.org",
+      activityAreas: ["東京都"],
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockPrismaOrgUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-123" },
+        create: expect.objectContaining({
+          organizationName: "NPO法人テスト",
+          representativeName: "山田 太郎",
+          contactEmail: "contact@example.org",
+          activityAreas: ["東京都"],
+          profileCompleteness: 40,
+        }),
+      })
+    );
+  });
+
+  it("全フィールドを指定して正常登録できる（充実度100）", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-456" } } });
+    mockPrismaOrgUpsert.mockResolvedValue({});
+    mockUpdateUser.mockReturnValue({ error: null });
+
+    const result = await registerOrganization({
+      organizationName: "NPO法人フル",
+      representativeName: "鈴木 花子",
+      contactEmail: "info@full.org",
+      activityAreas: ["大阪府", "京都府"],
+      description: "活動説明テキスト",
+      activityCategories: ["環境保全", "子ども支援"],
+      websiteUrl: "https://example.org",
+      logoUrl: "https://example.org/logo.png",
+      contactLineId: "@full_org",
+      contactLineUrl: "https://line.me/R/ti/p/@full",
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockPrismaOrgUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          profileCompleteness: 100,
+          description: "活動説明テキスト",
+          activityCategories: ["環境保全", "子ども支援"],
+        }),
+      })
+    );
+  });
+
+  it("onboarding_completed フラグをセットする", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+    mockPrismaOrgUpsert.mockResolvedValue({});
+    mockUpdateUser.mockReturnValue({ error: null });
+
+    await registerOrganization({
+      organizationName: "NPO法人テスト",
+      representativeName: "山田 太郎",
+      contactEmail: "contact@example.org",
+      activityAreas: ["東京都"],
+    });
+
+    expect(mockUpdateUser).toHaveBeenCalledWith({
+      data: { onboarding_completed: true },
+    });
   });
 });
 
