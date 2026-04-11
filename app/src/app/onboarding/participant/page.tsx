@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { ParticipantProfileForm } from "./components/ParticipantProfileForm";
 
 /** 認証状態とプロフィール登録状況を取得する */
@@ -17,15 +18,14 @@ async function getPageState(): Promise<{
       return { isAuthenticated: false, hasProfile: false };
     }
 
-    const { data: profile } = await supabase
-      .from("participants")
-      .select("id")
-      .eq("id", user.id)
-      .single();
+    const profile = await prisma.participantProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
 
     return { isAuthenticated: true, hasProfile: !!profile };
   } catch {
-    // Supabase 未設定時はスキップ
+    // Supabase / Prisma 未設定時はスキップ
     return { isAuthenticated: false, hasProfile: false };
   }
 }

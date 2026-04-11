@@ -89,7 +89,10 @@ model ParticipantProfile {
   birthday          DateTime  @db.Date
   gender            String?   @db.VarChar(20)
   bio               String?   @db.Text
+  region            String    @db.VarChar(100) // 居住都道府県（必須）
   interests         Json? // 興味分野 ["環境保全", "子ども支援"]
+  diagnosisType     String?   @map("diagnosis_type") @db.VarChar(100) // 診断後に自動保存
+  diagnosisScores   Json?     @map("diagnosis_scores") // 診断後に自動保存
   availability      Json? // {"weekdays": ["土", "日"], "time": "午前"}
   preferredLocation String?   @map("preferred_location") @db.VarChar(100)
   publicProfile     Boolean   @default(true) @map("public_profile")

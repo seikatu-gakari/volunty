@@ -1,6 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import type { BIG5Scores, QuestionAnswer } from "@/lib/personality/types";
 import { PERSONALITY_TYPES } from "@/lib/personality/constants";
 import {
@@ -45,17 +47,16 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
       return null;
     }
 
-    const { data: participant } = await supabase
-      .from("participants")
-      .select("diagnosis_type, diagnosis_scores")
-      .eq("id", user.id)
-      .single();
+    const participant = await prisma.participantProfile.findUnique({
+      where: { userId: user.id },
+      select: { diagnosisType: true, diagnosisScores: true },
+    });
 
     if (!participant) {
       return null;
     }
 
-    const rawScores = participant.diagnosis_scores;
+    const rawScores = participant.diagnosisScores;
     if (!isBIG5Scores(rawScores)) {
       return null;
     }
@@ -68,8 +69,8 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
       openness: rawScores.openness,
     };
 
-    // diagnosis_type が PERSONALITY_TYPES に存在するか確認
-    const diagnosisType = participant.diagnosis_type;
+    // diagnosisType が PERSONALITY_TYPES に存在するか確認
+    const diagnosisType = participant.diagnosisType;
     const exactType = diagnosisType
       ? PERSONALITY_TYPES.find((t) => t.id === diagnosisType) ?? null
       : null;
@@ -119,11 +120,10 @@ export async function submitDiagnosis(
     }
 
     // 参加者であることを確認
-    const { data: participant } = await supabase
-      .from("participants")
-      .select("id")
-      .eq("id", user.id)
-      .single();
+    const participant = await prisma.participantProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
 
     if (!participant) {
       return { success: false, error: "参加者登録が必要です" };
@@ -138,17 +138,13 @@ export async function submitDiagnosis(
       : profile.closestType.id;
 
     // DB に保存
-    const { error: updateError } = await supabase
-      .from("participants")
-      .update({
-        diagnosis_type: diagnosisType,
-        diagnosis_scores: profile.scores,
-      })
-      .eq("id", user.id);
-
-    if (updateError) {
-      return { success: false, error: "診断結果の保存に失敗しました" };
-    }
+    await prisma.participantProfile.update({
+      where: { userId: user.id },
+      data: {
+        diagnosisType: diagnosisType,
+        diagnosisScores: profile.scores as unknown as Prisma.InputJsonValue,
+      },
+    });
 
     return { success: true };
   } catch (err) {
