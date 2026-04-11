@@ -1,3 +1,26 @@
+/** 団体プロフィール登録フォームのデータ */
+export interface RegisterOrganizationData {
+  // Step 1: 基本情報（必須）
+  organizationName: string;
+  representativeName: string;
+  contactEmail: string;
+  activityAreas: string[];
+  // Step 2: 団体の魅力（任意）
+  description?: string;
+  activityCategories?: string[];
+  websiteUrl?: string;
+  logoUrl?: string;
+  // Step 3: 連絡手段（任意）
+  contactLineId?: string;
+  contactLineUrl?: string;
+}
+
+/** 団体プロフィール登録の結果 */
+export interface RegisterOrganizationResult {
+  success: boolean;
+  error?: string;
+}
+
 /** 参加者プロフィール登録フォームのデータ */
 export interface RegisterParticipantData {
   name: string;

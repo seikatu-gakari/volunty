@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import type {
   RegisterParticipantData,
   RegisterParticipantResult,
+  RegisterOrganizationData,
+  RegisterOrganizationResult,
 } from "./types";
 
 /**
@@ -102,41 +104,111 @@ export async function registerParticipant(
 }
 
 /**
- * 団体プロフィール登録 — m_organization_profile を作成し、審査待ちへ
+ * 団体プロフィール充実度スコアを計算する（0-100）
+ *
+ * - 必須4項目（各10点）: 40点
+ * - 団体説明: 20点
+ * - 活動カテゴリ: 10点
+ * - ウェブサイトURL: 10点
+ * - ロゴURL: 10点
+ * - LINE ID: 5点
+ * - LINE URL: 5点
  */
-export async function registerOrganizationProfile(formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("認証が必要です");
+function calcProfileCompleteness(data: RegisterOrganizationData): number {
+  let score = 0;
+  if (data.organizationName?.trim()) score += 10;
+  if (data.representativeName?.trim()) score += 10;
+  if (data.contactEmail?.trim()) score += 10;
+  if (data.activityAreas && data.activityAreas.length > 0) score += 10;
+  if (data.description?.trim()) score += 20;
+  if (data.activityCategories && data.activityCategories.length > 0) score += 10;
+  if (data.websiteUrl?.trim()) score += 10;
+  if (data.logoUrl?.trim()) score += 10;
+  if (data.contactLineId?.trim()) score += 5;
+  if (data.contactLineUrl?.trim()) score += 5;
+  return score;
+}
 
-  const organizationName = (formData.get("organizationName") as string)?.trim();
-  const description = (formData.get("description") as string)?.trim() || null;
-  const representativeName =
-    (formData.get("representativeName") as string)?.trim() || null;
-  const contactLineUrl =
-    (formData.get("contactLineUrl") as string)?.trim() || null;
+/**
+ * 団体プロフィール登録 — m_organization_profile を作成/更新し、審査待ちへ
+ */
+export async function registerOrganization(
+  data: RegisterOrganizationData
+): Promise<RegisterOrganizationResult> {
+  try {
+    const supabase = await createClient();
 
-  if (!organizationName) throw new Error("団体名は必須です");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  // 団体プロフィールを作成（既存の場合は更新）
-  await prisma.organizationProfile.upsert({
-    where: { userId: user.id },
-    update: { organizationName, description, representativeName, contactLineUrl },
-    create: {
-      userId: user.id,
-      organizationName,
-      description,
-      representativeName,
-      contactLineUrl,
-    },
-  });
+    if (!user) {
+      return { success: false, error: "ログインが必要です" };
+    }
 
-  // オンボーディング完了フラグをセット
-  await supabase.auth.updateUser({
-    data: { onboarding_completed: true },
-  });
+    // 必須フィールドのバリデーション
+    if (!data.organizationName?.trim()) {
+      return { success: false, error: "団体名は必須です" };
+    }
+    if (!data.representativeName?.trim()) {
+      return { success: false, error: "代表者名は必須です" };
+    }
+    if (!data.contactEmail?.trim()) {
+      return { success: false, error: "連絡先メールアドレスは必須です" };
+    }
+    if (!data.activityAreas || data.activityAreas.length === 0) {
+      return { success: false, error: "活動地域を1つ以上選択してください" };
+    }
 
-  redirect("/onboarding/pending");
+    const profileCompleteness = calcProfileCompleteness(data);
+
+    const normalizedActivityCategories =
+      data.activityCategories && data.activityCategories.length > 0
+        ? data.activityCategories
+        : undefined;
+
+    // 団体プロフィールを作成（既存の場合は更新）
+    await prisma.organizationProfile.upsert({
+      where: { userId: user.id },
+      update: {
+        organizationName: data.organizationName.trim(),
+        representativeName: data.representativeName.trim(),
+        contactEmail: data.contactEmail.trim(),
+        activityAreas: data.activityAreas,
+        description: data.description?.trim() || null,
+        activityCategories: normalizedActivityCategories,
+        websiteUrl: data.websiteUrl?.trim() || null,
+        logoUrl: data.logoUrl?.trim() || null,
+        contactLineId: data.contactLineId?.trim() || null,
+        contactLineUrl: data.contactLineUrl?.trim() || null,
+        profileCompleteness,
+      },
+      create: {
+        userId: user.id,
+        organizationName: data.organizationName.trim(),
+        representativeName: data.representativeName.trim(),
+        contactEmail: data.contactEmail.trim(),
+        activityAreas: data.activityAreas,
+        description: data.description?.trim() || null,
+        activityCategories: normalizedActivityCategories,
+        websiteUrl: data.websiteUrl?.trim() || null,
+        logoUrl: data.logoUrl?.trim() || null,
+        contactLineId: data.contactLineId?.trim() || null,
+        contactLineUrl: data.contactLineUrl?.trim() || null,
+        profileCompleteness,
+      },
+    });
+
+    // オンボーディング完了フラグをセット
+    await supabase.auth.updateUser({
+      data: { onboarding_completed: true },
+    });
+
+    return { success: true };
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[registerOrganization] 予期しないエラー:", err);
+    }
+    return { success: false, error: "予期しないエラーが発生しました" };
+  }
 }
