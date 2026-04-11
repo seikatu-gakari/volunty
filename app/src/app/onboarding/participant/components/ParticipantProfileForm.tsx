@@ -25,9 +25,31 @@ const INTERESTS = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 100 }, (_, i) => CURRENT_YEAR - i);
+// 参加者の年齢を考慮: 1歳〜120歳を対象とした範囲
+const YEARS = Array.from({ length: 120 }, (_, i) => CURRENT_YEAR - i);
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+
+/** 生年月日が有効かどうかをチェック（存在する日付かつ現在以前） */
+function isValidBirthday(year: string, month: string, day: string): boolean {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  const date = new Date(y, m - 1, d);
+  // 月をまたいだ繰り上がりがないか（例: 2月30日は3月に繰り上がる）
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== m - 1 ||
+    date.getDate() !== d
+  ) {
+    return false;
+  }
+  // 未来の日付は不可
+  if (date > new Date()) {
+    return false;
+  }
+  return true;
+}
 
 export function ParticipantProfileForm() {
   const router = useRouter();
@@ -59,6 +81,13 @@ export function ParticipantProfileForm() {
       birthYear && birthMonth && birthDay
         ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}`
         : "";
+
+    // 生年月日の日付整合性チェック
+    if (birthYear && birthMonth && birthDay && !isValidBirthday(birthYear, birthMonth, birthDay)) {
+      setError("有効な生年月日を入力してください（未来の日付や存在しない日付は無効です）");
+      setLoading(false);
+      return;
+    }
 
     try {
       const result = await registerParticipant({

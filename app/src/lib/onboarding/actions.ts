@@ -64,6 +64,15 @@ export async function registerParticipant(
     if (!data.birthday?.trim()) {
       return { success: false, error: "生年月日は必須です" };
     }
+    // 生年月日の日付妥当性チェック（YYYY-MM-DD形式）
+    const birthdayDate = new Date(data.birthday);
+    if (
+      isNaN(birthdayDate.getTime()) ||
+      birthdayDate > new Date() ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(data.birthday)
+    ) {
+      return { success: false, error: "有効な生年月日を入力してください" };
+    }
     if (!data.region?.trim()) {
       return { success: false, error: "都道府県は必須です" };
     }
