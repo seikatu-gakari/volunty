@@ -57,10 +57,35 @@ export async function registerParticipant(
       return { success: false, error: "ログインが必要です" };
     }
 
+    // 必須フィールドのバリデーション
+    if (!data.name?.trim()) {
+      return { success: false, error: "表示名は必須です" };
+    }
+    if (!data.birthday?.trim()) {
+      return { success: false, error: "生年月日は必須です" };
+    }
+    // 生年月日の日付妥当性チェック（YYYY-MM-DD形式）
+    const birthdayDate = new Date(data.birthday);
+    if (
+      isNaN(birthdayDate.getTime()) ||
+      birthdayDate > new Date() ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(data.birthday)
+    ) {
+      return { success: false, error: "有効な生年月日を入力してください" };
+    }
+    if (!data.region?.trim()) {
+      return { success: false, error: "都道府県は必須です" };
+    }
+
     const { error: insertError } = await supabase.from("participants").insert({
       id: user.id,
       name: data.name,
-      region: data.region || null,
+      birthday: data.birthday,
+      gender: data.gender || null,
+      region: data.region,
+      bio: data.bio || null,
+      interests:
+        data.interests && data.interests.length > 0 ? data.interests : null,
     });
 
     if (insertError) {

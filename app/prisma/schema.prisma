@@ -83,15 +83,18 @@ model User {
 
 /// 参加者プロフィール — ボランティア参加希望者の詳細情報
 model ParticipantProfile {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String   @unique @map("user_id") @db.Uuid
-  bio               String?  @db.Text
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @unique @map("user_id") @db.Uuid
+  name              String    @db.VarChar(100)
+  birthday          DateTime  @db.Date
+  gender            String?   @db.VarChar(20)
+  bio               String?   @db.Text
   interests         Json? // 興味分野 ["環境保全", "子ども支援"]
   availability      Json? // {"weekdays": ["土", "日"], "time": "午前"}
-  preferredLocation String?  @map("preferred_location") @db.VarChar(100)
-  publicProfile     Boolean  @default(true) @map("public_profile")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  preferredLocation String?   @map("preferred_location") @db.VarChar(100)
+  publicProfile     Boolean   @default(true) @map("public_profile")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // リレーション
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
