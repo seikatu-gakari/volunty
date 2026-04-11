@@ -165,7 +165,7 @@ export async function registerOrganization(
     const normalizedActivityCategories =
       data.activityCategories && data.activityCategories.length > 0
         ? data.activityCategories
-        : null;
+        : undefined;
 
     // 団体プロフィールを作成（既存の場合は更新）
     await prisma.organizationProfile.upsert({
