@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@/generated/prisma/client";
 
 // Next.js redirect のモック
 const mockRedirect = vi.fn();
@@ -208,7 +209,7 @@ describe("registerParticipant", () => {
           gender: null,
           region: "大阪府",
           bio: null,
-          interests: null,
+          interests: Prisma.JsonNull,
         }),
       })
     );

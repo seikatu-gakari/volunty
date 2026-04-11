@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import type {
   RegisterParticipantData,
   RegisterParticipantResult,
@@ -88,7 +89,9 @@ export async function registerParticipant(
         region: data.region,
         bio: data.bio?.trim() || null,
         interests:
-          data.interests && data.interests.length > 0 ? data.interests : null,
+          data.interests && data.interests.length > 0
+            ? (data.interests as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
       },
       create: {
         userId: user.id,
@@ -98,7 +101,9 @@ export async function registerParticipant(
         region: data.region,
         bio: data.bio?.trim() || null,
         interests:
-          data.interests && data.interests.length > 0 ? data.interests : null,
+          data.interests && data.interests.length > 0
+            ? (data.interests as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
       },
     });
   } catch (err) {

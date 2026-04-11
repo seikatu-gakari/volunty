@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import type { BIG5Scores, QuestionAnswer } from "@/lib/personality/types";
 import { PERSONALITY_TYPES } from "@/lib/personality/constants";
 import {
@@ -141,7 +142,7 @@ export async function submitDiagnosis(
       where: { userId: user.id },
       data: {
         diagnosisType: diagnosisType,
-        diagnosisScores: profile.scores,
+        diagnosisScores: profile.scores as unknown as Prisma.InputJsonValue,
       },
     });
 
