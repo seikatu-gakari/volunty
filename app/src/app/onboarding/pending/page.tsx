@@ -80,7 +80,7 @@ async function getPageState(): Promise<{
       },
     };
   } catch {
-    // Supabase 未設定時はスキップ
+    // Supabase 未設定時・DB接続エラー時はスキップ
     return {
       isAuthenticated: false,
       isOrganization: false,

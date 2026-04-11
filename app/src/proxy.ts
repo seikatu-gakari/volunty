@@ -103,10 +103,15 @@ export async function proxy(request: NextRequest) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (supabaseUrl && supabaseAnonKey) {
       try {
+        // updateSession 後の更新済みクッキーを使い、verified フラグ確認用クライアントを生成する
         const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
           cookies: {
             getAll: () => request.cookies.getAll(),
-            setAll: () => {},
+            setAll: (cookiesToSet) => {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                response.cookies.set(name, value, options)
+              );
+            },
           },
         });
         const { data: profile } = await supabase
@@ -119,8 +124,11 @@ export async function proxy(request: NextRequest) {
           url.pathname = "/onboarding/pending";
           return redirectWithCookies(url, response);
         }
-      } catch {
-        // DB クエリ失敗時はスルー
+      } catch (err) {
+        // DB クエリ失敗時はスルー（可用性を優先し、ページ側でも検証する）
+        if (process.env.NODE_ENV === "development") {
+          console.error("[proxy] 団体の verified チェックに失敗:", err);
+        }
       }
     }
   }
