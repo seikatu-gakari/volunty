@@ -1,3 +1,4 @@
+import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
@@ -94,6 +95,34 @@ export async function proxy(request: NextRequest) {
         ? "/onboarding/organization"
         : "/onboarding/participant";
     return redirectWithCookies(url, response);
+  }
+
+  // 未承認団体: /onboarding/pending 以外へのアクセスをブロック
+  if (role === "organization" && pathname !== "/onboarding/pending") {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+          cookies: {
+            getAll: () => request.cookies.getAll(),
+            setAll: () => {},
+          },
+        });
+        const { data: profile } = await supabase
+          .from("m_organization_profile")
+          .select("verified")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (profile && !profile.verified) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/onboarding/pending";
+          return redirectWithCookies(url, response);
+        }
+      } catch {
+        // DB クエリ失敗時はスルー
+      }
+    }
   }
 
   return response;
