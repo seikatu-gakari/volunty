@@ -39,9 +39,13 @@ volunty.app
 │   └── result ................... 診断結果表示（10類型 ＋ BIG5スコア）
 │
 ├── /recommendations ............. 参加者：おすすめ案件一覧（マッチングスコア順）
+│                                  ※カテゴリ・地域フィルタUI付き（クエリパラメータで制御）
+│
+├── /organizations/ .............. 共通：団体詳細
+│   └── :id ...................... 団体情報・活動内容・他の募集案件一覧（/opportunities/:id からリンク）
 │
 ├── /opportunities/ .............. 共通：案件詳細
-│   └── :id ...................... 募集案件詳細（団体情報込み / 応募ボタン）
+│   └── :id ...................... 募集案件詳細（団体名・活動概要・相性スコア表示 / 応募ボタン / 団体詳細へのリンク）
 │
 ├── /mypage/ ..................... 参加者：マイページ
 │   └── (index) .................. 自分のプロフィール ＋ 応募進捗・成立時の相手情報表示
@@ -51,7 +55,9 @@ volunty.app
     └── opportunities/ ........... 団体の案件管理
         ├── new .................. 募集案件の作成
         └── :id/
-            ├── (index) .......... 応募者管理（参加者の診断結果確認・承認/辞退）
+            ├── (index) .......... 応募者一覧（マッチングスコア順・承認/辞退ボタン付き）
+            ├── applicants/
+            │   └── :applicationId .. 応募者詳細（診断タイプ・BIG5スコア・応募メッセージ確認）
             └── edit ............. 募集案件の編集
 ```
 
@@ -107,7 +113,7 @@ Supabaseクエリを利用するServer Actionsを主要エンドポイントと�
 ### 参加者向け(Participant Actions)
 - `registerParticipant(data)`: プロフィール登録
 - `submitDiagnosis(answers)`: 診断結果の計算・保存
-- `fetchRecommendations()`: 案件一覧取得（性格スコア順ソート）
+- `fetchRecommendations(filters?)`: 案件一覧取得（性格スコア順ソート。`category`・`region` のクエリフィルタ対応）
 - `applyToOpportunity(id, message)`: 案件への応募
 - `fetchMyApplications()`: 応募状況と相手のLINE ID（ステータスが approved の場合のみ）の取得
 
@@ -115,21 +121,26 @@ Supabaseクエリを利用するServer Actionsを主要エンドポイントと�
 - `registerOrganization(data)`: 団体登録
 - `createOpportunity(data)` / `updateOpportunity(id, data)`: 案件管理
 - `fetchMyOpportunities()`: 自団体の案件一覧取得
-- `fetchApplicantsForOpportunity(opportunity_id)`: 応募者一覧取得
+- `fetchApplicantsForOpportunity(opportunity_id)`: 応募者一覧取得（マッチングスコア付き）
+- `fetchApplicantDetail(application_id)`: 応募者詳細取得（診断タイプ・BIG5スコア・応募メッセージ）
 - `updateApplicationStatus(id, new_status)`: 応募者の承認/辞退操作
 
 ---
 
 ## 4. 認証・認可フロー
 
+- **共通（初回ログイン）:**
+  - OAuth コールバック後、`users.role` が未設定（NULL）の場合は `/onboarding/role` へリダイレクト
+  - ロール選択完了後、参加者は `/onboarding/participant`、団体は `/onboarding/organization` へ遷移
 - **参加者 (Participant):**
   - 未ログイン時は `/login` へリダイレクト
-  - プロフィール未登録時は `/onboarding/participant` へリダイレクト
+  - `participants` レコード未作成時は `/onboarding/participant` へリダイレクト
 - **団体 (Organization):**
-  - プロフィール未登録時は `/onboarding/organization` へリダイレクト
-  - status が 'approved' でない場合は `/onboarding/pending` 以外へのアクセスをブロックする
+  - `organizations` レコード未作成時は `/onboarding/organization` へリダイレクト
+  - `organizations.status` が `'approved'` でない場合は `/onboarding/pending` 以外へのアクセスをブロックする
 - **RSCでのチェック**: 
   - Layout / Page 単位で `supabase.auth.getUser()` を呼び出し、Roleに基づくミドルウェア的なアクセス制限を実装
+  - ロール判定順: ① `users.role` が NULL → `/onboarding/role`、② ロール別プロフィール未作成 → 各オンボーディングページ、③ 団体の審査ステータス確認
 
 ---
 
@@ -162,14 +173,14 @@ UI を全部先に作る／API を全部先に作る、いずれの水平分割�
 
 ### 6.2 実装済み機能（着手前の現状）
 
-| ステータス | 機能 | 備考 |
-|:---:|------|------|
-| ✅ | BIG5 性格診断エンジン（50問 + XState） | P-3, P-4 テスト済み |
-| ✅ | 診断結果表示（10類型 + BIG5スコア） | ResultView |
-| ✅ | トップページ（LP） | Server Component |
-| ✅ | ログイン / サインアップ UI | Google OAuth ボタン含む |
-| ✅ | Supabase クライアント / サーバー設定 | client.ts, server.ts, middleware.ts |
-| ✅ | UI コンポーネント基盤 | Button, Card, Input, ProgressBar 等 |
+| ステータス | 機能                                   | 備考                                |
+| :--------: | -------------------------------------- | ----------------------------------- |
+|     ✅      | BIG5 性格診断エンジン（50問 + XState） | P-3, P-4 テスト済み                 |
+|     ✅      | 診断結果表示（10類型 + BIG5スコア）    | ResultView                          |
+|     ✅      | トップページ（LP）                     | Server Component                    |
+|     ✅      | ログイン / サインアップ UI             | Google OAuth ボタン含む             |
+|     ✅      | Supabase クライアント / サーバー設定   | client.ts, server.ts, middleware.ts |
+|     ✅      | UI コンポーネント基盤                  | Button, Card, Input, ProgressBar 等 |
 
 ### 6.3 フェーズ別実装計画
 
@@ -177,11 +188,11 @@ UI を全部先に作る／API を全部先に作る、いずれの水平分割�
 
 > **目的**: DB・認証・ルーティング保護を整備し、以降の全フェーズが動作する土台を作る。
 
-| # | タスク | 種別 | 成果物 |
-|---|--------|------|--------|
-| 0-1 | Supabase DB スキーマ構築 | DB | `users`, `participants`, `organizations`, `opportunities`, `applications` テーブル + RLS ポリシー |
-| 0-2 | OAuth コールバック実装 | API | `/auth/callback/route.ts`（認証後の `users` レコード作成含む） |
-| 0-3 | ロールベースミドルウェア | Auth | 未認証→`/login`、未登録→`/onboarding` へのリダイレクト制御 |
+| #   | タスク                   | 種別 | 成果物                                                                                            |
+| --- | ------------------------ | ---- | ------------------------------------------------------------------------------------------------- |
+| 0-1 | Supabase DB スキーマ構築 | DB   | `users`, `participants`, `organizations`, `opportunities`, `applications` テーブル + RLS ポリシー |
+| 0-2 | OAuth コールバック実装   | API  | `/auth/callback/route.ts`（認証後の `users` レコード作成含む）                                    |
+| 0-3 | ロールベースミドルウェア | Auth | 未認証→`/login`、未登録→`/onboarding` へのリダイレクト制御                                        |
 
 **完了条件**: Google ログイン → `users` テーブルにレコード作成 → ロールに応じたリダイレクトが動作する。
 
@@ -191,12 +202,13 @@ UI を全部先に作る／API を全部先に作る、いずれの水平分割�
 
 > **目的**: アプリのコアバリュー（診断→マッチング→応募）を一気通貫で実装する。
 
-| # | タスク | 種別 | 成果物 |
-|---|--------|------|--------|
-| 1-1 | オンボーディング（ロール選択 → 参加者プロフィール登録） | UI + Server Action | `/onboarding/role`, `/onboarding/participant` + `registerParticipant()` |
-| 1-2 | 既存診断の DB 保存接続 | Server Action | `submitDiagnosis()` — 計算結果を `participants.diagnosis_type` / `diagnosis_scores` に保存 |
-| 1-3 | おすすめ案件一覧 | UI + Server Action | `/recommendations` + `fetchRecommendations()` — スコア距離順ソート |
-| 1-4 | 案件詳細 + 応募 | UI + Server Action | `/opportunities/:id` + `applyToOpportunity()` |
+| #   | タスク                                                  | 種別               | 成果物                                                                                              |
+| --- | ------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------- |
+| 1-1 | オンボーディング（ロール選択 → 参加者プロフィール登録） | UI + Server Action | `/onboarding/role`, `/onboarding/participant` + `registerParticipant()`                             |
+| 1-2 | 既存診断の DB 保存接続                                  | Server Action      | `submitDiagnosis()` — 計算結果を `participants.diagnosis_type` / `diagnosis_scores` に保存          |
+| 1-3 | おすすめ案件一覧 + フィルタ                             | UI + Server Action | `/recommendations` + `fetchRecommendations(filters?)` — スコア距離順ソート・カテゴリ/地域フィルタUI |
+| 1-4 | 案件詳細 + 応募                                         | UI + Server Action | `/opportunities/:id` + `applyToOpportunity()` — 団体情報表示・団体詳細へのリンク含む                |
+| 1-5 | 団体詳細                                                | UI                 | `/organizations/:id` — 団体情報・他の募集案件一覧（参照のみ、読み取り専用）                         |
 
 **完了条件**: 参加者がログイン→プロフィール登録→診断→おすすめ案件閲覧→応募、の一連フローが動作する。
 
@@ -208,11 +220,12 @@ UI を全部先に作る／API を全部先に作る、いずれの水平分割�
 
 > **目的**: 団体側の案件管理と応募者管理を実装し、双方向のマッチングフローを完成させる。
 
-| # | タスク | 種別 | 成果物 |
-|---|--------|------|--------|
-| 2-1 | 団体オンボーディング + 審査待ち画面 | UI + Server Action | `/onboarding/organization`, `/onboarding/pending` + `registerOrganization()` |
-| 2-2 | ダッシュボード + 案件 CRUD | UI + Server Action | `/dashboard`, `/dashboard/opportunities/new`, `/dashboard/opportunities/:id/edit` + `createOpportunity()`, `updateOpportunity()`, `fetchMyOpportunities()` |
-| 2-3 | 応募者管理（承認 / 辞退） | UI + Server Action | `/dashboard/opportunities/:id` + `fetchApplicantsForOpportunity()`, `updateApplicationStatus()` |
+| #   | タスク                              | 種別               | 成果物                                                                                                                                                     |
+| --- | ----------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2-1 | 団体オンボーディング + 審査待ち画面 | UI + Server Action | `/onboarding/organization`, `/onboarding/pending` + `registerOrganization()`                                                                               |
+| 2-2 | ダッシュボード + 案件 CRUD          | UI + Server Action | `/dashboard`, `/dashboard/opportunities/new`, `/dashboard/opportunities/:id/edit` + `createOpportunity()`, `updateOpportunity()`, `fetchMyOpportunities()` |
+| 2-3 | 応募者一覧（承認 / 辞退）           | UI + Server Action | `/dashboard/opportunities/:id` + `fetchApplicantsForOpportunity()`, `updateApplicationStatus()` — スコア順一覧・インライン承認/辞退                        |
+| 2-4 | 応募者詳細                          | UI + Server Action | `/dashboard/opportunities/:id/applicants/:applicationId` + `fetchApplicantDetail()` — 診断タイプ・BIG5スコア・応募メッセージ確認                           |
 
 **完了条件**: 団体がログイン→登録→案件作成→応募者確認→承認/辞退、の一連フローが動作する。
 
@@ -222,11 +235,11 @@ UI を全部先に作る／API を全部先に作る、いずれの水平分割�
 
 > **目的**: 両フロー統合後の横断的な機能実装と品質担保。
 
-| # | タスク | 種別 | 成果物 |
-|---|--------|------|--------|
-| 3-1 | マイページ | UI + Server Action | `/mypage` + `fetchMyApplications()` — 応募進捗・成立時の LINE ID 表示 |
-| 3-2 | 総合テスト + バグ修正 | QA | 全フロー結合テスト、エッジケース対応 |
-| 3-3 | Vercel デプロイ + 動作確認 | Infra | 本番環境での手動団体審査フロー含む動作確認 |
+| #   | タスク                     | 種別               | 成果物                                                                |
+| --- | -------------------------- | ------------------ | --------------------------------------------------------------------- |
+| 3-1 | マイページ                 | UI + Server Action | `/mypage` + `fetchMyApplications()` — 応募進捗・成立時の LINE ID 表示 |
+| 3-2 | 総合テスト + バグ修正      | QA                 | 全フロー結合テスト、エッジケース対応                                  |
+| 3-3 | Vercel デプロイ + 動作確認 | Infra              | 本番環境での手動団体審査フロー含む動作確認                            |
 
 **完了条件**: 参加者・団体の両フローが本番環境で正常に動作し、マッチング成立→連絡先開示まで完結する。
 
