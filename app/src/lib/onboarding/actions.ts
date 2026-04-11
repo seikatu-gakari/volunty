@@ -3,6 +3,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import type {
+  RegisterParticipantData,
+  RegisterParticipantResult,
+} from "./types";
 
 /**
  * ロール選択 — user_metadata と m_user のロールを更新
@@ -34,41 +38,42 @@ export async function selectRole(role: "participant" | "organization") {
 }
 
 /**
- * 参加者プロフィール登録 — m_participant_profile を作成し、オンボーディング完了
+ * 参加者プロフィールを登録する
+ *
+ * - participants テーブルに INSERT
+ * - id は認証済みユーザーの UUID を使用
  */
-export async function registerParticipantProfile(formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("認証が必要です");
+export async function registerParticipant(
+  data: RegisterParticipantData
+): Promise<RegisterParticipantResult> {
+  try {
+    const supabase = await createClient();
 
-  const name = (formData.get("name") as string)?.trim();
-  const bio = (formData.get("bio") as string)?.trim() || null;
-  const preferredLocation =
-    (formData.get("preferredLocation") as string)?.trim() || null;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!name) throw new Error("名前は必須です");
+    if (!user) {
+      return { success: false, error: "ログインが必要です" };
+    }
 
-  // ユーザー名を保存
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { name },
-  });
+    const { error: insertError } = await supabase.from("participants").insert({
+      id: user.id,
+      name: data.name,
+      region: data.region || null,
+    });
 
-  // 参加者プロフィールを作成（既存の場合は更新）
-  await prisma.participantProfile.upsert({
-    where: { userId: user.id },
-    update: { bio, preferredLocation },
-    create: { userId: user.id, bio, preferredLocation },
-  });
+    if (insertError) {
+      return { success: false, error: "プロフィールの登録に失敗しました" };
+    }
 
-  // オンボーディング完了フラグをセット
-  await supabase.auth.updateUser({
-    data: { onboarding_completed: true },
-  });
-
-  redirect("/");
+    return { success: true };
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[registerParticipant] 予期しないエラー:", err);
+    }
+    return { success: false, error: "予期しないエラーが発生しました" };
+  }
 }
 
 /**
