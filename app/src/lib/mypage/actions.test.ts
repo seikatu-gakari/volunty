@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MyPageData } from "./types";
 
-// Supabase クライアントのモック
+// Supabase クライアントのモック（認証 + applications）
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
 const mockSelect = vi.fn();
 const mockEq = vi.fn();
-const mockSingle = vi.fn();
 const mockOrder = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -23,7 +22,6 @@ vi.mock("@/lib/supabase/server", () => ({
             eq: (...eqArgs: unknown[]) => {
               mockEq(...eqArgs);
               return {
-                single: () => mockSingle(),
                 order: (...orderArgs: unknown[]) => {
                   mockOrder(...orderArgs);
                   return mockOrder();
@@ -35,6 +33,17 @@ vi.mock("@/lib/supabase/server", () => ({
       };
     },
   }),
+}));
+
+// Prisma のモック（参加者プロフィール）
+const mockPrismaParticipantFindUnique = vi.fn();
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    participantProfile: {
+      findUnique: (...args: unknown[]) => mockPrismaParticipantFindUnique(...args),
+    },
+  },
 }));
 
 // "use server" ディレクティブを含むモジュールの動的インポート
@@ -72,14 +81,20 @@ describe("fetchMyPageData", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockSingle.mockReturnValue({ data: mockProfile });
+    mockPrismaParticipantFindUnique.mockResolvedValue({
+      id: mockProfile.id,
+      name: mockProfile.name,
+      region: mockProfile.region,
+      diagnosisType: mockProfile.diagnosis_type,
+      diagnosisScores: mockProfile.diagnosis_scores,
+    });
     mockOrder.mockReturnValue({ data: [] });
 
     const result: MyPageData = await fetchMyPageData();
 
     expect(result.profile).toEqual(mockProfile);
-    expect(mockFrom).toHaveBeenCalledWith("participants");
-    expect(mockEq).toHaveBeenCalledWith("id", "user-123");
+    expect(mockFrom).toHaveBeenCalledWith("applications");
+    expect(mockEq).toHaveBeenCalledWith("participant_id", "user-123");
   });
 
   it("応募データがある場合、応募一覧を返す", async () => {
@@ -113,7 +128,7 @@ describe("fetchMyPageData", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockSingle.mockReturnValue({ data: null });
+    mockPrismaParticipantFindUnique.mockResolvedValue(null);
     mockOrder.mockReturnValue({ data: mockApplications });
 
     const result: MyPageData = await fetchMyPageData();
@@ -155,7 +170,7 @@ describe("fetchMyPageData", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockSingle.mockReturnValue({ data: null });
+    mockPrismaParticipantFindUnique.mockResolvedValue(null);
     mockOrder.mockReturnValue({ data: mockApplications });
 
     const result: MyPageData = await fetchMyPageData();
@@ -173,7 +188,7 @@ describe("fetchMyPageData", () => {
       error: null,
     });
     // DB アクセスで例外を投げる
-    mockSingle.mockImplementation(() => {
+    mockPrismaParticipantFindUnique.mockImplementation(() => {
       throw new Error("DB connection error");
     });
     mockOrder.mockImplementation(() => {

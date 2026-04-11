@@ -1,26 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Supabase クライアントのモック
+// Supabase クライアントのモック（認証のみ）
 const mockGetUser = vi.fn();
-const mockSingle = vi.fn();
-const mockUpdateEq = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: {
       getUser: () => mockGetUser(),
     },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: () => mockSingle(),
-        }),
-      }),
-      update: () => ({
-        eq: () => mockUpdateEq(),
-      }),
-    }),
   }),
+}));
+
+// Prisma のモック
+const mockPrismaParticipantFindUnique = vi.fn();
+const mockPrismaParticipantUpdate = vi.fn();
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    participantProfile: {
+      findUnique: (...args: unknown[]) => mockPrismaParticipantFindUnique(...args),
+      update: (...args: unknown[]) => mockPrismaParticipantUpdate(...args),
+    },
+  },
 }));
 
 // "use server" ディレクティブを含むモジュールの動的インポート
@@ -47,7 +48,7 @@ describe("fetchDiagnosisResult", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockReturnValue({ data: null });
+    mockPrismaParticipantFindUnique.mockResolvedValue(null);
 
     const result = await fetchDiagnosisResult();
 
@@ -59,11 +60,9 @@ describe("fetchDiagnosisResult", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockReturnValue({
-      data: {
-        diagnosis_type: "innovator-leader",
-        diagnosis_scores: { extraversion: 80 }, // 不完全（5特性揃っていない）
-      },
+    mockPrismaParticipantFindUnique.mockResolvedValue({
+      diagnosisType: "innovator-leader",
+      diagnosisScores: { extraversion: 80 }, // 不完全（5特性揃っていない）
     });
 
     const result = await fetchDiagnosisResult();
@@ -76,16 +75,14 @@ describe("fetchDiagnosisResult", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockReturnValue({
-      data: {
-        diagnosis_type: "innovator-leader",
-        diagnosis_scores: {
-          extraversion: 85,
-          agreeableness: 70,
-          conscientiousness: 80,
-          neuroticism: 40,
-          openness: 90,
-        },
+    mockPrismaParticipantFindUnique.mockResolvedValue({
+      diagnosisType: "innovator-leader",
+      diagnosisScores: {
+        extraversion: 85,
+        agreeableness: 70,
+        conscientiousness: 80,
+        neuroticism: 40,
+        openness: 90,
       },
     });
 
@@ -107,7 +104,7 @@ describe("fetchDiagnosisResult", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockImplementation(() => {
+    mockPrismaParticipantFindUnique.mockImplementation(() => {
       throw new Error("Database query error");
     });
 
@@ -121,16 +118,14 @@ describe("fetchDiagnosisResult", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockReturnValue({
-      data: {
-        diagnosis_type: "unknown-type",
-        diagnosis_scores: {
-          extraversion: 50,
-          agreeableness: 50,
-          conscientiousness: 50,
-          neuroticism: 50,
-          openness: 50,
-        },
+    mockPrismaParticipantFindUnique.mockResolvedValue({
+      diagnosisType: "unknown-type",
+      diagnosisScores: {
+        extraversion: 50,
+        agreeableness: 50,
+        conscientiousness: 50,
+        neuroticism: 50,
+        openness: 50,
       },
     });
 
@@ -147,16 +142,14 @@ describe("fetchDiagnosisResult", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockReturnValue({
-      data: {
-        diagnosis_type: null,
-        diagnosis_scores: {
-          extraversion: 80,
-          agreeableness: 60,
-          conscientiousness: 75,
-          neuroticism: 30,
-          openness: 85,
-        },
+    mockPrismaParticipantFindUnique.mockResolvedValue({
+      diagnosisType: null,
+      diagnosisScores: {
+        extraversion: 80,
+        agreeableness: 60,
+        conscientiousness: 75,
+        neuroticism: 30,
+        openness: 85,
       },
     });
 
@@ -212,7 +205,7 @@ describe("submitDiagnosis", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockReturnValue({ data: null });
+    mockPrismaParticipantFindUnique.mockResolvedValue(null);
 
     const result = await submitDiagnosis(createMockAnswers());
 
@@ -225,8 +218,8 @@ describe("submitDiagnosis", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockReturnValue({ data: { id: "user-123" } });
-    mockUpdateEq.mockReturnValue({ error: null });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "user-123" });
+    mockPrismaParticipantUpdate.mockResolvedValue({});
 
     const result = await submitDiagnosis(createMockAnswers());
 
@@ -239,15 +232,13 @@ describe("submitDiagnosis", () => {
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockSingle.mockReturnValue({ data: { id: "user-123" } });
-    mockUpdateEq.mockReturnValue({
-      error: { message: "Update failed" },
-    });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "user-123" });
+    mockPrismaParticipantUpdate.mockRejectedValue(new Error("Update failed"));
 
     const result = await submitDiagnosis(createMockAnswers());
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe("診断結果の保存に失敗しました");
+    expect(result.error).toBe("予期しないエラーが発生しました");
   });
 
   it("予期しない例外が発生した場合、エラーを返す", async () => {

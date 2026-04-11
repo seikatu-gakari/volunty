@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { prisma } from "@/lib/prisma"
 import type { BIG5Scores } from "@/lib/personality/types"
 import type { OpportunityRecommendation, RecommendationResult } from "./types"
 import { calculateMatchScore } from "./matching"
@@ -58,13 +59,12 @@ export async function fetchRecommendations(): Promise<RecommendationResult> {
     }
 
     // 参加者の診断スコアを取得
-    const { data: participant } = await supabase
-      .from("participants")
-      .select("diagnosis_scores")
-      .eq("id", user.id)
-      .single()
+    const participant = await prisma.participantProfile.findUnique({
+      where: { userId: user.id },
+      select: { diagnosisScores: true },
+    })
 
-    const rawScores = participant?.diagnosis_scores
+    const rawScores = participant?.diagnosisScores
     if (!isBIG5Scores(rawScores)) {
       return { recommendations: [], hasCompletedDiagnosis: false }
     }
