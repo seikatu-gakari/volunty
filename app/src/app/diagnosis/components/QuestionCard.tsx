@@ -1,5 +1,7 @@
 import React from 'react'
 import { Question } from '@/lib/personality/types'
+import { ArrowLeft } from 'lucide-react'
+import { Card } from '@/app/components/ui/Card'
 
 interface QuestionCardProps {
   question: Question
@@ -18,57 +20,64 @@ export function QuestionCard({
   currentStep,
   totalSteps
 }: QuestionCardProps) {
+  const progress = Math.round((currentStep / totalSteps) * 100)
+
   return (
-    <div className="w-full max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-lg">
+    <Card className="p-6">
+      {/* プログレスバー */}
       <div className="mb-8">
-        <div className="flex justify-between text-sm text-gray-500 mb-2">
-          <span>Question {currentStep} / {totalSteps}</span>
-          <span>{Math.round((currentStep / totalSteps) * 100)}%</span>
+        <div className="mb-2 flex justify-between text-sm text-text-body">
+          <span>質問 {currentStep} / {totalSteps}</span>
+          <span>{progress}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-primary/20">
           <div
-            className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-            style={{ width: `${(currentStep / totalSteps) * 100}%` }}
-          ></div>
+            className="h-full rounded-full bg-primary transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
 
-      <h2 className="text-2xl font-bold text-gray-800 mb-8 text-center min-h-[80px] flex items-center justify-center">
+      {/* 質問テキスト */}
+      <h2 className="mb-8 flex min-h-[80px] items-center justify-center text-center text-xl font-bold text-text-dark">
         {question.text}
       </h2>
 
+      {/* 選択肢 */}
       <div className="space-y-3">
         {question.options.map((option) => (
           <button
             key={option.value}
             onClick={() => onAnswer(option.value)}
-            className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors duration-200 group"
+            className="group w-full rounded-lg border-2 border-card-border p-4 text-left transition-colors duration-200 hover:border-primary hover:bg-primary/5"
           >
             <div className="flex items-center justify-between">
-              <span className="text-lg font-medium text-gray-700 group-hover:text-blue-700">
+              <span className="text-base font-medium text-text-body group-hover:text-text-dark">
                 {option.label}
               </span>
-              <div className="w-6 h-6 rounded-full border-2 border-gray-300 group-hover:border-blue-500 flex items-center justify-center">
-                <div className="w-3 h-3 rounded-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex size-6 items-center justify-center rounded-full border-2 border-card-border group-hover:border-primary">
+                <div className="size-3 rounded-full bg-primary opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
             </div>
           </button>
         ))}
       </div>
 
+      {/* 戻るボタン */}
       <div className="mt-8 flex justify-start">
         <button
           onClick={onBack}
           disabled={!canGoBack}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors
+          className={`flex items-center gap-1 rounded-md px-4 py-2 text-sm font-medium transition-colors
             ${canGoBack
-              ? 'text-gray-600 hover:bg-gray-100'
-              : 'text-gray-300 cursor-not-allowed'
+              ? 'text-text-body hover:bg-primary/5'
+              : 'cursor-not-allowed text-text-body/30'
             }`}
         >
-          ← Back
+          <ArrowLeft className="size-4" />
+          戻る
         </button>
       </div>
-    </div>
+    </Card>
   )
 }

@@ -2,6 +2,20 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { DiagnosisWizard } from './DiagnosisWizard'
 
+// next/navigation のモック
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}))
+
+// Server Action のモック
+vi.mock('@/lib/diagnosis/actions', () => ({
+  submitDiagnosis: vi.fn().mockResolvedValue({ success: true }),
+}))
+
 // Mock the machine to avoid complex state setup in component tests
 // We'll test the UI interaction primarily
 vi.mock('@xstate/react', () => ({

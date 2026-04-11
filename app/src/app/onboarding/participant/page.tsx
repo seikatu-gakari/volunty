@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Header } from "@/app/components/Header";
 import { ParticipantProfileForm } from "./components/ParticipantProfileForm";
 
 /** 認証状態とプロフィール登録状況を取得する */
@@ -37,10 +36,5 @@ export default async function OnboardingParticipantPage() {
   if (!isAuthenticated) redirect("/login");
   if (hasProfile) redirect("/");
 
-  return (
-    <div className="min-h-screen bg-background font-sans">
-      <Header />
-      <ParticipantProfileForm />
-    </div>
-  );
+  return <ParticipantProfileForm />;
 }
