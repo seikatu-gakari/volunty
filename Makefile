@@ -14,7 +14,7 @@ build: ## Dockerイメージをビルド（開発環境の構築）
 	$(COMPOSE) build
 
 up: ## 開発サーバーを前面起動（フォアグラウンド、http://localhost:3000でアクセス可能）
-	$(COMPOSE) up
+	$(COMPOSE) up --build
 
 up-detached: ## 開発サーバーをバックグラウンド起動（デーモンモード）
 	$(COMPOSE) up -d

@@ -9,6 +9,7 @@ ENV NODE_ENV=development \
   PORT=3000
 
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 
 RUN npm install
 
