@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   output: "standalone",
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg"],
 };
 
 export default nextConfig;

@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { Clock, Building2, User, Mail, MapPin } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import { PendingActions } from "./PendingActions";
 
 /** 審査待ち画面に表示する団体情報 */
 interface PendingOrgProfile {
@@ -194,6 +196,17 @@ export default async function OnboardingPendingPage() {
           </dl>
         </CardContent>
       </Card>
+
+      {/* アクションリンク */}
+      <div className="mt-8 flex flex-col items-center gap-3">
+        <Link
+          href="/"
+          className="flex h-10 items-center gap-2 rounded-lg border border-card-border bg-background px-4 text-sm font-medium text-text-dark hover:bg-primary/5"
+        >
+          トップページへ戻る
+        </Link>
+        <PendingActions />
+      </div>
     </main>
   );
 }

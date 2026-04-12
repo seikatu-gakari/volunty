@@ -3,12 +3,35 @@ import { Heart, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { HeaderAuth } from "@/app/components/HeaderAuth";
 
+/** ユーザーのロール・オンボーディング状態 */
+export interface HeaderUserState {
+  role: "participant" | "organization" | null;
+  onboardingCompleted: boolean;
+  verified: boolean;
+}
+
 export async function Header() {
   let user = null;
+  let userState: HeaderUserState = {
+    role: null,
+    onboardingCompleted: false,
+    verified: false,
+  };
+
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
     user = data.user;
+
+    if (user) {
+      const metadata = user.user_metadata as Record<string, unknown>;
+      const role = metadata.role as string | undefined;
+      userState = {
+        role: role === "participant" || role === "organization" ? role : null,
+        onboardingCompleted: !!metadata.onboarding_completed,
+        verified: !!metadata.verified,
+      };
+    }
   } catch {
     // Supabase未設定・接続エラー時はログインなしで表示
   }
@@ -30,7 +53,7 @@ export async function Header() {
             </span>
           </div>
         </Link>
-        <HeaderAuth user={user} />
+        <HeaderAuth user={user} userState={userState} />
       </div>
     </header>
   );
