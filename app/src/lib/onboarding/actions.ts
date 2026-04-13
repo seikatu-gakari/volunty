@@ -44,7 +44,7 @@ export async function selectRole(role: "participant" | "organization") {
  * 参加者プロフィールを登録する
  *
  * - m_participant_profile テーブルを Prisma 経由で upsert
- * - 成功後、/diagnosis へリダイレクト（初回は診断を促す）
+ * - 成功後、{ success: true } を返す（クライアント側で /diagnosis へ遷移）
  */
 export async function registerParticipant(
   data: RegisterParticipantData
@@ -106,14 +106,19 @@ export async function registerParticipant(
             : Prisma.JsonNull,
       },
     });
+
+    // オンボーディング完了フラグをセット
+    await supabase.auth.updateUser({
+      data: { onboarding_completed: true },
+    });
+
+    return { success: true };
   } catch (err) {
     if (process.env.NODE_ENV === "development") {
       console.error("[registerParticipant] 予期しないエラー:", err);
     }
     return { success: false, error: "予期しないエラーが発生しました" };
   }
-
-  redirect("/diagnosis");
 }
 
 /**
