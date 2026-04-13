@@ -150,7 +150,7 @@ export function ParticipantProfileForm() {
                   value={birthYear}
                   onChange={(e) => setBirthYear(e.target.value)}
                   required
-                  className={`${selectClass} flex-1`}
+                  className={`${selectClass} flex-[2]`}
                   aria-label="年"
                 >
                   <option value="">年</option>
