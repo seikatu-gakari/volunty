@@ -58,9 +58,12 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // --- パブリック（/）: 常にスルー ---
+  // --- パブリック（/）: 未認証ならスルー、認証済みならロール/オンボーディングチェックを実施 ---
   if (PUBLIC_PATHS.has(pathname)) {
-    return response;
+    if (!user) {
+      return response;
+    }
+    // 認証済みユーザーは下のロール・オンボーディングチェックに進む
   }
 
   // --- 以下は認証必須 ---
