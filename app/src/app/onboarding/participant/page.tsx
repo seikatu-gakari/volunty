@@ -8,25 +8,30 @@ async function getPageState(): Promise<{
   isAuthenticated: boolean;
   hasProfile: boolean;
 }> {
+  // 1. 認証チェック
+  let user;
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    return { isAuthenticated: false, hasProfile: false };
+  }
 
-    if (!user) {
-      return { isAuthenticated: false, hasProfile: false };
-    }
+  if (!user) {
+    return { isAuthenticated: false, hasProfile: false };
+  }
 
+  // 2. プロフィールチェック（DB エラー時は未登録扱いだが認証は true を維持）
+  try {
     const profile = await prisma.participantProfile.findUnique({
       where: { userId: user.id },
       select: { id: true },
     });
-
     return { isAuthenticated: true, hasProfile: !!profile };
   } catch {
-    // Supabase / Prisma 未設定時はスキップ
-    return { isAuthenticated: false, hasProfile: false };
+    // DB エラーでもログイン状態は維持してフォームを表示する
+    return { isAuthenticated: true, hasProfile: false };
   }
 }
 
