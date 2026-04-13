@@ -25,8 +25,8 @@ const INTERESTS = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
-// 参加者の年齢を考慮: 1歳〜120歳を対象とした範囲
-const YEARS = Array.from({ length: 120 }, (_, i) => CURRENT_YEAR - i);
+// 参加者の年齢を考慮: 1歳〜150歳を対象とした範囲
+const YEARS = Array.from({ length: 150 }, (_, i) => CURRENT_YEAR - i);
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
