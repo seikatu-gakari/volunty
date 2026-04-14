@@ -70,51 +70,37 @@ export async function fetchRecommendations(): Promise<RecommendationResult> {
     }
 
     // 公開中の案件を団体名とともに取得
-    const { data: opportunities, error } = await supabase
-      .from("opportunities")
-      .select(
-        `
-        id,
-        title,
-        description,
-        required_traits,
-        organizations ( name )
-      `
-      )
-      .eq("status", "open")
+    const opportunities = await prisma.opportunity.findMany({
+      where: { status: "published" },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        requirementTraits: true,
+        organization: {
+          select: { organizationName: true },
+        },
+      },
+    })
 
-    if (error || !opportunities || opportunities.length === 0) {
+    if (opportunities.length === 0) {
       return { recommendations: [], hasCompletedDiagnosis: true }
     }
 
-    type OpportunityRow = {
-      id: string
-      title: string
-      description: string | null
-      required_traits: Record<string, unknown> | null
-      organizations: { name: string }[] | { name: string } | null
-    }
-
     // マッチングスコアを計算してソート
-    const recommendations: OpportunityRecommendation[] = (
-      opportunities as unknown as OpportunityRow[]
-    )
-      .map((opp) => {
-        // Supabaseのリレーションは配列または単一オブジェクトで返る場合がある
-        const org = Array.isArray(opp.organizations)
-          ? opp.organizations[0]
-          : opp.organizations
-        return {
-          id: opp.id,
-          title: opp.title,
-          description: opp.description,
-          organizationName: org?.name ?? "不明",
-          matchScore: calculateMatchScore(
-            rawScores,
-            toPartialBIG5Scores(opp.required_traits ?? {})
-          ),
-        }
-      })
+    const recommendations: OpportunityRecommendation[] = opportunities
+      .map((opp) => ({
+        id: opp.id,
+        title: opp.title,
+        description: opp.description,
+        organizationName: opp.organization.organizationName,
+        matchScore: calculateMatchScore(
+          rawScores,
+          toPartialBIG5Scores(
+            (opp.requirementTraits as Record<string, unknown>) ?? {}
+          )
+        ),
+      }))
       .sort((a, b) => b.matchScore - a.matchScore)
 
     return { recommendations, hasCompletedDiagnosis: true }

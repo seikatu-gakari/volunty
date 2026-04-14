@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { Header } from "@/app/components/Header";
 import { DiagnosisWizard } from "./components/DiagnosisWizard";
 
@@ -31,14 +32,11 @@ export default async function DiagnosisPage() {
   // 参加者ロールチェック
   let isParticipant = false;
   try {
-    const supabase = await createClient();
-    const { data: participant } = await supabase
-      .from("participants")
-      .select("id")
-      .eq("id", user.id)
-      .single();
-
-    isParticipant = !!participant;
+    const profile = await prisma.participantProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    isParticipant = !!profile;
   } catch (err) {
     if (process.env.NODE_ENV === "development") {
       console.error("[DiagnosisPage] 参加者チェックエラー:", err);
