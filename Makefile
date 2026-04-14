@@ -2,7 +2,7 @@ COMPOSE ?= docker compose
 SERVICE ?= next-app
 APP_DIR ?= app
 
-.PHONY: help install build up up-detached down restart logs shell lint type-check build-next clean
+.PHONY: help install build up up-detached down restart logs shell lint type-check build-next clean supabase-start supabase-stop supabase-status supabase-reset db-migrate db-seed db-setup
 
 help: ## 利用可能なコマンド一覧を表示
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?##"} {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -42,3 +42,35 @@ build-next: ## Next.jsの本番ビルドをホストマシンで実行（本番�
 
 clean: ## コンテナを停止してボリュームも削除（完全クリーンアップ）
 	$(COMPOSE) down -v
+
+# ============================================
+# Supabase ローカル開発
+# ============================================
+
+supabase-start: ## Supabase ローカル環境を起動（Auth + PostgreSQL）
+	supabase start
+
+supabase-stop: ## Supabase ローカル環境を停止
+	supabase stop
+
+supabase-status: ## Supabase ローカル環境のステータスを表示
+	supabase status
+
+supabase-reset: ## ローカルDBをリセット（マイグレーション再適用 + seed）
+	supabase db reset
+
+supabase-clean: ## Supabase コンテナを停止してDBデータを完全削除（バックアップなし）
+	supabase stop --no-backup
+
+db-migrate: ## Prisma マイグレーションをローカルDBに適用
+	cd $(APP_DIR) && npx prisma migrate dev
+
+db-seed: ## Prisma シードをローカルDBに実行
+	cd $(APP_DIR) && npx prisma db seed
+
+db-setup: ## ローカルDB初期セットアップ（supabase start → migrate → seed）
+	@echo "Supabase ローカル環境を起動中..."
+	supabase start
+	@echo "Prisma マイグレーションを適用中..."
+	cd $(APP_DIR) && npx prisma migrate dev
+	@echo "ローカルDB セットアップ完了！"

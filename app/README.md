@@ -1,36 +1,132 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Volunty
 
-## Getting Started
+BIG5性格診断に基づくボランティアマッチングWebアプリケーション。
 
-First, run the development server:
+## 必要な環境
+
+- Node.js 20+
+- Docker Desktop
+- [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Supabase CLI のインストール（Homebrew）
+brew install supabase/tap/supabase
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ローカル環境構築
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. リポジトリのクローンと依存関係のインストール
 
-## Learn More
+```bash
+git clone https://github.com/seikatu-gakari/volunty.git
+cd volunty
+make install
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 2. 環境変数の設定
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cp app/.env.example app/.env.local
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`.env.local` を編集し、Supabase の接続情報を設定します。値は後述の「ローカルDB構築」後に `make supabase-status` で確認してください。
 
-## Deploy on Vercel
+### 3. 開発サーバーの起動
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Docker で起動（推奨）
+make up
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# または、ホストマシンで直接起動
+cd app && npm run dev
+```
+
+ブラウザで http://localhost:3000 を開いてください。
+
+---
+
+## ローカルDB構築
+
+Supabase をローカルで起動し、マイグレーション（テーブル作成）とテストデータを自動投入します。
+
+### 1. Supabase の起動
+
+```bash
+make supabase-start
+```
+
+初回起動時は以下が自動適用されます。
+
+- `supabase/migrations/` — テーブル作成マイグレーション
+- `supabase/seed.sql` — RLSポリシー + テストデータ
+
+### 2. `.env.local` に接続情報を設定
+
+起動後に表示される値（または `make supabase-status` で確認）を設定してください。
+
+```bash
+# app/.env.local
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<Publishable key>
+
+# Prisma 接続用
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+DIRECT_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+### 3. テーブル・データの確認
+
+**Supabase Studio（GUI）**
+
+```
+http://127.0.0.1:54323
+```
+
+**psql（CLI）**
+
+```bash
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+### テストユーザー一覧
+
+| メールアドレス         | パスワード  | ロール       | 備考                  |
+| ---------------------- | ----------- | ------------ | --------------------- |
+| tanaka@example.com     | password123 | participant  | 診断済み・応募済み    |
+| sato@example.com       | password123 | participant  | 診断済み・承認済み    |
+| suzuki@example.com     | password123 | participant  | 未診断                |
+| greenearth@example.com | password123 | organization | NPO法人グリーンアース |
+| mirai@example.com      | password123 | organization | NPO法人みらい学舎     |
+
+---
+
+## よく使うコマンド
+
+```bash
+# 開発
+make up              # Docker で開発サーバー起動
+make down            # 停止
+make logs            # ログ確認
+make lint            # ESLint 実行
+
+# DB 操作
+make supabase-start   # Supabase 起動（初回: マイグレーション + seed 自動適用）
+make supabase-stop    # Supabase 停止（データ保持）
+make supabase-reset   # DB リセット（マイグレーション再適用 + seed）
+make supabase-clean   # Supabase 停止 + データ完全削除
+make supabase-status  # 接続情報の確認
+
+# テスト
+cd app && npm run test
+```
+
+---
+
+## ドキュメント
+
+- [アーキテクチャ概要](../docs/architecture/overview.md)
+- [要件定義](../docs/requirements/requirements-definition.md)
+- [DB設計](../docs/design/database-design.md)
+- [BIG5診断設計](../docs/design/personality-diagnosis-big5.md)
