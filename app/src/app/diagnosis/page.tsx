@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
 import { Header } from "@/app/components/Header";
 import { DiagnosisWizard } from "./components/DiagnosisWizard";
 
@@ -29,21 +28,9 @@ export default async function DiagnosisPage() {
     redirect("/login");
   }
 
-  // 参加者ロールチェック
-  let isParticipant = false;
-  try {
-    const profile = await prisma.participantProfile.findUnique({
-      where: { userId: user.id },
-      select: { id: true },
-    });
-    isParticipant = !!profile;
-  } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[DiagnosisPage] 参加者チェックエラー:", err);
-    }
-  }
-
-  if (!isParticipant) {
+  // 参加者ロールチェック（proxy の user_metadata 検証と同じ基準を利用）
+  const role = (user.user_metadata as Record<string, unknown>).role as string | undefined;
+  if (role !== "participant") {
     redirect("/");
   }
 
