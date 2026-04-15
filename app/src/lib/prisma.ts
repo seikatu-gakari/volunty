@@ -24,7 +24,7 @@ function createPrismaClient(): PrismaClient {
   return new PrismaClient({ adapter });
 }
 
-// モジュールスコープのキャッシュ（本番環境用）
+// モジュールスコープのキャッシュ（開発環境では globalThis キャッシュと併用）
 let cachedClient: PrismaClient | undefined;
 
 function getClient(): PrismaClient {
