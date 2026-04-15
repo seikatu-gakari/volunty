@@ -13,7 +13,7 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient(): PrismaClient {
   const connectionString = process.env["DATABASE_URL"];
   if (!connectionString) {
-    throw new Error("DATABASE_URL 環境変数が未設定です");
+    throw new Error("DATABASE_URL 環境変数が未設定です。.env.local ファイルを確認してください");
   }
 
   const pool = new pg.Pool({ connectionString });
