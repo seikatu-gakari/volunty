@@ -91,9 +91,7 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
       isExactMatch: false,
     };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[fetchDiagnosisResult] 予期しないエラー:", err);
-    }
+    console.error("[fetchDiagnosisResult] 予期しないエラー:", err);
     return null;
   }
 }
@@ -148,9 +146,7 @@ export async function submitDiagnosis(
 
     return { success: true };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[submitDiagnosis] 予期しないエラー:", err);
-    }
+    console.error("[submitDiagnosis] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
   }
 }
