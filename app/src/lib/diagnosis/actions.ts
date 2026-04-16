@@ -91,7 +91,11 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
       isExactMatch: false,
     };
   } catch (err) {
-    console.error("[fetchDiagnosisResult] 予期しないエラー:", err);
+    const errorDetail =
+      err instanceof Error
+        ? { name: err.constructor.name, message: err.message, code: (err as unknown as Record<string, unknown>).code }
+        : { raw: String(err) };
+    console.error("[fetchDiagnosisResult] 予期しないエラー:", JSON.stringify(errorDetail));
     return null;
   }
 }
@@ -118,16 +122,19 @@ export async function submitDiagnosis(
     }
 
     // 参加者であることを確認
+    console.log("[submitDiagnosis] step:findUnique userId=", user.id);
     const participant = await prisma.participantProfile.findUnique({
       where: { userId: user.id },
       select: { id: true },
     });
 
     if (!participant) {
+      console.warn("[submitDiagnosis] 参加者レコードが存在しない userId=", user.id);
       return { success: false, error: "参加者登録が必要です" };
     }
 
     // 回答データから BIG5 スコアを計算
+    console.log("[submitDiagnosis] step:calculate answers=", answers.length);
     const profile = await calculateBIG5Diagnosis(answers);
 
     // 人物タイプ ID を決定（完全一致 or 近似一致）
@@ -136,6 +143,7 @@ export async function submitDiagnosis(
       : profile.closestType.id;
 
     // DB に保存
+    console.log("[submitDiagnosis] step:update diagnosisType=", diagnosisType);
     await prisma.participantProfile.update({
       where: { userId: user.id },
       data: {
@@ -144,9 +152,15 @@ export async function submitDiagnosis(
       },
     });
 
+    console.log("[submitDiagnosis] 保存成功");
     return { success: true };
   } catch (err) {
-    console.error("[submitDiagnosis] 予期しないエラー:", err);
+    const errorDetail =
+      err instanceof Error
+        ? { name: err.constructor.name, message: err.message, code: (err as unknown as Record<string, unknown>).code }
+        : { raw: String(err) };
+    console.error("[submitDiagnosis] 予期しないエラー:", JSON.stringify(errorDetail));
+    console.error("[submitDiagnosis] stack:", err instanceof Error ? err.stack : "N/A");
     return { success: false, error: "予期しないエラーが発生しました" };
   }
 }

@@ -12,14 +12,26 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  const connectionString = process.env["DATABASE_URL"];
-  if (!connectionString) {
+  const rawUrl = process.env["DATABASE_URL"];
+  if (!rawUrl) {
     throw new Error(
       "DATABASE_URL 環境変数が未設定です。.env.local ファイルを確認してください"
     );
   }
 
-  const pool = new pg.Pool({ connectionString });
+  // pg ライブラリは ?pgbouncer=true を認識しないため除去する
+  const url = new URL(rawUrl);
+  url.searchParams.delete("pgbouncer");
+  const connectionString = url.toString();
+
+  const pool = new pg.Pool({
+    connectionString,
+    // Supabase Pooler は SSL 接続を要求する（ローカル環境では不要なので条件付き）
+    ssl:
+      process.env.NODE_ENV === "production"
+        ? { rejectUnauthorized: false }
+        : undefined,
+  });
   const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
