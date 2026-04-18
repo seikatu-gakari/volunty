@@ -106,12 +106,10 @@ export async function fetchParticipantProfileByUserId(
       };
     }
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error(
-        "[fetchParticipantProfileByUserId] Prisma 取得に失敗したため Supabase にフォールバックします:",
-        err
-      );
-    }
+    console.error(
+      "[fetchParticipantProfileByUserId] Prisma 取得に失敗したため Supabase にフォールバックします:",
+      err
+    );
   }
 
   try {
@@ -125,12 +123,10 @@ export async function fetchParticipantProfileByUserId(
       .maybeSingle();
 
     if (error) {
-      if (process.env.NODE_ENV === "development") {
-        console.error(
-          "[fetchParticipantProfileByUserId] Supabase 取得に失敗しました:",
-          error
-        );
-      }
+      console.error(
+        "[fetchParticipantProfileByUserId] Supabase 取得に失敗しました:",
+        error
+      );
       return null;
     }
 
@@ -140,12 +136,10 @@ export async function fetchParticipantProfileByUserId(
 
     return mapProfile(data as RawParticipantProfile);
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error(
-        "[fetchParticipantProfileByUserId] フォールバック取得に失敗しました:",
-        err
-      );
-    }
+    console.error(
+      "[fetchParticipantProfileByUserId] フォールバック取得に失敗しました:",
+      err
+    );
     return null;
   }
 }

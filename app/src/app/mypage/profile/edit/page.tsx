@@ -21,9 +21,9 @@ export default async function EditProfilePage() {
     redirect("/onboarding/participant");
   }
 
-  const bYear = profile.birthday.getFullYear().toString();
-  const bMonth = (profile.birthday.getMonth() + 1).toString();
-  const bDay = profile.birthday.getDate().toString();
+  const bYear = profile.birthday.getUTCFullYear().toString();
+  const bMonth = (profile.birthday.getUTCMonth() + 1).toString();
+  const bDay = profile.birthday.getUTCDate().toString();
 
   const defaultValues = {
     name: profile.name,
