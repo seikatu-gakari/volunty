@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
+import { fetchParticipantProfileByUserId } from "@/lib/participant-profile/server";
 import type {
   MyPageData,
   ApplicationWithDetails,
@@ -30,10 +30,7 @@ export async function fetchMyPageData(): Promise<MyPageData> {
   // 参加者プロフィール取得
   let profile: ParticipantProfile | null = null;
   try {
-    const profileData = await prisma.participantProfile.findUnique({
-      where: { userId: user.id },
-      select: { id: true, name: true, region: true, diagnosisType: true, diagnosisScores: true },
-    });
+    const profileData = await fetchParticipantProfileByUserId(user.id);
 
     if (profileData) {
       profile = {
@@ -41,11 +38,13 @@ export async function fetchMyPageData(): Promise<MyPageData> {
         name: profileData.name,
         region: profileData.region,
         diagnosis_type: profileData.diagnosisType,
-        diagnosis_scores: profileData.diagnosisScores as Record<string, number> | null,
+        diagnosis_scores: profileData.diagnosisScores,
       };
     }
-  } catch {
-    // Prisma 接続エラー時はスキップ
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[fetchMyPageData] 参加者プロフィール取得に失敗:", err);
+    }
   }
 
   // 応募一覧取得（opportunities + organizations JOIN）
