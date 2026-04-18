@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { fetchParticipantProfileByUserId } from "@/lib/participant-profile/server";
+import { prisma } from "@/lib/prisma";
 import type {
   MyPageData,
   ApplicationWithDetails,
@@ -50,57 +51,54 @@ export async function fetchMyPageData(): Promise<MyPageData> {
   // 応募一覧取得（opportunities + organizations JOIN）
   let applications: ApplicationWithDetails[] = [];
   try {
-    const { data: appData } = await supabase
-      .from("applications")
-      .select(
-        `
-        id,
-        status,
-        message,
-        created_at,
-        opportunities (
-          id,
-          title,
-          organization_id,
-          organizations (
-            name,
-            line_id
-          )
-        )
-      `
-      )
-      .eq("participant_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (appData) {
-      applications = appData.map((app) => {
-        // Supabase の JOIN 結果を型変換
-        const opp = app.opportunities as unknown as {
-          id: string;
-          title: string;
-          organizations: { name: string; line_id: string | null } | null;
-        } | null;
-
-        return {
-          id: app.id as string,
-          status: app.status as ApplicationWithDetails["status"],
-          message: (app.message as string) ?? null,
-          created_at: app.created_at as string,
-          opportunity: {
-            id: opp?.id ?? "",
-            title: opp?.title ?? "",
-            organization_name: opp?.organizations?.name ?? "",
-            // approved の場合のみ LINE ID を返す
-            organization_line_id:
-              app.status === "approved"
-                ? (opp?.organizations?.line_id ?? null)
-                : null,
+    const candidates = await prisma.matchingCandidate.findMany({
+      where: {
+        participantId: user.id,
+        status: { in: ["applied", "accepted", "declined", "completed"] },
+      },
+      include: {
+        opportunity: {
+          include: {
+            organization: {
+              select: {
+                organizationName: true,
+                contactLineId: true,
+              },
+            },
           },
-        };
-      });
+        },
+      },
+      orderBy: [{ appliedAt: "desc" }, { createdAt: "desc" }],
+    });
+
+    applications = candidates.map((candidate) => {
+      const status: ApplicationWithDetails["status"] =
+        candidate.status === "accepted" || candidate.status === "completed"
+          ? "approved"
+          : candidate.status === "declined"
+            ? "rejected"
+            : "pending";
+
+      return {
+        id: candidate.id,
+        status,
+        message: candidate.message,
+        created_at: (candidate.appliedAt ?? candidate.createdAt).toISOString(),
+        opportunity: {
+          id: candidate.opportunity.id,
+          title: candidate.opportunity.title,
+          organization_name: candidate.opportunity.organization.organizationName,
+          organization_line_id:
+            status === "approved"
+              ? (candidate.opportunity.organization.contactLineId ?? null)
+              : null,
+        },
+      };
+    });
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[fetchMyPageData] 応募一覧取得に失敗:", err);
     }
-  } catch {
-    // テーブル未作成・接続エラー時はスキップ
   }
 
   return { profile, applications };

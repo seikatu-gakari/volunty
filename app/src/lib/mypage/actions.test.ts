@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MyPageData } from "./types";
 
-// Supabase クライアントのモック（認証 + applications）
+// Supabase クライアントのモック（認証 + participant profile fallback）
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
 const mockSelect = vi.fn();
 const mockEq = vi.fn();
-const mockOrder = vi.fn();
+const mockMaybeSingle = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -22,9 +22,9 @@ vi.mock("@/lib/supabase/server", () => ({
             eq: (...eqArgs: unknown[]) => {
               mockEq(...eqArgs);
               return {
-                order: (...orderArgs: unknown[]) => {
-                  mockOrder(...orderArgs);
-                  return mockOrder();
+                maybeSingle: (...maybeSingleArgs: unknown[]) => {
+                  mockMaybeSingle(...maybeSingleArgs);
+                  return mockMaybeSingle();
                 },
               };
             },
@@ -37,11 +37,15 @@ vi.mock("@/lib/supabase/server", () => ({
 
 // Prisma のモック（参加者プロフィール）
 const mockPrismaParticipantFindUnique = vi.fn();
+const mockPrismaMatchingFindMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     participantProfile: {
       findUnique: (...args: unknown[]) => mockPrismaParticipantFindUnique(...args),
+    },
+    matchingCandidate: {
+      findMany: (...args: unknown[]) => mockPrismaMatchingFindMany(...args),
     },
   },
 }));
@@ -88,13 +92,16 @@ describe("fetchMyPageData", () => {
       diagnosisType: mockProfile.diagnosis_type,
       diagnosisScores: mockProfile.diagnosis_scores,
     });
-    mockOrder.mockReturnValue({ data: [] });
+    mockPrismaMatchingFindMany.mockResolvedValue([]);
 
     const result: MyPageData = await fetchMyPageData();
 
     expect(result.profile).toEqual(mockProfile);
-    expect(mockFrom).toHaveBeenCalledWith("applications");
-    expect(mockEq).toHaveBeenCalledWith("participant_id", "user-123");
+    expect(mockPrismaMatchingFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ participantId: "user-123" }),
+      })
+    );
   });
 
   it("応募データがある場合、応募一覧を返す", async () => {
@@ -102,24 +109,32 @@ describe("fetchMyPageData", () => {
     const mockApplications = [
       {
         id: "app-1",
-        status: "pending",
+        status: "applied",
         message: "応募メッセージ",
-        created_at: "2026-01-01T00:00:00Z",
-        opportunities: {
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        appliedAt: new Date("2026-01-01T00:00:00Z"),
+        opportunity: {
           id: "opp-1",
           title: "環境保全ボランティア",
-          organizations: { name: "NPO法人テスト", line_id: "@test_line" },
+          organization: {
+            organizationName: "NPO法人テスト",
+            contactLineId: "@test_line",
+          },
         },
       },
       {
         id: "app-2",
-        status: "approved",
+        status: "accepted",
         message: null,
-        created_at: "2026-01-02T00:00:00Z",
-        opportunities: {
+        createdAt: new Date("2026-01-02T00:00:00Z"),
+        appliedAt: new Date("2026-01-02T00:00:00Z"),
+        opportunity: {
           id: "opp-2",
           title: "子ども支援活動",
-          organizations: { name: "支援団体A", line_id: "@support_line" },
+          organization: {
+            organizationName: "支援団体A",
+            contactLineId: "@support_line",
+          },
         },
       },
     ];
@@ -129,7 +144,8 @@ describe("fetchMyPageData", () => {
       error: null,
     });
     mockPrismaParticipantFindUnique.mockResolvedValue(null);
-    mockOrder.mockReturnValue({ data: mockApplications });
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockPrismaMatchingFindMany.mockResolvedValue(mockApplications);
 
     const result: MyPageData = await fetchMyPageData();
 
@@ -155,13 +171,17 @@ describe("fetchMyPageData", () => {
     const mockApplications = [
       {
         id: "app-3",
-        status: "rejected",
+        status: "declined",
         message: null,
-        created_at: "2026-01-03T00:00:00Z",
-        opportunities: {
+        createdAt: new Date("2026-01-03T00:00:00Z"),
+        appliedAt: new Date("2026-01-03T00:00:00Z"),
+        opportunity: {
           id: "opp-3",
           title: "イベントスタッフ",
-          organizations: { name: "イベント団体", line_id: "@event_line" },
+          organization: {
+            organizationName: "イベント団体",
+            contactLineId: "@event_line",
+          },
         },
       },
     ];
@@ -171,7 +191,8 @@ describe("fetchMyPageData", () => {
       error: null,
     });
     mockPrismaParticipantFindUnique.mockResolvedValue(null);
-    mockOrder.mockReturnValue({ data: mockApplications });
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockPrismaMatchingFindMany.mockResolvedValue(mockApplications);
 
     const result: MyPageData = await fetchMyPageData();
 
@@ -191,7 +212,8 @@ describe("fetchMyPageData", () => {
     mockPrismaParticipantFindUnique.mockImplementation(() => {
       throw new Error("DB connection error");
     });
-    mockOrder.mockImplementation(() => {
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockPrismaMatchingFindMany.mockImplementation(() => {
       throw new Error("DB connection error");
     });
 
