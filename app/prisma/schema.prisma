@@ -53,6 +53,15 @@ enum MatchingMethod {
   @@map("matching_method")
 }
 
+/// 団体審査ステータス
+enum OrganizationReviewStatus {
+  pending
+  approved
+  rejected
+
+  @@map("organization_review_status")
+}
+
 // ============================================
 // マスタテーブル（m_ プレフィックス）
 // ============================================
@@ -120,6 +129,10 @@ model OrganizationProfile {
   logoUrl             String?  @map("logo_url")
   contactLineId       String?  @map("contact_line_id") @db.VarChar(100)
   contactLineUrl      String?  @map("contact_line_url")
+  reviewStatus        OrganizationReviewStatus @default(pending) @map("review_status")
+  reviewComment       String?  @map("review_comment") @db.Text
+  reviewedAt          DateTime? @map("reviewed_at")
+  reviewedBy          String?  @map("reviewed_by") @db.Uuid
   verified            Boolean  @default(false)
   profileCompleteness Int      @default(0) @map("profile_completeness")
   createdAt           DateTime @default(now()) @map("created_at")
@@ -129,6 +142,7 @@ model OrganizationProfile {
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
 
+  @@index([reviewStatus])
   @@index([verified])
   @@index([organizationName])
   @@map("m_organization_profile")

@@ -119,10 +119,10 @@ export async function proxy(request: NextRequest) {
         });
         const { data: profile } = await supabase
           .from("m_organization_profile")
-          .select("verified")
+          .select("verified,review_status")
           .eq("user_id", user.id)
           .maybeSingle();
-        if (profile && !profile.verified) {
+        if (profile && profile.review_status !== "approved") {
           const url = request.nextUrl.clone();
           url.pathname = "/onboarding/pending";
           return redirectWithCookies(url, response);
