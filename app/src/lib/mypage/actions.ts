@@ -9,6 +9,30 @@ import type {
   ParticipantProfile,
 } from "./types";
 
+const MATCHING_CANDIDATE_STATUSES = [
+  "applied",
+  "accepted",
+  "completed",
+  "declined",
+] as const;
+
+type MatchingCandidateStatus = (typeof MATCHING_CANDIDATE_STATUSES)[number];
+
+const MATCHING_STATUS_TO_APPLICATION_STATUS: Record<
+  MatchingCandidateStatus,
+  ApplicationWithDetails["status"]
+> = {
+  applied: "pending",
+  // accepted / completed は応募成立済みとして同じ UI（approved）で扱う
+  accepted: "approved",
+  completed: "approved",
+  declined: "rejected",
+};
+
+function isMatchingCandidateStatus(value: string): value is MatchingCandidateStatus {
+  return (MATCHING_CANDIDATE_STATUSES as readonly string[]).includes(value);
+}
+
 /**
  * 参加者マイページ用データ取得
  *
@@ -54,7 +78,7 @@ export async function fetchMyPageData(): Promise<MyPageData> {
     const candidates = await prisma.matchingCandidate.findMany({
       where: {
         participantId: user.id,
-        status: { in: ["applied", "accepted", "declined", "completed"] },
+        status: { in: MATCHING_CANDIDATE_STATUSES },
       },
       include: {
         opportunity: {
@@ -71,29 +95,40 @@ export async function fetchMyPageData(): Promise<MyPageData> {
       orderBy: [{ appliedAt: "desc" }, { createdAt: "desc" }],
     });
 
-    applications = candidates.map((candidate) => {
-      const status: ApplicationWithDetails["status"] =
-        candidate.status === "accepted" || candidate.status === "completed"
-          ? "approved"
-          : candidate.status === "declined"
-            ? "rejected"
-            : "pending";
+    applications = candidates.flatMap((candidate) => {
+      if (!isMatchingCandidateStatus(candidate.status)) {
+        console.error("[fetchMyPageData] 未対応ステータスを検出:", candidate.status);
+        return [];
+      }
 
-      return {
-        id: candidate.id,
-        status,
-        message: candidate.message,
-        created_at: (candidate.appliedAt ?? candidate.createdAt).toISOString(),
-        opportunity: {
-          id: candidate.opportunity.id,
-          title: candidate.opportunity.title,
-          organization_name: candidate.opportunity.organization.organizationName,
-          organization_line_id:
-            status === "approved"
-              ? (candidate.opportunity.organization.contactLineId ?? null)
-              : null,
+      if (!candidate.opportunity?.organization) {
+        console.error(
+          "[fetchMyPageData] 応募データに案件または団体情報が不足:",
+          candidate.id
+        );
+        return [];
+      }
+
+      const status: ApplicationWithDetails["status"] =
+        MATCHING_STATUS_TO_APPLICATION_STATUS[candidate.status];
+
+      return [
+        {
+          id: candidate.id,
+          status,
+          message: candidate.message,
+          created_at: (candidate.appliedAt ?? candidate.createdAt).toISOString(),
+          opportunity: {
+            id: candidate.opportunity.id,
+            title: candidate.opportunity.title,
+            organization_name: candidate.opportunity.organization.organizationName,
+            organization_line_id:
+              status === "approved"
+                ? (candidate.opportunity.organization.contactLineId ?? null)
+                : null,
+          },
         },
-      };
+      ];
     });
   } catch (err) {
     if (process.env.NODE_ENV === "development") {

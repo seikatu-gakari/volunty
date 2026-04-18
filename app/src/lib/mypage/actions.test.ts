@@ -184,6 +184,21 @@ describe("fetchMyPageData", () => {
           },
         },
       },
+      {
+        id: "app-4",
+        status: "completed",
+        message: null,
+        createdAt: new Date("2026-01-04T00:00:00Z"),
+        appliedAt: new Date("2026-01-04T00:00:00Z"),
+        opportunity: {
+          id: "opp-4",
+          title: "配布物作成サポート",
+          organization: {
+            organizationName: "制作団体",
+            contactLineId: "@production_line",
+          },
+        },
+      },
     ];
 
     mockGetUser.mockReturnValue({
@@ -199,6 +214,12 @@ describe("fetchMyPageData", () => {
     const rejectedApp = result.applications[0];
     expect(rejectedApp.status).toBe("rejected");
     expect(rejectedApp.opportunity.organization_line_id).toBeNull();
+
+    const completedApp = result.applications[1];
+    expect(completedApp.status).toBe("approved");
+    expect(completedApp.opportunity.organization_line_id).toBe(
+      "@production_line"
+    );
   });
 
   it("DB エラー時もクラッシュせず空データを返す", async () => {
