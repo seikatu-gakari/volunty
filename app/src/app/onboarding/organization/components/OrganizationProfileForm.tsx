@@ -2,7 +2,17 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, User, Mail, Globe, Link, MessageSquare } from "lucide-react";
+import {
+  Building2,
+  User,
+  Mail,
+  MapPin,
+  Globe,
+  FileText,
+  Tag,
+  MessageCircle,
+  ExternalLink,
+} from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
@@ -19,43 +29,52 @@ const PREFECTURES = [
   "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
 ];
 
-const ACTIVITY_CATEGORIES = [
+const CATEGORIES = [
   "環境保全", "子ども支援", "高齢者支援", "国際交流",
-  "教育・学習支援", "災害支援", "動物保護", "まちづくり",
-  "貧困・生活困窮支援", "障がい者支援", "医療・健康",
-  "文化・芸術", "スポーツ", "その他",
+  "教育", "災害支援", "動物保護", "まちづくり",
 ];
 
-type Step = 1 | 2 | 3;
+export interface OrganizationProfileFormProps {
+  isEdit?: boolean;
+  /**
+   * 編集モード
+   * - reapply: 否認後の再申請
+   * - approved: 承認済みプロフィールの修正（保存後に再審査へ）
+   */
+  editMode?: "reapply" | "approved";
+  defaultValues?: {
+    organizationName: string;
+    representativeName: string;
+    contactEmail: string;
+    activityAreas: string[];
+    description: string;
+    activityCategories: string[];
+    websiteUrl: string;
+    logoUrl: string;
+    contactLineId: string;
+    contactLineUrl: string;
+  } | null;
+}
 
-const STEP_LABELS: Record<Step, string> = {
-  1: "基本情報",
-  2: "団体の魅力",
-  3: "連絡手段",
-};
-
-export function OrganizationProfileForm() {
+export function OrganizationProfileForm({
+  isEdit = false,
+  editMode,
+  defaultValues,
+}: OrganizationProfileFormProps = {}) {
   const router = useRouter();
+  const [organizationName, setOrganizationName] = useState(defaultValues?.organizationName || "");
+  const [representativeName, setRepresentativeName] = useState(defaultValues?.representativeName || "");
+  const [contactEmail, setContactEmail] = useState(defaultValues?.contactEmail || "");
+  const [activityAreas, setActivityAreas] = useState<string[]>(defaultValues?.activityAreas || []);
+  const [description, setDescription] = useState(defaultValues?.description || "");
+  const [activityCategories, setActivityCategories] = useState<string[]>(defaultValues?.activityCategories || []);
+  const [websiteUrl, setWebsiteUrl] = useState(defaultValues?.websiteUrl || "");
+  const [logoUrl, setLogoUrl] = useState(defaultValues?.logoUrl || "");
+  const [contactLineId, setContactLineId] = useState(defaultValues?.contactLineId || "");
+  const [contactLineUrl, setContactLineUrl] = useState(defaultValues?.contactLineUrl || "");
 
-  const [step, setStep] = useState<Step>(1);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // Step 1 フィールド（必須）
-  const [organizationName, setOrganizationName] = useState("");
-  const [representativeName, setRepresentativeName] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [activityAreas, setActivityAreas] = useState<string[]>([]);
-
-  // Step 2 フィールド（任意）
-  const [description, setDescription] = useState("");
-  const [activityCategories, setActivityCategories] = useState<string[]>([]);
-  const [websiteUrl, setWebsiteUrl] = useState("");
-  const [logoUrl, setLogoUrl] = useState("");
-
-  // Step 3 フィールド（任意）
-  const [contactLineId, setContactLineId] = useState("");
-  const [contactLineUrl, setContactLineUrl] = useState("");
 
   const toggleArea = (area: string) => {
     setActivityAreas((prev) =>
@@ -63,35 +82,14 @@ export function OrganizationProfileForm() {
     );
   };
 
-  const toggleCategory = (category: string) => {
+  const toggleCategory = (cat: string) => {
     setActivityCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((c) => c !== category)
-        : [...prev, category]
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
     );
   };
 
-  /** Step 1 のバリデーション */
-  const validateStep1 = (): string | null => {
-    if (!organizationName.trim()) return "団体名を入力してください";
-    if (!representativeName.trim()) return "代表者名を入力してください";
-    if (!contactEmail.trim()) return "連絡先メールアドレスを入力してください";
-    if (activityAreas.length === 0) return "活動地域を1つ以上選択してください";
-    return null;
-  };
-
-  const handleStep1Next = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const err = validateStep1();
-    if (err) {
-      setError(err);
-      return;
-    }
-    setError(null);
-    setStep(2);
-  };
-
-  const handleSubmit = async (skipToEnd = false) => {
     setError(null);
     setLoading(true);
 
@@ -101,15 +99,12 @@ export function OrganizationProfileForm() {
         representativeName,
         contactEmail,
         activityAreas,
-        description: skipToEnd ? undefined : description.trim() || undefined,
-        activityCategories:
-          skipToEnd || activityCategories.length === 0
-            ? undefined
-            : activityCategories,
-        websiteUrl: skipToEnd ? undefined : websiteUrl.trim() || undefined,
-        logoUrl: skipToEnd ? undefined : logoUrl.trim() || undefined,
-        contactLineId: contactLineId.trim() || undefined,
-        contactLineUrl: contactLineUrl.trim() || undefined,
+        description: description || undefined,
+        activityCategories: activityCategories.length > 0 ? activityCategories : undefined,
+        websiteUrl: websiteUrl || undefined,
+        logoUrl: logoUrl || undefined,
+        contactLineId: contactLineId || undefined,
+        contactLineUrl: contactLineUrl || undefined,
       });
 
       if (!result.success) {
@@ -117,6 +112,7 @@ export function OrganizationProfileForm() {
         return;
       }
 
+      // 登録・更新後は審査待ち画面へ
       router.push("/onboarding/pending");
     } catch {
       setError("登録中にエラーが発生しました");
@@ -125,316 +121,194 @@ export function OrganizationProfileForm() {
     }
   };
 
-  const handleStep2Next = (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setStep(3);
-  };
-
-  const handleStep2Skip = () => {
-    handleSubmit(true);
-  };
-
-  const handleStep3Submit = (e: FormEvent) => {
-    e.preventDefault();
-    handleSubmit(false);
-  };
-
-  const handleStep3Skip = () => {
-    handleSubmit(false);
-  };
-
+  const labelClass = "text-sm font-medium text-text-dark";
   const selectClass =
     "w-full rounded-lg border border-card-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary";
 
-  /** ステップインジケーター */
-  const StepIndicator = () => (
-    <div className="flex items-center justify-center gap-2 mb-6">
-      {([1, 2, 3] as Step[]).map((s) => (
-        <div key={s} className="flex items-center gap-2">
-          <div
-            className={`flex size-7 items-center justify-center rounded-full text-xs font-bold ${
-              s === step
-                ? "bg-primary text-white"
-                : s < step
-                  ? "bg-primary/30 text-primary"
-                  : "bg-gray-100 text-gray-400"
-            }`}
-          >
-            {s}
-          </div>
-          <span
-            className={`hidden text-xs sm:block ${
-              s === step ? "font-medium text-text-dark" : "text-text-body"
-            }`}
-          >
-            {STEP_LABELS[s]}
-          </span>
-          {s < 3 && <div className="h-px w-6 bg-gray-200" />}
-        </div>
-      ))}
-    </div>
-  );
-
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <Card className="w-full max-w-[560px]">
+      <Card className="w-full max-w-[640px]">
         <CardHeader>
           <h1 className="text-center text-2xl font-bold tracking-tight text-text-dark">
-            団体プロフィール登録
+            {isEdit
+              ? editMode === "reapply"
+                ? "申請内容の修正"
+                : "団体プロフィールの編集"
+              : "団体プロフィール登録"}
           </h1>
           <p className="mt-2 text-center text-sm text-text-body">
-            ボランティアを募集するための団体プロフィールを登録してください。
+            {isEdit
+              ? "内容を更新して再申請を行います。"
+              : "ボランティア募集を行うための団体情報を登録してください。"}
           </p>
         </CardHeader>
         <CardContent>
-          <StepIndicator />
-
-          {/* ===== Step 1: 基本情報（必須） ===== */}
-          {step === 1 && (
-            <form onSubmit={handleStep1Next} className="flex flex-col gap-5">
-              <div className="rounded-lg bg-primary/5 px-4 py-3 text-sm text-text-body">
-                <span className="font-medium text-primary">Step 1</span>
-                　基本情報を入力してください。すべて必須項目です。
+          <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+            {/* 基本情報セクション */}
+            <section className="flex flex-col gap-5">
+              <div className="flex items-center gap-2 border-b border-card-border pb-2">
+                <Building2 className="size-5 text-primary" />
+                <h2 className="text-lg font-bold text-text-dark">基本情報</h2>
               </div>
 
               <Input
-                label="団体名 *"
+                label="団体名"
                 icon={Building2}
-                type="text"
-                placeholder="NPO法人〇〇の会"
+                placeholder="NPO法人 ボランティー"
                 value={organizationName}
                 onChange={(e) => setOrganizationName(e.target.value)}
-                maxLength={100}
                 required
-                autoComplete="organization"
               />
 
-              <Input
-                label="代表者名 *"
-                icon={User}
-                type="text"
-                placeholder="山田 太郎"
-                value={representativeName}
-                onChange={(e) => setRepresentativeName(e.target.value)}
-                maxLength={50}
-                required
-                autoComplete="name"
-              />
-
-              <Input
-                label="連絡先メールアドレス *"
-                icon={Mail}
-                type="email"
-                placeholder="contact@example.org"
-                value={contactEmail}
-                onChange={(e) => setContactEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
-
-              {/* 活動地域（マルチセレクト） */}
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-text-dark">
-                  活動地域 <span className="text-red-500">*</span>
-                  <span className="ml-1 text-xs font-normal text-text-body">（複数選択可）</span>
-                </label>
-                <div
-                  className="max-h-48 overflow-y-auto rounded-lg border border-card-border bg-white p-3"
-                  role="group"
-                  aria-label="活動地域の選択"
-                >
-                  <div className="grid grid-cols-2 gap-y-1.5 gap-x-4">
-                    {PREFECTURES.map((pref) => (
-                      <label
-                        key={pref}
-                        className="flex cursor-pointer items-center gap-2 text-sm text-text-body"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={activityAreas.includes(pref)}
-                          onChange={() => toggleArea(pref)}
-                          className="accent-primary"
-                        />
-                        {pref}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                {activityAreas.length > 0 && (
-                  <p className="text-xs text-primary">
-                    {activityAreas.length}件選択中
-                  </p>
-                )}
-              </div>
-
-              {error && (
-                <p className="text-center text-sm text-red-600">{error}</p>
-              )}
-
-              <Button type="submit" className="w-full">
-                次へ：団体の魅力を入力する →
-              </Button>
-            </form>
-          )}
-
-          {/* ===== Step 2: 団体の魅力（任意） ===== */}
-          {step === 2 && (
-            <form onSubmit={handleStep2Next} className="flex flex-col gap-5">
-              <div className="rounded-lg bg-primary/5 px-4 py-3 text-sm text-text-body">
-                <span className="font-medium text-primary">Step 2</span>
-                　団体の魅力を伝えましょう。あとで補完することもできます。
-              </div>
-
-              {/* 団体説明 */}
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-text-dark">
-                  団体説明（任意）
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="活動内容や理念、ボランティアへのメッセージをご記入ください"
-                  rows={4}
-                  maxLength={1000}
-                  className={`${selectClass} resize-none`}
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <Input
+                  label="代表者名"
+                  icon={User}
+                  placeholder="山田 太郎"
+                  value={representativeName}
+                  onChange={(e) => setRepresentativeName(e.target.value)}
+                  required
                 />
-                <p className="text-right text-xs text-text-body">
-                  {description.length} / 1000
-                </p>
+                <Input
+                  label="連絡先メールアドレス"
+                  icon={Mail}
+                  type="email"
+                  placeholder="contact@example.org"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  required
+                />
               </div>
 
-              {/* 活動カテゴリ */}
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-text-dark">
-                  活動カテゴリ（任意・複数可）
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>
+                  主な活動地域（複数選択可） <span className="text-red-500">*</span>
                 </label>
-                <div
-                  className="grid grid-cols-2 gap-2"
-                  role="group"
-                  aria-label="活動カテゴリの選択"
-                >
-                  {ACTIVITY_CATEGORIES.map((category) => (
+                <div className="grid grid-cols-3 gap-2 rounded-lg border border-card-border bg-background p-3 sm:grid-cols-4 md:grid-cols-6">
+                  {PREFECTURES.map((area) => (
                     <label
-                      key={category}
-                      className="flex cursor-pointer items-center gap-2 text-sm text-text-body"
+                      key={area}
+                      className={`flex cursor-pointer items-center justify-center rounded-md border py-1.5 text-xs transition-colors ${
+                        activityAreas.includes(area)
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-card-border bg-white text-text-body hover:bg-gray-50"
+                      }`}
                     >
                       <input
                         type="checkbox"
-                        checked={activityCategories.includes(category)}
-                        onChange={() => toggleCategory(category)}
-                        className="accent-primary"
+                        className="hidden"
+                        checked={activityAreas.includes(area)}
+                        onChange={() => toggleArea(area)}
                       />
-                      {category}
+                      {area}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* 詳細情報セクション */}
+            <section className="flex flex-col gap-5">
+              <div className="flex items-center gap-2 border-b border-card-border pb-2">
+                <FileText className="size-5 text-primary" />
+                <h2 className="text-lg font-bold text-text-dark">詳細情報（任意）</h2>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>活動分野</label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {CATEGORIES.map((cat) => (
+                    <label
+                      key={cat}
+                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        activityCategories.includes(cat)
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-card-border bg-white text-text-body hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        checked={activityCategories.includes(cat)}
+                        onChange={() => toggleCategory(cat)}
+                      />
+                      {cat}
                     </label>
                   ))}
                 </div>
               </div>
 
-              <Input
-                label="ウェブサイトURL（任意）"
-                icon={Globe}
-                type="url"
-                placeholder="https://example.org"
-                value={websiteUrl}
-                onChange={(e) => setWebsiteUrl(e.target.value)}
-              />
-
-              <Input
-                label="ロゴ・写真URL（任意）"
-                icon={Link}
-                type="url"
-                placeholder="https://example.org/logo.png"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-              />
-
-              {error && (
-                <p className="text-center text-sm text-red-600">{error}</p>
-              )}
-
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setStep(1)}
-                >
-                  ← 戻る
-                </Button>
-                <Button type="submit" className="flex-1">
-                  次へ：連絡手段を設定する →
-                </Button>
+              <div className="flex flex-col gap-2">
+                <label className={labelClass}>団体説明</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="団体の目的や主な活動内容について教えてください"
+                  rows={5}
+                  className={`${selectClass} resize-none`}
+                />
               </div>
 
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full text-sm"
-                disabled={loading}
-                onClick={handleStep2Skip}
-              >
-                {loading ? "登録中..." : "スキップして登録を完了する"}
-              </Button>
-            </form>
-          )}
-
-          {/* ===== Step 3: 連絡手段（任意） ===== */}
-          {step === 3 && (
-            <form onSubmit={handleStep3Submit} className="flex flex-col gap-5">
-              <div className="rounded-lg bg-primary/5 px-4 py-3 text-sm text-text-body">
-                <span className="font-medium text-primary">Step 3</span>
-                　LINE連絡先はマッチング成立後に参加者へ開示されます。
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <Input
+                  label="ウェブサイト URL"
+                  icon={Globe}
+                  type="url"
+                  placeholder="https://example.org"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                />
+                <Input
+                  label="ロゴ画像 URL"
+                  icon={Tag}
+                  type="url"
+                  placeholder="https://example.org/logo.png"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                />
               </div>
+            </section>
 
-              <Input
-                label="LINE公式アカウントID（任意）"
-                icon={MessageSquare}
-                type="text"
-                placeholder="@example_org"
-                value={contactLineId}
-                onChange={(e) => setContactLineId(e.target.value)}
-              />
-
-              <Input
-                label="LINE追加URL（任意）"
-                icon={Link}
-                type="url"
-                placeholder="https://line.me/R/ti/p/@example"
-                value={contactLineUrl}
-                onChange={(e) => setContactLineUrl(e.target.value)}
-              />
-
-              {error && (
-                <p className="text-center text-sm text-red-600">{error}</p>
-              )}
-
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setStep(2)}
-                  disabled={loading}
-                >
-                  ← 戻る
-                </Button>
-                <Button type="submit" className="flex-1" disabled={loading}>
-                  {loading ? "登録中..." : "登録を完了する"}
-                </Button>
+            {/* 連絡先連携セクション */}
+            <section className="flex flex-col gap-5">
+              <div className="flex items-center gap-2 border-b border-card-border pb-2">
+                <MessageCircle className="size-5 text-primary" />
+                <h2 className="text-lg font-bold text-text-dark">LINE 連携（任意）</h2>
               </div>
+              <p className="text-xs text-text-body">
+                マッチング成立後のスムーズな連絡のため、公式LINE等の登録を推奨しています。
+              </p>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <Input
+                  label="LINE ID"
+                  icon={MessageCircle}
+                  placeholder="@volunty_npo"
+                  value={contactLineId}
+                  onChange={(e) => setContactLineId(e.target.value)}
+                />
+                <Input
+                  label="LINE 友達追加 URL"
+                  icon={ExternalLink}
+                  type="url"
+                  placeholder="https://line.me/R/ti/p/..."
+                  value={contactLineUrl}
+                  onChange={(e) => setContactLineUrl(e.target.value)}
+                />
+              </div>
+            </section>
 
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full text-sm"
-                disabled={loading}
-                onClick={handleStep3Skip}
-              >
-                {loading ? "登録中..." : "スキップして登録を完了する"}
-              </Button>
-            </form>
-          )}
+            {error && (
+              <p className="text-center text-sm text-red-600">{error}</p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading
+                ? "送信中..."
+                : isEdit
+                  ? "内容を更新して再申請する"
+                  : "登録して審査を申請する"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

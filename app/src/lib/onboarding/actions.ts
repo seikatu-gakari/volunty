@@ -41,6 +41,27 @@ export async function selectRole(role: "participant" | "organization") {
 }
 
 /**
+ * m_user レコードが存在しなければ作成する（Supabaseトリガー未動作時のセーフガード）
+ */
+async function ensureUserExists(
+  userId: string,
+  email: string | undefined,
+  name: string | undefined,
+  role: "participant" | "organization"
+) {
+  await prisma.user.upsert({
+    where: { id: userId },
+    update: {},
+    create: {
+      id: userId,
+      email: email ?? null,
+      name: name ?? null,
+      role,
+    },
+  });
+}
+
+/**
  * 参加者プロフィールを登録する
  *
  * - m_participant_profile テーブルを Prisma 経由で upsert
@@ -79,6 +100,9 @@ export async function registerParticipant(
     if (!data.region?.trim()) {
       return { success: false, error: "都道府県は必須です" };
     }
+
+    // m_user がなければ作成（トリガー未動作時のセーフガード）
+    await ensureUserExists(user.id, user.email, data.name, "participant");
 
     await prisma.participantProfile.upsert({
       where: { userId: user.id },
@@ -185,6 +209,9 @@ export async function registerOrganization(
         ? data.activityCategories
         : undefined;
 
+    // m_user がなければ作成（トリガー未動作時のセーフガード）
+    await ensureUserExists(user.id, user.email, data.representativeName, "organization");
+
     // 団体プロフィールを作成（既存の場合は更新）
     await prisma.organizationProfile.upsert({
       where: { userId: user.id },
@@ -199,6 +226,11 @@ export async function registerOrganization(
         logoUrl: data.logoUrl?.trim() || null,
         contactLineId: data.contactLineId?.trim() || null,
         contactLineUrl: data.contactLineUrl?.trim() || null,
+        reviewStatus: "pending",
+        reviewComment: null,
+        reviewedAt: null,
+        reviewedBy: null,
+        verified: false,
         profileCompleteness,
       },
       create: {
@@ -213,6 +245,10 @@ export async function registerOrganization(
         logoUrl: data.logoUrl?.trim() || null,
         contactLineId: data.contactLineId?.trim() || null,
         contactLineUrl: data.contactLineUrl?.trim() || null,
+        reviewStatus: "pending",
+        reviewComment: null,
+        reviewedAt: null,
+        reviewedBy: null,
         profileCompleteness,
       },
     });

@@ -51,16 +51,35 @@ function isValidBirthday(year: string, month: string, day: string): boolean {
   return true;
 }
 
-export function ParticipantProfileForm() {
+export interface ParticipantProfileFormProps {
+  isEdit?: boolean;
+  defaultValues?: {
+    name: string;
+    birthYear: string;
+    birthMonth: string;
+    birthDay: string;
+    gender: string;
+    region: string;
+    bio: string;
+    interests: string[];
+  };
+  onSuccessRedirect?: string;
+}
+
+export function ParticipantProfileForm({
+  isEdit = false,
+  defaultValues,
+  onSuccessRedirect = "/diagnosis",
+}: ParticipantProfileFormProps = {}) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [birthYear, setBirthYear] = useState("");
-  const [birthMonth, setBirthMonth] = useState("");
-  const [birthDay, setBirthDay] = useState("");
-  const [gender, setGender] = useState("");
-  const [region, setRegion] = useState("");
-  const [bio, setBio] = useState("");
-  const [interests, setInterests] = useState<string[]>([]);
+  const [name, setName] = useState(defaultValues?.name || "");
+  const [birthYear, setBirthYear] = useState(defaultValues?.birthYear || "");
+  const [birthMonth, setBirthMonth] = useState(defaultValues?.birthMonth || "");
+  const [birthDay, setBirthDay] = useState(defaultValues?.birthDay || "");
+  const [gender, setGender] = useState(defaultValues?.gender || "");
+  const [region, setRegion] = useState(defaultValues?.region || "");
+  const [bio, setBio] = useState(defaultValues?.bio || "");
+  const [interests, setInterests] = useState<string[]>(defaultValues?.interests || []);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -104,7 +123,7 @@ export function ParticipantProfileForm() {
         return;
       }
 
-      router.push("/diagnosis");
+      router.push(onSuccessRedirect);
     } catch {
       setError("登録中にエラーが発生しました");
     } finally {
@@ -120,10 +139,12 @@ export function ParticipantProfileForm() {
       <Card className="w-full max-w-[520px]">
         <CardHeader>
           <h1 className="text-center text-2xl font-bold tracking-tight text-text-dark">
-            参加者プロフィール登録
+            {isEdit ? "プロフィール編集" : "参加者プロフィール登録"}
           </h1>
           <p className="mt-2 text-center text-sm text-text-body">
-            ボランティア活動に参加するためのプロフィールを登録してください。
+            {isEdit
+              ? "登録されているプロフィールを更新します。"
+              : "ボランティア活動に参加するためのプロフィールを登録してください。"}
           </p>
         </CardHeader>
         <CardContent>
@@ -150,7 +171,7 @@ export function ParticipantProfileForm() {
                   value={birthYear}
                   onChange={(e) => setBirthYear(e.target.value)}
                   required
-                  className={`${selectClass} flex-1 min-w-[110px]`}
+                  className={`${selectClass} flex-1`}
                   aria-label="年"
                 >
                   <option value="">年</option>
@@ -164,7 +185,7 @@ export function ParticipantProfileForm() {
                   value={birthMonth}
                   onChange={(e) => setBirthMonth(e.target.value)}
                   required
-                  className={`${selectClass} w-24`}
+                  className={`${selectClass} flex-1`}
                   aria-label="月"
                 >
                   <option value="">月</option>
@@ -178,7 +199,7 @@ export function ParticipantProfileForm() {
                   value={birthDay}
                   onChange={(e) => setBirthDay(e.target.value)}
                   required
-                  className={`${selectClass} w-24`}
+                  className={`${selectClass} flex-1`}
                   aria-label="日"
                 >
                   <option value="">日</option>
@@ -279,7 +300,13 @@ export function ParticipantProfileForm() {
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "登録中..." : "登録して診断へ進む"}
+              {loading
+                ? isEdit
+                  ? "更新中..."
+                  : "登録中..."
+                : isEdit
+                  ? "更新する"
+                  : "登録して診断へ進む"}
             </Button>
           </form>
         </CardContent>
