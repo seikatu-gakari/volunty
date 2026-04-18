@@ -29,7 +29,7 @@ interface NavItem {
 const PARTICIPANT_NAV: NavItem[] = [
   { href: "/diagnosis", label: "診断", icon: ClipboardList },
   { href: "/recommendations", label: "おすすめ案件", icon: Star },
-  { href: "/mypage", label: "マイページ", icon: User },
+  { href: "/mypage", label: "マイページ2", icon: User },
 ];
 
 /** 団体向けナビリンク */
@@ -96,8 +96,8 @@ export function HeaderAuth({
                 key={item.href}
                 href={item.href}
                 className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors ${isActive(item.href)
-                    ? "bg-primary/10 text-primary"
-                    : "text-text-body hover:bg-primary/5 hover:text-primary"
+                  ? "bg-primary/10 text-primary"
+                  : "text-text-body hover:bg-primary/5 hover:text-primary"
                   }`}
               >
                 <item.icon className="size-4" />
@@ -150,8 +150,8 @@ export function HeaderAuth({
                     href={item.href}
                     onClick={closeMenu}
                     className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${isActive(item.href)
-                        ? "bg-primary/10 font-medium text-primary"
-                        : "text-text-body hover:bg-primary/5"
+                      ? "bg-primary/10 font-medium text-primary"
+                      : "text-text-body hover:bg-primary/5"
                       }`}
                   >
                     <item.icon className="size-4" />
