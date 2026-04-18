@@ -68,8 +68,8 @@ function reviewStatusDisplay(status: "pending" | "approved" | "rejected") {
 export default async function DashboardPage() {
   // 認証チェック
   let user = null;
+  const supabase = await createClient();
   try {
-    const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch {
@@ -80,15 +80,50 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const organizationProfile = await prisma.organizationProfile.findUnique({
-    where: { userId: user.id },
-    select: {
-      organizationName: true,
-      reviewStatus: true,
-      reviewedAt: true,
-      profileCompleteness: true,
-    },
-  });
+  let organizationProfile: {
+    organizationName: string;
+    reviewStatus: "pending" | "approved" | "rejected";
+    reviewedAt: Date | null;
+    profileCompleteness: number;
+  } | null = null;
+
+  // Prisma → Supabase フォールバックで団体プロフィールを取得
+  try {
+    organizationProfile = await prisma.organizationProfile.findUnique({
+      where: { userId: user.id },
+      select: {
+        organizationName: true,
+        reviewStatus: true,
+        reviewedAt: true,
+        profileCompleteness: true,
+      },
+    });
+  } catch (err) {
+    console.error("[DashboardPage] Prisma 取得に失敗、Supabase にフォールバック:", err);
+    try {
+      const { data } = await supabase
+        .from("m_organization_profile")
+        .select("organization_name, review_status, reviewed_at, profile_completeness")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (data) {
+        const rawStatus = data.review_status as string | null;
+        const reviewStatus =
+          rawStatus === "approved" || rawStatus === "rejected"
+            ? rawStatus
+            : "pending";
+        organizationProfile = {
+          organizationName: data.organization_name ?? "",
+          reviewStatus,
+          reviewedAt: data.reviewed_at ? new Date(data.reviewed_at) : null,
+          profileCompleteness: (data.profile_completeness as number) ?? 0,
+        };
+      }
+    } catch (sbErr) {
+      console.error("[DashboardPage] Supabase フォールバックも失敗:", sbErr);
+    }
+  }
 
   if (!organizationProfile) {
     redirect("/onboarding/organization");

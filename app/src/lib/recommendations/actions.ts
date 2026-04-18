@@ -105,9 +105,7 @@ export async function fetchRecommendations(): Promise<RecommendationResult> {
 
     return { recommendations, hasCompletedDiagnosis: true }
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[fetchRecommendations] 予期しないエラー:", err)
-    }
+    console.error("[fetchRecommendations] 予期しないエラー:", err)
     return { recommendations: [], hasCompletedDiagnosis: false }
   }
 }

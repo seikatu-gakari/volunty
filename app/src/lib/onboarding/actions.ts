@@ -138,9 +138,7 @@ export async function registerParticipant(
 
     return { success: true };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[registerParticipant] 予期しないエラー:", err);
-    }
+    console.error("[registerParticipant] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
   }
 }
@@ -260,9 +258,7 @@ export async function registerOrganization(
 
     return { success: true };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[registerOrganization] 予期しないエラー:", err);
-    }
+    console.error("[registerOrganization] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
   }
 }

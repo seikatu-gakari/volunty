@@ -1,6 +1,10 @@
 // Prisma クライアント シングルトン
 // Next.js の開発環境ではホットリロード時にクライアントが重複生成されるのを防ぐ
 // Prisma 7 では driver adapter が必須
+//
+// Proxy で遅延初期化: モジュール読み込み時には PrismaClient を生成しない。
+// Vercel ビルドの "Collecting page data" フェーズでは DATABASE_URL が
+// 未設定の場合があるため、初回アクセスまで接続を遅延させる。
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -9,14 +13,32 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaPg({
-    connectionString: process.env["DATABASE_URL"]!,
-  });
+  const connectionString = process.env["DATABASE_URL"];
+  if (!connectionString) {
+    throw new Error(
+      "[prisma] DATABASE_URL が設定されていません。" +
+        "Vercel の Environment Variables または .env ファイルを確認してください。"
+    );
+  }
+  const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+/**
+ * Proxy による遅延初期化。
+ * `prisma.xxx` に初めてアクセスした時点で PrismaClient が生成される。
+ * Node.js はシングルスレッドのため、同期的な createPrismaClient() が
+ * 中断されることはなく、同時実行での重複生成は発生しない。
+ */
+function getOrCreateClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
+  return globalForPrisma.prisma;
 }
+
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop: string | symbol) {
+    return Reflect.get(getOrCreateClient(), prop);
+  },
+});

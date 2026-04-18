@@ -18,9 +18,7 @@ export default async function DiagnosisPage() {
     const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[DiagnosisPage] Supabase接続エラー:", err);
-    }
+    console.error("[DiagnosisPage] Supabase接続エラー:", err);
   }
 
   // 認証チェック（redirect は try/catch の外で呼び出す）
