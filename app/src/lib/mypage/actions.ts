@@ -41,6 +41,7 @@ function isMatchingCandidateStatus(value: string): value is MatchingCandidateSta
  */
 export async function fetchMyPageData(): Promise<MyPageData> {
   const supabase = await createClient();
+  console.error("[fetchMyPageData] ");
 
   const {
     data: { user },
@@ -65,6 +66,7 @@ export async function fetchMyPageData(): Promise<MyPageData> {
         diagnosis_scores: profileData.diagnosisScores,
       };
     }
+    console.error(profile);
   } catch (err) {
     console.error("[fetchMyPageData] 参加者プロフィール取得に失敗:", err);
   }
