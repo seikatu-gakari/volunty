@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { fetchParticipantProfileByUserId } from "@/lib/participant-profile/server";
-import { prisma } from "@/lib/prisma";
 import type {
   MyPageData,
   ApplicationWithDetails,
@@ -75,61 +74,102 @@ export async function fetchMyPageData(): Promise<MyPageData> {
   // 応募一覧取得（opportunities + organizations JOIN）
   let applications: ApplicationWithDetails[] = [];
   try {
-    const candidates = await prisma.matchingCandidate.findMany({
-      where: {
-        participantId: user.id,
-        status: { in: MATCHING_CANDIDATE_STATUSES },
-      },
-      include: {
-        opportunity: {
-          include: {
-            organization: {
-              select: {
-                organizationName: true,
-                contactLineId: true,
-              },
+    const { data: candidateData, error: candidateError } = await supabase
+      .from("t_matching_candidate")
+      .select("id, status, message, created_at, applied_at, opportunity_id")
+      .eq("participant_id", user.id)
+      .in("status", [...MATCHING_CANDIDATE_STATUSES])
+      .order("created_at", { ascending: false });
+
+    if (candidateError || !candidateData) {
+      return { profile, applications: [] };
+    }
+
+    const opportunityIds = Array.from(
+      new Set(
+        candidateData
+          .map((candidate) => candidate.opportunity_id as string | null)
+          .filter((id): id is string => typeof id === "string")
+      )
+    );
+
+    const opportunitiesById = new Map<
+      string,
+      { title: string; organization_name: string; organization_line_id: string | null }
+    >();
+
+    if (opportunityIds.length > 0) {
+      const { data: opportunityData } = await supabase
+        .from("m_opportunity")
+        .select(
+          `
+          id,
+          title,
+          m_organization_profile (
+            organization_name,
+            contact_line_id
+          )
+        `
+        )
+        .in("id", opportunityIds);
+
+      for (const opportunity of opportunityData ?? []) {
+        const organizationRaw = opportunity.m_organization_profile as
+          | { organization_name: string; contact_line_id: string | null }
+          | Array<{ organization_name: string; contact_line_id: string | null }>
+          | null;
+        const organization = Array.isArray(organizationRaw)
+          ? (organizationRaw[0] ?? null)
+          : organizationRaw;
+
+        if (!organization) continue;
+
+        opportunitiesById.set(opportunity.id as string, {
+          title: (opportunity.title as string) ?? "",
+          organization_name: organization.organization_name ?? "",
+          organization_line_id: organization.contact_line_id ?? null,
+        });
+      }
+    }
+
+    applications = candidateData
+      .flatMap((candidate) => {
+        const rawStatus = candidate.status as string;
+        if (!isMatchingCandidateStatus(rawStatus)) {
+          console.error("[fetchMyPageData] 未対応ステータスを検出:", rawStatus);
+          return [];
+        }
+
+        const opportunityId = candidate.opportunity_id as string;
+        const opportunity = opportunitiesById.get(opportunityId);
+        if (!opportunity) {
+          console.error(
+            "[fetchMyPageData] 応募データに案件または団体情報が不足:",
+            candidate.id
+          );
+          return [];
+        }
+
+        const status = MATCHING_STATUS_TO_APPLICATION_STATUS[rawStatus];
+        return [
+          {
+            id: candidate.id as string,
+            status,
+            message: (candidate.message as string) ?? null,
+            created_at:
+              (candidate.applied_at as string | null) ??
+              (candidate.created_at as string),
+            opportunity: {
+              id: opportunityId,
+              title: opportunity.title,
+              organization_name: opportunity.organization_name,
+              organization_line_id:
+                status === "approved" ? opportunity.organization_line_id : null,
             },
           },
-        },
-      },
-      orderBy: [{ appliedAt: "desc" }, { createdAt: "desc" }],
-    });
-
-    applications = candidates.flatMap((candidate) => {
-      if (!isMatchingCandidateStatus(candidate.status)) {
-        console.error("[fetchMyPageData] 未対応ステータスを検出:", candidate.status);
-        return [];
-      }
-
-      if (!candidate.opportunity?.organization) {
-        console.error(
-          "[fetchMyPageData] 応募データに案件または団体情報が不足:",
-          candidate.id
-        );
-        return [];
-      }
-
-      const status: ApplicationWithDetails["status"] =
-        MATCHING_STATUS_TO_APPLICATION_STATUS[candidate.status];
-
-      return [
-        {
-          id: candidate.id,
-          status,
-          message: candidate.message,
-          created_at: (candidate.appliedAt ?? candidate.createdAt).toISOString(),
-          opportunity: {
-            id: candidate.opportunity.id,
-            title: candidate.opportunity.title,
-            organization_name: candidate.opportunity.organization.organizationName,
-            organization_line_id:
-              status === "approved"
-                ? (candidate.opportunity.organization.contactLineId ?? null)
-                : null,
-          },
-        },
-      ];
-    });
+        ];
+      })
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
   } catch (err) {
     if (process.env.NODE_ENV === "development") {
       console.error("[fetchMyPageData] 応募一覧取得に失敗:", err);
