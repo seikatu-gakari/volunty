@@ -7,15 +7,11 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { Divider } from "@/app/components/ui/Divider";
-import {
-  RoleTabSwitcher,
-  type AuthRole,
-} from "@/app/components/auth/RoleTabSwitcher";
 import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { AuthFooter } from "@/app/components/auth/AuthFooter";
 
 export default function LoginPage() {
-  const [role, setRole] = useState<AuthRole>("participant");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +64,7 @@ export default function LoginPage() {
           </h1>
         </CardHeader>
         <CardContent>
-          <RoleTabSwitcher role={role} onRoleChange={setRole} />
+
 
           <GoogleAuthButton
             label="Googleでログイン"

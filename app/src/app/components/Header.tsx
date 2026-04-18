@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Heart, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { HeaderAuth } from "@/app/components/HeaderAuth";
 
 /** ユーザーのロール・オンボーディング状態 */
@@ -26,10 +27,20 @@ export async function Header() {
     if (user) {
       const metadata = user.user_metadata as Record<string, unknown>;
       const role = metadata.role as string | undefined;
+      const verified =
+        role === "organization"
+          ? !!(
+              await prisma.organizationProfile.findUnique({
+                where: { userId: user.id },
+                select: { verified: true },
+              })
+            )?.verified
+          : !!metadata.verified;
+
       userState = {
         role: role === "participant" || role === "organization" ? role : null,
         onboardingCompleted: !!metadata.onboarding_completed,
-        verified: !!metadata.verified,
+        verified,
       };
     }
   } catch {

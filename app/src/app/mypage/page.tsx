@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   XCircle,
   MessageCircle,
+  Pencil,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
@@ -68,11 +69,20 @@ export default async function MyPage() {
         {/* プロフィールセクション */}
         <Card className="mb-8">
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
-                <User className="size-5 text-primary" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+                  <User className="size-5 text-primary" />
+                </div>
+                <h2 className="text-lg font-bold text-text-dark">プロフィール</h2>
               </div>
-              <h2 className="text-lg font-bold text-text-dark">プロフィール</h2>
+              <Link
+                href="/mypage/profile/edit"
+                className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                <Pencil className="size-4" />
+                編集
+              </Link>
             </div>
           </CardHeader>
           <CardContent>

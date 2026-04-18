@@ -62,7 +62,15 @@ export default function SignupProfilePage() {
       });
 
       if (error) {
-        setError(error.message);
+        let msg = error.message;
+        if (msg.includes("Password should be at least 6 characters")) {
+          msg = "パスワードは6文字以上で入力してください";
+        } else if (msg.includes("User already registered")) {
+          msg = "このメールアドレスは既に登録されています";
+        } else if (msg.includes("Database error saving new user")) {
+          msg = "データベース保存エラー: DBトリガー等を確認してください";
+        }
+        setError(msg);
         return;
       }
 
@@ -76,7 +84,8 @@ export default function SignupProfilePage() {
         // メール確認が必要な場合: 確認メール送信済みページへ
         router.push("/signup/complete");
       }
-    } catch {
+    } catch (err) {
+      console.error("Signup profile error:", err);
       setError("登録中にエラーが発生しました");
     } finally {
       setLoading(false);
@@ -125,6 +134,7 @@ export default function SignupProfilePage() {
               onChange={(e) => setPassword(e.target.value)}
               showPasswordToggle
               required
+              minLength={6}
               autoComplete="new-password"
             />
 

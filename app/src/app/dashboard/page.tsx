@@ -1,11 +1,25 @@
 import Link from "next/link";
-import { Plus, ClipboardList, Clock, Users, Lock, Unlock } from "lucide-react";
+import {
+  Plus,
+  ClipboardList,
+  Clock,
+  Users,
+  Lock,
+  Unlock,
+  Pencil,
+  BadgeCheck,
+  AlertTriangle,
+  CircleDashed,
+  Building2,
+  X,
+} from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
 import { fetchMyOpportunities } from "@/lib/dashboard/actions";
 import type { OpportunityStatus } from "@/lib/dashboard/types";
+import { prisma } from "@/lib/prisma";
 
 /** 案件ステータスに応じたラベル・アイコン・カラー */
 function opportunityStatusDisplay(status: OpportunityStatus) {
@@ -25,38 +39,145 @@ function opportunityStatusDisplay(status: OpportunityStatus) {
   }
 }
 
+function reviewStatusDisplay(status: "pending" | "approved" | "rejected") {
+  switch (status) {
+    case "approved":
+      return {
+        label: "承認済み",
+        icon: <BadgeCheck className="size-4" />,
+        color: "border-green-200 bg-green-50 text-green-700",
+        description: "現在のプロフィール内容で公開利用できます。",
+      };
+    case "rejected":
+      return {
+        label: "否認済み",
+        icon: <AlertTriangle className="size-4" />,
+        color: "border-red-200 bg-red-50 text-red-700",
+        description: "修正後に再申請が必要です。",
+      };
+    default:
+      return {
+        label: "審査中",
+        icon: <CircleDashed className="size-4" />,
+        color: "border-amber-200 bg-amber-50 text-amber-800",
+        description: "審査完了まで一部機能は利用できません。",
+      };
+  }
+}
+
 export default async function DashboardPage() {
   // 認証チェック
-  let isAuthenticated = false;
+  let user = null;
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
+    user = data.user;
   } catch {
     // Supabase 未設定時
   }
 
-  if (!isAuthenticated) {
+  if (!user) {
     redirect("/login");
   }
 
+  const organizationProfile = await prisma.organizationProfile.findUnique({
+    where: { userId: user.id },
+    select: {
+      organizationName: true,
+      reviewStatus: true,
+      reviewedAt: true,
+      profileCompleteness: true,
+    },
+  });
+
+  if (!organizationProfile) {
+    redirect("/onboarding/organization");
+  }
+
   const { opportunities } = await fetchMyOpportunities();
+  const reviewDisplay = reviewStatusDisplay(organizationProfile.reviewStatus);
 
   return (
     <div className="min-h-screen bg-background font-sans">
       <Header />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-text-dark">ダッシュボード</h1>
-          <Link
-            href="/dashboard/opportunities/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-dark"
-          >
-            <Plus className="size-4" />
-            新しい案件を作成
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-dark shadow-sm transition-colors hover:bg-primary/5"
+            >
+              <X className="size-4" />
+              閉じる
+            </Link>
+            <Link
+              href="/dashboard/profile/edit"
+              className="inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-dark shadow-sm transition-colors hover:bg-primary/5"
+            >
+              <Pencil className="size-4" />
+              団体プロフィールを編集
+            </Link>
+            <Link
+              href="/dashboard/opportunities/new"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-dark"
+            >
+              <Plus className="size-4" />
+              新しい案件を作成
+            </Link>
+          </div>
         </div>
+
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          団体プロフィールを更新すると、内容確認のため再審査になります。更新後は審査完了までダッシュボードを利用できません。
+        </div>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+                <Building2 className="size-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-text-dark">現在の審査状態</h2>
+                <p className="text-sm text-text-body">
+                  {organizationProfile.organizationName}
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${reviewDisplay.color}`}
+                >
+                  {reviewDisplay.icon}
+                  {reviewDisplay.label}
+                </span>
+                <p className="mt-2 text-sm text-text-body">{reviewDisplay.description}</p>
+              </div>
+
+              <dl className="grid grid-cols-1 gap-3 text-sm sm:min-w-[260px]">
+                <div className="flex items-center justify-between gap-4 rounded-lg bg-background px-3 py-2">
+                  <dt className="text-text-body">プロフィール充実度</dt>
+                  <dd className="font-medium text-text-dark">
+                    {organizationProfile.profileCompleteness}%
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg bg-background px-3 py-2">
+                  <dt className="text-text-body">前回審査日</dt>
+                  <dd className="font-medium text-text-dark">
+                    {organizationProfile.reviewedAt
+                      ? new Date(organizationProfile.reviewedAt).toLocaleDateString("ja-JP")
+                      : "未審査"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* 案件一覧セクション */}
         <Card>
