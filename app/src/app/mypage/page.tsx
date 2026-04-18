@@ -58,6 +58,10 @@ export default async function MyPage() {
   }
 
   const { profile, applications } = await fetchMyPageData();
+  const profileActionHref = profile
+    ? "/mypage/profile/edit"
+    : "/onboarding/participant";
+  const profileActionLabel = profile ? "編集" : "登録";
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -77,11 +81,11 @@ export default async function MyPage() {
                 <h2 className="text-lg font-bold text-text-dark">プロフィール</h2>
               </div>
               <Link
-                href="/mypage/profile/edit"
+                href={profileActionHref}
                 className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
               >
                 <Pencil className="size-4" />
-                編集
+                {profileActionLabel}
               </Link>
             </div>
           </CardHeader>

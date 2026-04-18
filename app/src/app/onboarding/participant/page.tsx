@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
 import { ParticipantProfileForm } from "./components/ParticipantProfileForm";
+import { fetchParticipantProfileByUserId } from "@/lib/participant-profile/server";
 
 /** 認証状態とプロフィール登録状況を取得する */
 async function getPageState(): Promise<{
@@ -24,13 +24,13 @@ async function getPageState(): Promise<{
 
   // 2. プロフィールチェック（DB エラー時は未登録扱いだが認証は true を維持）
   try {
-    const profile = await prisma.participantProfile.findUnique({
-      where: { userId: user.id },
-      select: { id: true },
-    });
+    const profile = await fetchParticipantProfileByUserId(user.id);
     return { isAuthenticated: true, hasProfile: !!profile };
-  } catch {
+  } catch (err) {
     // DB エラーでもログイン状態は維持してフォームを表示する
+    if (process.env.NODE_ENV === "development") {
+      console.error("[OnboardingParticipantPage] プロフィール確認に失敗:", err);
+    }
     return { isAuthenticated: true, hasProfile: false };
   }
 }
