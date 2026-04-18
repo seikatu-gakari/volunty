@@ -29,7 +29,7 @@ interface NavItem {
 const PARTICIPANT_NAV: NavItem[] = [
   { href: "/diagnosis", label: "診断", icon: ClipboardList },
   { href: "/recommendations", label: "おすすめ案件", icon: Star },
-  { href: "/mypage", label: "マイページ2", icon: User },
+  { href: "/mypage", label: "マイページ", icon: User },
 ];
 
 /** 団体向けナビリンク */
