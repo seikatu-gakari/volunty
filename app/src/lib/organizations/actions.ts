@@ -139,9 +139,7 @@ export async function fetchOrganizationDetail(
       isParticipant,
     };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[fetchOrganizationDetail] 予期しないエラー:", err);
-    }
+    console.error("[fetchOrganizationDetail] 予期しないエラー:", err);
     return {
       organization: null,
       opportunities: [],

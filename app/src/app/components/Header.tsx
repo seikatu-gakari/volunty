@@ -27,21 +27,41 @@ export async function Header() {
     if (user) {
       const metadata = user.user_metadata as Record<string, unknown>;
       const role = metadata.role as string | undefined;
-      const verified =
-        role === "organization"
-          ? !!(
-              await prisma.organizationProfile.findUnique({
-                where: { userId: user.id },
-                select: { verified: true },
-              })
-            )?.verified
-          : !!metadata.verified;
 
+      // role と onboardingCompleted は user_metadata から取得（Prisma 不要）
       userState = {
         role: role === "participant" || role === "organization" ? role : null,
         onboardingCompleted: !!metadata.onboarding_completed,
-        verified,
+        verified: false,
       };
+
+      // 団体の場合: verified / reviewStatus を取得
+      if (role === "organization") {
+        try {
+          const orgProfile = await prisma.organizationProfile.findUnique({
+            where: { userId: user.id },
+            select: { verified: true, reviewStatus: true },
+          });
+          // verified フラグまたは reviewStatus === "approved" で判定
+          userState.verified =
+            !!orgProfile?.verified || orgProfile?.reviewStatus === "approved";
+        } catch {
+          // Prisma 失敗時は Supabase にフォールバック
+          try {
+            const { data: profile } = await supabase
+              .from("m_organization_profile")
+              .select("verified, review_status")
+              .eq("user_id", user.id)
+              .maybeSingle();
+            userState.verified =
+              !!profile?.verified || profile?.review_status === "approved";
+          } catch {
+            // DB 接続エラー時は verified: false のまま
+          }
+        }
+      } else {
+        userState.verified = !!metadata.verified;
+      }
     }
   } catch {
     // Supabase未設定・接続エラー時はログインなしで表示

@@ -94,9 +94,7 @@ export default async function DiagnosisResultPage() {
     const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[DiagnosisResultPage] Supabase接続エラー:", err);
-    }
+    console.error("[DiagnosisResultPage] Supabase接続エラー:", err);
   }
 
   if (!user) {

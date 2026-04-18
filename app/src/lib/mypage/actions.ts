@@ -66,9 +66,7 @@ export async function fetchMyPageData(): Promise<MyPageData> {
       };
     }
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[fetchMyPageData] 参加者プロフィール取得に失敗:", err);
-    }
+    console.error("[fetchMyPageData] 参加者プロフィール取得に失敗:", err);
   }
 
   // 応募一覧取得（opportunities + organizations JOIN）
@@ -171,9 +169,7 @@ export async function fetchMyPageData(): Promise<MyPageData> {
       })
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[fetchMyPageData] 応募一覧取得に失敗:", err);
-    }
+    console.error("[fetchMyPageData] 応募一覧取得に失敗:", err);
   }
 
   return { profile, applications };

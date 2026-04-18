@@ -28,9 +28,7 @@ async function getPageState(): Promise<{
     return { isAuthenticated: true, hasProfile: !!profile };
   } catch (err) {
     // DB エラーでもログイン状態は維持してフォームを表示する
-    if (process.env.NODE_ENV === "development") {
-      console.error("[OnboardingParticipantPage] プロフィール確認に失敗:", err);
-    }
+    console.error("[OnboardingParticipantPage] プロフィール確認に失敗:", err);
     return { isAuthenticated: true, hasProfile: false };
   }
 }
