@@ -11,6 +11,19 @@ export interface HeaderUserState {
   verified: boolean;
 }
 
+/** verified フラグまたは reviewStatus === "approved" でチェック */
+function isOrganizationVerified(profile: {
+  verified?: boolean | null;
+  review_status?: string | null;
+  reviewStatus?: string | null;
+}): boolean {
+  return (
+    !!profile.verified ||
+    profile.reviewStatus === "approved" ||
+    profile.review_status === "approved"
+  );
+}
+
 export async function Header() {
   let user = null;
   let userState: HeaderUserState = {
@@ -43,8 +56,7 @@ export async function Header() {
             select: { verified: true, reviewStatus: true },
           });
           // verified フラグまたは reviewStatus === "approved" で判定
-          userState.verified =
-            !!orgProfile?.verified || orgProfile?.reviewStatus === "approved";
+          userState.verified = isOrganizationVerified(orgProfile ?? {});
         } catch {
           // Prisma 失敗時は Supabase にフォールバック
           try {
@@ -53,8 +65,7 @@ export async function Header() {
               .select("verified, review_status")
               .eq("user_id", user.id)
               .maybeSingle();
-            userState.verified =
-              !!profile?.verified || profile?.review_status === "approved";
+            userState.verified = isOrganizationVerified(profile ?? {});
           } catch {
             // DB 接続エラー時は verified: false のまま
           }

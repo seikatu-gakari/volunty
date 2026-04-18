@@ -108,9 +108,14 @@ export default async function DashboardPage() {
         .maybeSingle();
 
       if (data) {
+        const rawStatus = data.review_status as string | null;
+        const reviewStatus =
+          rawStatus === "approved" || rawStatus === "rejected"
+            ? rawStatus
+            : "pending";
         organizationProfile = {
           organizationName: data.organization_name ?? "",
-          reviewStatus: (data.review_status as "pending" | "approved" | "rejected") ?? "pending",
+          reviewStatus,
           reviewedAt: data.reviewed_at ? new Date(data.reviewed_at) : null,
           profileCompleteness: (data.profile_completeness as number) ?? 0,
         };

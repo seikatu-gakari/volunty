@@ -27,12 +27,18 @@ function createPrismaClient(): PrismaClient {
 /**
  * Proxy による遅延初期化。
  * `prisma.xxx` に初めてアクセスした時点で PrismaClient が生成される。
+ * Node.js はシングルスレッドのため、同期的な createPrismaClient() が
+ * 中断されることはなく、同時実行での重複生成は発生しない。
  */
+function getOrCreateClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
+  return globalForPrisma.prisma;
+}
+
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop: string | symbol) {
-    if (!globalForPrisma.prisma) {
-      globalForPrisma.prisma = createPrismaClient();
-    }
-    return Reflect.get(globalForPrisma.prisma, prop);
+    return Reflect.get(getOrCreateClient(), prop);
   },
 });
