@@ -36,8 +36,16 @@ export interface ApplicationWithDetails {
   opportunity: ApplicationOpportunity;
 }
 
+/** データ取得時の注意アラート */
+export interface DataFetchAlert {
+  title: string;
+  message: string;
+  detail: string;
+}
+
 /** fetchMyApplications の戻り値 */
 export interface MyPageData {
   profile: ParticipantProfile | null;
   applications: ApplicationWithDetails[];
+  alert: DataFetchAlert | null;
 }

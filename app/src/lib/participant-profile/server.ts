@@ -27,6 +27,17 @@ export interface ParticipantProfileRecord {
   diagnosisScores: Record<string, number> | null;
 }
 
+export interface ParticipantProfileFetchDebug {
+  fallbackUsed: boolean;
+  prismaErrorDetail: string | null;
+  supabaseErrorDetail: string | null;
+}
+
+export interface ParticipantProfileFetchResult {
+  profile: ParticipantProfileRecord | null;
+  debug: ParticipantProfileFetchDebug;
+}
+
 function isScoreRecord(value: unknown): value is Record<string, number> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -65,9 +76,21 @@ function mapProfile(profile: RawParticipantProfile): ParticipantProfileRecord | 
   };
 }
 
-export async function fetchParticipantProfileByUserId(
+function formatErrorDetail(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  const maybeCode = (error as { code?: unknown }).code;
+  const codeText = typeof maybeCode === "string" ? ` (code: ${maybeCode})` : "";
+  return `${error.name}: ${error.message}${codeText}`;
+}
+
+export async function fetchParticipantProfileByUserIdWithDebug(
   userId: string
-): Promise<ParticipantProfileRecord | null> {
+): Promise<ParticipantProfileFetchResult> {
+  let prismaErrorDetail: string | null = null;
+
   try {
     const profile = await prisma.participantProfile.findUnique({
       where: { userId },
@@ -87,25 +110,33 @@ export async function fetchParticipantProfileByUserId(
 
     if (profile) {
       return {
-        id: profile.id,
-        userId: profile.userId,
-        name: profile.name,
-        birthday: profile.birthday,
-        gender: profile.gender,
-        region: profile.region,
-        bio: profile.bio,
-        interests: Array.isArray(profile.interests)
-          ? profile.interests.filter(
-              (interest): interest is string => typeof interest === "string"
-            )
-          : [],
-        diagnosisType: profile.diagnosisType,
-        diagnosisScores: isScoreRecord(profile.diagnosisScores)
-          ? profile.diagnosisScores
-          : null,
+        profile: {
+          id: profile.id,
+          userId: profile.userId,
+          name: profile.name,
+          birthday: profile.birthday,
+          gender: profile.gender,
+          region: profile.region,
+          bio: profile.bio,
+          interests: Array.isArray(profile.interests)
+            ? profile.interests.filter(
+                (interest): interest is string => typeof interest === "string"
+              )
+            : [],
+          diagnosisType: profile.diagnosisType,
+          diagnosisScores: isScoreRecord(profile.diagnosisScores)
+            ? profile.diagnosisScores
+            : null,
+        },
+        debug: {
+          fallbackUsed: false,
+          prismaErrorDetail: null,
+          supabaseErrorDetail: null,
+        },
       };
     }
   } catch (err) {
+    prismaErrorDetail = formatErrorDetail(err);
     console.error(
       "[fetchParticipantProfileByUserId] Prisma 取得に失敗したため Supabase にフォールバックします:",
       err
@@ -123,23 +154,61 @@ export async function fetchParticipantProfileByUserId(
       .maybeSingle();
 
     if (error) {
+      const supabaseErrorDetail = formatErrorDetail(error);
       console.error(
         "[fetchParticipantProfileByUserId] Supabase 取得に失敗しました:",
         error
       );
-      return null;
+      return {
+        profile: null,
+        debug: {
+          fallbackUsed: true,
+          prismaErrorDetail,
+          supabaseErrorDetail,
+        },
+      };
     }
 
     if (!data) {
-      return null;
+      return {
+        profile: null,
+        debug: {
+          fallbackUsed: prismaErrorDetail !== null,
+          prismaErrorDetail,
+          supabaseErrorDetail: null,
+        },
+      };
     }
 
-    return mapProfile(data as RawParticipantProfile);
+    const mapped = mapProfile(data as RawParticipantProfile);
+    return {
+      profile: mapped,
+      debug: {
+        fallbackUsed: prismaErrorDetail !== null,
+        prismaErrorDetail,
+        supabaseErrorDetail: null,
+      },
+    };
   } catch (err) {
+    const supabaseErrorDetail = formatErrorDetail(err);
     console.error(
       "[fetchParticipantProfileByUserId] フォールバック取得に失敗しました:",
       err
     );
-    return null;
+    return {
+      profile: null,
+      debug: {
+        fallbackUsed: true,
+        prismaErrorDetail,
+        supabaseErrorDetail,
+      },
+    };
   }
+}
+
+export async function fetchParticipantProfileByUserId(
+  userId: string
+): Promise<ParticipantProfileRecord | null> {
+  const result = await fetchParticipantProfileByUserIdWithDebug(userId);
+  return result.profile;
 }
