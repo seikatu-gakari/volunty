@@ -10,6 +10,7 @@ import {
   XCircle,
   MessageCircle,
   Pencil,
+  AlertTriangle,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
@@ -57,7 +58,7 @@ export default async function MyPage() {
     redirect("/login");
   }
 
-  const { profile, applications } = await fetchMyPageData();
+  const { profile, applications, alert } = await fetchMyPageData();
   const profileActionHref = profile
     ? "/mypage/profile/edit"
     : "/onboarding/participant";
@@ -69,6 +70,17 @@ export default async function MyPage() {
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="mb-8 text-2xl font-bold text-text-dark">マイページ</h1>
+
+        {alert && (
+          <div className="mb-6 rounded-[10px] border border-yellow-300 bg-yellow-50 p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-yellow-800">
+              <AlertTriangle className="size-4" />
+              {alert.title}
+            </div>
+            <p className="text-sm text-yellow-900">{alert.message}</p>
+            <p className="mt-2 break-words text-xs text-yellow-800">{alert.detail}</p>
+          </div>
+        )}
 
         {/* プロフィールセクション */}
         <Card className="mb-8">

@@ -1,11 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { fetchParticipantProfileByUserId } from "@/lib/participant-profile/server";
+import { fetchParticipantProfileByUserIdWithDebug } from "@/lib/participant-profile/server";
 import type {
   MyPageData,
   ApplicationWithDetails,
   ParticipantProfile,
+  DataFetchAlert,
 } from "./types";
 
 const MATCHING_CANDIDATE_STATUSES = [
@@ -50,13 +51,15 @@ export async function fetchMyPageData(): Promise<MyPageData> {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    return { profile: null, applications: [] };
+    return { profile: null, applications: [], alert: null };
   }
 
   // 参加者プロフィール取得
   let profile: ParticipantProfile | null = null;
+  let alert: DataFetchAlert | null = null;
   try {
-    const profileData = await fetchParticipantProfileByUserId(user.id);
+    const { profile: profileData, debug } =
+      await fetchParticipantProfileByUserIdWithDebug(user.id);
 
     if (profileData) {
       profile = {
@@ -67,6 +70,22 @@ export async function fetchMyPageData(): Promise<MyPageData> {
         diagnosis_scores: profileData.diagnosisScores,
       };
     }
+
+    if (debug.prismaErrorDetail) {
+      const fallbackMessage = debug.supabaseErrorDetail
+        ? "Prisma 接続に失敗し、Supabase フォールバックも失敗しました。"
+        : "Prisma 接続に失敗したため、Supabase フォールバックで取得しました。";
+      const supabaseDetail = debug.supabaseErrorDetail
+        ? ` / Supabase: ${debug.supabaseErrorDetail}`
+        : "";
+
+      alert = {
+        title: "プロフィール取得で接続フォールバックが発生しました",
+        message: fallbackMessage,
+        detail: `Prisma: ${debug.prismaErrorDetail}${supabaseDetail}`,
+      };
+    }
+
     console.error(profile);
   } catch (err) {
     console.error("[fetchMyPageData] 参加者プロフィール取得に失敗:", err);
@@ -83,7 +102,7 @@ export async function fetchMyPageData(): Promise<MyPageData> {
       .order("created_at", { ascending: false });
 
     if (candidateError || !candidateData) {
-      return { profile, applications: [] };
+      return { profile, applications: [], alert };
     }
 
     const opportunityIds = Array.from(
@@ -175,5 +194,5 @@ export async function fetchMyPageData(): Promise<MyPageData> {
     console.error("[fetchMyPageData] 応募一覧取得に失敗:", err);
   }
 
-  return { profile, applications };
+  return { profile, applications, alert };
 }

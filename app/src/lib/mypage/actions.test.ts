@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MyPageData } from "./types";
 
 const mockGetUser = vi.fn();
-const mockFetchParticipantProfileByUserId = vi.fn();
+const mockFetchParticipantProfileByUserIdWithDebug = vi.fn();
 
 type MatchingRow = {
   id: string;
@@ -27,8 +27,8 @@ let mockOpportunityRows: OpportunityRow[] = [];
 let mockMatchingError: Error | null = null;
 
 vi.mock("@/lib/participant-profile/server", () => ({
-  fetchParticipantProfileByUserId: (...args: unknown[]) =>
-    mockFetchParticipantProfileByUserId(...args),
+  fetchParticipantProfileByUserIdWithDebug: (...args: unknown[]) =>
+    mockFetchParticipantProfileByUserIdWithDebug(...args),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -88,12 +88,19 @@ describe("fetchMyPageData", () => {
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
     });
-    mockFetchParticipantProfileByUserId.mockResolvedValue({
-      id: "user-123",
-      name: "テストユーザー",
-      region: "東京都",
-      diagnosisType: "イノベーター・リーダー",
-      diagnosisScores: { extraversion: 85, agreeableness: 70 },
+    mockFetchParticipantProfileByUserIdWithDebug.mockResolvedValue({
+      profile: {
+        id: "user-123",
+        name: "テストユーザー",
+        region: "東京都",
+        diagnosisType: "イノベーター・リーダー",
+        diagnosisScores: { extraversion: 85, agreeableness: 70 },
+      },
+      debug: {
+        fallbackUsed: false,
+        prismaErrorDetail: null,
+        supabaseErrorDetail: null,
+      },
     });
 
     const result: MyPageData = await fetchMyPageData();
@@ -105,6 +112,7 @@ describe("fetchMyPageData", () => {
       diagnosis_type: "イノベーター・リーダー",
       diagnosis_scores: { extraversion: 85, agreeableness: 70 },
     });
+    expect(result.alert).toBeNull();
   });
 
   it("応募データがある場合、応募一覧を返す", async () => {
@@ -112,7 +120,14 @@ describe("fetchMyPageData", () => {
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
     });
-    mockFetchParticipantProfileByUserId.mockResolvedValue(null);
+    mockFetchParticipantProfileByUserIdWithDebug.mockResolvedValue({
+      profile: null,
+      debug: {
+        fallbackUsed: false,
+        prismaErrorDetail: null,
+        supabaseErrorDetail: null,
+      },
+    });
     mockMatchingRows = [
       {
         id: "app-1",
@@ -172,7 +187,14 @@ describe("fetchMyPageData", () => {
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
     });
-    mockFetchParticipantProfileByUserId.mockResolvedValue(null);
+    mockFetchParticipantProfileByUserIdWithDebug.mockResolvedValue({
+      profile: null,
+      debug: {
+        fallbackUsed: false,
+        prismaErrorDetail: null,
+        supabaseErrorDetail: null,
+      },
+    });
     mockMatchingRows = [
       {
         id: "app-3",
@@ -228,7 +250,14 @@ describe("fetchMyPageData", () => {
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
     });
-    mockFetchParticipantProfileByUserId.mockResolvedValue(null);
+    mockFetchParticipantProfileByUserIdWithDebug.mockResolvedValue({
+      profile: null,
+      debug: {
+        fallbackUsed: false,
+        prismaErrorDetail: null,
+        supabaseErrorDetail: null,
+      },
+    });
     mockMatchingError = new Error("DB connection error");
 
     const result: MyPageData = await fetchMyPageData();
