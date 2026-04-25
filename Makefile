@@ -2,7 +2,7 @@ COMPOSE ?= docker compose
 SERVICE ?= next-app
 APP_DIR ?= app
 
-.PHONY: help install build up up-detached down restart logs shell lint type-check build-next clean supabase-start supabase-stop supabase-status supabase-reset db-migrate db-seed db-setup
+.PHONY: help install build up up-detached down restart logs shell lint type-check build-next clean supabase-start supabase-stop supabase-status supabase-reset supabase-clean db-migrate db-seed db-setup
 
 help: ## 利用可能なコマンド一覧を表示
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?##"} {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -14,6 +14,8 @@ build: ## Dockerイメージをビルド（開発環境の構築）
 	$(COMPOSE) build
 
 up: ## 開発サーバーを前面起動（フォアグラウンド、http://localhost:3000でアクセス可能）
+	@echo "Supabase ローカル環境を起動中..."
+	supabase start
 	$(COMPOSE) up --build
 
 up-detached: ## 開発サーバーをバックグラウンド起動（デーモンモード）
@@ -21,9 +23,11 @@ up-detached: ## 開発サーバーをバックグラウンド起動（デーモ�
 
 down: ## 開発サーバーを停止してコンテナを削除
 	$(COMPOSE) down
+	@echo "Supabase ローカル環境を停止してコンテナを削除中..."
+	supabase stop --no-backup
 
 restart: ## 開発サーバーを再起動（down → up）
-	$(COMPOSE) down && $(COMPOSE) up
+	$(MAKE) down && $(MAKE) up
 
 logs: ## Next.jsコンテナのログをリアルタイム表示
 	$(COMPOSE) logs -f $(SERVICE)
