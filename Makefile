@@ -15,7 +15,7 @@ build: ## Dockerイメージをビルド（開発環境の構築）
 
 up: ## 開発サーバーを前面起動（フォアグラウンド、http://localhost:3000でアクセス可能）
 	@echo "Supabase ローカル環境を起動中..."
-	supabase start
+	@set -a; . ./app/.env 2>/dev/null; set +a; supabase start
 	$(COMPOSE) up --build
 
 up-detached: ## 開発サーバーをバックグラウンド起動（デーモンモード）
@@ -24,7 +24,7 @@ up-detached: ## 開発サーバーをバックグラウンド起動（デーモ�
 down: ## 開発サーバーを停止してコンテナを削除
 	$(COMPOSE) down
 	@echo "Supabase ローカル環境を停止してコンテナを削除中..."
-	supabase stop --no-backup
+	@set -a; . ./app/.env 2>/dev/null; set +a; supabase stop --no-backup
 
 restart: ## 開発サーバーを再起動（down → up）
 	$(MAKE) down && $(MAKE) up
@@ -52,10 +52,10 @@ clean: ## コンテナを停止してボリュームも削除（完全クリー�
 # ============================================
 
 supabase-start: ## Supabase ローカル環境を起動（Auth + PostgreSQL）
-	supabase start
+	@set -a; . ./app/.env 2>/dev/null; set +a; supabase start
 
 supabase-stop: ## Supabase ローカル環境を停止
-	supabase stop
+	@set -a; . ./app/.env 2>/dev/null; set +a; supabase stop
 
 supabase-status: ## Supabase ローカル環境のステータスを表示
 	supabase status
@@ -64,7 +64,7 @@ supabase-reset: ## ローカルDBをリセット（マイグレーション再�
 	supabase db reset
 
 supabase-clean: ## Supabase コンテナを停止してDBデータを完全削除（バックアップなし）
-	supabase stop --no-backup
+	@set -a; . ./app/.env 2>/dev/null; set +a; supabase stop --no-backup
 
 db-migrate: ## Prisma マイグレーションをローカルDBに適用
 	cd $(APP_DIR) && npx prisma migrate dev
@@ -74,7 +74,7 @@ db-seed: ## Prisma シードをローカルDBに実行
 
 db-setup: ## ローカルDB初期セットアップ（supabase start → migrate → seed）
 	@echo "Supabase ローカル環境を起動中..."
-	supabase start
+	@set -a; . ./app/.env 2>/dev/null; set +a; supabase start
 	@echo "Prisma マイグレーションを適用中..."
 	cd $(APP_DIR) && npx prisma migrate dev
 	@echo "ローカルDB セットアップ完了！"
