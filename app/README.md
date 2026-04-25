@@ -27,8 +27,20 @@ make install
 
 ### 2. 環境変数の設定
 
+このプロジェクトは2つの env ファイルを使います。
+
+| ファイル     | 読む主体   | 用途                                        |
+| ------------ | ---------- | ------------------------------------------- |
+| `.env`       | Prisma CLI | `migrate dev` / `db seed` 用の DB 接続設定  |
+| `.env.local` | Next.js    | ブラウザ公開キー等。`.env` の値を上書きする |
+
 ```bash
-cp app/.env.example app/.env.local
+# Prisma CLI 用（.env）— クラウド Supabase の接続情報はプロジェクトメンバーから取得
+cp app/.env.local.example app/.env
+# → 取得した DB 接続文字列（DATABASE_URL / DIRECT_URL）を .env に設定
+
+# Next.js 用（.env.local）— ローカル Supabase の値は supabase start 後に make supabase-status で確認
+cp app/.env.local.example app/.env.local
 ```
 
 `.env.local` を編集し、Supabase の接続情報を設定します。値は後述の「ローカルDB構築」後に `make supabase-status` で確認してください。
