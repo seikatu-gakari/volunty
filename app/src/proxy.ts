@@ -119,19 +119,17 @@ export async function proxy(request: NextRequest) {
         });
         const { data: profile } = await supabase
           .from("m_organization_profile")
-          .select("verified")
+          .select("verified,review_status")
           .eq("user_id", user.id)
           .maybeSingle();
-        if (profile && !profile.verified) {
+        if (profile && profile.review_status !== "approved") {
           const url = request.nextUrl.clone();
           url.pathname = "/onboarding/pending";
           return redirectWithCookies(url, response);
         }
       } catch (err) {
         // DB クエリ失敗時はスルー（可用性を優先し、ページ側でも検証する）
-        if (process.env.NODE_ENV === "development") {
-          console.error("[proxy] 団体の verified チェックに失敗:", err);
-        }
+        console.error("[proxy] 団体の verified チェックに失敗:", err);
       }
     }
   }

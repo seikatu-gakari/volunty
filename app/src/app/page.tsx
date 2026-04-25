@@ -67,7 +67,7 @@ export default async function Home() {
               className="flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-medium text-white hover:bg-primary-dark"
             >
               <Brain className="size-5" />
-              96問 詳細診断
+              50問 詳細診断
               <span className="text-xs opacity-75">約10分</span>
               <ArrowRight className="size-5" />
             </Link>

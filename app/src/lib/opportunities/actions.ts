@@ -168,9 +168,7 @@ export async function fetchOpportunityDetail(
       isParticipant,
     };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[fetchOpportunityDetail] 予期しないエラー:", err);
-    }
+    console.error("[fetchOpportunityDetail] 予期しないエラー:", err);
     return {
       opportunity: null,
       matchScore: null,
@@ -255,9 +253,7 @@ export async function applyToOpportunity(
 
     return { success: true };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[applyToOpportunity] 予期しないエラー:", err);
-    }
+    console.error("[applyToOpportunity] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
   }
 }

@@ -411,9 +411,7 @@ export async function fetchApplicantsForOpportunity(
       },
     };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[fetchApplicantsForOpportunity] 予期しないエラー:", err);
-    }
+    console.error("[fetchApplicantsForOpportunity] 予期しないエラー:", err);
     return { data: null, error: "予期しないエラーが発生しました" };
   }
 }
@@ -475,9 +473,7 @@ export async function updateApplicationStatus(
 
     return { success: true };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[updateApplicationStatus] 予期しないエラー:", err);
-    }
+    console.error("[updateApplicationStatus] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
   }
 }
@@ -590,9 +586,7 @@ export async function fetchApplicantDetail(
       },
     };
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[fetchApplicantDetail] 予期しないエラー:", err);
-    }
+    console.error("[fetchApplicantDetail] 予期しないエラー:", err);
     return { data: null, error: "予期しないエラーが発生しました" };
   }
 }

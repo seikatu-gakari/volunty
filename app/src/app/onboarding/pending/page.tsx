@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Clock, Building2, User, Mail, MapPin } from "lucide-react";
+import { Clock, Building2, User, Mail, MapPin, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -12,13 +12,15 @@ interface PendingOrgProfile {
   representativeName: string | null;
   contactEmail: string | null;
   activityAreas: string[];
+  reviewStatus: "pending" | "approved" | "rejected";
+  reviewComment: string | null;
 }
 
 /** 認証状態・ロール・審査ステータス・団体情報を取得する */
 async function getPageState(): Promise<{
   isAuthenticated: boolean;
   isOrganization: boolean;
-  isVerified: boolean;
+  reviewStatus: "pending" | "approved" | "rejected";
   profile: PendingOrgProfile | null;
 }> {
   try {
@@ -31,7 +33,7 @@ async function getPageState(): Promise<{
       return {
         isAuthenticated: false,
         isOrganization: false,
-        isVerified: false,
+        reviewStatus: "pending",
         profile: null,
       };
     }
@@ -43,7 +45,7 @@ async function getPageState(): Promise<{
       return {
         isAuthenticated: true,
         isOrganization: false,
-        isVerified: false,
+        reviewStatus: "pending",
         profile: null,
       };
     }
@@ -55,6 +57,8 @@ async function getPageState(): Promise<{
         representativeName: true,
         contactEmail: true,
         activityAreas: true,
+        reviewStatus: true,
+        reviewComment: true,
         verified: true,
       },
     });
@@ -63,7 +67,7 @@ async function getPageState(): Promise<{
       return {
         isAuthenticated: true,
         isOrganization: true,
-        isVerified: false,
+        reviewStatus: "pending",
         profile: null,
       };
     }
@@ -71,7 +75,7 @@ async function getPageState(): Promise<{
     return {
       isAuthenticated: true,
       isOrganization: true,
-      isVerified: orgProfile.verified,
+      reviewStatus: orgProfile.reviewStatus,
       profile: {
         organizationName: orgProfile.organizationName,
         representativeName: orgProfile.representativeName,
@@ -79,6 +83,8 @@ async function getPageState(): Promise<{
         activityAreas: Array.isArray(orgProfile.activityAreas)
           ? (orgProfile.activityAreas as string[])
           : [],
+        reviewStatus: orgProfile.reviewStatus,
+        reviewComment: orgProfile.reviewComment,
       },
     };
   } catch {
@@ -86,35 +92,64 @@ async function getPageState(): Promise<{
     return {
       isAuthenticated: false,
       isOrganization: false,
-      isVerified: false,
+      reviewStatus: "pending",
       profile: null,
     };
   }
 }
 
 export default async function OnboardingPendingPage() {
-  const { isAuthenticated, isOrganization, isVerified, profile } =
+  const { isAuthenticated, isOrganization, reviewStatus, profile } =
     await getPageState();
 
   if (!isAuthenticated) redirect("/login");
   if (!isOrganization) redirect("/onboarding/role");
   if (!profile) redirect("/onboarding/organization");
-  if (isVerified) redirect("/dashboard");
+  if (reviewStatus === "approved") redirect("/dashboard");
+
+  const isRejected = reviewStatus === "rejected";
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       {/* ステータスヘッダー */}
       <div className="mb-8 flex flex-col items-center gap-4 text-center">
-        <div className="flex size-16 items-center justify-center rounded-full bg-primary/10">
-          <Clock className="size-8 text-primary" />
+        <div className={`flex size-16 items-center justify-center rounded-full ${isRejected ? "bg-red-100" : "bg-primary/10"}`}>
+          {isRejected ? (
+            <AlertTriangle className="size-8 text-red-600" />
+          ) : (
+            <Clock className="size-8 text-primary" />
+          )}
         </div>
-        <h1 className="text-2xl font-bold text-text-dark">審査中です</h1>
-        <p className="text-text-body">
-          団体登録の申請を受け付けました。管理者が内容を確認しています。
-        </p>
-        <p className="text-sm text-text-body/80">
-          審査には数日かかる場合があります。承認され次第、ダッシュボードへアクセスできるようになります。
-        </p>
+        <h1 className="text-2xl font-bold text-text-dark">
+          {isRejected ? "申請は否認されました" : "審査中です"}
+        </h1>
+        {isRejected ? (
+          <>
+            <p className="text-text-body">
+              登録内容の確認の結果、現時点では申請を承認できませんでした。
+            </p>
+            {profile.reviewComment && (
+              <div className="w-full rounded-xl border border-red-200 bg-red-50 p-4 text-left">
+                <p className="text-sm font-medium text-red-800">否認理由</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-red-700">
+                  {profile.reviewComment}
+                </p>
+              </div>
+            )}
+            <p className="text-sm text-text-body/80">
+              内容を修正して再申請できます。修正後は再度審査待ちになります。
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-text-body">
+              団体登録の申請を受け付けました。管理者が内容を確認しています。
+            </p>
+            <p className="text-sm text-text-body/80">
+              審査には数日かかる場合があります。承認され次第、ダッシュボードへアクセスできるようになります。
+            </p>
+          </>
+        )}
       </div>
 
       {/* 登録情報カード */}
@@ -199,6 +234,14 @@ export default async function OnboardingPendingPage() {
 
       {/* アクションリンク */}
       <div className="mt-8 flex flex-col items-center gap-3">
+        {isRejected && (
+          <Link
+            href="/onboarding/organization"
+            className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark"
+          >
+            申請内容を修正する
+          </Link>
+        )}
         <Link
           href="/"
           className="flex h-10 items-center gap-2 rounded-lg border border-card-border bg-background px-4 text-sm font-medium text-text-dark hover:bg-primary/5"

@@ -25,12 +25,14 @@ vi.mock("@/lib/supabase/server", () => ({
 
 // Prisma のモック
 const mockPrismaUserUpdate = vi.fn();
+const mockPrismaUserUpsert = vi.fn();
 const mockPrismaOrgUpsert = vi.fn();
 const mockPrismaParticipantUpsert = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
       update: (...args: unknown[]) => mockPrismaUserUpdate(...args),
+      upsert: (...args: unknown[]) => mockPrismaUserUpsert(...args),
     },
     organizationProfile: {
       upsert: (...args: unknown[]) => mockPrismaOrgUpsert(...args),
@@ -48,6 +50,7 @@ const { selectRole, registerParticipant, registerOrganization } = await import("
 describe("selectRole", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrismaUserUpsert.mockResolvedValue({});
   });
 
   it("未認証の場合、エラーをスローする", async () => {
@@ -97,6 +100,7 @@ describe("selectRole", () => {
 describe("registerParticipant", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrismaUserUpsert.mockResolvedValue({});
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -158,17 +162,18 @@ describe("registerParticipant", () => {
   it("全フィールドを指定して正常登録後、/diagnosis にリダイレクトする", async () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
     mockPrismaParticipantUpsert.mockResolvedValue({});
+    mockUpdateUser.mockReturnValue({ error: null });
 
-    await expect(
-      registerParticipant({
-        name: "山田 太郎",
-        birthday: "1990-01-15",
-        gender: "male",
-        region: "東京都",
-        bio: "ボランティア活動が好きです",
-        interests: ["環境保全", "子ども支援"],
-      })
-    ).rejects.toThrow("NEXT_REDIRECT");
+    const result = await registerParticipant({
+      name: "山田 太郎",
+      birthday: "1990-01-15",
+      gender: "male",
+      region: "東京都",
+      bio: "ボランティア活動が好きです",
+      interests: ["環境保全", "子ども支援"],
+    });
+
+    expect(result).toEqual({ success: true });
 
     expect(mockPrismaParticipantUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -184,20 +189,23 @@ describe("registerParticipant", () => {
         }),
       })
     );
-    expect(mockRedirect).toHaveBeenCalledWith("/diagnosis");
+    expect(mockUpdateUser).toHaveBeenCalledWith({
+      data: { onboarding_completed: true },
+    });
   });
 
   it("任意フィールドを省略して正常登録後、/diagnosis にリダイレクトする", async () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-456" } } });
     mockPrismaParticipantUpsert.mockResolvedValue({});
+    mockUpdateUser.mockReturnValue({ error: null });
 
-    await expect(
-      registerParticipant({
-        name: "鈴木 花子",
-        birthday: "1985-06-20",
-        region: "大阪府",
-      })
-    ).rejects.toThrow("NEXT_REDIRECT");
+    const result = await registerParticipant({
+      name: "鈴木 花子",
+      birthday: "1985-06-20",
+      region: "大阪府",
+    });
+
+    expect(result).toEqual({ success: true });
 
     expect(mockPrismaParticipantUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -213,7 +221,9 @@ describe("registerParticipant", () => {
         }),
       })
     );
-    expect(mockRedirect).toHaveBeenCalledWith("/diagnosis");
+    expect(mockUpdateUser).toHaveBeenCalledWith({
+      data: { onboarding_completed: true },
+    });
   });
 
   it("upsert エラー時、エラーを返す", async () => {
@@ -235,6 +245,7 @@ describe("registerParticipant", () => {
 describe("registerOrganization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrismaUserUpsert.mockResolvedValue({});
   });
 
   it("未認証の場合、エラーを返す", async () => {

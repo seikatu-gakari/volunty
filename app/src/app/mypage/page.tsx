@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   XCircle,
   MessageCircle,
+  Pencil,
+  AlertTriangle,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
@@ -56,7 +58,11 @@ export default async function MyPage() {
     redirect("/login");
   }
 
-  const { profile, applications } = await fetchMyPageData();
+  const { profile, applications, alert } = await fetchMyPageData();
+  const profileActionHref = profile
+    ? "/mypage/profile/edit"
+    : "/onboarding/participant";
+  const profileActionLabel = profile ? "編集" : "登録";
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -65,14 +71,34 @@ export default async function MyPage() {
       <main className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="mb-8 text-2xl font-bold text-text-dark">マイページ</h1>
 
+        {alert && (
+          <div className="mb-6 rounded-[10px] border border-yellow-300 bg-yellow-50 p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-yellow-800">
+              <AlertTriangle className="size-4" />
+              {alert.title}
+            </div>
+            <p className="text-sm text-yellow-900">{alert.message}</p>
+            <p className="mt-2 break-words text-xs text-yellow-800">{alert.detail}</p>
+          </div>
+        )}
+
         {/* プロフィールセクション */}
         <Card className="mb-8">
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
-                <User className="size-5 text-primary" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+                  <User className="size-5 text-primary" />
+                </div>
+                <h2 className="text-lg font-bold text-text-dark">プロフィール</h2>
               </div>
-              <h2 className="text-lg font-bold text-text-dark">プロフィール</h2>
+              <Link
+                href={profileActionHref}
+                className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                <Pencil className="size-4" />
+                {profileActionLabel}
+              </Link>
             </div>
           </CardHeader>
           <CardContent>
