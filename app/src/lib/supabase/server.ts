@@ -1,13 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import {
+  getSupabaseAnonKey,
+  getSupabaseServerUrl,
+  SUPABASE_AUTH_COOKIE_NAME,
+} from "@/lib/supabase/env";
 
 export async function createClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = getSupabaseServerUrl();
+  const supabaseAnonKey = getSupabaseAnonKey();
 
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
-      "Supabase環境変数が未設定です。NEXT_PUBLIC_SUPABASE_URL と NEXT_PUBLIC_SUPABASE_ANON_KEY を設定してください。"
+      "Supabase環境変数が未設定です。NEXT_PUBLIC_SUPABASE_URL と NEXT_PUBLIC_SUPABASE_ANON_KEY を設定してください。Docker環境では必要に応じて SUPABASE_INTERNAL_URL も設定してください。"
     );
   }
 
@@ -17,6 +22,9 @@ export async function createClient() {
     supabaseUrl,
     supabaseAnonKey,
     {
+      cookieOptions: {
+        name: SUPABASE_AUTH_COOKIE_NAME,
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();

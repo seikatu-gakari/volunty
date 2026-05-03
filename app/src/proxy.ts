@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import {
+  getSupabaseAnonKey,
+  getSupabaseServerUrl,
+  SUPABASE_AUTH_COOKIE_NAME,
+} from "@/lib/supabase/env";
 
 // ============================================
 // ルート分類
@@ -102,12 +107,15 @@ export async function proxy(request: NextRequest) {
 
   // 未承認団体: /onboarding/pending 以外へのアクセスをブロック
   if (role === "organization" && pathname !== "/onboarding/pending") {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseUrl = getSupabaseServerUrl();
+    const supabaseAnonKey = getSupabaseAnonKey();
     if (supabaseUrl && supabaseAnonKey) {
       try {
         // updateSession 後の更新済みクッキーを使い、verified フラグ確認用クライアントを生成する
         const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+          cookieOptions: {
+            name: SUPABASE_AUTH_COOKIE_NAME,
+          },
           cookies: {
             getAll: () => request.cookies.getAll(),
             setAll: (cookiesToSet) => {

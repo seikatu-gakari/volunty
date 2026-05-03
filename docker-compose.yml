@@ -15,6 +15,9 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       PORT: "3000"
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
+      SUPABASE_INTERNAL_URL: "http://host.docker.internal:54321"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: >-
       sh -c "if [ ! -d node_modules ]; then npm install; fi && npm run db:generate && npm run dev -- --hostname 0.0.0.0 --port 3000"
     tty: true

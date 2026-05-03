@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
+import {
+  getSupabaseAnonKey,
+  getSupabaseServerUrl,
+  SUPABASE_AUTH_COOKIE_NAME,
+} from "@/lib/supabase/env";
 
 /** updateSession の戻り値 */
 export interface SessionResult {
@@ -11,8 +16,8 @@ export interface SessionResult {
 export async function updateSession(
   request: NextRequest
 ): Promise<SessionResult> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = getSupabaseServerUrl();
+  const supabaseAnonKey = getSupabaseAnonKey();
 
   // Supabase 未設定時はセッション処理をスキップ（開発環境対応）
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -24,6 +29,9 @@ export async function updateSession(
   });
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: {
+      name: SUPABASE_AUTH_COOKIE_NAME,
+    },
     cookies: {
       getAll() {
         return request.cookies.getAll();
