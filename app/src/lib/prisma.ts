@@ -13,6 +13,27 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+/** Docker コンテナ内からローカル Supabase DB に到達できる接続文字列へ補正する */
+export function resolvePrismaConnectionString(rawUrl: string): string {
+  const url = new URL(rawUrl);
+
+  url.searchParams.delete("pgbouncer");
+
+  // Docker コンテナ内の localhost はコンテナ自身を指す。
+  // SUPABASE_INTERNAL_URL がある場合は、同じホスト名を DB 接続にも使う。
+  const internalUrl = process.env.SUPABASE_INTERNAL_URL;
+  if (
+    internalUrl &&
+    (url.hostname === "127.0.0.1" ||
+      url.hostname === "localhost" ||
+      url.hostname === "::1")
+  ) {
+    url.hostname = new URL(internalUrl).hostname;
+  }
+
+  return url.toString();
+}
+
 function createPrismaClient(): PrismaClient {
   const rawUrl = process.env["DATABASE_URL"];
   if (!rawUrl) {
@@ -21,10 +42,7 @@ function createPrismaClient(): PrismaClient {
     );
   }
 
-  // pg ライブラリは ?pgbouncer=true を認識しないため除去する
-  const url = new URL(rawUrl);
-  url.searchParams.delete("pgbouncer");
-  const connectionString = url.toString();
+  const connectionString = resolvePrismaConnectionString(rawUrl);
 
   const pool = new pg.Pool({
     connectionString,
