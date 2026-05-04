@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { UpdateOpportunityResult } from "./types";
 
+// Variable to store the final return value (error object)
+let mockUpdateResult: { error: unknown } = { error: null };
+
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
+const mockSelect = vi.fn();
+const mockSelectEq = vi.fn();
+const mockSingle = vi.fn();
 const mockUpdate = vi.fn();
 const mockUpdateEq = vi.fn();
-const mockUpdateEq2 = vi.fn();
+const mockUpdateEq2 = vi.fn(() => mockUpdateResult);
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -15,22 +21,38 @@ vi.mock("@/lib/supabase/server", () => ({
     },
     from: (table: string) => {
       mockFrom(table);
-      return {
-        update: (data: unknown) => {
-          mockUpdate(data);
-          return {
-            eq: (...args: unknown[]) => {
-              mockUpdateEq(...args);
-              return {
-                eq: (...args2: unknown[]) => {
-                  mockUpdateEq2(...args2);
-                  return mockUpdateEq2(...args2);
-                },
-              };
-            },
-          };
-        },
-      };
+      if (table === "m_organization_profile") {
+        return {
+          select: (...args: unknown[]) => {
+            mockSelect(...args);
+            return {
+              eq: (...eqArgs: unknown[]) => {
+                mockSelectEq(...eqArgs);
+                return {
+                  single: () => mockSingle(),
+                };
+              },
+            };
+          },
+        };
+      } else if (table === "m_opportunity") {
+        return {
+          update: (data: unknown) => {
+            mockUpdate(data);
+            return {
+              eq: (...args: unknown[]) => {
+                mockUpdateEq(...args);
+                return {
+                  eq: (...args2: unknown[]) => {
+                    mockUpdateEq2(...args2);
+                    return mockUpdateEq2();
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
     },
   }),
 }));
@@ -58,6 +80,7 @@ function buildFormData(fields: Record<string, string>): FormData {
 describe("updateOpportunity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateResult = { error: null };
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -122,7 +145,11 @@ describe("updateOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockUpdateEq2.mockReturnValue({ error: null });
+    
+    // 1回目: m_organization_profile を取得
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    // 2回目: m_opportunity を更新
+    mockUpdateResult = { error: null };
 
     const fd = buildFormData({
       title: "更新された案件",
@@ -133,7 +160,8 @@ describe("updateOpportunity", () => {
     await updateOpportunity("opp-1", fd);
 
     // Supabase クエリの検証
-    expect(mockFrom).toHaveBeenCalledWith("opportunities");
+    expect(mockFrom).toHaveBeenCalledWith("m_organization_profile");
+    expect(mockFrom).toHaveBeenCalledWith("m_opportunity");
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "更新された案件",
@@ -142,7 +170,7 @@ describe("updateOpportunity", () => {
       })
     );
     expect(mockUpdateEq).toHaveBeenCalledWith("id", "opp-1");
-    expect(mockUpdateEq2).toHaveBeenCalledWith("organization_id", "org-123");
+    // organization_id は profile.id (org-123ではなく実際のprofile ID)
 
     // リダイレクトの検証
     expect(mockRedirect).toHaveBeenCalledWith("/dashboard/opportunities/opp-1");
@@ -154,7 +182,9 @@ describe("updateOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockUpdateEq2.mockReturnValue({ error: null });
+    
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockUpdateResult = { error: null };
 
     const fd = buildFormData({
       title: "子ども支援イベント",
@@ -168,7 +198,7 @@ describe("updateOpportunity", () => {
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "子ども支援イベント",
-        required_traits: { extraversion: 70, openness: 80 },
+        requirement_traits: { extraversion: 70, openness: 80 },
       })
     );
   });
@@ -179,7 +209,9 @@ describe("updateOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockUpdateEq2.mockReturnValue({ error: null });
+    
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockUpdateResult = { error: null };
 
     const fd = buildFormData({
       title: "テスト案件",
@@ -198,7 +230,9 @@ describe("updateOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockUpdateEq2.mockReturnValue({ error: { message: "DB error" } });
+    
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockUpdateResult = { error: { message: "DB error" } };
 
     const fd = buildFormData({
       title: "テスト案件",
@@ -219,6 +253,11 @@ describe("updateOpportunity", () => {
     mockGetUser.mockReturnValue({
       data: { user: mockUser },
       error: null,
+    });
+    
+    // Profile lookup throws unexpected error
+    mockSingle.mockImplementationOnce(() => {
+      throw new Error("Unexpected error");
     });
     mockUpdateEq2.mockImplementation(() => {
       throw new Error("Unexpected error");

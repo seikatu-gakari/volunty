@@ -67,8 +67,8 @@ export async function fetchOrganizationDetail(
 
     // 団体データを取得
     const { data: orgData, error: orgError } = await supabase
-      .from("organizations")
-      .select("id, name, description")
+      .from("m_organization_profile")
+      .select("id, organization_name, description")
       .eq("id", organizationId)
       .single();
 
@@ -82,7 +82,7 @@ export async function fetchOrganizationDetail(
 
     const organization: OrganizationDetail = {
       id: orgData.id as string,
-      name: orgData.name as string,
+      name: (orgData as unknown as { organization_name: string }).organization_name,
       description: (orgData.description as string) ?? null,
     };
 
@@ -91,9 +91,9 @@ export async function fetchOrganizationDetail(
     let isParticipant = false;
 
     const { data: participant } = await supabase
-      .from("participants")
+      .from("m_participant_profile")
       .select("diagnosis_scores")
-      .eq("id", user.id)
+      .eq("user_id", user.id)
       .single();
 
     if (participant) {
@@ -106,20 +106,19 @@ export async function fetchOrganizationDetail(
 
     // 公開中の募集案件を取得
     const { data: oppData } = await supabase
-      .from("opportunities")
-      .select("id, title, description, required_traits")
+      .from("m_opportunity")
+      .select("id, title, description, requirement_traits")
       .eq("organization_id", organizationId)
-      .eq("status", "open");
+      .eq("status", "published");
 
     const opportunities: OrganizationOpportunity[] = (oppData ?? []).map(
       (opp) => {
         let matchScore: number | null = null;
-        if (participantScores && opp.required_traits) {
+        const oppRequirementTraits = (opp as unknown as { requirement_traits: Record<string, unknown> | null }).requirement_traits;
+        if (participantScores && oppRequirementTraits) {
           matchScore = calculateMatchScore(
             participantScores,
-            toPartialBIG5Scores(
-              opp.required_traits as Record<string, unknown>
-            )
+            toPartialBIG5Scores(oppRequirementTraits)
           );
         }
         return {
@@ -127,7 +126,7 @@ export async function fetchOrganizationDetail(
           title: opp.title as string,
           description: (opp.description as string) ?? null,
           required_traits:
-            (opp.required_traits as Record<string, number>) ?? null,
+            (oppRequirementTraits as Record<string, number>) ?? null,
           matchScore,
         };
       }

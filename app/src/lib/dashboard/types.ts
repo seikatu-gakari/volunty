@@ -6,8 +6,8 @@
  * - applications: 各案件の応募者数（COUNT）
  */
 
-/** 募集案件ステータス */
-export type OpportunityStatus = "open" | "closed";
+/** 募集案件ステータス（DBスキーマ: draft / published / closed） */
+export type OpportunityStatus = "draft" | "published" | "closed";
 
 /** 自団体の募集案件（応募者数付き） */
 export interface DashboardOpportunity {

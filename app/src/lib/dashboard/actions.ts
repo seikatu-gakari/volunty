@@ -41,35 +41,52 @@ export async function fetchMyOpportunities(): Promise<DashboardData> {
 
   let opportunities: DashboardOpportunity[] = [];
   try {
+    // 団体プロフィールIDを取得（organization_id は m_organization_profile.id を参照）
+    const { data: orgProfile } = await supabase
+      .from("m_organization_profile")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!orgProfile) {
+      return { opportunities: [] };
+    }
+
+    // 自団体の案件を取得
     const { data: oppData } = await supabase
-      .from("opportunities")
+      .from("m_opportunity")
       .select(
         `
         id,
         title,
         status,
-        created_at,
-        applications (
-          id
-        )
+        created_at
       `
       )
-      .eq("organization_id", user.id)
+      .eq("organization_id", (orgProfile as unknown as { id: string }).id)
       .order("created_at", { ascending: false });
 
-    if (oppData) {
-      opportunities = oppData.map((opp) => {
-        // Supabase の JOIN 結果を型変換
-        const apps = opp.applications as unknown as { id: string }[] | null;
+    if (oppData && oppData.length > 0) {
+      // 応募者数を別クエリで取得（t_matching_candidate から COUNT）
+      const oppIds = oppData.map((o) => o.id as string);
+      const { data: matchings } = await supabase
+        .from("t_matching_candidate")
+        .select("opportunity_id")
+        .in("opportunity_id", oppIds);
 
-        return {
-          id: opp.id as string,
-          title: opp.title as string,
-          status: opp.status as DashboardOpportunity["status"],
-          created_at: opp.created_at as string,
-          application_count: Array.isArray(apps) ? apps.length : 0,
-        };
-      });
+      const countMap: Record<string, number> = {};
+      for (const m of matchings ?? []) {
+        const oid = m.opportunity_id as string;
+        countMap[oid] = (countMap[oid] ?? 0) + 1;
+      }
+
+      opportunities = oppData.map((opp) => ({
+        id: opp.id as string,
+        title: opp.title as string,
+        status: opp.status as DashboardOpportunity["status"],
+        created_at: opp.created_at as string,
+        application_count: countMap[opp.id as string] ?? 0,
+      }));
     }
   } catch {
     // テーブル未作成・接続エラー時はスキップ
@@ -138,15 +155,26 @@ export async function createOpportunity(
   }
 
   try {
+    // 団体プロフィールIDを取得
+    const { data: orgProfile, error: profileError } = await supabase
+      .from("m_organization_profile")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !orgProfile) {
+      return { success: false, error: "団体プロフィールが見つかりません" };
+    }
+
     const { error: insertError } = await supabase
-      .from("opportunities")
+      .from("m_opportunity")
       .insert({
-        organization_id: user.id,
+        organization_id: (orgProfile as unknown as { id: string }).id,
         title,
         description,
-        required_traits:
+        requirement_traits:
           Object.keys(requiredTraits).length > 0 ? requiredTraits : null,
-        status: "open",
+        status: "published",
       });
 
     if (insertError) {
@@ -204,11 +232,22 @@ export async function fetchOpportunityForEdit(
   }
 
   try {
+    // 団体プロフィールIDを取得
+    const { data: orgProfile, error: profileError } = await supabase
+      .from("m_organization_profile")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !orgProfile) {
+      return { opportunity: null, error: "団体プロフィールが見つかりません" };
+    }
+
     const { data, error: fetchError } = await supabase
-      .from("opportunities")
-      .select("id, title, description, required_traits, status")
+      .from("m_opportunity")
+      .select("id, title, description, requirement_traits, status")
       .eq("id", id)
-      .eq("organization_id", user.id)
+      .eq("organization_id", (orgProfile as unknown as { id: string }).id)
       .single();
 
     if (fetchError || !data) {
@@ -220,7 +259,7 @@ export async function fetchOpportunityForEdit(
       title: data.title as string,
       description: (data.description as string) ?? "",
       required_traits:
-        (data.required_traits as Record<string, number> | null) ?? null,
+        ((data as unknown as { requirement_traits: Record<string, number> | null }).requirement_traits) ?? null,
       status: data.status as OpportunityStatus,
     };
 
@@ -270,7 +309,9 @@ export async function updateOpportunity(
   // ステータスの取得
   const rawStatus = formData.get("status");
   const status =
-    rawStatus === "open" || rawStatus === "closed" ? rawStatus : undefined;
+    rawStatus === "draft" || rawStatus === "published" || rawStatus === "closed"
+      ? rawStatus
+      : undefined;
 
   // required_traits の構築（BIG5各特性のスコア）
   const requiredTraits: Record<string, number> = {};
@@ -285,10 +326,21 @@ export async function updateOpportunity(
   }
 
   try {
+    // 団体プロフィールIDを取得
+    const { data: orgProfile, error: profileError } = await supabase
+      .from("m_organization_profile")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !orgProfile) {
+      return { success: false, error: "団体プロフィールが見つかりません" };
+    }
+
     const updateData: Record<string, unknown> = {
       title,
       description,
-      required_traits:
+      requirement_traits:
         Object.keys(requiredTraits).length > 0 ? requiredTraits : null,
     };
     if (status) {
@@ -296,10 +348,10 @@ export async function updateOpportunity(
     }
 
     const { error: updateError } = await supabase
-      .from("opportunities")
+      .from("m_opportunity")
       .update(updateData)
       .eq("id", id)
-      .eq("organization_id", user.id);
+      .eq("organization_id", (orgProfile as unknown as { id: string }).id);
 
     if (updateError) {
       return { success: false, error: "案件の更新に失敗しました" };
@@ -335,52 +387,78 @@ export async function fetchApplicantsForOpportunity(
       return { data: null, error: "ログインが必要です" };
     }
 
+    // 団体プロフィールIDを取得（認可チェック用）
+    const { data: orgProfile, error: profileError } = await supabase
+      .from("m_organization_profile")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !orgProfile) {
+      return { data: null, error: "団体プロフィールが見つかりません" };
+    }
+
     // 案件データを取得（自団体の案件であることを確認）
     const { data: oppData, error: oppError } = await supabase
-      .from("opportunities")
-      .select("id, title, description, status, required_traits, created_at")
+      .from("m_opportunity")
+      .select("id, title, description, status, requirement_traits, created_at")
       .eq("id", opportunityId)
-      .eq("organization_id", user.id)
+      .eq("organization_id", (orgProfile as unknown as { id: string }).id)
       .single();
 
     if (oppError || !oppData) {
       return { data: null, error: "案件が見つかりません" };
     }
 
-    // 応募者一覧を取得（participants JOIN）
-    const { data: appData } = await supabase
-      .from("applications")
-      .select(
-        `
-        id,
-        status,
-        message,
-        created_at,
-        participants (
-          name,
-          diagnosis_type,
-          diagnosis_scores
-        )
-      `
-      )
+    // 応募者一覧を取得（t_matching_candidate）
+    const { data: matchingData } = await supabase
+      .from("t_matching_candidate")
+      .select("id, status, message, match_score, applied_at, participant_id")
       .eq("opportunity_id", opportunityId)
-      .order("created_at", { ascending: false });
+      .order("applied_at", { ascending: false });
 
-    const requiredTraits = oppData.required_traits
-      ? (oppData.required_traits as Record<string, number>)
-      : null;
-
-    const applicants: Applicant[] = (appData ?? []).map((app) => {
-      const participant = app.participants as unknown as {
+    // 参加者プロフィールを別クエリで取得（split-fetch パターン）
+    const participantIds = (matchingData ?? []).map(
+      (m) => m.participant_id as string
+    );
+    const profileMap: Record<
+      string,
+      {
         name: string;
         diagnosis_type: string | null;
         diagnosis_scores: Record<string, number> | null;
-      } | null;
+      }
+    > = {};
 
-      // マッチングスコアを計算
-      let matchScore: number | null = null;
-      const rawScores = participant?.diagnosis_scores;
-      if (isBIG5Scores(rawScores) && requiredTraits) {
+    if (participantIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("m_participant_profile")
+        .select("user_id, name, diagnosis_type, diagnosis_scores")
+        .in("user_id", participantIds);
+
+      for (const p of profiles ?? []) {
+        profileMap[p.user_id as string] = {
+          name: p.name as string,
+          diagnosis_type: (p.diagnosis_type as string) ?? null,
+          diagnosis_scores:
+            (p.diagnosis_scores as Record<string, number>) ?? null,
+        };
+      }
+    }
+
+    const requiredTraits = (
+      oppData as unknown as {
+        requirement_traits: Record<string, number> | null;
+      }
+    ).requirement_traits;
+
+    const applicants: Applicant[] = (matchingData ?? []).map((m) => {
+      const profile = profileMap[m.participant_id as string];
+
+      // マッチングスコアを計算（DBの match_score を優先使用）
+      let matchScore: number | null = (m.match_score as number) ?? null;
+      const rawScores = profile?.diagnosis_scores;
+      if (matchScore === null && isBIG5Scores(rawScores) && requiredTraits) {
         matchScore = calculateMatchScore(
           rawScores,
           toPartialBIG5Scores(requiredTraits)
@@ -388,13 +466,13 @@ export async function fetchApplicantsForOpportunity(
       }
 
       return {
-        id: app.id as string,
-        status: app.status as Applicant["status"],
-        message: (app.message as string) ?? null,
-        created_at: app.created_at as string,
-        participant_name: participant?.name ?? "不明",
-        diagnosis_type: participant?.diagnosis_type ?? null,
-        diagnosis_scores: participant?.diagnosis_scores ?? null,
+        id: m.id as string,
+        status: mapApplicationStatus(m.status as string),
+        message: (m.message as string) ?? null,
+        created_at: (m.applied_at as string) ?? "",
+        participant_name: profile?.name ?? "不明",
+        diagnosis_type: profile?.diagnosis_type ?? null,
+        diagnosis_scores: profile?.diagnosis_scores ?? null,
         match_score: matchScore,
       };
     });
@@ -404,7 +482,7 @@ export async function fetchApplicantsForOpportunity(
         id: oppData.id as string,
         title: oppData.title as string,
         description: (oppData.description as string) ?? null,
-        status: oppData.status as "open" | "closed",
+        status: oppData.status as "draft" | "published" | "closed",
         required_traits: requiredTraits,
         created_at: oppData.created_at as string,
         applicants,
@@ -417,9 +495,19 @@ export async function fetchApplicantsForOpportunity(
 }
 
 /**
+ * DB の MatchingStatus を UI 表示用の ApplicationStatus にマッピングする
+ */
+function mapApplicationStatus(dbStatus: string): Applicant["status"] {
+  if (dbStatus === "applied" || dbStatus === "queued") return "pending";
+  if (dbStatus === "accepted" || dbStatus === "completed") return "approved";
+  if (dbStatus === "declined") return "rejected";
+  return "pending";
+}
+
+/**
  * 応募ステータスを更新する（承認/辞退）
  *
- * - applications.status を 'approved' or 'rejected' に更新
+ * - t_matching_candidate.status を 'accepted' or 'declined' に更新
  * - 自団体の案件への応募のみ操作可能（認可チェック）
  */
 export async function updateApplicationStatus(
@@ -440,7 +528,7 @@ export async function updateApplicationStatus(
 
     // 応募データを取得
     const { data: appData, error: appError } = await supabase
-      .from("applications")
+      .from("t_matching_candidate")
       .select("id, opportunity_id")
       .eq("id", applicationId)
       .single();
@@ -449,22 +537,36 @@ export async function updateApplicationStatus(
       return { success: false, error: "応募が見つかりません" };
     }
 
+    // 団体プロフィールIDを取得（認可チェック用）
+    const { data: orgProfile, error: profileError } = await supabase
+      .from("m_organization_profile")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !orgProfile) {
+      return { success: false, error: "団体プロフィールが見つかりません" };
+    }
+
     // 自団体の案件への応募であることを確認（認可チェック）
     const { data: oppData } = await supabase
-      .from("opportunities")
+      .from("m_opportunity")
       .select("id")
       .eq("id", appData.opportunity_id)
-      .eq("organization_id", user.id)
+      .eq("organization_id", (orgProfile as unknown as { id: string }).id)
       .single();
 
     if (!oppData) {
       return { success: false, error: "この操作を行う権限がありません" };
     }
 
+    // UI ステータスを DB ステータスにマッピング
+    const dbStatus = newStatus === "approved" ? "accepted" : "declined";
+
     // ステータスを更新
     const { error: updateError } = await supabase
-      .from("applications")
-      .update({ status: newStatus })
+      .from("t_matching_candidate")
+      .update({ status: dbStatus })
       .eq("id", applicationId);
 
     if (updateError) {
@@ -501,23 +603,10 @@ export async function fetchApplicantDetail(
       return { data: null, error: "ログインが必要です" };
     }
 
-    // 応募データ + 参加者情報を取得
+    // 応募データを取得
     const { data: appData, error: appError } = await supabase
-      .from("applications")
-      .select(
-        `
-        id,
-        status,
-        message,
-        created_at,
-        opportunity_id,
-        participants (
-          name,
-          diagnosis_type,
-          diagnosis_scores
-        )
-      `
-      )
+      .from("t_matching_candidate")
+      .select("id, status, message, match_score, applied_at, opportunity_id, participant_id")
       .eq("id", applicationId)
       .single();
 
@@ -525,31 +614,54 @@ export async function fetchApplicantDetail(
       return { data: null, error: "応募が見つかりません" };
     }
 
+    // 団体プロフィールIDを取得（認可チェック用）
+    const { data: orgProfile, error: profileError } = await supabase
+      .from("m_organization_profile")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError || !orgProfile) {
+      return { data: null, error: "団体プロフィールが見つかりません" };
+    }
+
     // 案件データを取得（自団体の案件であることを確認）
     const { data: oppData, error: oppError } = await supabase
-      .from("opportunities")
-      .select("id, title, required_traits")
+      .from("m_opportunity")
+      .select("id, title, requirement_traits")
       .eq("id", appData.opportunity_id)
-      .eq("organization_id", user.id)
+      .eq("organization_id", (orgProfile as unknown as { id: string }).id)
       .single();
 
     if (oppError || !oppData) {
       return { data: null, error: "この操作を行う権限がありません" };
     }
 
-    const participant = appData.participants as unknown as {
-      name: string;
-      diagnosis_type: string | null;
-      diagnosis_scores: Record<string, number> | null;
-    } | null;
+    // 参加者プロフィールを個別取得
+    const { data: profileData } = await supabase
+      .from("m_participant_profile")
+      .select("name, diagnosis_type, diagnosis_scores")
+      .eq("user_id", appData.participant_id)
+      .single();
+
+    const participant = profileData
+      ? {
+          name: profileData.name as string,
+          diagnosis_type: (profileData.diagnosis_type as string) ?? null,
+          diagnosis_scores:
+            (profileData.diagnosis_scores as Record<string, number>) ?? null,
+        }
+      : null;
 
     // マッチングスコアを計算
-    const requiredTraits = oppData.required_traits
-      ? (oppData.required_traits as Record<string, number>)
-      : null;
-    let matchScore: number | null = null;
+    const requiredTraits = (
+      oppData as unknown as {
+        requirement_traits: Record<string, number> | null;
+      }
+    ).requirement_traits;
+    let matchScore: number | null = (appData.match_score as number) ?? null;
     const rawScores = participant?.diagnosis_scores;
-    if (isBIG5Scores(rawScores) && requiredTraits) {
+    if (matchScore === null && isBIG5Scores(rawScores) && requiredTraits) {
       matchScore = calculateMatchScore(
         rawScores,
         toPartialBIG5Scores(requiredTraits)
@@ -565,9 +677,9 @@ export async function fetchApplicantDetail(
     return {
       data: {
         id: appData.id as string,
-        status: appData.status as ApplicantDetail["status"],
+        status: mapApplicationStatus(appData.status as string),
         message: (appData.message as string) ?? null,
-        created_at: appData.created_at as string,
+        created_at: (appData.applied_at as string) ?? "",
         participant_name: participant?.name ?? "不明",
         diagnosis_type: diagnosisType,
         diagnosis_scores: participant?.diagnosis_scores ?? null,

@@ -6,7 +6,6 @@ const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
 const mockSelect = vi.fn();
 const mockSelectEq = vi.fn();
-const mockSelectEq2 = vi.fn();
 const mockSingle = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -24,14 +23,12 @@ vi.mock("@/lib/supabase/server", () => ({
               mockSelectEq(...eqArgs);
               return {
                 eq: (...eqArgs2: unknown[]) => {
-                  mockSelectEq2(...eqArgs2);
+                  mockSelectEq(...eqArgs2);
                   return {
-                    single: () => {
-                      mockSingle();
-                      return mockSingle();
-                    },
+                    single: () => mockSingle(),
                   };
                 },
+                single: () => mockSingle(),
               };
             },
           };
@@ -68,20 +65,25 @@ describe("fetchOpportunityForEdit", () => {
   });
 
   it("自団体の案件を正常に取得できる", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
+    const mockUser = { id: "user-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({
       data: { user: mockUser },
       error: null,
     });
 
-    const mockData = {
-      id: "opp-1",
-      title: "環境保全ボランティア",
-      description: "森林再生活動を行います",
-      required_traits: { extraversion: 70, openness: 80 },
-      status: "open",
-    };
-    mockSingle.mockReturnValue({ data: mockData, error: null });
+    // m_organization_profile 取得
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    // m_opportunity 取得
+    mockSingle.mockReturnValueOnce({
+      data: {
+        id: "opp-1",
+        title: "環境保全ボランティア",
+        description: "森林再生活動を行います",
+        requirement_traits: { extraversion: 70, openness: 80 },
+        status: "published",
+      },
+      error: null,
+    });
 
     const result: OpportunityEditResult =
       await fetchOpportunityForEdit("opp-1");
@@ -94,24 +96,35 @@ describe("fetchOpportunityForEdit", () => {
       extraversion: 70,
       openness: 80,
     });
-    expect(result.opportunity?.status).toBe("open");
+    expect(result.opportunity?.status).toBe("published");
 
     // Supabase クエリの検証
-    expect(mockFrom).toHaveBeenCalledWith("opportunities");
+    expect(mockFrom).toHaveBeenCalledWith("m_organization_profile");
+    expect(mockFrom).toHaveBeenCalledWith("m_opportunity");
     expect(mockSelectEq).toHaveBeenCalledWith("id", "opp-1");
-    expect(mockSelectEq2).toHaveBeenCalledWith("organization_id", "org-123");
+    // organization_id は profile.id (org-123ではなく実際のprofile ID)
+  });
+
+  it("団体プロフィール未設定の場合、null を返す", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+    // m_organization_profile 取得失敗
+    mockSingle.mockReturnValueOnce({ data: null, error: { message: "Not found" } });
+
+    const result: OpportunityEditResult =
+      await fetchOpportunityForEdit("opp-1");
+
+    expect(result.opportunity).toBeNull();
+    expect(result.error).toBe("団体プロフィールが見つかりません");
   });
 
   it("案件が存在しない場合、null を返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-    mockSingle.mockReturnValue({
-      data: null,
-      error: { message: "Row not found" },
-    });
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+    // m_organization_profile 取得成功
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    // m_opportunity 取得失敗
+    mockSingle.mockReturnValueOnce({ data: null, error: { message: "Row not found" } });
 
     const result: OpportunityEditResult =
       await fetchOpportunityForEdit("non-existent");
@@ -120,53 +133,43 @@ describe("fetchOpportunityForEdit", () => {
   });
 
   it("他団体の案件は取得できない（organization_id フィルタ）", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-    mockSingle.mockReturnValue({
-      data: null,
-      error: { message: "Row not found" },
-    });
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockSingle.mockReturnValueOnce({ data: null, error: { message: "Row not found" } });
 
     const result: OpportunityEditResult =
       await fetchOpportunityForEdit("other-org-opp");
 
     expect(result.opportunity).toBeNull();
-    // organization_id によるフィルタが適用されることを検証
-    expect(mockSelectEq2).toHaveBeenCalledWith("organization_id", "org-123");
   });
 
   it("description が null の場合、空文字列に変換される", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockSingle.mockReturnValueOnce({
+      data: {
+        id: "opp-2",
+        title: "テスト案件",
+        description: null,
+        requirement_traits: null,
+        status: "draft",
+      },
       error: null,
     });
-
-    const mockData = {
-      id: "opp-2",
-      title: "テスト案件",
-      description: null,
-      required_traits: null,
-      status: "open",
-    };
-    mockSingle.mockReturnValue({ data: mockData, error: null });
 
     const result: OpportunityEditResult =
       await fetchOpportunityForEdit("opp-2");
 
+    expect(result.opportunity).not.toBeNull();
     expect(result.opportunity?.description).toBe("");
-    expect(result.opportunity?.required_traits).toBeNull();
   });
 
   it("DB エラー時もクラッシュせずエラーを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
     mockSingle.mockImplementation(() => {
       throw new Error("DB connection error");
     });

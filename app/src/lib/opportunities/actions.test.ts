@@ -91,7 +91,7 @@ describe("fetchOpportunityDetail", () => {
       await fetchOpportunityDetail("nonexistent");
 
     expect(result.opportunity).toBeNull();
-    expect(mockFrom).toHaveBeenCalledWith("opportunities");
+    expect(mockFrom).toHaveBeenCalledWith("m_opportunity");
   });
 
   it("案件が存在する場合、案件詳細を返す", async () => {
@@ -106,10 +106,10 @@ describe("fetchOpportunityDetail", () => {
       id: "opp-1",
       title: "環境保全ボランティア",
       description: "森林保全活動です",
-      required_traits: { extraversion: 70, agreeableness: 80 },
-      status: "open",
+      requirement_traits: { extraversion: 70, agreeableness: 80 },
+      status: "published",
       created_at: "2026-01-01T00:00:00Z",
-      organizations: { id: "org-1", name: "NPO法人テスト", description: "テスト団体です" },
+      m_organization_profile: { id: "org-1", organization_name: "NPO法人テスト", description: "テスト団体です" },
     };
 
     // 参加者データ
@@ -126,9 +126,9 @@ describe("fetchOpportunityDetail", () => {
     let callCount = 0;
     mockSingle.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return { data: mockOpp, error: null }; // opportunities
-      if (callCount === 2) return { data: mockParticipant, error: null }; // participants
-      return { data: null, error: null }; // applications (応募なし)
+      if (callCount === 1) return { data: mockOpp, error: null }; // m_opportunity
+      if (callCount === 2) return { data: mockParticipant, error: null }; // m_participant_profile
+      return { data: null, error: null }; // t_matching_candidate (応募なし)
     });
 
     const result: OpportunityDetailResult =
@@ -138,7 +138,7 @@ describe("fetchOpportunityDetail", () => {
     expect(result.opportunity?.title).toBe("環境保全ボランティア");
     expect(result.opportunity?.description).toBe("森林保全活動です");
     expect(result.opportunity?.organization.name).toBe("NPO法人テスト");
-    expect(result.opportunity?.status).toBe("open");
+    expect(result.opportunity?.status).toBe("published");
     expect(result.isParticipant).toBe(true);
     expect(result.matchScore).toBe(75); // モックされた calculateMatchScore の戻り値
     expect(result.existingApplication).toBeNull();
@@ -155,31 +155,32 @@ describe("fetchOpportunityDetail", () => {
       id: "opp-1",
       title: "子ども支援活動",
       description: null,
-      required_traits: null,
-      status: "open",
+      requirement_traits: null,
+      status: "published",
       created_at: "2026-01-01T00:00:00Z",
-      organizations: { id: "org-2", name: "支援団体A", description: null },
+      m_organization_profile: { id: "org-2", organization_name: "支援団体A", description: null },
     };
 
     const mockApp = {
       id: "app-1",
-      status: "pending",
+      status: "applied",
       message: "参加したいです",
-      created_at: "2026-01-15T00:00:00Z",
+      applied_at: "2026-01-15T00:00:00Z",
     };
 
     let callCount = 0;
     mockSingle.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return { data: mockOpp, error: null }; // opportunities
-      if (callCount === 2) return { data: null, error: null }; // participants (非参加者)
-      return { data: mockApp, error: null }; // applications
+      if (callCount === 1) return { data: mockOpp, error: null }; // m_opportunity
+      if (callCount === 2) return { data: null, error: null }; // m_participant_profile (非参加者)
+      return { data: mockApp, error: null }; // t_matching_candidate
     });
 
     const result: OpportunityDetailResult =
       await fetchOpportunityDetail("opp-1");
 
     expect(result.existingApplication).not.toBeNull();
+    // DBステータス "applied" は UI では "pending" にマッピングされる
     expect(result.existingApplication?.status).toBe("pending");
     expect(result.existingApplication?.message).toBe("参加したいです");
   });
@@ -248,8 +249,8 @@ describe("applyToOpportunity", () => {
     let callCount = 0;
     mockSingle.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return { data: { id: "user-123" }, error: null }; // participants
-      return { data: null, error: null }; // opportunities (なし)
+      if (callCount === 1) return { data: { id: "user-123", diagnosis_scores: null }, error: null }; // m_participant_profile
+      return { data: null, error: null }; // m_opportunity (なし)
     });
 
     const result: ApplyResult = await applyToOpportunity(
@@ -271,8 +272,8 @@ describe("applyToOpportunity", () => {
     let callCount = 0;
     mockSingle.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return { data: { id: "user-123" }, error: null }; // participants
-      return { data: { id: "opp-1", status: "closed" }, error: null }; // opportunities
+      if (callCount === 1) return { data: { id: "user-123", diagnosis_scores: null }, error: null }; // m_participant_profile
+      return { data: { id: "opp-1", status: "closed", requirement_traits: null }, error: null }; // m_opportunity
     });
 
     const result: ApplyResult = await applyToOpportunity(
@@ -294,10 +295,10 @@ describe("applyToOpportunity", () => {
     let callCount = 0;
     mockSingle.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return { data: { id: "user-123" }, error: null }; // participants
+      if (callCount === 1) return { data: { id: "user-123", diagnosis_scores: null }, error: null }; // m_participant_profile
       if (callCount === 2)
-        return { data: { id: "opp-1", status: "open" }, error: null }; // opportunities
-      return { data: { id: "app-existing" }, error: null }; // applications (既存)
+        return { data: { id: "opp-1", status: "published", requirement_traits: null }, error: null }; // m_opportunity
+      return { data: { id: "app-existing" }, error: null }; // t_matching_candidate (既存)
     });
 
     const result: ApplyResult = await applyToOpportunity(

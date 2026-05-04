@@ -84,7 +84,7 @@ describe("fetchOrganizationDetail", () => {
       await fetchOrganizationDetail("nonexistent");
 
     expect(result.organization).toBeNull();
-    expect(mockFrom).toHaveBeenCalledWith("organizations");
+    expect(mockFrom).toHaveBeenCalledWith("m_organization_profile");
   });
 
   it("団体が存在する場合、団体詳細を返す", async () => {
@@ -96,7 +96,7 @@ describe("fetchOrganizationDetail", () => {
 
     const mockOrg = {
       id: "org-1",
-      name: "NPO法人テスト",
+      organization_name: "NPO法人テスト",
       description: "テスト団体の説明です",
     };
 
@@ -114,7 +114,7 @@ describe("fetchOrganizationDetail", () => {
         id: "opp-1",
         title: "環境保全ボランティア",
         description: "森林保全活動",
-        required_traits: { extraversion: 70, agreeableness: 80 },
+        requirement_traits: { extraversion: 70, agreeableness: 80 },
       },
     ];
 

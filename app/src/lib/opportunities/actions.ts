@@ -67,20 +67,20 @@ export async function fetchOpportunityDetail(
       };
     }
 
-    // 案件データを取得（organizations JOIN）
+    // 案件データを取得（m_organization_profile JOIN）
     const { data: oppData, error: oppError } = await supabase
-      .from("opportunities")
+      .from("m_opportunity")
       .select(
         `
         id,
         title,
         description,
-        required_traits,
+        requirement_traits,
         status,
         created_at,
-        organizations (
+        m_organization_profile (
           id,
-          name,
+          organization_name,
           description
         )
       `
@@ -98,9 +98,9 @@ export async function fetchOpportunityDetail(
     }
 
     // Supabase の JOIN 結果を型変換
-    const org = oppData.organizations as unknown as {
+    const org = oppData.m_organization_profile as unknown as {
       id: string;
-      name: string;
+      organization_name: string;
       description: string | null;
     } | null;
 
@@ -109,11 +109,11 @@ export async function fetchOpportunityDetail(
       title: oppData.title as string,
       description: (oppData.description as string) ?? null,
       required_traits:
-        (oppData.required_traits as Record<string, number>) ?? null,
+        (oppData.requirement_traits as Record<string, number>) ?? null,
       status: oppData.status as OpportunityDetail["status"],
       organization: {
         id: org?.id ?? "",
-        name: org?.name ?? "",
+        name: org?.organization_name ?? "",
         description: org?.description ?? null,
       },
       created_at: oppData.created_at as string,
@@ -124,9 +124,9 @@ export async function fetchOpportunityDetail(
     let isParticipant = false;
 
     const { data: participant } = await supabase
-      .from("participants")
+      .from("m_participant_profile")
       .select("diagnosis_scores")
-      .eq("id", user.id)
+      .eq("user_id", user.id)
       .single();
 
     if (participant) {
@@ -146,8 +146,8 @@ export async function fetchOpportunityDetail(
     let existingApplication: ExistingApplication | null = null;
 
     const { data: appData } = await supabase
-      .from("applications")
-      .select("id, status, message, created_at")
+      .from("t_matching_candidate")
+      .select("id, status, message, applied_at")
       .eq("opportunity_id", opportunityId)
       .eq("participant_id", user.id)
       .single();
@@ -155,9 +155,9 @@ export async function fetchOpportunityDetail(
     if (appData) {
       existingApplication = {
         id: appData.id as string,
-        status: appData.status as ExistingApplication["status"],
+        status: mapMatchingStatus(appData.status as string),
         message: (appData.message as string) ?? null,
-        created_at: appData.created_at as string,
+        created_at: (appData.applied_at as string) ?? "",
       };
     }
 
@@ -179,9 +179,19 @@ export async function fetchOpportunityDetail(
 }
 
 /**
+ * DB の MatchingStatus を UI 表示用の ApplicationStatus にマッピングする
+ */
+function mapMatchingStatus(dbStatus: string): ExistingApplication["status"] {
+  if (dbStatus === "applied" || dbStatus === "queued") return "pending";
+  if (dbStatus === "accepted" || dbStatus === "completed") return "approved";
+  if (dbStatus === "declined") return "rejected";
+  return "pending";
+}
+
+/**
  * 募集案件に応募する
  *
- * - applications テーブルに INSERT（status: 'pending'）
+ * - t_matching_candidate テーブルに INSERT（status: 'applied'）
  * - 重複応募チェック: 同一 participant_id + opportunity_id の既存レコードがあればエラー
  */
 export async function applyToOpportunity(
@@ -199,21 +209,21 @@ export async function applyToOpportunity(
       return { success: false, error: "ログインが必要です" };
     }
 
-    // 参加者であることを確認
+    // 参加者であることを確認（診断スコアも取得）
     const { data: participant } = await supabase
-      .from("participants")
-      .select("id")
-      .eq("id", user.id)
+      .from("m_participant_profile")
+      .select("id, diagnosis_scores")
+      .eq("user_id", user.id)
       .single();
 
     if (!participant) {
       return { success: false, error: "参加者登録が必要です" };
     }
 
-    // 案件の存在とステータスを確認
+    // 案件の存在とステータスを確認（requirement_traits も取得）
     const { data: opportunity } = await supabase
-      .from("opportunities")
-      .select("id, status")
+      .from("m_opportunity")
+      .select("id, status, requirement_traits")
       .eq("id", opportunityId)
       .single();
 
@@ -221,13 +231,13 @@ export async function applyToOpportunity(
       return { success: false, error: "案件が見つかりません" };
     }
 
-    if (opportunity.status !== "open") {
+    if (opportunity.status !== "published") {
       return { success: false, error: "この案件は募集を終了しています" };
     }
 
     // 重複応募チェック
     const { data: existingApp } = await supabase
-      .from("applications")
+      .from("t_matching_candidate")
       .select("id")
       .eq("opportunity_id", opportunityId)
       .eq("participant_id", user.id)
@@ -237,14 +247,24 @@ export async function applyToOpportunity(
       return { success: false, error: "この案件にはすでに応募済みです" };
     }
 
+    // マッチングスコアを計算
+    const diagScores = participant.diagnosis_scores;
+    const reqTraits = opportunity.requirement_traits as Record<string, unknown> | null;
+    let matchScore = 50; // 診断スコアまたは要件特性がない場合のデフォルト
+    if (isBIG5Scores(diagScores) && reqTraits) {
+      matchScore = calculateMatchScore(diagScores, toPartialBIG5Scores(reqTraits));
+    }
+
     // 応募を作成
     const { error: insertError } = await supabase
-      .from("applications")
+      .from("t_matching_candidate")
       .insert({
         opportunity_id: opportunityId,
         participant_id: user.id,
         message: message || null,
-        status: "pending",
+        status: "applied",
+        match_score: matchScore,
+        applied_at: new Date().toISOString(),
       });
 
     if (insertError) {

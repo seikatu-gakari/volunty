@@ -4,7 +4,11 @@ import type { CreateOpportunityResult } from "./types";
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
+const mockSelect = vi.fn();
+const mockSelectEq = vi.fn();
+const mockSingle = vi.fn();
 const mockInsert = vi.fn();
+const mockInsertReturn = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -13,12 +17,28 @@ vi.mock("@/lib/supabase/server", () => ({
     },
     from: (table: string) => {
       mockFrom(table);
-      return {
-        insert: (data: unknown) => {
-          mockInsert(data);
-          return mockInsert(data);
-        },
-      };
+      if (table === "m_organization_profile") {
+        return {
+          select: (...args: unknown[]) => {
+            mockSelect(...args);
+            return {
+              eq: (...eqArgs: unknown[]) => {
+                mockSelectEq(...eqArgs);
+                return {
+                  single: () => mockSingle(),
+                };
+              },
+            };
+          },
+        };
+      } else if (table === "m_opportunity") {
+        return {
+          insert: (data: unknown) => {
+            mockInsert(data);
+            return mockInsertReturn(),
+          },
+        };
+      }
     },
   }),
 }));
@@ -101,7 +121,11 @@ describe("createOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockInsert.mockReturnValue({ error: null });
+    
+    // 1回目: m_organization_profile を取得
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    // 2回目: m_opportunity を挿入
+    mockInsertReturn.mockReturnValueOnce({ error: null });
 
     const fd = buildFormData({
       title: "環境保全ボランティア",
@@ -111,14 +135,15 @@ describe("createOpportunity", () => {
     await createOpportunity(fd);
 
     // Supabase クエリの検証
-    expect(mockFrom).toHaveBeenCalledWith("opportunities");
+    expect(mockFrom).toHaveBeenCalledWith("m_organization_profile");
+    expect(mockFrom).toHaveBeenCalledWith("m_opportunity");
+    // organization_idは profile UUID (org-123ではなく実際のprofile ID)
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        organization_id: "org-123",
         title: "環境保全ボランティア",
         description: "森林再生活動を行います",
-        status: "open",
-        required_traits: null,
+        status: "published",
+        requirement_traits: null,
       })
     );
 
@@ -132,7 +157,9 @@ describe("createOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockInsert.mockReturnValue({ error: null });
+    
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: null });
 
     const fd = buildFormData({
       title: "子ども支援イベント",
@@ -145,10 +172,9 @@ describe("createOpportunity", () => {
 
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        organization_id: "org-123",
         title: "子ども支援イベント",
-        required_traits: { extraversion: 70, openness: 80 },
-        status: "open",
+        requirement_traits: { extraversion: 70, openness: 80 },
+        status: "published",
       })
     );
   });
@@ -159,7 +185,9 @@ describe("createOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockInsert.mockReturnValue({ error: null });
+    
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: null });
 
     const fd = buildFormData({
       title: "テスト案件",
@@ -175,7 +203,7 @@ describe("createOpportunity", () => {
     // 不正な値は除外され、有効な値のみ含まれる
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        required_traits: { conscientiousness: 60 },
+        requirement_traits: { conscientiousness: 60 },
       })
     );
   });
@@ -186,7 +214,9 @@ describe("createOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockInsert.mockReturnValue({ error: { message: "DB error" } });
+    
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: { message: "DB error" } });
 
     const fd = buildFormData({
       title: "テスト案件",
@@ -205,7 +235,8 @@ describe("createOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockInsert.mockImplementation(() => {
+    
+    mockSingle.mockImplementationOnce(() => {
       throw new Error("Unexpected error");
     });
 

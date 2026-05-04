@@ -7,8 +7,8 @@
  * - applications: 応募情報
  */
 
-/** 案件ステータス */
-export type OpportunityStatus = "open" | "closed";
+/** 案件ステータス（DBスキーマ: draft / published / closed） */
+export type OpportunityStatus = "draft" | "published" | "closed";
 
 /** 応募ステータス */
 export type ApplicationStatus = "pending" | "approved" | "rejected";
