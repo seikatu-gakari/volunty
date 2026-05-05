@@ -12,7 +12,7 @@
 			"gallery": true,
 			"version": "0.0.1"
 		},
-    "serena": {
+		"serena": {
 			"command": "uvx",
 			"args": [
 				"--from",
@@ -21,8 +21,13 @@
 				"start-mcp-server",
 				"--context",
 				"ide-assistant"
-			]
+			],
+			"type": "stdio"
 		},
+		"Vercel": {
+			"url": "https://mcp.vercel.com",
+			"type": "http"
+		}
 	},
 	"inputs": []
 }
