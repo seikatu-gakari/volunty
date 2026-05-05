@@ -164,7 +164,7 @@ describe("fetchApplicantDetail", () => {
       .mockReturnValueOnce({
         data: {
           name: "テスト太郎",
-          diagnosis_type: "イノベーター・リーダー",
+          diagnosis_type: "イノベーター・リーダータイプ",
           diagnosis_scores: {
             extraversion: 80,
             agreeableness: 60,
@@ -182,7 +182,7 @@ describe("fetchApplicantDetail", () => {
     expect(result.data).not.toBeNull();
     expect(result.data!.id).toBe("app-1");
     expect(result.data!.participant_name).toBe("テスト太郎");
-    expect(result.data!.diagnosis_type).toBe("イノベーター・リーダー");
+    expect(result.data!.diagnosis_type).toBe("イノベーター・リーダータイプ");
     expect(result.data!.status).toBe("pending"); // DB: applied → UI: pending
     expect(result.data!.message).toBe("応募メッセージです");
     expect(result.data!.created_at).toBe("2026-01-20T00:00:00Z");
@@ -193,7 +193,7 @@ describe("fetchApplicantDetail", () => {
     // PERSONALITY_TYPES からの詳細が引き当てられている
     expect(result.data!.personality_type_detail).not.toBeNull();
     expect(result.data!.personality_type_detail!.name).toBe(
-      "イノベーター・リーダー"
+      "イノベーター・リーダータイプ"
     );
   });
 
@@ -303,27 +303,22 @@ describe("fetchApplicantDetail", () => {
     });
 
     // 1回目: 応募データの取得 → 成功
-    // 2回目: 案件の認可チェック → 失敗
+    // 2回目: 団体プロフィールの取得 → 成功
+    // 3回目: 案件の認可チェック → 失敗
     mockSingle
       .mockReturnValueOnce({
         data: {
           id: "app-1",
           status: "applied",
           message: "テストメッセージ",
-          created_at: "2026-01-20T00:00:00Z",
+          applied_at: "2026-01-20T00:00:00Z",
+          opportunity_id: "opp-1",
           participant_id: "user-participant-1",
           match_score: 85,
         },
         error: null,
       })
-              conscientiousness: 70,
-              neuroticism: 30,
-              openness: 90,
-            },
-          },
-        },
-        error: null,
-      })
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
       .mockReturnValueOnce({
         data: null,
         error: { message: "Not found" },
@@ -353,7 +348,7 @@ describe("fetchApplicantDetail", () => {
           applied_at: "2026-01-20T00:00:00Z",
           opportunity_id: "opp-1",
           participant_id: "user-participant-1",
-          match_score: 85,
+          match_score: null, // null にすることで calculateMatchScore が呼ばれる
         },
         error: null,
       })

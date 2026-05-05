@@ -400,7 +400,9 @@ describe("fetchApplicantsForOpportunity", () => {
       data: { user: mockUser },
       error: null,
     });
-    mockSingle.mockReturnValue({ data: null, error: { message: "Not found" } });
+    mockSingle
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({ data: null, error: { message: "Not found" } });
 
     const result: ApplicantsResult =
       await fetchApplicantsForOpportunity("opp-999");
@@ -416,21 +418,23 @@ describe("fetchApplicantsForOpportunity", () => {
       error: null,
     });
 
-    // 案件データ
-    mockSingle.mockReturnValue({
-      data: {
-        id: "opp-1",
-        title: "環境保全ボランティア",
-        description: "テスト説明",
-        status: "published",
-        requirement_traits: { extraversion: 70 },
-        created_at: "2026-01-15T00:00:00Z",
-      },
-      error: null,
-    });
+    // 団体プロフィール → 案件データ
+    mockSingle
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({
+        data: {
+          id: "opp-1",
+          title: "環境保全ボランティア",
+          description: "テスト説明",
+          status: "published",
+          requirement_traits: { extraversion: 70 },
+          created_at: "2026-01-15T00:00:00Z",
+        },
+        error: null,
+      });
 
     // 応募者データ（t_matching_candidate のみ、participants は別クエリ）
-    mockOrder.mockReturnValueOnce({
+    mockOrder.mockReturnValue({
       data: [
         {
           id: "app-1",
@@ -568,12 +572,14 @@ describe("updateApplicationStatus", () => {
     });
 
     // 1回目: 応募データの取得 → 成功
-    // 2回目: 案件の認可チェック → 失敗
+    // 2回目: 団体プロフィールの取得 → 成功
+    // 3回目: 案件の認可チェック → 失敗
     mockSingle
       .mockReturnValueOnce({
         data: { id: "app-1", opportunity_id: "opp-1" },
         error: null,
       })
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
       .mockReturnValueOnce({
         data: null,
         error: null,
@@ -599,6 +605,8 @@ describe("updateApplicationStatus", () => {
         data: { id: "app-1", opportunity_id: "opp-1" },
         error: null,
       })
+      // 団体プロフィール取得
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
       // 案件の認可チェック
       .mockReturnValueOnce({
         data: { id: "opp-1" },
@@ -612,8 +620,8 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "approved");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "approved" });
-    expect(mockFrom).toHaveBeenCalledWith("applications");
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "accepted" });
+    expect(mockFrom).toHaveBeenCalledWith("t_matching_candidate");
   });
 
   it("正常に辞退ステータスに更新できる", async () => {
@@ -628,6 +636,7 @@ describe("updateApplicationStatus", () => {
         data: { id: "app-1", opportunity_id: "opp-1" },
         error: null,
       })
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
       .mockReturnValueOnce({
         data: { id: "opp-1" },
         error: null,
@@ -639,7 +648,7 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "rejected");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "rejected" });
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "declined" });
   });
 
   it("DB エラー時もクラッシュせずエラーを返す", async () => {

@@ -85,7 +85,7 @@ export function OpportunityForm({
   const [enabledTraits, setEnabledTraits] =
     useState<Record<string, boolean>>(initialEnabledTraits);
   const [status, setStatus] = useState<OpportunityStatus>(
-    initialData?.status ?? "open"
+    initialData?.status ?? "published"
   );
 
   const handleTraitChange = (trait: string, value: number) => {
@@ -197,12 +197,12 @@ export function OpportunityForm({
                   <input
                     type="radio"
                     name="status_radio"
-                    value="open"
-                    checked={status === "open"}
-                    onChange={() => setStatus("open")}
+                    value="published"
+                    checked={status === "published"}
+                    onChange={() => setStatus("published")}
                     className="accent-primary"
                   />
-                  募集中（open）
+                  募集中
                 </label>
                 <label className="flex items-center gap-2 text-sm text-text-body">
                   <input
@@ -213,7 +213,7 @@ export function OpportunityForm({
                     onChange={() => setStatus("closed")}
                     className="accent-primary"
                   />
-                  募集終了（closed）
+                  募集終了
                 </label>
               </div>
             </div>

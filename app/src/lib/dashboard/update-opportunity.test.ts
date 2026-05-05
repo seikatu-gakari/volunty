@@ -12,7 +12,7 @@ const mockSelectEq = vi.fn();
 const mockSingle = vi.fn();
 const mockUpdate = vi.fn();
 const mockUpdateEq = vi.fn();
-const mockUpdateEq2 = vi.fn(() => mockUpdateResult);
+const mockUpdateEq2 = vi.fn((..._args: unknown[]) => mockUpdateResult);
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({

@@ -80,7 +80,7 @@ export async function Header() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-header-border bg-background/60 backdrop-blur-sm">
-      <div className="mx-auto flex h-[77px] max-w-5xl items-center justify-between px-8 pt-4 pb-[1px]">
+      <div className="mx-auto flex h-[77px] max-w-5xl items-center justify-between px-8 pt-4 pb-px">
         <Link href="/" className="flex items-center gap-2">
           <div className="relative">
             <Heart className="size-8 text-primary" fill="#fb5b01" strokeWidth={0} />

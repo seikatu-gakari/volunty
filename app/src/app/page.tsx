@@ -43,7 +43,7 @@ export default async function Home() {
             <Sparkles className="absolute -top-2 -right-1 size-8 text-primary" />
           </div>
           <div className="text-center">
-            <h1 className="text-4xl leading-[48px] text-text-dark md:text-5xl">
+            <h1 className="text-4xl leading-12 text-text-dark md:text-5xl">
               あなたにぴったりの
               <br />
               <span className="text-primary">ボランティア活動</span>

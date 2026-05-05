@@ -12,6 +12,7 @@ import {
   Brain,
   User,
   ChevronRight,
+  CircleDashed,
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
@@ -32,7 +33,13 @@ const BIG5_LABELS: Record<string, string> = {
 /** 案件ステータス表示 */
 function opportunityStatusDisplay(status: OpportunityStatus) {
   switch (status) {
-    case "open":
+    case "draft":
+      return {
+        label: "下書き",
+        icon: <CircleDashed className="size-4" />,
+        color: "text-yellow-700 bg-yellow-50 border-yellow-200",
+      };
+    case "published":
       return {
         label: "募集中",
         icon: <Unlock className="size-4" />,

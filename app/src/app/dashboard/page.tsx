@@ -24,7 +24,13 @@ import { prisma } from "@/lib/prisma";
 /** 案件ステータスに応じたラベル・アイコン・カラー */
 function opportunityStatusDisplay(status: OpportunityStatus) {
   switch (status) {
-    case "open":
+    case "draft":
+      return {
+        label: "下書き",
+        icon: <CircleDashed className="size-4" />,
+        color: "text-yellow-700 bg-yellow-50 border-yellow-200",
+      };
+    case "published":
       return {
         label: "募集中",
         icon: <Unlock className="size-4" />,

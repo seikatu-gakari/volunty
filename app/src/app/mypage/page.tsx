@@ -84,7 +84,7 @@ export default async function MyPage() {
               {alert.title}
             </div>
             <p className="text-sm text-yellow-900">{alert.message}</p>
-            <p className="mt-2 break-words text-xs text-yellow-800">{alert.detail}</p>
+            <p className="mt-2 wrap-break-word text-xs text-yellow-800">{alert.detail}</p>
           </div>
         )}
 

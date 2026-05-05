@@ -35,7 +35,7 @@ vi.mock("@/lib/supabase/server", () => ({
         return {
           insert: (data: unknown) => {
             mockInsert(data);
-            return mockInsertReturn(),
+            return mockInsertReturn();
           },
         };
       }
