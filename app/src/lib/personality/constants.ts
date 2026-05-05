@@ -1,4 +1,4 @@
-import { Question, PersonalityType } from './types'
+import { DiagnosisMode, Question, PersonalityType } from './types'
 
 export const BIG5_QUESTIONS: Question[] = [
   // 外向性 (Extraversion)
@@ -661,6 +661,146 @@ export const BIG5_QUESTIONS: Question[] = [
     ]
   }
 ]
+
+const STANDARD_OPTIONS = BIG5_QUESTIONS[0].options
+
+function toModeQuestion(mode: DiagnosisMode, question: Question): Question {
+  return {
+    ...question,
+    id: `${mode}-${question.id}`
+  }
+}
+
+function findBaseQuestion(id: string): Question {
+  const question = BIG5_QUESTIONS.find((q) => q.id === id)
+  if (!question) {
+    throw new Error(`診断質問が見つかりません: ${id}`)
+  }
+  return question
+}
+
+function buildQuestionsFromIds(mode: DiagnosisMode, ids: string[]): Question[] {
+  return ids.map((id) => toModeQuestion(mode, findBaseQuestion(id)))
+}
+
+const EXTRA_FULL_QUESTIONS: Question[] = [
+  {
+    id: 'e11',
+    text: '初めて参加する場でも自然に周囲へ声をかけられる',
+    trait: 'extraversion',
+    reversed: false,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'e12',
+    text: '知らない人が多い場では、できれば目立たずにいたい',
+    trait: 'extraversion',
+    reversed: true,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'a11',
+    text: '相手の立場を想像してから言葉を選ぶことが多い',
+    trait: 'agreeableness',
+    reversed: false,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'a12',
+    text: '意見が合わない相手には、つい厳しい態度を取ってしまう',
+    trait: 'agreeableness',
+    reversed: true,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'c11',
+    text: '任された役割は最後まで責任を持ってやり遂げる',
+    trait: 'conscientiousness',
+    reversed: false,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'c12',
+    text: '予定が変わると準備を後回しにしがちだ',
+    trait: 'conscientiousness',
+    reversed: true,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'n11',
+    text: '人からの評価が気になって緊張することがある',
+    trait: 'neuroticism',
+    reversed: false,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'n12',
+    text: '予想外の出来事があっても気持ちを切り替えやすい',
+    trait: 'neuroticism',
+    reversed: true,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'o11',
+    text: '社会課題に対して新しい解決方法を考えるのが好きだ',
+    trait: 'openness',
+    reversed: false,
+    options: STANDARD_OPTIONS
+  },
+  {
+    id: 'o12',
+    text: '実績のあるやり方を変えることには慎重だ',
+    trait: 'openness',
+    reversed: true,
+    options: STANDARD_OPTIONS
+  }
+]
+
+export const BIG5_QUESTIONS_BRIEF: Question[] = buildQuestionsFromIds('brief', [
+  'e1', 'e2', 'e7',
+  'a1', 'a2', 'a7',
+  'c1', 'c2', 'c7',
+  'n1', 'n2', 'n6',
+  'o1', 'o2', 'o7', 'o8'
+])
+
+export const BIG5_QUESTIONS_FULL: Question[] = [
+  ...BIG5_QUESTIONS.map((question) => toModeQuestion('full', question)),
+  ...EXTRA_FULL_QUESTIONS.map((question) => toModeQuestion('full', question))
+]
+
+export const DEFAULT_DIAGNOSIS_MODE: DiagnosisMode = 'brief'
+
+export const DIAGNOSIS_MODE_CONFIG: Record<DiagnosisMode, {
+  label: string
+  shortLabel: string
+  description: string
+  questionCount: number
+  estimatedTime: string
+}> = {
+  brief: {
+    label: '簡易診断',
+    shortLabel: '簡易',
+    description: '短時間で性格傾向の目安を確認できます。',
+    questionCount: BIG5_QUESTIONS_BRIEF.length,
+    estimatedTime: '約2分'
+  },
+  full: {
+    label: '詳細診断',
+    shortLabel: '詳細',
+    description: 'より多くの質問でマッチング精度を高めます。',
+    questionCount: BIG5_QUESTIONS_FULL.length,
+    estimatedTime: '約8〜10分'
+  }
+}
+
+export function isDiagnosisMode(value: string | undefined): value is DiagnosisMode {
+  return value === 'brief' || value === 'full'
+}
+
+export function getQuestionsForMode(mode: DiagnosisMode): Question[] {
+  return mode === 'brief' ? BIG5_QUESTIONS_BRIEF : BIG5_QUESTIONS_FULL
+}
 
 export const PERSONALITY_TYPES: PersonalityType[] = [
   {

@@ -5,6 +5,8 @@ export type BIG5Trait =
   | 'neuroticism'
   | 'openness'
 
+export type DiagnosisMode = 'brief' | 'full'
+
 export interface Question {
   id: string
   text: string
@@ -49,6 +51,7 @@ export interface PersonalityType {
 
 export interface PersonalityProfile {
   userId: string
+  mode: DiagnosisMode
   scores: BIG5Scores
   personalityType: PersonalityType | null
   closestType: PersonalityType & { distance: number }

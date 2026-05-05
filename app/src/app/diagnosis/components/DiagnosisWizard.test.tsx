@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { DiagnosisWizard } from './DiagnosisWizard'
 
 // next/navigation のモック
@@ -26,6 +26,7 @@ vi.mock('@xstate/react', () => ({
       {
         matches: (state: string) => state === 'idle',
         context: {
+          mode: 'brief',
           currentQuestionIndex: 0,
           answers: [],
           result: null
@@ -40,6 +41,8 @@ describe('DiagnosisWizard', () => {
   it('renders start screen initially', () => {
     render(<DiagnosisWizard />)
     expect(screen.getByText('ボランティア性格診断')).toBeDefined()
-    expect(screen.getByText('診断を開始する')).toBeDefined()
+    expect(screen.getByText('簡易診断')).toBeDefined()
+    expect(screen.getByText('詳細診断')).toBeDefined()
+    expect(screen.getByRole('button', { name: /簡易診断を開始する/ })).toBeDefined()
   })
 })

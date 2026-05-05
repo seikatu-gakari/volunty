@@ -117,6 +117,7 @@ erDiagram
         uuid user_id FK
         uuid personality_type_id FK
         jsonb big5_scores "5次元のスコア（0-100）"
+        varchar diagnosis_mode "brief / full"
         float closest_type_distance "最近傍タイプとの距離"
         jsonb ai_insights "AI生成の診断解説"
         timestamp concluded_at
@@ -257,6 +258,9 @@ erDiagram
 | user_id            | UUID         | NOT NULL | -                 | users.id 外部キー                          |
 | bio                | TEXT         | NULL     | -                 | 自己紹介                                   |
 | interests          | JSONB        | NULL     | -                 | 興味分野 ["環境保全", "子ども支援"]        |
+| diagnosis_mode     | VARCHAR(20)  | NULL     | -                 | 最新診断モード（brief / full）             |
+| diagnosis_type     | VARCHAR(100) | NULL     | -                 | 最新診断タイプID                           |
+| diagnosis_scores   | JSONB        | NULL     | -                 | 最新BIG5スコア                             |
 | availability       | JSONB        | NULL     | -                 | {"weekdays": ["土", "日"], "time": "午前"} |
 | preferred_location | VARCHAR(100) | NULL     | -                 | 希望活動地域                               |
 | public_profile     | BOOLEAN      | NOT NULL | true              | プロフィール公開設定                       |
@@ -301,22 +305,25 @@ erDiagram
 ### 3.4 m_diagnosis_question（診断質問）
 BIG5性格診断の質問マスタ。
 
-| カラム名      | 型          | NULL     | デフォルト        | 説明                                          |
-| ------------- | ----------- | -------- | ----------------- | --------------------------------------------- |
-| id            | UUID        | NOT NULL | gen_random_uuid() | 主キー                                        |
-| trait         | VARCHAR(30) | NOT NULL | -                 | extraversion, agreeableness, etc              |
-| question_text | TEXT        | NOT NULL | -                 | 質問文                                        |
-| is_reversed   | BOOLEAN     | NOT NULL | false             | 逆転項目フラグ                                |
-| display_order | INT         | NOT NULL | -                 | 表示順序                                      |
-| options       | JSONB       | NOT NULL | -                 | [{"label": "全く当てはまらない", "value": 1}] |
-| is_active     | BOOLEAN     | NOT NULL | true              | 有効フラグ                                    |
-| created_at    | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 作成日時                                      |
-| updated_at    | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 更新日時                                      |
+| カラム名             | 型          | NULL     | デフォルト        | 説明                                          |
+| -------------------- | ----------- | -------- | ----------------- | --------------------------------------------- |
+| id                   | UUID        | NOT NULL | gen_random_uuid() | 主キー                                        |
+| trait                | VARCHAR(30) | NOT NULL | -                 | extraversion, agreeableness, etc              |
+| question_text        | TEXT        | NOT NULL | -                 | 質問文                                        |
+| diagnosis_mode       | VARCHAR(20) | NOT NULL | -                 | brief / full                                  |
+| question_set_version | VARCHAR(20) | NOT NULL | v1                | 質問セットのバージョン                        |
+| is_reversed          | BOOLEAN     | NOT NULL | false             | 逆転項目フラグ                                |
+| display_order        | INT         | NOT NULL | -                 | 表示順序                                      |
+| options              | JSONB       | NOT NULL | -                 | [{"label": "全く当てはまらない", "value": 1}] |
+| is_active            | BOOLEAN     | NOT NULL | true              | 有効フラグ                                    |
+| created_at           | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 作成日時                                      |
+| updated_at           | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 更新日時                                      |
 
 **制約:**
 - PRIMARY KEY: `id`
+- CHECK: `diagnosis_mode IN ('brief', 'full')`
 - CHECK: `trait IN ('extraversion', 'agreeableness', 'conscientiousness', 'neuroticism', 'openness')`
-- INDEX: `idx_question_trait_order` ON `(trait, display_order)`
+- INDEX: `idx_question_trait_order` ON `(diagnosis_mode, question_set_version, trait, display_order)`
 - INDEX: `idx_question_active` ON `is_active`
 
 ---
@@ -370,22 +377,24 @@ BIG5から判定される10人物タイプの定義。
 ### 3.7 t_diagnosis_result（診断結果）
 参加者のBIG5診断結果と判定された人物タイプ。
 
-| カラム名              | 型        | NULL     | デフォルト        | 説明                                           |
-| --------------------- | --------- | -------- | ----------------- | ---------------------------------------------- |
-| id                    | UUID      | NOT NULL | gen_random_uuid() | 主キー                                         |
-| user_id               | UUID      | NOT NULL | -                 | users.id 外部キー                              |
-| personality_type_id   | UUID      | NULL     | -                 | personality_types.id 外部キー                  |
-| big5_scores           | JSONB     | NOT NULL | -                 | {"extraversion": 85, "agreeableness": 70, ...} |
-| closest_type_distance | FLOAT     | NULL     | -                 | 最近傍タイプとのユークリッド距離               |
-| ai_insights           | JSONB     | NULL     | -                 | AI生成の診断解説                               |
-| concluded_at          | TIMESTAMP | NOT NULL | CURRENT_TIMESTAMP | 診断完了日時                                   |
-| created_at            | TIMESTAMP | NOT NULL | CURRENT_TIMESTAMP | 作成日時                                       |
-| updated_at            | TIMESTAMP | NOT NULL | CURRENT_TIMESTAMP | 更新日時                                       |
+| カラム名              | 型          | NULL     | デフォルト        | 説明                                           |
+| --------------------- | ----------- | -------- | ----------------- | ---------------------------------------------- |
+| id                    | UUID        | NOT NULL | gen_random_uuid() | 主キー                                         |
+| user_id               | UUID        | NOT NULL | -                 | users.id 外部キー                              |
+| personality_type_id   | UUID        | NULL     | -                 | personality_types.id 外部キー                  |
+| big5_scores           | JSONB       | NOT NULL | -                 | {"extraversion": 85, "agreeableness": 70, ...} |
+| diagnosis_mode        | VARCHAR(20) | NOT NULL | brief             | 診断モード（brief / full）                     |
+| closest_type_distance | FLOAT       | NULL     | -                 | 最近傍タイプとのユークリッド距離               |
+| ai_insights           | JSONB       | NULL     | -                 | AI生成の診断解説                               |
+| concluded_at          | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 診断完了日時                                   |
+| created_at            | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 作成日時                                       |
+| updated_at            | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 更新日時                                       |
 
 **制約:**
 - PRIMARY KEY: `id`
 - FOREIGN KEY: `user_id` REFERENCES `m_user(id)` ON DELETE CASCADE
 - FOREIGN KEY: `personality_type_id` REFERENCES `m_personality_type(id)` ON DELETE SET NULL
+- CHECK: `diagnosis_mode IN ('brief', 'full')`
 - INDEX: `idx_result_user` ON `user_id`
 - INDEX: `idx_result_type` ON `personality_type_id`
 - INDEX: `idx_result_concluded` ON `concluded_at`

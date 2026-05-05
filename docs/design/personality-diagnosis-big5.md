@@ -247,6 +247,8 @@ export type BIG5Trait =
   | 'neuroticism'
   | 'openness'
 
+export type DiagnosisMode = 'brief' | 'full'
+
 export interface Question {
   id: string
   text: string
@@ -266,6 +268,7 @@ export interface QuestionAnswer {
 
 export interface PersonalityProfile {
   userId: string
+  mode: DiagnosisMode
   scores: BIG5Scores
   personalityType: PersonalityType | null
   closestType: PersonalityType & { distance: number }
@@ -273,70 +276,28 @@ export interface PersonalityProfile {
 }
 ```
 
-### 3.2 質問項目設計（50問セット例）
+### 3.2 診断モード設計（簡易16問・詳細60問）
 
-BIG5 の各特性について 10 問ずつ、合計 50 問を用意。
+Phase 1 では、利用目的に応じて2つの診断モードを提供する。
+
+| モード             | 質問数 | 配分                                                   | 想定所要時間 | 用途                                             |
+| ------------------ | ------ | ------------------------------------------------------ | ------------ | ------------------------------------------------ |
+| 簡易診断 (`brief`) | 16問   | 外向性・協調性・誠実性・神経症傾向は各3問、開放性は4問 | 約2分        | 初回体験・オンボーディングで性格傾向の目安を提示 |
+| 詳細診断 (`full`)  | 60問   | BIG5 各特性12問                                        | 約8〜10分    | マッチング精度を高めたい参加者向け               |
+
+スコア計算はどちらのモードでも同一で、特性ごとに回答平均を取り、0〜100へ正規化する。これにより、問数が異なってもスコアの尺度は共通化する。ただし簡易診断は質問数が少ないため、結果画面では「目安」であることを表示し、詳細診断を推奨する。
+
+質問IDは `brief-e1` / `full-e1` のようにモード接頭辞を付け、回答データの混在を防ぐ。
 
 ```typescript
-export const BIG5_QUESTIONS: Question[] = [
-  // 外向性 (Extraversion) - 10問
-  {
-    id: 'e1',
-    text: '初対面の人とも気軽に話しかけることができる',
-    trait: 'extraversion',
-    reversed: false,
-    options: [
-      { label: '全く当てはまらない', value: 1 },
-      { label: 'あまり当てはまらない', value: 2 },
-      { label: 'どちらともいえない', value: 3 },
-      { label: 'やや当てはまる', value: 4 },
-      { label: '非常に当てはまる', value: 5 }
-    ]
-  },
-  {
-    id: 'e2',
-    text: '大勢の前で話すのは苦手だ',
-    trait: 'extraversion',
-    reversed: true,  // 逆転項目
-    options: [/* 同上 */]
-  },
-  
-  // 協調性 (Agreeableness) - 10問
-  {
-    id: 'a1',
-    text: '他人の気持ちを理解しようと努める',
-    trait: 'agreeableness',
-    reversed: false,
-    options: [/* 同上 */]
-  },
-  
-  // 誠実性 (Conscientiousness) - 10問
-  {
-    id: 'c1',
-    text: '計画を立ててから行動することが多い',
-    trait: 'conscientiousness',
-    reversed: false,
-    options: [/* 同上 */]
-  },
-  
-  // 神経症傾向 (Neuroticism) - 10問
-  {
-    id: 'n1',
-    text: '小さなことでも心配してしまう',
-    trait: 'neuroticism',
-    reversed: false,
-    options: [/* 同上 */]
-  },
-  
-  // 開放性 (Openness) - 10問
-  {
-    id: 'o1',
-    text: '新しいアイデアや経験を求める',
-    trait: 'openness',
-    reversed: false,
-    options: [/* 同上 */]
-  }
-]
+export const BIG5_QUESTIONS_BRIEF: Question[] = [/* 16問 */]
+export const BIG5_QUESTIONS_FULL: Question[] = [/* 60問 */]
+
+export const DEFAULT_DIAGNOSIS_MODE: DiagnosisMode = 'brief'
+
+export function getQuestionsForMode(mode: DiagnosisMode): Question[] {
+  return mode === 'brief' ? BIG5_QUESTIONS_BRIEF : BIG5_QUESTIONS_FULL
+}
 ```
 
 ### 3.3 診断フロー（XState）
@@ -349,13 +310,19 @@ export const diagnosisMachine = createMachine({
   id: 'big5-diagnosis',
   initial: 'idle',
   context: {
+    mode: 'brief' as DiagnosisMode,
     currentQuestionIndex: 0,
     answers: [] as QuestionAnswer[],
     result: null as PersonalityProfile | null
   },
   states: {
     idle: {
-      on: { START: 'answering' }
+      on: {
+        START: {
+          target: 'answering',
+          actions: assign({ mode: ({ event }) => event.mode })
+        }
+      }
     },
     answering: {
       on: {
@@ -417,6 +384,7 @@ export const diagnosisMachine = createMachine({
 // services/diagnosisService.ts
 export async function calculateBIG5Diagnosis(
   answers: QuestionAnswer[]
+  mode: DiagnosisMode
 ): Promise<PersonalityProfile> {
   const traitScores: Record<BIG5Trait, number[]> = {
     extraversion: [],
@@ -846,7 +814,7 @@ export interface ApplicationEvent {
 ## 6. 実装ロードマップ
 
 ### MVP（2週間）
-- ✅ ルールベースの BIG5 診断（50問）
+- ✅ ルールベースの BIG5 診断（簡易16問・詳細60問）
 - ✅ 10 人物タイプの判定ロジック
 - ✅ 基本的なマッチングスコア計算
 - ✅ XState による診断フロー

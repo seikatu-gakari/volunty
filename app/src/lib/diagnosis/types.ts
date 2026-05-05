@@ -5,12 +5,13 @@
  * 既存の PersonalityType 定数から詳細情報を引き当てる。
  */
 
-import type { BIG5Scores, PersonalityType } from "@/lib/personality/types";
+import type { BIG5Scores, DiagnosisMode, PersonalityType } from "@/lib/personality/types";
 
 /** DB から取得した診断結果の生データ */
 export interface DiagnosisRawData {
   diagnosis_type: string | null;
   diagnosis_scores: Record<string, number> | null;
+  diagnosis_mode?: DiagnosisMode | null;
 }
 
 /** fetchDiagnosisResult の戻り値 */
@@ -21,6 +22,8 @@ export interface DiagnosisResultData {
   scores: BIG5Scores;
   /** 完全一致か近似一致か */
   isExactMatch: boolean;
+  /** 診断モード */
+  diagnosisMode: DiagnosisMode;
 }
 
 /** submitDiagnosis の戻り値 */

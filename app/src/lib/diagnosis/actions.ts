@@ -3,8 +3,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import type { BIG5Scores, QuestionAnswer } from "@/lib/personality/types";
-import { BIG5_QUESTIONS, PERSONALITY_TYPES } from "@/lib/personality/constants";
+import type { BIG5Scores, DiagnosisMode, QuestionAnswer } from "@/lib/personality/types";
+import {
+  DEFAULT_DIAGNOSIS_MODE,
+  getQuestionsForMode,
+  isDiagnosisMode,
+  PERSONALITY_TYPES,
+} from "@/lib/personality/constants";
 import {
   findClosestPersonalityType,
   calculateBIG5Diagnosis,
@@ -19,8 +24,6 @@ const BIG5_TRAIT_KEYS = [
   "openness",
 ] as const;
 
-const EXPECTED_QUESTION_IDS = new Set(BIG5_QUESTIONS.map((q) => q.id));
-
 /**
  * 未知の値が BIG5Scores 型かどうかを実行時に検証するタイプガード
  */
@@ -31,16 +34,22 @@ function isBIG5Scores(value: unknown): value is BIG5Scores {
 }
 
 /**
- * 保存前に回答データが全50問分そろっているか検証する
+ * 保存前に回答データが指定モードの全質問分そろっているか検証する
  */
-function validateDiagnosisAnswers(answers: QuestionAnswer[]): string | null {
-  if (answers.length !== BIG5_QUESTIONS.length) {
+function validateDiagnosisAnswers(
+  answers: QuestionAnswer[],
+  mode: DiagnosisMode
+): string | null {
+  const questions = getQuestionsForMode(mode);
+  const expectedQuestionIds = new Set(questions.map((q) => q.id));
+
+  if (answers.length !== questions.length) {
     return "すべての質問に回答してください";
   }
 
   const seen = new Set<string>();
   for (const answer of answers) {
-    if (!EXPECTED_QUESTION_IDS.has(answer.questionId)) {
+    if (!expectedQuestionIds.has(answer.questionId)) {
       return "回答データが不正です";
     }
     if (seen.has(answer.questionId)) {
@@ -76,7 +85,7 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
 
     const participant = await prisma.participantProfile.findUnique({
       where: { userId: user.id },
-      select: { diagnosisType: true, diagnosisScores: true },
+      select: { diagnosisType: true, diagnosisScores: true, diagnosisMode: true },
     });
 
     if (!participant) {
@@ -95,6 +104,10 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
       neuroticism: rawScores.neuroticism,
       openness: rawScores.openness,
     };
+    const rawDiagnosisMode = participant.diagnosisMode ?? undefined;
+    const diagnosisMode = isDiagnosisMode(rawDiagnosisMode)
+      ? rawDiagnosisMode
+      : DEFAULT_DIAGNOSIS_MODE;
 
     // diagnosisType が PERSONALITY_TYPES に存在するか確認
     const diagnosisType = participant.diagnosisType;
@@ -107,6 +120,7 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
         personalityType: exactType,
         scores,
         isExactMatch: true,
+        diagnosisMode,
       };
     }
 
@@ -116,6 +130,7 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
       personalityType: closestType,
       scores,
       isExactMatch: false,
+      diagnosisMode,
     };
   } catch (err) {
     const errorDetail =
@@ -135,7 +150,8 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
  * - participants.diagnosis_scores に BIG5 スコア（JSONB）を保存
  */
 export async function submitDiagnosis(
-  answers: QuestionAnswer[]
+  answers: QuestionAnswer[],
+  mode: DiagnosisMode = DEFAULT_DIAGNOSIS_MODE
 ): Promise<SubmitDiagnosisResult> {
   try {
     const supabase = await createClient();
@@ -148,7 +164,7 @@ export async function submitDiagnosis(
       return { success: false, error: "ログインが必要です" };
     }
 
-    const validationError = validateDiagnosisAnswers(answers);
+    const validationError = validateDiagnosisAnswers(answers, mode);
     if (validationError) {
       return { success: false, error: validationError };
     }
@@ -167,7 +183,7 @@ export async function submitDiagnosis(
 
     // 回答データから BIG5 スコアを計算
     console.log("[submitDiagnosis] step:calculate answers=", answers.length);
-    const profile = await calculateBIG5Diagnosis(answers);
+    const profile = await calculateBIG5Diagnosis(answers, mode);
 
     // 人物タイプ ID を決定（完全一致 or 近似一致）
     const diagnosisType = profile.personalityType
@@ -192,6 +208,7 @@ export async function submitDiagnosis(
         data: {
           diagnosisType: diagnosisType,
           diagnosisScores: scoresJson,
+          diagnosisMode: mode,
         },
       });
 
@@ -200,6 +217,7 @@ export async function submitDiagnosis(
           userId: user.id,
           personalityTypeId: personalityType?.id ?? null,
           big5Scores: scoresJson,
+          diagnosisMode: mode,
           closestTypeDistance,
         },
       });

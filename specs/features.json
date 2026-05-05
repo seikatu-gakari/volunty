@@ -9,7 +9,7 @@
       "items": [
         { "id": "P-1",  "name": "OAuthログイン",          "status": "pending",  "notes": "Google OAuth。未実装" },
         { "id": "P-2",  "name": "プロフィール登録",       "status": "pending",  "notes": "未実装" },
-        { "id": "P-3",  "name": "性格診断（50問）",       "status": "pass",     "notes": "BIG5ベース。XState制御。フロントエンドのみ" },
+        { "id": "P-3",  "name": "性格診断（簡易16問・詳細60問）", "status": "pass",     "notes": "BIG5ベース。XState制御。mode=brief|full対応。結果保存時に診断モードを保持" },
         { "id": "P-4",  "name": "診断結果表示",           "status": "pass",     "notes": "10類型+BIG5スコアチャート" },
         { "id": "P-5",  "name": "おすすめ案件一覧",       "status": "pending",  "notes": "マッチングスコア順表示。未実装" },
         { "id": "P-6",  "name": "団体詳細閲覧",           "status": "pending",  "notes": "未実装" },

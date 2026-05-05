@@ -3,9 +3,10 @@ import {
   PersonalityType, 
   QuestionAnswer, 
   PersonalityProfile, 
-  BIG5Trait 
+  BIG5Trait,
+  DiagnosisMode
 } from './types'
-import { BIG5_QUESTIONS, PERSONALITY_TYPES } from './constants'
+import { DEFAULT_DIAGNOSIS_MODE, getQuestionsForMode, PERSONALITY_TYPES } from './constants'
 
 /**
  * BIG5 スコアから人物タイプを判定
@@ -71,7 +72,8 @@ function getIdealScore(range?: { min?: number; max?: number }): number {
  * 診断結果を計算
  */
 export async function calculateBIG5Diagnosis(
-  answers: QuestionAnswer[]
+  answers: QuestionAnswer[],
+  mode: DiagnosisMode = DEFAULT_DIAGNOSIS_MODE
 ): Promise<PersonalityProfile> {
   const traitScores: Record<BIG5Trait, number[]> = {
     extraversion: [],
@@ -80,16 +82,25 @@ export async function calculateBIG5Diagnosis(
     neuroticism: [],
     openness: []
   }
+  const questions = getQuestionsForMode(mode)
+  const questionMap = new Map(questions.map((question) => [question.id, question]))
   
   // 各回答を対応する特性に振り分け
   answers.forEach(answer => {
-    const question = BIG5_QUESTIONS.find(q => q.id === answer.questionId)
-    if (!question) return
+    const question = questionMap.get(answer.questionId)
+    if (!question) {
+      throw new Error(`回答に対応する質問が見つかりません: ${answer.questionId}`)
+    }
     
     // 逆転項目の処理
     const score = question.reversed ? (6 - answer.value) : answer.value
     traitScores[question.trait].push(score)
   })
+
+  const missingTrait = Object.entries(traitScores).find(([, values]) => values.length === 0)
+  if (missingTrait) {
+    throw new Error(`診断に必要な回答が不足しています: ${missingTrait[0]}`)
+  }
   
   // 各特性の平均を算出し、0-100 に正規化
   const scores: BIG5Scores = {
@@ -106,6 +117,7 @@ export async function calculateBIG5Diagnosis(
   
   return {
     userId: 'current-user',  // 実装時はセッションから取得
+    mode,
     scores,
     personalityType,
     closestType,
