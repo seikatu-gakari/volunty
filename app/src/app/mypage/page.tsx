@@ -63,6 +63,12 @@ export default async function MyPage() {
     ? "/mypage/profile/edit"
     : "/onboarding/participant";
   const profileActionLabel = profile ? "編集" : "登録";
+  const diagnosisActionHref = profile?.diagnosis_scores
+    ? "/diagnosis/result"
+    : "/diagnosis";
+  const diagnosisActionLabel = profile?.diagnosis_scores
+    ? "診断結果を見る"
+    : "性格診断を受ける";
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -137,12 +143,12 @@ export default async function MyPage() {
         {/* アクションリンク */}
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Link
-            href="/diagnosis"
+            href={diagnosisActionHref}
             className="flex items-center gap-3 rounded-[10px] border border-card-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
           >
             <Brain className="size-5 text-primary" />
             <span className="text-sm font-medium text-text-dark">
-              診断結果を見る
+              {diagnosisActionLabel}
             </span>
           </Link>
           <Link

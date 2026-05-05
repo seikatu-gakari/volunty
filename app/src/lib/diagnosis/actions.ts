@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import type { BIG5Scores, QuestionAnswer } from "@/lib/personality/types";
-import { PERSONALITY_TYPES } from "@/lib/personality/constants";
+import { BIG5_QUESTIONS, PERSONALITY_TYPES } from "@/lib/personality/constants";
 import {
   findClosestPersonalityType,
   calculateBIG5Diagnosis,
@@ -19,6 +19,8 @@ const BIG5_TRAIT_KEYS = [
   "openness",
 ] as const;
 
+const EXPECTED_QUESTION_IDS = new Set(BIG5_QUESTIONS.map((q) => q.id));
+
 /**
  * 未知の値が BIG5Scores 型かどうかを実行時に検証するタイプガード
  */
@@ -26,6 +28,31 @@ function isBIG5Scores(value: unknown): value is BIG5Scores {
   if (!value || typeof value !== "object") return false;
   const obj = value as Record<string, unknown>;
   return BIG5_TRAIT_KEYS.every((t) => typeof obj[t] === "number");
+}
+
+/**
+ * 保存前に回答データが全50問分そろっているか検証する
+ */
+function validateDiagnosisAnswers(answers: QuestionAnswer[]): string | null {
+  if (answers.length !== BIG5_QUESTIONS.length) {
+    return "すべての質問に回答してください";
+  }
+
+  const seen = new Set<string>();
+  for (const answer of answers) {
+    if (!EXPECTED_QUESTION_IDS.has(answer.questionId)) {
+      return "回答データが不正です";
+    }
+    if (seen.has(answer.questionId)) {
+      return "回答データが不正です";
+    }
+    if (!Number.isInteger(answer.value) || answer.value < 1 || answer.value > 5) {
+      return "回答データが不正です";
+    }
+    seen.add(answer.questionId);
+  }
+
+  return null;
 }
 
 /**
@@ -121,6 +148,11 @@ export async function submitDiagnosis(
       return { success: false, error: "ログインが必要です" };
     }
 
+    const validationError = validateDiagnosisAnswers(answers);
+    if (validationError) {
+      return { success: false, error: validationError };
+    }
+
     // 参加者であることを確認
     console.log("[submitDiagnosis] step:findUnique userId=", user.id);
     const participant = await prisma.participantProfile.findUnique({
@@ -142,14 +174,35 @@ export async function submitDiagnosis(
       ? profile.personalityType.id
       : profile.closestType.id;
 
-    // DB に保存
-    console.log("[submitDiagnosis] step:update diagnosisType=", diagnosisType);
-    await prisma.participantProfile.update({
-      where: { userId: user.id },
-      data: {
-        diagnosisType: diagnosisType,
-        diagnosisScores: profile.scores as unknown as Prisma.InputJsonValue,
-      },
+    const scoresJson = profile.scores as unknown as Prisma.InputJsonValue;
+    const closestTypeDistance = profile.personalityType
+      ? null
+      : profile.closestType.distance;
+
+    // DB に保存（最新結果と履歴を同一トランザクションで永続化）
+    console.log("[submitDiagnosis] step:transaction diagnosisType=", diagnosisType);
+    await prisma.$transaction(async (tx) => {
+      const personalityType = await tx.personalityType.findUnique({
+        where: { typeId: diagnosisType },
+        select: { id: true },
+      });
+
+      await tx.participantProfile.update({
+        where: { userId: user.id },
+        data: {
+          diagnosisType: diagnosisType,
+          diagnosisScores: scoresJson,
+        },
+      });
+
+      await tx.diagnosisResult.create({
+        data: {
+          userId: user.id,
+          personalityTypeId: personalityType?.id ?? null,
+          big5Scores: scoresJson,
+          closestTypeDistance,
+        },
+      });
     });
 
     console.log("[submitDiagnosis] 保存成功");
