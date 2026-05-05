@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchDiagnosisResult } from "@/lib/diagnosis/actions";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import { DIAGNOSIS_MODE_CONFIG } from "@/lib/personality/constants";
 import type { BIG5Scores } from "@/lib/personality/types";
 
 /** BIG5 スコアバー（サーバーコンポーネント） */
@@ -108,7 +109,8 @@ export default async function DiagnosisResultPage() {
     redirect("/diagnosis");
   }
 
-  const { personalityType: type, scores, isExactMatch } = result;
+  const { personalityType: type, scores, isExactMatch, diagnosisMode } = result;
+  const modeConfig = DIAGNOSIS_MODE_CONFIG[diagnosisMode];
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -124,10 +126,18 @@ export default async function DiagnosisResultPage() {
             <div className="mb-4 inline-block rounded-full bg-primary/10 px-4 py-1 text-sm font-medium text-primary">
               {isExactMatch ? "完全一致" : "最も近いタイプ"}
             </div>
+            <div className="mb-4 ml-2 inline-block rounded-full bg-primary/10 px-4 py-1 text-sm font-medium text-primary">
+              {modeConfig.label}
+            </div>
             <h1 className="mb-2 text-4xl font-extrabold text-primary">
               {type.name}
             </h1>
             <p className="text-lg font-medium text-text-body">{type.nameEn}</p>
+            {diagnosisMode === "brief" && (
+              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-text-body">
+                簡易診断の結果は目安です。より詳しく知りたい場合は詳細診断をおすすめします。
+              </p>
+            )}
           </CardContent>
         </Card>
 

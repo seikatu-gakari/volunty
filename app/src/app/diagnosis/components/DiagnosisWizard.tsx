@@ -4,21 +4,34 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMachine } from '@xstate/react'
 import { diagnosisMachine } from '@/lib/personality/machine'
-import { BIG5_QUESTIONS } from '@/lib/personality/constants'
+import {
+  DEFAULT_DIAGNOSIS_MODE,
+  DIAGNOSIS_MODE_CONFIG,
+  getQuestionsForMode,
+} from '@/lib/personality/constants'
+import type { DiagnosisMode } from '@/lib/personality/types'
 import { submitDiagnosis } from '@/lib/diagnosis/actions'
 import { QuestionCard } from './QuestionCard'
 import { ResultView } from './ResultView'
 import { Card, CardContent } from '@/app/components/ui/Card'
 import { Loader2, Sparkles } from 'lucide-react'
 
-export function DiagnosisWizard() {
+const DIAGNOSIS_MODES: DiagnosisMode[] = ['brief', 'full']
+
+interface DiagnosisWizardProps {
+  initialMode?: DiagnosisMode
+}
+
+export function DiagnosisWizard({ initialMode = DEFAULT_DIAGNOSIS_MODE }: DiagnosisWizardProps) {
   const router = useRouter()
   const [state, send] = useMachine(diagnosisMachine)
+  const [selectedMode, setSelectedMode] = useState<DiagnosisMode>(initialMode)
   const [saveError, setSaveError] = useState<string | null>(null)
   const savingRef = useRef(false)
 
   const currentQuestionIndex = state.context.currentQuestionIndex
-  const currentQuestion = BIG5_QUESTIONS[currentQuestionIndex]
+  const currentQuestions = getQuestionsForMode(state.context.mode)
+  const currentQuestion = currentQuestions[currentQuestionIndex]
 
   // 診断完了時に自動保存（同期的な setState なし）
   useEffect(() => {
@@ -26,7 +39,7 @@ export function DiagnosisWizard() {
     if (savingRef.current) return
     savingRef.current = true
 
-    submitDiagnosis(state.context.answers)
+    submitDiagnosis(state.context.answers, state.context.mode)
       .then((res) => {
         if (res.success) {
           router.push('/diagnosis/result')
@@ -45,7 +58,7 @@ export function DiagnosisWizard() {
   const handleRetry = () => {
     setSaveError(null)
     savingRef.current = true
-    submitDiagnosis(state.context.answers)
+    submitDiagnosis(state.context.answers, state.context.mode)
       .then((res) => {
         if (res.success) {
           router.push('/diagnosis/result')
@@ -62,7 +75,7 @@ export function DiagnosisWizard() {
 
   // デバッグ用：ランダム回答機能
   const handleDebugFill = () => {
-    const remainingQuestions = BIG5_QUESTIONS.slice(currentQuestionIndex)
+    const remainingQuestions = currentQuestions.slice(currentQuestionIndex)
     remainingQuestions.forEach(() => {
       send({ type: 'ANSWER', value: Math.floor(Math.random() * 5) + 1 })
     })
@@ -80,15 +93,44 @@ export function DiagnosisWizard() {
             <p className="text-sm leading-6 text-text-body">
               あなたの性格特性を分析し、最適なボランティア活動を提案します。
               <br />
-              全50問、所要時間は約5分です。
+              目的に合わせて、短時間の簡易診断または精度重視の詳細診断を選べます。
             </p>
           </div>
+          <div className="grid w-full gap-4 md:grid-cols-2">
+            {DIAGNOSIS_MODES.map((mode) => {
+              const config = DIAGNOSIS_MODE_CONFIG[mode]
+              const isSelected = selectedMode === mode
+
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSelectedMode(mode)}
+                  className={`rounded-2xl border p-5 text-left transition ${isSelected
+                      ? 'border-primary bg-primary/10 shadow-sm'
+                      : 'border-card-border bg-white hover:border-primary/50 hover:bg-primary/5'
+                    }`}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h2 className="text-xl font-bold text-text-dark">{config.label}</h2>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-primary">
+                      {config.questionCount}問
+                    </span>
+                  </div>
+                  <p className="mb-3 text-sm leading-6 text-text-body">{config.description}</p>
+                  <p className="text-xs font-medium text-text-body">
+                    所要時間: {config.estimatedTime}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
           <button
-            onClick={() => send({ type: 'START' })}
+            onClick={() => send({ type: 'START', mode: selectedMode })}
             className="flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-medium text-white hover:bg-primary-dark"
           >
             <Sparkles className="size-5" />
-            診断を開始する
+            {DIAGNOSIS_MODE_CONFIG[selectedMode].label}を開始する
           </button>
         </CardContent>
       </Card>
@@ -104,7 +146,7 @@ export function DiagnosisWizard() {
           onBack={() => send({ type: 'BACK' })}
           canGoBack={currentQuestionIndex > 0}
           currentStep={currentQuestionIndex + 1}
-          totalSteps={BIG5_QUESTIONS.length}
+          totalSteps={currentQuestions.length}
         />
 
         {/* 開発環境のみ表示するデバッグボタン */}

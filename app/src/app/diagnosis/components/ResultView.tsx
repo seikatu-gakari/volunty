@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { PersonalityProfile } from '@/lib/personality/types'
 import { RefreshCw, Search } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/app/components/ui/Card'
+import { DIAGNOSIS_MODE_CONFIG } from '@/lib/personality/constants'
 
 interface ResultViewProps {
   result: PersonalityProfile
@@ -12,6 +13,7 @@ interface ResultViewProps {
 export function ResultView({ result, onReset }: ResultViewProps) {
   const type = result.personalityType || result.closestType
   const isExactMatch = !!result.personalityType
+  const modeConfig = DIAGNOSIS_MODE_CONFIG[result.mode]
 
   return (
     <div className="space-y-6">
@@ -22,10 +24,18 @@ export function ResultView({ result, onReset }: ResultViewProps) {
           <div className="inline-block rounded-full bg-primary/10 px-4 py-1 text-sm font-medium text-primary">
             {isExactMatch ? '完全一致' : '最も近いタイプ'}
           </div>
+          <div className="ml-2 inline-block rounded-full bg-primary/10 px-4 py-1 text-sm font-medium text-primary">
+            {modeConfig.label}
+          </div>
           <h1 className="text-4xl font-extrabold text-primary">
             {type.name}
           </h1>
           <p className="text-lg font-medium text-text-body">{type.nameEn}</p>
+          {result.mode === 'brief' && (
+            <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-text-body">
+              簡易診断の結果は目安です。より詳しく知りたい場合は詳細診断をおすすめします。
+            </p>
+          )}
         </CardContent>
       </Card>
 

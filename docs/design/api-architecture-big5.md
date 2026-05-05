@@ -493,7 +493,7 @@ gantt
 
 ### Week 1-2: MVP基盤構築
 - [x] Prismaスキーマ定義（`database-design.md`準拠）
-- [x] 診断質問マスタ投入（50問）
+- [x] 診断質問マスタ投入（簡易16問・詳細60問）
 - [x] 人物タイプマスタ投入（10タイプ）
 - [ ] `POST /api/diagnosis/submit` 実装
 - [ ] `GET /api/diagnosis/result/:userId` 実装

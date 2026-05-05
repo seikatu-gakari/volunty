@@ -215,16 +215,16 @@ export default function Home() {
               className="flex h-11 items-center gap-2 rounded-lg border border-primary bg-background px-8 text-sm font-medium text-text-dark hover:bg-white"
             >
               <Zap className="size-5 text-primary" />
-              10問 簡易診断
-              <span className="text-xs opacity-75">約3分</span>
+              16問 簡易診断
+              <span className="text-xs opacity-75">約2分</span>
             </Link>
             <Link
               href="/diagnosis"
               className="flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-medium text-white hover:bg-primary-dark"
             >
               <Brain className="size-5" />
-              96問 詳細診断
-              <span className="text-xs opacity-75">約10分</span>
+              60問 詳細診断
+              <span className="text-xs opacity-75">約8〜10分</span>
               <ArrowRight className="size-5" />
             </Link>
           </div>
@@ -240,7 +240,7 @@ export default function Home() {
               icon: <Target className="size-12 text-primary" />,
               title: "正確なマッチング",
               description:
-                "10問の簡易診断や96問の詳細診断により、あなたの特性や志向を分析し、最適なボランティア活動をマッチングします",
+                "16問の簡易診断や60問の詳細診断により、あなたの特性や志向を分析し、最適なボランティア活動をマッチングします",
             },
             {
               icon: <Users className="size-12 text-primary" />,
@@ -282,9 +282,9 @@ export default function Home() {
                 <Zap className="size-8 text-primary" />
                 <div>
                   <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                    10問 簡易診断
+                    16問 簡易診断
                   </h3>
-                  <p className="text-sm text-text-body">約3分で完了</p>
+                  <p className="text-sm text-text-body">約2分で完了</p>
                 </div>
               </div>
               <ul className="mt-6 flex flex-col gap-2">
@@ -306,9 +306,9 @@ export default function Home() {
                 <Brain className="size-8 text-primary-dark" />
                 <div>
                   <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                    96問 詳細診断
+                    60問 詳細診断
                   </h3>
-                  <p className="text-sm text-text-body">約10分で完了</p>
+                  <p className="text-sm text-text-body">約8〜10分で完了</p>
                 </div>
               </div>
               <ul className="mt-6 flex flex-col gap-2">

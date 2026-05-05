@@ -1,16 +1,17 @@
 import { createMachine, assign, fromPromise } from 'xstate'
-import { BIG5_QUESTIONS } from './constants'
-import { QuestionAnswer, PersonalityProfile } from './types'
+import { DEFAULT_DIAGNOSIS_MODE, getQuestionsForMode } from './constants'
+import { DiagnosisMode, QuestionAnswer, PersonalityProfile } from './types'
 import { calculateBIG5Diagnosis } from './logic'
 
 export interface DiagnosisContext {
+  mode: DiagnosisMode
   currentQuestionIndex: number
   answers: QuestionAnswer[]
   result: PersonalityProfile | null
 }
 
 export type DiagnosisEvent =
-  | { type: 'START' }
+  | { type: 'START'; mode?: DiagnosisMode }
   | { type: 'ANSWER'; value: number }
   | { type: 'BACK' }
   | { type: 'RESET' }
@@ -19,20 +20,31 @@ export const diagnosisMachine = createMachine({
   id: 'big5-diagnosis',
   initial: 'idle',
   context: {
+    mode: DEFAULT_DIAGNOSIS_MODE,
     currentQuestionIndex: 0,
     answers: [] as QuestionAnswer[],
     result: null as PersonalityProfile | null
   },
   states: {
     idle: {
-      on: { START: 'answering' }
+      on: {
+        START: {
+          target: 'answering',
+          actions: assign({
+            mode: ({ event }) => event.mode ?? DEFAULT_DIAGNOSIS_MODE,
+            currentQuestionIndex: 0,
+            answers: [],
+            result: null
+          })
+        }
+      }
     },
     answering: {
       on: {
         ANSWER: {
           actions: assign({
             answers: ({ context, event }) => {
-              const currentQuestion = BIG5_QUESTIONS[context.currentQuestionIndex]
+              const currentQuestion = getQuestionsForMode(context.mode)[context.currentQuestionIndex]
               if (!currentQuestion) return context.answers
               
               const newAnswer: QuestionAnswer = {
@@ -73,7 +85,7 @@ export const diagnosisMachine = createMachine({
     calculating: {
       invoke: {
         src: 'calculateBIG5Result',
-        input: ({ context }) => ({ answers: context.answers }),
+        input: ({ context }) => ({ answers: context.answers, mode: context.mode }),
         onDone: {
           target: 'completed',
           actions: assign({ result: ({ event }) => event.output })
@@ -86,6 +98,7 @@ export const diagnosisMachine = createMachine({
         RESET: {
           target: 'idle',
           actions: assign({
+            mode: DEFAULT_DIAGNOSIS_MODE,
             currentQuestionIndex: 0,
             answers: [],
             result: null
@@ -98,6 +111,7 @@ export const diagnosisMachine = createMachine({
         RESET: {
           target: 'idle',
           actions: assign({
+            mode: DEFAULT_DIAGNOSIS_MODE,
             currentQuestionIndex: 0,
             answers: [],
             result: null
@@ -108,11 +122,11 @@ export const diagnosisMachine = createMachine({
   }
 }, {
   guards: {
-    isComplete: ({ context }) => context.currentQuestionIndex >= BIG5_QUESTIONS.length
+    isComplete: ({ context }) => context.currentQuestionIndex >= getQuestionsForMode(context.mode).length
   },
   actors: {
-    calculateBIG5Result: fromPromise(async ({ input }: { input: { answers: QuestionAnswer[] } }) => {
-      return await calculateBIG5Diagnosis(input.answers)
+    calculateBIG5Result: fromPromise(async ({ input }: { input: { answers: QuestionAnswer[]; mode: DiagnosisMode } }) => {
+      return await calculateBIG5Diagnosis(input.answers, input.mode)
     })
   }
 })

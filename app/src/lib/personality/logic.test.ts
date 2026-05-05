@@ -1,24 +1,46 @@
 import { describe, it, expect } from 'vitest'
 import { calculateBIG5Diagnosis, determinePersonalityType, findClosestPersonalityType } from './logic'
-import { BIG5_QUESTIONS, PERSONALITY_TYPES } from './constants'
-import { QuestionAnswer, BIG5Scores } from './types'
+import { getQuestionsForMode } from './constants'
+import { BIG5Scores, DiagnosisMode, QuestionAnswer } from './types'
+
+function createAnswers(mode: DiagnosisMode, valueForQuestion: (reversed: boolean, trait: string) => number): QuestionAnswer[] {
+  return getQuestionsForMode(mode).map((question) => ({
+    questionId: question.id,
+    value: valueForQuestion(question.reversed, question.trait),
+    timestamp: new Date().toISOString()
+  }))
+}
 
 describe('BIG5 Logic', () => {
-  describe('calculateBIG5Diagnosis', () => {
-    it('should calculate scores correctly for all 5s (max score)', async () => {
-      // All answers are 5
-      // Reversed items (50% of items) will be 6-5=1
-      // Non-reversed items (50% of items) will be 5
-      // Average should be 3.0 -> Normalized score 50
-      
-      const answers: QuestionAnswer[] = BIG5_QUESTIONS.map(q => ({
-        questionId: q.id,
-        value: 5,
-        timestamp: new Date().toISOString()
-      }))
+  describe('question sets', () => {
+    it('should provide 16 questions for brief mode with expected trait balance', () => {
+      const questions = getQuestionsForMode('brief')
+      expect(questions).toHaveLength(16)
+      expect(questions.filter((q) => q.trait === 'extraversion')).toHaveLength(3)
+      expect(questions.filter((q) => q.trait === 'agreeableness')).toHaveLength(3)
+      expect(questions.filter((q) => q.trait === 'conscientiousness')).toHaveLength(3)
+      expect(questions.filter((q) => q.trait === 'neuroticism')).toHaveLength(3)
+      expect(questions.filter((q) => q.trait === 'openness')).toHaveLength(4)
+      expect(new Set(questions.map((q) => q.id)).size).toBe(16)
+    })
 
-      const result = await calculateBIG5Diagnosis(answers)
+    it('should provide 60 questions for full mode with 12 questions per trait', () => {
+      const questions = getQuestionsForMode('full')
+      expect(questions).toHaveLength(60)
+      for (const trait of ['extraversion', 'agreeableness', 'conscientiousness', 'neuroticism', 'openness']) {
+        expect(questions.filter((q) => q.trait === trait)).toHaveLength(12)
+      }
+      expect(new Set(questions.map((q) => q.id)).size).toBe(60)
+    })
+  })
+
+  describe('calculateBIG5Diagnosis', () => {
+    it('should calculate neutral scores correctly for brief mode', async () => {
+      const answers = createAnswers('brief', () => 3)
+
+      const result = await calculateBIG5Diagnosis(answers, 'brief')
       
+      expect(result.mode).toBe('brief')
       expect(result.scores.extraversion).toBe(50)
       expect(result.scores.agreeableness).toBe(50)
       expect(result.scores.conscientiousness).toBe(50)
@@ -26,30 +48,27 @@ describe('BIG5 Logic', () => {
       expect(result.scores.openness).toBe(50)
     })
 
-    it('should calculate scores correctly for mixed answers', async () => {
-      // Manually construct answers for Extraversion to test specific score
-      // Questions: 10 items. 
-      // e1(+), e2(-), e3(+), e4(-), e5(+), e6(-), e7(+), e8(-), e9(+), e10(-)
-      // Let's set all non-reversed to 5, all reversed to 1 (which becomes 5)
-      // Average should be 5.0 -> Score 100
-      
-      const answers: QuestionAnswer[] = BIG5_QUESTIONS.map(q => {
-        const isExtraversion = q.trait === 'extraversion'
-        let val = 3 // default neutral
-        
-        if (isExtraversion) {
-          if (q.reversed) val = 1 // becomes 5
-          else val = 5
-        }
-        
-        return {
-          questionId: q.id,
-          value: val,
-          timestamp: new Date().toISOString()
-        }
-      })
+    it('should calculate neutral scores correctly for full mode', async () => {
+      const answers = createAnswers('full', () => 3)
 
-      const result = await calculateBIG5Diagnosis(answers)
+      const result = await calculateBIG5Diagnosis(answers, 'full')
+
+      expect(result.mode).toBe('full')
+      expect(result.scores.extraversion).toBe(50)
+      expect(result.scores.agreeableness).toBe(50)
+      expect(result.scores.conscientiousness).toBe(50)
+      expect(result.scores.neuroticism).toBe(50)
+      expect(result.scores.openness).toBe(50)
+    })
+
+    it('should calculate scores correctly for reversed answers', async () => {
+      const answers = getQuestionsForMode('brief').map((question) => ({
+        questionId: question.id,
+        value: question.trait === 'extraversion' ? (question.reversed ? 1 : 5) : 3,
+        timestamp: new Date().toISOString()
+      }))
+
+      const result = await calculateBIG5Diagnosis(answers, 'brief')
       expect(result.scores.extraversion).toBe(100)
     })
   })

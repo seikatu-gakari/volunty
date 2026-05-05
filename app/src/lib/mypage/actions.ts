@@ -68,6 +68,7 @@ export async function fetchMyPageData(): Promise<MyPageData> {
         region: profileData.region,
         diagnosis_type: profileData.diagnosisType,
         diagnosis_scores: profileData.diagnosisScores,
+        diagnosis_updated_at: profileData.updatedAt?.toISOString() ?? null,
       };
     }
 

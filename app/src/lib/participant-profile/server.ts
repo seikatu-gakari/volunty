@@ -12,6 +12,7 @@ interface RawParticipantProfile {
   interests: unknown;
   diagnosis_type: string | null;
   diagnosis_scores: unknown;
+  updated_at: string | null;
 }
 
 export interface ParticipantProfileRecord {
@@ -25,6 +26,7 @@ export interface ParticipantProfileRecord {
   interests: string[];
   diagnosisType: string | null;
   diagnosisScores: Record<string, number> | null;
+  updatedAt: Date | null;
 }
 
 export interface ParticipantProfileFetchDebug {
@@ -73,6 +75,7 @@ function mapProfile(profile: RawParticipantProfile): ParticipantProfileRecord | 
     diagnosisScores: isScoreRecord(profile.diagnosis_scores)
       ? profile.diagnosis_scores
       : null,
+    updatedAt: profile.updated_at ? new Date(profile.updated_at) : null,
   };
 }
 
@@ -105,6 +108,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
         interests: true,
         diagnosisType: true,
         diagnosisScores: true,
+        updatedAt: true,
       },
     });
 
@@ -127,6 +131,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
           diagnosisScores: isScoreRecord(profile.diagnosisScores)
             ? profile.diagnosisScores
             : null,
+          updatedAt: profile.updatedAt,
         },
         debug: {
           fallbackUsed: false,
@@ -148,7 +153,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
     const { data, error } = await supabase
       .from("m_participant_profile")
       .select(
-        "id, user_id, name, birthday, gender, region, bio, interests, diagnosis_type, diagnosis_scores"
+        "id, user_id, name, birthday, gender, region, bio, interests, diagnosis_type, diagnosis_scores, updated_at"
       )
       .eq("user_id", userId)
       .maybeSingle();

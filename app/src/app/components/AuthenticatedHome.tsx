@@ -39,16 +39,16 @@ export function AuthenticatedHome({ user }: AuthenticatedHomeProps) {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {/* 簡易診断 */}
           <Link
-            href="/diagnosis"
+            href="/diagnosis?mode=brief"
             className="group flex flex-col gap-4 rounded-[10px] border border-primary/30 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
           >
             <div className="flex items-center gap-3">
               <Zap className="size-8 text-primary" />
               <div>
                 <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                  10問 簡易診断
+                  16問 簡易診断
                 </h3>
-                <p className="text-sm text-text-body">約3分で完了</p>
+                <p className="text-sm text-text-body">約2分で完了</p>
               </div>
             </div>
             <ul className="flex flex-col gap-2">
@@ -71,16 +71,16 @@ export function AuthenticatedHome({ user }: AuthenticatedHomeProps) {
 
           {/* 詳細診断 */}
           <Link
-            href="/diagnosis"
+            href="/diagnosis?mode=full"
             className="group flex flex-col gap-4 rounded-[10px] border border-primary-dark/30 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
           >
             <div className="flex items-center gap-3">
               <Brain className="size-8 text-primary-dark" />
               <div>
                 <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                  96問 詳細診断
+                  60問 詳細診断
                 </h3>
-                <p className="text-sm text-text-body">約10分で完了</p>
+                <p className="text-sm text-text-body">約8〜10分で完了</p>
               </div>
             </div>
             <ul className="flex flex-col gap-2">
