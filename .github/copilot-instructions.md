@@ -366,3 +366,59 @@ AIが参照すべき設計ドキュメント:
 8. **CSS変数を使用**: カラーはハードコードせず、Tailwind ユーティリティ（`bg-primary`, `text-text-dark` 等）を使う
 9. **XState でフロー管理**: 複数ステップの操作フローはXStateステートマシンで実装する
 10. **Supabase 認証**: 認証関連は `@/lib/supabase/` のクライアントを使用。直接 Supabase SDK を呼ばない
+
+---
+
+## 12. RTK — トークン最適化 CLI
+
+**rtk** (Rust Token Killer) はシェルコマンドの出力を LLM へ渡す前にフィルタリング・圧縮する CLI プロキシです。60-90% のトークン削減が実現できます。
+
+### ルール
+
+シェルコマンドを実行する際は `rtk` プレフィックスを付けること:
+
+```bash
+# 使わない                    使う
+git status                    rtk git status
+git log -10                   rtk git log -10
+git diff                      rtk git diff
+docker compose ps             rtk docker compose ps
+npm run lint                  rtk npm run lint
+npm run test                  rtk npm run test
+next build                    rtk next build
+tsc --noEmit                  rtk tsc --noEmit
+prisma generate               rtk prisma generate
+```
+
+### Volunty プロジェクト固有コマンド
+
+```bash
+# Git（プロジェクトルートで実行）
+rtk git status
+rtk git diff
+rtk git log -n 10
+
+# Docker
+rtk docker compose ps
+
+# app/ ディレクトリで実行
+cd app && rtk npm run lint
+cd app && rtk npm run test
+cd app && rtk next build
+cd app && rtk tsc --noEmit
+cd app && rtk prisma generate
+```
+
+### メタコマンド（rtk 自体の管理）
+
+```bash
+rtk gain              # トークン削減量ダッシュボード
+rtk gain --history    # コマンド別の削減履歴
+rtk discover          # 未最適化コマンドの発見
+```
+
+### 注意事項
+
+- `curl` は hook 除外済み（完全なレスポンスが必要なため）
+- CI/CD には使用しない（ローカル開発専用）
+- 失敗時は `RTK_DISABLED=1 <command>` で RTK をバイパスできる
