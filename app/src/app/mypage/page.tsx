@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
 import { fetchMyPageData } from "@/lib/mypage/actions";
 import type { ApplicationStatus } from "@/lib/mypage/types";
+import { PERSONALITY_TYPES } from "@/lib/personality/constants";
 
 /** ステータスに応じたラベル・アイコン・カラー */
 function statusDisplay(status: ApplicationStatus) {
@@ -124,12 +125,30 @@ export default async function MyPage() {
                     {profile.region || "未設定"}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Brain className="size-4 text-text-body" />
-                  <span className="text-sm text-text-body">診断結果</span>
-                  <span className="ml-auto text-sm font-medium text-text-dark">
-                    {profile.diagnosis_type || "未受診"}
-                  </span>
+                <div className="flex items-start gap-2">
+                  <Brain className="mt-0.5 size-4 shrink-0 text-text-body" />
+                  <span className="shrink-0 text-sm text-text-body">診断結果</span>
+                  <div className="ml-auto text-right">
+                    <span className="text-sm font-medium text-text-dark">
+                      {profile.diagnosis_type
+                        ? (PERSONALITY_TYPES.find((t) => t.id === profile.diagnosis_type)?.name ?? profile.diagnosis_type)
+                        : "未受診"}
+                    </span>
+                    {profile.diagnosis_type && profile.diagnosis_updated_at && (
+                      <p className="mt-0.5 text-xs text-text-body">
+                        {new Intl.DateTimeFormat("sv-SE", {
+                          timeZone: "Asia/Tokyo",
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                          .format(new Date(profile.diagnosis_updated_at))
+                          .replace("T", " ")}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
