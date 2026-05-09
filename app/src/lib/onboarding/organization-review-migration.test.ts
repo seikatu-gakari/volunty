@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import process from "node:process";
 import { describe, expect, it } from "vitest";
 
 const migrationSql = readFileSync(
-  join(process.cwd(), "../supabase/migrations/20260509000000_add_organization_review_columns.sql"),
+  resolve(process.cwd(), "..", "supabase/migrations/20260509000000_add_organization_review_columns.sql"),
   "utf8"
 );
 
