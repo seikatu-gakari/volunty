@@ -39,7 +39,6 @@ app/src/
 cd app && npm run dev|build|lint|lint:fix|test
 cd app && npx vitest run <file>       # 単体テスト
 make up|down|restart|logs|shell|clean # Docker操作
-node scripts/sync-mcp-config.mjs      # MCP設定をリポジトリ内で同期
 ```
 
 ## アーキテクチャ・設計
