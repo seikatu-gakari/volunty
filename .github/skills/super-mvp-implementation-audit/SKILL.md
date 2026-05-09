@@ -53,7 +53,7 @@ Volunty の [docs/design/super-mvp-design.md](../../../docs/design/super-mvp-des
 最初に以下を確認する。
 
 1. [docs/design/super-mvp-design.md](../../../docs/design/super-mvp-design.md)
-2. [.github/copilot-instructions.md](../../copilot-instructions.md)
+2. [AGENTS.md](../../../AGENTS.md)
 3. 必要に応じて [CLAUDE.md](../../../CLAUDE.md)、[specs/features.json](../../../specs/features.json)、[docs/quality/status.md](../../../docs/quality/status.md)
 
 ### 2. 実装面を領域別に探索する
