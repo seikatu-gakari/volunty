@@ -323,4 +323,99 @@ describe("applyToOpportunity", () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe("予期しないエラーが発生しました");
   });
+
+  it("INSERT 成功時、success: true を返す", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+
+    let callCount = 0;
+    mockSingle.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        // m_participant_profile（診断スコアあり）
+        return {
+          data: {
+            id: "participant-1",
+            diagnosis_scores: {
+              extraversion: 75,
+              agreeableness: 80,
+              conscientiousness: 60,
+              neuroticism: 40,
+              openness: 70,
+            },
+          },
+          error: null,
+        };
+      }
+      if (callCount === 2) {
+        // m_opportunity（公開中）
+        return {
+          data: {
+            id: "opp-1",
+            status: "published",
+            requirement_traits: { extraversion: 70 },
+          },
+          error: null,
+        };
+      }
+      // t_matching_candidate 重複チェック（応募なし）
+      return { data: null, error: null };
+    });
+
+    // INSERT 成功
+    mockInsert.mockReturnValue({ error: null });
+
+    const result: ApplyResult = await applyToOpportunity("opp-1", "参加したいです");
+
+    expect(result.success).toBe(true);
+    // created_at / updated_at / applied_at が INSERT payload に含まれていることを確認
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        opportunity_id: "opp-1",
+        participant_id: "user-123",
+        status: "applied",
+        match_score: 75, // calculateMatchScore のモック戻り値
+        message: "参加したいです",
+        applied_at: expect.any(String),
+        created_at: expect.any(String),
+        updated_at: expect.any(String),
+      })
+    );
+  });
+
+  it("INSERT エラー時は '応募の送信に失敗しました' を返す", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+
+    let callCount = 0;
+    mockSingle.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return { data: { id: "participant-1", diagnosis_scores: null }, error: null };
+      }
+      if (callCount === 2) {
+        return {
+          data: { id: "opp-1", status: "published", requirement_traits: null },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+
+    // INSERT 失敗（updated_at missing など DB制約違反をシミュレート）
+    mockInsert.mockReturnValue({
+      error: { message: "null value in column \"updated_at\" violates not-null constraint" },
+    });
+
+    const result: ApplyResult = await applyToOpportunity("opp-1", "");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("応募の送信に失敗しました");
+  });
 });
