@@ -29,7 +29,15 @@
 		"Vercel": {
 			"url": "https://mcp.vercel.com",
 			"type": "http"
-		}
+		},
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ]
+    }
 	},
 	"inputs": []
 }
