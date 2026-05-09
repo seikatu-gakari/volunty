@@ -76,9 +76,6 @@ idle → answering → checkProgress → calculating → completed
 
 ## MCP運用
 
-- MCP設定はVoluntyリポジトリ内でのみ共通化する。グローバル設定には展開しない。
-- 共通ソースは `.config/mcp/servers.json` とし、`node scripts/sync-mcp-config.mjs` で各エージェント用設定を生成する。
-- GitHub Copilot / VS Code 用は `.vscode/mcp.json`、Claude Code 用ローカル設定は `.mcp.json` を使う。
 - `.mcp.json` はローカル生成物かつ `.gitignore` 対象のためコミットしない。
 - GitHub MCPの認証情報は `GITHUB_MCP_TOKEN` 環境変数からのみ注入し、tracked fileへトークンを書かない。
 
