@@ -256,6 +256,9 @@ export async function applyToOpportunity(
     }
 
     // 応募を作成
+    // Supabase REST API では Prisma の @updatedAt は機能しないため、
+    // updated_at / created_at を明示的に設定する
+    const now = new Date().toISOString();
     const { error: insertError } = await supabase
       .from("t_matching_candidate")
       .insert({
@@ -264,10 +267,13 @@ export async function applyToOpportunity(
         message: message || null,
         status: "applied",
         match_score: matchScore,
-        applied_at: new Date().toISOString(),
+        applied_at: now,
+        created_at: now,
+        updated_at: now,
       });
 
     if (insertError) {
+      console.error("[applyToOpportunity] INSERT エラー:", insertError);
       return { success: false, error: "応募の送信に失敗しました" };
     }
 
