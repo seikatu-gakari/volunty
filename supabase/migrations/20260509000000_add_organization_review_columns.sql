@@ -1,4 +1,5 @@
 -- AlterTable: 団体審査ステータス管理に必要なカラムを追加
+-- PostgreSQL では CREATE TYPE IF NOT EXISTS が使えないため、既存型のみ無視する
 DO $$
 BEGIN
   CREATE TYPE "organization_review_status" AS ENUM ('pending', 'approved', 'rejected');

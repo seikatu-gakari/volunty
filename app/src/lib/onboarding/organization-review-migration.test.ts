@@ -1,10 +1,19 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import { describe, expect, it } from "vitest";
 
+const migrationsDir = resolve(process.cwd(), "..", "supabase/migrations");
+const migrationFile = readdirSync(migrationsDir).find((file) =>
+  file.endsWith("_add_organization_review_columns.sql")
+);
+
+if (!migrationFile) {
+  throw new Error("団体審査カラム追加マイグレーションが見つかりません");
+}
+
 const migrationSql = readFileSync(
-  resolve(process.cwd(), "..", "supabase/migrations/20260509000000_add_organization_review_columns.sql"),
+  resolve(migrationsDir, migrationFile),
   "utf8"
 );
 
