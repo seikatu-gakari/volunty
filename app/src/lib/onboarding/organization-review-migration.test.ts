@@ -26,10 +26,13 @@ describe("団体審査カラム追加マイグレーション", () => {
       file.endsWith("_add_organization_review_columns.sql")
     );
 
-    expect(migrationFile).toBeDefined();
+    if (!migrationFile) {
+      expect(migrationFile).toBeDefined();
+      return;
+    }
 
     const migrationSql = readFileSync(
-      resolve(migrationsDir, migrationFile ?? ""),
+      resolve(migrationsDir, migrationFile),
       "utf8"
     );
 
