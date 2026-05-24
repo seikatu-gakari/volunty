@@ -6,7 +6,6 @@ import {
   Brain,
   ArrowRight,
   Target,
-  Users,
 } from "lucide-react";
 import { Header } from "./components/Header";
 import { AuthenticatedHome } from "./components/AuthenticatedHome";
@@ -31,191 +30,206 @@ export default async function Home() {
       {user && <AuthenticatedHome user={user} />}
 
       {/* 未ログインユーザー向けランディングページ */}
-      {!user && <main className="mx-auto max-w-3xl px-6 pt-6">
-        {/* ヒーローセクション */}
-        <section className="flex flex-col items-center gap-6 py-12">
-          <div className="relative">
-            <Heart
-              className="size-20 text-primary"
-              fill="#fb5b01"
-              strokeWidth={0}
-            />
-            <Sparkles className="absolute -top-2 -right-1 size-8 text-primary" />
-          </div>
-          <div className="text-center">
-            <h1 className="text-4xl leading-12 text-text-dark md:text-5xl">
-              あなたにぴったりの
-              <br />
-              <span className="text-primary">ボランティア活動</span>
-              を見つけよう
-            </h1>
-          </div>
-          <p className="max-w-xl text-center text-lg leading-7 text-text-body">
-            簡単な診断を通じて、あなたの特性に最も適したボランティア活動をご提案します
-          </p>
-          <div className="flex flex-col items-center gap-4 sm:flex-row">
-            <Link
-              href="/diagnosis?mode=brief"
-              className="flex h-11 items-center gap-2 rounded-lg border border-primary bg-background px-8 text-sm font-medium text-text-dark hover:bg-white"
-            >
-              <Zap className="size-5 text-primary" />
-              16問 簡易診断
-              <span className="text-xs opacity-75">約2分</span>
-            </Link>
-            <Link
-              href="/diagnosis?mode=full"
-              className="flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-medium text-white hover:bg-primary-dark"
-            >
-              <Brain className="size-5" />
-              60問 詳細診断
-              <span className="text-xs opacity-75">約8〜10分</span>
-              <ArrowRight className="size-5" />
-            </Link>
-          </div>
-          <p className="text-center text-sm text-text-body">
-            まずは簡易診断でお試しいただき、より詳しく知りたい場合は詳細診断をお試しください
-          </p>
-        </section>
-
-        {/* 特徴カード */}
-        <section className="grid grid-cols-1 gap-6 py-12 md:grid-cols-3">
-          {[
-            {
-              icon: <Target className="size-12 text-primary" />,
-              title: "正確なマッチング",
-              description:
-                "16問の簡易診断や60問の詳細診断により、あなたの特性や志向を分析し、最適なボランティア活動をマッチングします",
-            },
-            {
-              icon: <Users className="size-12 text-primary" />,
-              title: "多様な活動",
-              description:
-                "教育支援、環境保護、災害支援、医療支援など、幅広いジャンルのボランティア活動から選択できます",
-            },
-            {
-              icon: <Heart className="size-12 text-primary" />,
-              title: "社会貢献",
-              description:
-                "あなたの特技や関心を活かして社会に貢献し、同じ志を持つ仲間と出会える機会を提供します",
-            },
-          ].map((feature) => (
-            <div
-              key={feature.title}
-              className="flex flex-col items-center gap-4 rounded-[10px] border border-card-border bg-white p-6 shadow-sm"
-            >
-              <div className="flex h-12 items-center justify-center">
-                {feature.icon}
+      {!user && (
+        <main className="mx-auto w-full max-w-6xl px-4 pt-8 pb-20 sm:px-6 lg:px-8">
+          {/* ヒーローセクション */}
+          <section className="relative overflow-hidden rounded-3xl bg-white px-6 py-16 text-center shadow-sm sm:px-12 sm:py-24 animate-[fade-in-up_0.8s_ease-out_forwards]">
+            <div className="absolute top-0 left-1/2 -z-10 -ml-40 h-[400px] w-[800px] -translate-x-1/2 animate-pulse rounded-full bg-primary/5 blur-3xl" />
+            <div className="mx-auto max-w-3xl">
+              <div className="mb-6 flex justify-center gap-3">
+                <span className="inline-flex animate-[float_6s_ease-in-out_infinite] items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary-dark">
+                  <Brain className="size-4" /> 本格性格診断
+                </span>
+                <span className="inline-flex animate-[float_6s_ease-in-out_1s_infinite] items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary-dark">
+                  <Target className="size-4" /> 相性スコア
+                </span>
+                <span className="inline-flex animate-[float_6s_ease-in-out_2s_infinite] items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary-dark">
+                  <Sparkles className="size-4" /> AI分析
+                </span>
               </div>
-              <h3 className="text-2xl font-bold tracking-tight text-text-dark">
-                {feature.title}
-              </h3>
-              <p className="text-center text-sm leading-5 text-text-body">
-                {feature.description}
+              <h1 className="text-4xl font-extrabold tracking-tight text-text-dark sm:text-5xl lg:text-6xl">
+                性格から、ぴったりの
+                <br className="max-sm:hidden" />
+                <span className="text-primary">ボランティア</span>
+                に出会う
+              </h1>
+              <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-text-body">
+                独自の性格診断アルゴリズムを用いて、あなたの特性や強みを診断。相性スコアとAI分析が、あなたに最も適したボランティア活動への第一歩をサポートします。
+              </p>
+              <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+                <Link
+                  href="/diagnosis?mode=brief"
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-background px-8 text-base font-bold text-text-dark transition-all hover:bg-white sm:w-auto"
+                >
+                  <Zap className="size-5 text-primary" />
+                  16問 簡易診断
+                  <span className="ml-1 text-xs font-normal opacity-75">
+                    約2分
+                  </span>
+                </Link>
+                <Link
+                  href="/diagnosis?mode=full"
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 text-base font-bold text-white shadow-md transition-all hover:bg-primary-dark hover:shadow-lg sm:w-auto"
+                >
+                  <Brain className="size-5" />
+                  60問 詳細診断
+                  <span className="ml-1 text-xs font-normal opacity-75">
+                    約8〜10分
+                  </span>
+                  <ArrowRight className="ml-2 size-5" />
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          {/* 3大機能の紹介 */}
+          <section className="mt-24">
+            <div className="mb-14 text-center">
+              <h2 className="text-3xl font-bold tracking-tight text-text-dark">
+                あなたらしさを活かす3つの機能
+              </h2>
+            </div>
+            <div className="grid gap-10 lg:grid-cols-3">
+              <div className="group relative flex flex-col items-start gap-6 rounded-2xl border border-card-border bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl">
+                <div className="flex size-14 items-center justify-center rounded-xl bg-primary/10 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary/20">
+                  <Brain className="size-7 text-primary-dark" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-text-dark">性格診断</h3>
+                  <p className="mt-4 text-base leading-7 text-text-body">
+                    独自の性格診断アルゴリズムを採用。さまざまな特徴からあなたを全10種類のパーソナルタイプに分類し、隠れた強みを引き出します。
+                  </p>
+                </div>
+                <div className="mt-auto w-full rounded-xl bg-background p-4 text-sm text-text-dark transition-colors duration-300 group-hover:bg-primary/5">
+                  <div className="mb-2 font-medium">10類型の中のいくつかの例:</div>
+                  <ul className="flex flex-wrap gap-2">
+                    <li className="rounded bg-white px-2 py-1 shadow-sm transition-transform hover:scale-105">イノベーター・リーダー</li>
+                    <li className="rounded bg-white px-2 py-1 shadow-sm transition-transform hover:scale-105">サポーター・ケア</li>
+                    <li className="rounded bg-white px-2 py-1 shadow-sm transition-transform hover:scale-105">クリエイティブ・ソロ</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="group relative flex flex-col items-start gap-6 rounded-2xl border border-card-border bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl" style={{ animationDelay: "100ms" }}>
+                <div className="flex size-14 items-center justify-center rounded-xl bg-primary/10 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary/20">
+                  <Heart className="size-7 text-primary-dark" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-text-dark">相性マッチング</h3>
+                  <p className="mt-4 text-base leading-7 text-text-body">
+                    分析結果と、募集団体が求める人物像を照らし合わせ、独自の相性スコア（0〜100）を算出。膨大な募集案件の中から、あなたに最もフィットする活動をスコア順にご提案します。
+                  </p>
+                </div>
+                <div className="mt-auto w-full rounded-xl bg-background p-4 text-sm text-text-dark transition-colors duration-300 group-hover:bg-primary/5">
+                  <div className="flex items-center justify-between rounded bg-white px-3 py-2 shadow-sm transition-transform hover:scale-105">
+                    <span className="font-medium">こども食堂の運営サポート</span>
+                    <span className="font-bold text-primary">スコア 95</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between rounded bg-white px-3 py-2 shadow-sm transition-transform hover:scale-105">
+                    <span className="font-medium">地域イベントの準備・運営</span>
+                    <span className="font-bold text-primary">スコア 82</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="group relative flex flex-col items-start gap-6 rounded-2xl border border-card-border bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl" style={{ animationDelay: "200ms" }}>
+                <div className="flex size-14 items-center justify-center rounded-xl bg-primary/10 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary/20">
+                  <Sparkles className="size-7 text-primary-dark" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-text-dark">AI分析による言語化</h3>
+                  <p className="mt-4 text-base leading-7 text-text-body">
+                    診断データや活動候補の理由をAIが分析。単なる数値での提案にとどまらず、なぜその活動が適しているのか、あなたのどのような特性が活きるのかをわかりやすく解説します。
+                  </p>
+                </div>
+                <div className="mt-auto w-full rounded-xl bg-background p-4 text-sm text-text-dark transition-colors duration-300 group-hover:bg-primary/5">
+                  <p className="italic text-text-body">
+                    「あなたの高い『協調性』と『誠実性』は、チームで協力しながら着実にタスクを進める地域イベントの運営において、大きな強みとなります。」
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 体験フロー */}
+          <section className="mt-32">
+            <div className="mb-14 text-center">
+              <h2 className="text-3xl font-bold tracking-tight text-text-dark">
+                利用の流れ
+              </h2>
+              <p className="mt-4 text-lg text-text-body">
+                3つのステップで、すぐに行動を始めることができます
               </p>
             </div>
-          ))}
-        </section>
-
-        {/* 診断の種類 */}
-        <section className="flex flex-col items-center gap-8 py-12">
-          <h2 className="text-base text-text-dark">診断の種類</h2>
-          <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2">
-            {/* 簡易診断 */}
-            <div className="rounded-[10px] border border-primary/30 bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-3">
-                <Zap className="size-8 text-primary" />
-                <div>
-                  <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                    16問 簡易診断
-                  </h3>
-                  <p className="text-sm text-text-body">約2分で完了</p>
+            <div className="grid gap-8 md:grid-cols-3">
+              <div className="group relative flex flex-col items-center text-center transition-transform duration-300 hover:scale-[1.02]">
+                <div className="mb-6 flex size-16 items-center justify-center rounded-full bg-primary font-bold text-white shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:shadow-xl">
+                  STEP 1
                 </div>
+                <h3 className="mb-3 text-xl font-bold text-text-dark">
+                  ボランティア診断
+                </h3>
+                <p className="text-base leading-7 text-text-body">
+                  16問または60問の質問に答え、あなたの特性とボランティア適性を明らかにします。
+                </p>
+                {/* 矢印 (PCのみ) */}
+                <ArrowRight className="absolute top-8 -right-4 hidden size-8 text-primary/30 transition-transform duration-300 group-hover:translate-x-2 md:block" />
               </div>
-              <ul className="mt-6 flex flex-col gap-2">
-                {[
-                  "サクッとボランティアタイプを診断",
-                  "基本的な特性と傾向を分析",
-                  "初めての方におすすめ",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-2">
-                    <span className="size-2 shrink-0 rounded-full bg-primary" />
-                    <span className="text-sm text-text-dark">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            {/* 詳細診断 */}
-            <div className="rounded-[10px] border border-primary-dark/30 bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-3">
-                <Brain className="size-8 text-primary-dark" />
-                <div>
-                  <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                    60問 詳細診断
-                  </h3>
-                  <p className="text-sm text-text-body">約8〜10分で完了</p>
+              <div className="group relative flex flex-col items-center text-center transition-transform duration-300 hover:scale-[1.02]" style={{ animationDelay: "100ms" }}>
+                <div className="mb-6 flex size-16 items-center justify-center rounded-full bg-primary font-bold text-white shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:shadow-xl">
+                  STEP 2
                 </div>
+                <h3 className="mb-3 text-xl font-bold text-text-dark">
+                  AI分析・相性チェック
+                </h3>
+                <p className="text-base leading-7 text-text-body">
+                  診断結果と相性スコアに基づいて、最適化された活動一覧と、AIによる詳細な分析コメントを確認します。
+                </p>
+                {/* 矢印 (PCのみ) */}
+                <ArrowRight className="absolute top-8 -right-4 hidden size-8 text-primary/30 transition-transform duration-300 group-hover:translate-x-2 md:block" />
               </div>
-              <ul className="mt-6 flex flex-col gap-2">
-                {[
-                  "より精密な性格分析",
-                  "5つの特性を多角的に分析",
-                  "より適切なマッチングを実現",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-2">
-                    <span className="size-2 shrink-0 rounded-full bg-primary-dark" />
-                    <span className="text-sm text-text-dark">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        {/* 利用の流れ */}
-        <section className="flex flex-col items-center gap-8 py-12">
-          <h2 className="text-base text-text-dark">利用の流れ</h2>
-          <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-3">
-            {[
-              {
-                step: 1,
-                color: "bg-primary",
-                title: "ボランティア診断",
-                description:
-                  "10問または96問の質問に答えて、あなたのボランティアタイプを診断します",
-              },
-              {
-                step: 2,
-                color: "bg-primary-dark",
-                title: "マッチング",
-                description:
-                  "診断結果に基づいて、あなたに最適なボランティア活動を提案します",
-              },
-              {
-                step: 3,
-                color: "bg-text-dark",
-                title: "参加申し込み",
-                description:
-                  "気になる活動があれば、詳細を確認して参加申し込みができます",
-              },
-            ].map((item) => (
-              <div
-                key={item.step}
-                className="flex flex-col items-center gap-4 text-center"
-              >
-                <div
-                  className={`flex size-12 items-center justify-center rounded-full ${item.color} text-base font-medium text-white`}
-                >
-                  {item.step}
+              <div className="group relative flex flex-col items-center text-center transition-transform duration-300 hover:scale-[1.02]" style={{ animationDelay: "200ms" }}>
+                <div className="mb-6 flex size-16 items-center justify-center rounded-full bg-text-dark font-bold text-white shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:shadow-xl">
+                  STEP 3
                 </div>
-                <h3 className="text-base text-text-dark">{item.title}</h3>
-                <p className="text-sm leading-5 text-text-body">
-                  {item.description}
+                <h3 className="mb-3 text-xl font-bold text-text-dark">
+                  参加申し込み
+                </h3>
+                <p className="text-base leading-7 text-text-body">
+                  気になる活動が見つかったら、詳細を確認してすぐに応募。同じ志を持つ仲間と一緒に社会に貢献しましょう。
                 </p>
               </div>
-            ))}
-          </div>
-        </section>
-      </main>}
+            </div>
+          </section>
+
+          {/* ボトム CTA */}
+          <section className="mt-32 rounded-3xl bg-background p-8 text-center sm:p-16">
+            <h2 className="text-3xl font-bold tracking-tight text-text-dark">
+              早速、あなたの特性を診断してみましょう
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-text-body">
+              アカウント登録不要で、すぐに診断を開始できます。
+            </p>
+            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <Link
+                href="/diagnosis?mode=brief"
+                className="flex h-14 w-full max-w-[280px] items-center justify-center gap-2 rounded-xl border-2 border-primary bg-white px-8 text-base font-bold text-text-dark transition-all hover:bg-gray-50 sm:w-auto"
+              >
+                <Zap className="size-5 text-primary" />
+                16問 簡易診断
+              </Link>
+              <Link
+                href="/diagnosis?mode=full"
+                className="flex h-14 w-full max-w-[280px] items-center justify-center gap-2 rounded-xl bg-primary px-8 text-base font-bold text-white shadow-md transition-all hover:bg-primary-dark sm:w-auto"
+              >
+                <Brain className="size-5" />
+                60問 詳細診断
+                <ArrowRight className="ml-1 size-5" />
+              </Link>
+            </div>
+          </section>
+        </main>
+      )}
     </div>
   );
 }
