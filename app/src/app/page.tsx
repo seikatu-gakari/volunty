@@ -48,10 +48,8 @@ export default async function Home() {
                 </span>
               </div>
               <h1 className="text-4xl font-extrabold tracking-tight text-text-dark sm:text-5xl lg:text-6xl">
-                性格から、ぴったりの
-                <br className="max-sm:hidden" />
-                <span className="text-primary">ボランティア</span>
-                に出会う
+                つながる、みつかる、
+                <span className="text-primary">変わっていく</span>
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-text-body">
                 独自の性格診断アルゴリズムを用いて、あなたの特性や強みを診断。相性スコアとAI分析が、あなたに最も適したボランティア活動への第一歩をサポートします。
