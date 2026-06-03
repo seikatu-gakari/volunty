@@ -88,6 +88,16 @@ export async function proxy(request: NextRequest) {
   const metadata = user.user_metadata as Record<string, unknown>;
   const role = metadata.role as string | undefined;
 
+  // 管理者: トップアクセス時は管理ダッシュボードへ。onboarding/verified チェックはスキップ
+  if (role === "admin") {
+    if (pathname === "/") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin/organizations";
+      return redirectWithCookies(url, response);
+    }
+    return response;
+  }
+
   // ロール未選択 → /onboarding/role
   if (!role) {
     const url = request.nextUrl.clone();

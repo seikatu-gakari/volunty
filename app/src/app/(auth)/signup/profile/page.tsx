@@ -15,7 +15,6 @@ const STEP2_PROGRESS = Math.round((2 / 3) * 100);
 
 interface SignupTemp {
   email: string;
-  role: "participant" | "organization";
 }
 
 export default function SignupProfilePage() {
@@ -56,7 +55,6 @@ export default function SignupProfilePage() {
         options: {
           data: {
             full_name: name,
-            role: signupData.role,
           },
         },
       });

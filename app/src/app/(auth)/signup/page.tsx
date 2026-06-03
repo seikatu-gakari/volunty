@@ -9,19 +9,14 @@ import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { Divider } from "@/app/components/ui/Divider";
 import { ProgressBar } from "@/app/components/ui/ProgressBar";
-import {
-  RoleTabSwitcher,
-  type AuthRole,
-} from "@/app/components/auth/RoleTabSwitcher";
 import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { AuthFooter } from "@/app/components/auth/AuthFooter";
 
-/** Step 1 で一時保存するキー（パスワード以外の情報のみ） */
+/** Step 1 で一時保存するキー（メールアドレスのみ） */
 export const SIGNUP_TEMP_KEY = "volunty_signup_temp";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [role, setRole] = useState<AuthRole>("participant");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,10 +24,11 @@ export default function SignupPage() {
   const handleGoogleSignup = async () => {
     const supabase = createClient();
     const origin = location.origin.replace("//0.0.0.0:", "//localhost:");
+    // 認証後は proxy が role 未設定を検知して /onboarding/role へ誘導する
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback?next=/signup/profile`,
+        redirectTo: `${origin}/auth/callback`,
       },
     });
   };
@@ -43,11 +39,8 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // メールアドレスとロールのみを一時保存（パスワードは次のステップで入力）
-      sessionStorage.setItem(
-        SIGNUP_TEMP_KEY,
-        JSON.stringify({ email, role })
-      );
+      // メールアドレスのみ一時保存（パスワード・名前は次のステップで入力）
+      sessionStorage.setItem(SIGNUP_TEMP_KEY, JSON.stringify({ email }));
       router.push("/signup/profile");
     } catch {
       setError("ページ遷移中にエラーが発生しました");
@@ -77,8 +70,6 @@ export default function SignupPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <RoleTabSwitcher role={role} onRoleChange={setRole} />
-
           <GoogleAuthButton
             label="Googleで登録"
             onClick={handleGoogleSignup}

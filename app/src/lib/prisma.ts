@@ -38,7 +38,7 @@ function createPrismaClient(): PrismaClient {
   const rawUrl = process.env["DATABASE_URL"];
   if (!rawUrl) {
     throw new Error(
-      "DATABASE_URL 環境変数が未設定です。.env.local ファイルを確認してください"
+      "DATABASE_URL 環境変数が未設定です。.env.local またはシェル環境変数を確認してください"
     );
   }
 

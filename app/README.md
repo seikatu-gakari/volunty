@@ -27,19 +27,15 @@ make install
 
 ### 2. 環境変数の設定
 
-このプロジェクトは2つの env ファイルを使います。
+このプロジェクトのローカル環境変数は `.env.local` に統一しています。
 
-| ファイル     | 読む主体   | 用途                                        |
-| ------------ | ---------- | ------------------------------------------- |
-| `.env`       | Prisma CLI | `migrate dev` / `db seed` 用の DB 接続設定  |
-| `.env.local` | Next.js    | ブラウザ公開キー等。`.env` の値を上書きする |
+| ファイル             | 読む主体                                             | 用途                                 |
+| -------------------- | ---------------------------------------------------- | ------------------------------------ |
+| `.env.local`         | Next.js / Prisma CLI / Supabase CLI / 補助スクリプト | ローカル開発で使う接続情報と秘密情報 |
+| `.env.local.example` | セットアップ用テンプレート                           | 初期作成用の雛形                     |
 
 ```bash
-# Prisma CLI / Supabase CLI 用（.env）
-cp app/.env.example app/.env
-# → DATABASE_URL / DIRECT_URL と、ローカル Google OAuth 用の認証情報を設定
-
-# Next.js 用（.env.local）— ローカル Supabase の値は supabase start 後に make supabase-status で確認
+# ローカル開発用の設定を作成
 cp app/.env.local.example app/.env.local
 ```
 
@@ -94,10 +90,10 @@ DIRECT_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 
 ### 3. Google OAuth のローカル設定
 
-ローカル Supabase Auth で Google ログインを使うには、Google Cloud の OAuth クライアント情報を `app/.env` に設定してください。
+ローカル Supabase Auth で Google ログインを使うには、Google Cloud の OAuth クライアント情報を `.env.local` に設定してください。
 
 ```bash
-# app/.env
+# app/.env.local
 SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=<Google OAuth クライアント ID>
 SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=<Google OAuth クライアント シークレット>
 ```
@@ -113,7 +109,7 @@ make supabase-clean
 make supabase-start
 ```
 
-`Unsupported provider: provider is not enabled` が出る場合は、`app/.env` の Google OAuth 環境変数を設定したうえで Supabase を再起動してください。
+`Unsupported provider: provider is not enabled` が出る場合は、`.env.local` の Google OAuth 環境変数を設定したうえで Supabase を再起動してください。
 
 ### 4. テーブル・データの確認
 
