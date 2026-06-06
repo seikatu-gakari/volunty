@@ -3,7 +3,7 @@ import { Search, Info, Users, MapPin, ArrowRight, CheckCircle } from "lucide-rea
 const PAIN_POINTS = [
   {
     problem: "興味のある活動がなかった",
-    solution: "性格診断であなたの"得意"に合う活動を提案",
+    solution: "性格診断であなたの「得意」に合う活動を提案",
     problemIcon: Search,
     solutionIcon: CheckCircle,
   },

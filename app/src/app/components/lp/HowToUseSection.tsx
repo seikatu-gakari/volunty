@@ -22,7 +22,7 @@ const STEPS = [
     label: "STEP 3",
     icon: Handshake,
     title: "参加・つながり",
-    desc: "気になる活動に参加して、新しい仲間や"小さな承認体験"を。",
+    desc: "気になる活動に参加して、新しい仲間や「小さな承認体験」を。",
     color: "bg-green-100 text-green-600",
   },
 ];
