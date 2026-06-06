@@ -20,7 +20,7 @@ export function LPHeroSection() {
       <div className="relative mx-auto max-w-3xl text-center">
         <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-bold text-primary-dark">
           <Brain className="size-4" />
-          AI性格診断 × ボランティア
+          AI × 性格診断 × ボランティア
         </div>
 
         <div className="mb-6 flex flex-wrap justify-center gap-3">

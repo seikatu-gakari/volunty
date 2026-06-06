@@ -64,9 +64,6 @@ export function LPFooter() {
 
       <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-card-border pt-6 sm:flex-row">
         <p className="text-xs text-text-body">© 2025 Volunty. All rights reserved.</p>
-        <p className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary-dark">
-          <span>📱</span> 「東京アプリ」連携予定
-        </p>
       </div>
     </footer>
   );
