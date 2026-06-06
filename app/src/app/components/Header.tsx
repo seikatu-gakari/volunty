@@ -80,7 +80,7 @@ export async function Header() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-header-border bg-background/60 backdrop-blur-sm">
-      <div className="mx-auto flex h-[77px] max-w-5xl items-center justify-between px-8 pt-4 pb-px">
+      <div className="mx-auto flex h-[77px] max-w-7xl items-center justify-between px-8 pt-4 pb-px">
         <Link href="/" className="flex items-center gap-2">
           <div className="relative">
             <Heart className="size-8 text-primary" fill="#fb5b01" strokeWidth={0} />
@@ -95,6 +95,25 @@ export async function Header() {
             </span>
           </div>
         </Link>
+        {!user && (
+          <nav className="hidden items-center gap-1 md:flex">
+            {[
+              { href: "#kadai", label: "課題" },
+              { href: "#shikumi", label: "仕組み" },
+              { href: "#types", label: "診断タイプ" },
+              { href: "#usage", label: "使い方" },
+              { href: "#faq", label: "FAQ" },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-text-body transition-colors hover:bg-primary/10 hover:text-text-dark"
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        )}
         <HeaderAuth user={user} userState={userState} />
       </div>
     </header>
