@@ -111,3 +111,12 @@ body {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
+
+/* カルーセルのスクロールバー非表示 */
+.lp-carousel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.lp-carousel::-webkit-scrollbar {
+  display: none;
+}
