@@ -42,7 +42,7 @@ export function PainPointsSection() {
           「やってみたい」のに、一歩を踏み出せない。
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-text-body">
-          ボランティアに関心はあっても、参加に至らない人は多数。その"つまずき"を、Voluntyはひとつずつ解消します。
+          ボランティアに関心はあっても、参加に至らない人は多数。その「つまずき」を、Voluntyはひとつずつ解消します。
         </p>
       </div>
 

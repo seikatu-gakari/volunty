@@ -42,7 +42,7 @@ export function LPHeroSection() {
           </span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-text-body">
-          「何から始めればいい？」をAIが解決。約2分の性格診断で、あなたの"得意"にぴったりのボランティアが見つかります。
+          「何から始めればいい？」をAIが解決。約2分の性格診断で、あなたの「得意」にぴったりのボランティアが見つかります。
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
