@@ -49,6 +49,7 @@ export default function SignupProfilePage() {
 
     try {
       const supabase = createClient();
+      const origin = location.origin.replace("//0.0.0.0:", "//localhost:");
       const { data, error } = await supabase.auth.signUp({
         email: signupData.email,
         password,
@@ -56,6 +57,7 @@ export default function SignupProfilePage() {
           data: {
             full_name: name,
           },
+          emailRedirectTo: `${origin}/auth/callback?next=/onboarding/role`,
         },
       });
 
