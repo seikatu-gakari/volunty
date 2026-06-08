@@ -37,3 +37,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .mcp.json
+.agent-shared/backups/
+.agent-shared/mcp/generated/

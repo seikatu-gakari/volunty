@@ -1,0 +1,44 @@
+# Agent Instructions — Volunty
+
+このファイルは Volunty リポジトリ専用の Claude Code / Codex 共通入口です。
+詳細なプロジェクト情報は `.agent-shared/skills/` 配下へ分割しています。
+
+## 共通開発ルール
+
+- 日本語で簡潔に回答する。
+- 変更前に方針を説明する。
+- 破壊的変更は必ず確認する。
+- TypeScript では型安全性を優先する。
+- テスト、lint、型チェックを可能な限り実行する。
+- 実装後に変更点、確認結果、残タスクをまとめる。
+
+## 基本方針
+
+- Volunty は BIG5 性格診断によるボランティアマッチング Web アプリです。
+- UI テキスト、コードコメント、説明は日本語で統一します。
+- 作業内容に関係する skill だけを読み込み、不要な詳細情報を LLM コンテキストに載せないでください。
+- 既存の設計・ディレクトリ・型・テスト方針は該当 skill を読んでから判断してください。
+
+## Skill ルーター
+
+| 必要な情報           | 読み込む skill                                              | 主な用途                                                    |
+| -------------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
+| プロジェクト概要     | `.agent-shared/skills/volunty-project-overview/SKILL.md`          | Volunty の目的、ロール、言語方針を確認する                  |
+| 技術スタック         | `.agent-shared/skills/volunty-tech-stack/SKILL.md`                | Next.js、React、Prisma、Supabase などの構成を確認する       |
+| ディレクトリ構造     | `.agent-shared/skills/volunty-directory-structure/SKILL.md`       | ファイル配置、パスエイリアス、探索先を確認する              |
+| 開発コマンド         | `.agent-shared/skills/volunty-dev-commands/SKILL.md`              | lint、test、build、Docker 操作を実行する                    |
+| アーキテクチャ・設計 | `.agent-shared/skills/volunty-architecture-design/SKILL.md`       | Server Components、XState、診断フロー、デザイン色を確認する |
+| コーディング規約     | `.agent-shared/skills/volunty-coding-conventions/SKILL.md`        | 型安全、インポート、スタイリング、テスト配置を確認する      |
+| MCP 運用             | `.agent-shared/skills/volunty-mcp-operations/SKILL.md`            | `.mcp.json` や GitHub MCP 認証情報の扱いを確認する          |
+| ドメイン知識         | `.agent-shared/skills/volunty-domain-knowledge/SKILL.md`          | BIG5 特性、10 類型、主要ドメイン型を確認する                |
+| ブランチ運用         | `.agent-shared/skills/volunty-branch-workflow/SKILL.md`           | feature ブランチ、PR、preview/main への流れを確認する       |
+| ドキュメントマップ   | `.agent-shared/skills/volunty-document-map/SKILL.md`              | 関連設計書・仕様書の参照先を確認する                        |
+| AI 開発時の注意事項  | `.agent-shared/skills/volunty-ai-development-guidelines/SKILL.md` | 実装前の確認事項、Supabase・設計書参照ルールを確認する      |
+| Super MVP 監査       | `.agent-shared/skills/super-mvp-implementation-audit/SKILL.md`    | Super MVP の実装状況、設計書との差分、未実装機能を確認する  |
+| RTK                  | `.agent-shared/skills/volunty-rtk-cli/SKILL.md`                   | ローカルコマンド出力を削減したい時に確認する                |
+
+## 運用ルール
+
+1. タスクを始める前に上表から関係する skill を選び、必要なものだけ読む。
+2. 新しい恒久的なプロジェクト知識を追加する場合は、AGENTS.md へ長文を戻さず、該当 skill を更新する。
+3. 複数セクションにまたがる作業では、関係する skill を組み合わせて読む。
