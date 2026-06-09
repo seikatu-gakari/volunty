@@ -1,21 +1,16 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Mail, Lock } from "lucide-react";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
-import { Button } from "@/app/components/ui/Button";
-import { Input } from "@/app/components/ui/Input";
-import { Divider } from "@/app/components/ui/Divider";
 import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { AuthFooter } from "@/app/components/auth/AuthFooter";
 
 export default function LoginPage() {
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  // メール認証を再開する場合は、useState/FormEvent とメールログインフォームを戻す。
+  // const [email, setEmail] = useState("");
+  // const [password, setPassword] = useState("");
+  // const [error, setError] = useState<string | null>(null);
+  // const [loading, setLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
     const supabase = createClient();
@@ -29,31 +24,31 @@ export default function LoginPage() {
     });
   };
 
-  const handleEmailLogin = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        setError("メールアドレスまたはパスワードが正しくありません");
-        return;
-      }
-
-      // ログイン成功 — ホームにリダイレクト
-      window.location.href = "/";
-    } catch {
-      setError("ログイン中にエラーが発生しました");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const handleEmailLogin = async (e: FormEvent) => {
+  //   e.preventDefault();
+  //   setError(null);
+  //   setLoading(true);
+  //
+  //   try {
+  //     const supabase = createClient();
+  //     const { error } = await supabase.auth.signInWithPassword({
+  //       email,
+  //       password,
+  //     });
+  //
+  //     if (error) {
+  //       setError("メールアドレスまたはパスワードが正しくありません");
+  //       return;
+  //     }
+  //
+  //     // ログイン成功 — ホームにリダイレクト
+  //     window.location.href = "/";
+  //   } catch {
+  //     setError("ログイン中にエラーが発生しました");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
@@ -71,6 +66,7 @@ export default function LoginPage() {
             onClick={handleGoogleLogin}
           />
 
+          {/*
           <Divider text="または" />
 
           <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
@@ -104,6 +100,7 @@ export default function LoginPage() {
               {loading ? "ログイン中..." : "ログイン"}
             </Button>
           </form>
+          */}
 
           <AuthFooter
             message="アカウントをお持ちでないですか？"

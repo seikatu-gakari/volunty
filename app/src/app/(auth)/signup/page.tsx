@@ -1,13 +1,9 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Mail, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
-import { Button } from "@/app/components/ui/Button";
-import { Input } from "@/app/components/ui/Input";
-import { Divider } from "@/app/components/ui/Divider";
 import { ProgressBar } from "@/app/components/ui/ProgressBar";
 import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { AuthFooter } from "@/app/components/auth/AuthFooter";
@@ -17,9 +13,10 @@ export const SIGNUP_TEMP_KEY = "volunty_signup_temp";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  // メール認証を再開する場合は、useState/FormEvent とメール登録フォームを戻す。
+  // const [email, setEmail] = useState("");
+  // const [error, setError] = useState<string | null>(null);
+  // const [loading, setLoading] = useState(false);
 
   const handleGoogleSignup = async () => {
     const supabase = createClient();
@@ -33,20 +30,20 @@ export default function SignupPage() {
     });
   };
 
-  const handleNext = (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    try {
-      // メールアドレスのみ一時保存（パスワード・名前は次のステップで入力）
-      sessionStorage.setItem(SIGNUP_TEMP_KEY, JSON.stringify({ email }));
-      router.push("/signup/profile");
-    } catch {
-      setError("ページ遷移中にエラーが発生しました");
-      setLoading(false);
-    }
-  };
+  // const handleNext = (e: FormEvent) => {
+  //   e.preventDefault();
+  //   setError(null);
+  //   setLoading(true);
+  //
+  //   try {
+  //     // メールアドレスのみ一時保存（パスワード・名前は次のステップで入力）
+  //     sessionStorage.setItem(SIGNUP_TEMP_KEY, JSON.stringify({ email }));
+  //     router.push("/signup/profile");
+  //   } catch {
+  //     setError("ページ遷移中にエラーが発生しました");
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
@@ -75,6 +72,7 @@ export default function SignupPage() {
             onClick={handleGoogleSignup}
           />
 
+          {/*
           <Divider text="または" />
 
           <form onSubmit={handleNext} className="flex flex-col gap-4">
@@ -97,6 +95,7 @@ export default function SignupPage() {
               {loading ? "処理中..." : "次へ (詳細情報の入力)"}
             </Button>
           </form>
+          */}
 
           <AuthFooter
             message="既にアカウントをお持ちですか？"
