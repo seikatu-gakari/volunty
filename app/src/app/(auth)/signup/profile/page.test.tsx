@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import SignupProfilePage from "./page";
 import { SIGNUP_TEMP_KEY } from "@/app/(auth)/signup/page";
@@ -26,6 +26,7 @@ vi.mock("@/lib/supabase/client", () => ({
 describe("SignupProfilePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://volunty.vercel.app/");
     sessionStorage.clear();
     sessionStorage.setItem(
       SIGNUP_TEMP_KEY,
@@ -37,7 +38,11 @@ describe("SignupProfilePage", () => {
     });
   });
 
-  it("確認メールリンクがロール選択画面へ戻るよう emailRedirectTo を指定する", async () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("確認メールを本番環境の認証コールバックURLで送信する", async () => {
     render(<SignupProfilePage />);
 
     fireEvent.change(screen.getByLabelText("お名前"), {
@@ -57,7 +62,7 @@ describe("SignupProfilePage", () => {
         data: {
           full_name: "山田 太郎",
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding/role`,
+        emailRedirectTo: "https://volunty.vercel.app/auth/callback",
       },
     });
     expect(mocks.push).toHaveBeenCalledWith("/signup/complete");

@@ -12,9 +12,20 @@ import { SIGNUP_TEMP_KEY } from "@/app/(auth)/signup/page";
 
 /** ステップ数に基づくプログレスバー値 */
 const STEP2_PROGRESS = Math.round((2 / 3) * 100);
+const PRODUCTION_SITE_URL = "https://volunty.vercel.app";
 
 interface SignupTemp {
   email: string;
+}
+
+function getSignupEmailRedirectTo() {
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.NODE_ENV === "production"
+      ? PRODUCTION_SITE_URL
+      : location.origin.replace("//0.0.0.0:", "//localhost:"));
+
+  return `${siteUrl.replace(/\/+$/, "")}/auth/callback`;
 }
 
 export default function SignupProfilePage() {
@@ -49,7 +60,6 @@ export default function SignupProfilePage() {
 
     try {
       const supabase = createClient();
-      const origin = location.origin.replace("//0.0.0.0:", "//localhost:");
       const { data, error } = await supabase.auth.signUp({
         email: signupData.email,
         password,
@@ -57,7 +67,7 @@ export default function SignupProfilePage() {
           data: {
             full_name: name,
           },
-          emailRedirectTo: `${origin}/auth/callback?next=/onboarding/role`,
+          emailRedirectTo: getSignupEmailRedirectTo(),
         },
       });
 
