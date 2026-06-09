@@ -1,5 +1,8 @@
 "use server";
 
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchParticipantProfileByUserIdWithDebug } from "@/lib/participant-profile/server";
 import type {
@@ -7,6 +10,7 @@ import type {
   ApplicationWithDetails,
   ParticipantProfile,
   DataFetchAlert,
+  DeleteAccountState,
 } from "./types";
 
 const MATCHING_CANDIDATE_STATUSES = [
@@ -17,6 +21,8 @@ const MATCHING_CANDIDATE_STATUSES = [
 ] as const;
 
 type MatchingCandidateStatus = (typeof MATCHING_CANDIDATE_STATUSES)[number];
+
+const DELETE_ACCOUNT_CONFIRMATION = "削除する";
 
 const MATCHING_STATUS_TO_APPLICATION_STATUS: Record<
   MatchingCandidateStatus,
@@ -196,4 +202,72 @@ export async function fetchMyPageData(): Promise<MyPageData> {
   }
 
   return { profile, applications, alert };
+}
+
+/** ログイン中ユーザーのアカウントを物理削除する。 */
+export async function deleteMyAccount(
+  _prevState: DeleteAccountState,
+  formData: FormData
+): Promise<DeleteAccountState> {
+  if (formData.get("confirmation") !== DELETE_ACCOUNT_CONFIRMATION) {
+    return { error: "確認欄に「削除する」と入力してください。" };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return {
+      error: "ログイン状態を確認できませんでした。再ログインしてからお試しください。",
+    };
+  }
+
+  let adminClient: ReturnType<typeof createAdminClient>;
+  try {
+    adminClient = createAdminClient();
+  } catch (err) {
+    console.error("[deleteMyAccount] Supabase管理クライアント作成に失敗:", err);
+    return {
+      error: "アカウント削除の準備に失敗しました。管理用環境変数を確認してください。",
+    };
+  }
+
+  try {
+    await prisma.user.deleteMany({
+      where: { id: user.id },
+    });
+  } catch (err) {
+    console.error("[deleteMyAccount] m_user の物理削除に失敗:", err);
+    return {
+      error: "アカウント削除に失敗しました。時間をおいて再度お試しください。",
+    };
+  }
+
+  try {
+    const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(
+      user.id,
+      false
+    );
+
+    if (deleteAuthError) {
+      console.error(
+        "[deleteMyAccount] Supabase Auth ユーザー削除に失敗:",
+        deleteAuthError
+      );
+      return {
+        error:
+          "認証アカウントの削除に失敗しました。時間をおいて再度お試しください。",
+      };
+    }
+  } catch (err) {
+    console.error("[deleteMyAccount] Supabase Auth ユーザー削除で例外:", err);
+    return {
+      error: "認証アカウントの削除に失敗しました。時間をおいて再度お試しください。",
+    };
+  }
+
+  redirect("/login?accountDeleted=1");
 }

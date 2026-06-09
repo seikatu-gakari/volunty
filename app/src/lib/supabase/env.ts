@@ -14,3 +14,8 @@ export function getSupabaseServerUrl() {
 export function getSupabaseAnonKey() {
   return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 }
+
+/** Supabase Admin API 用 service role key を返す。 */
+export function getSupabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
