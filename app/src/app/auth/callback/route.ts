@@ -1,6 +1,30 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+function normalizeOrigin(origin: string) {
+  return origin.replace("//0.0.0.0:", "//localhost:");
+}
+
+function getSafeNextPath(next: string | null) {
+  if (next && next.startsWith("/") && !next.startsWith("//")) {
+    return next;
+  }
+
+  return "/";
+}
+
+function buildLoginSuccessUrl(origin: string, next: string | null) {
+  const redirectUrl = new URL(getSafeNextPath(next), origin);
+  redirectUrl.searchParams.set("toast", "login-success");
+  return redirectUrl.toString();
+}
+
+function buildLoginErrorUrl(origin: string) {
+  const redirectUrl = new URL("/login", origin);
+  redirectUrl.searchParams.set("error", "auth");
+  return redirectUrl.toString();
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -8,7 +32,7 @@ export async function GET(request: Request) {
   const authErrorDescription = requestUrl.searchParams.get("error_description");
   const next = requestUrl.searchParams.get("next") ?? "/";
   // 0.0.0.0 でアクセスした場合は localhost に補正（Docker開発環境対応）
-  const origin = requestUrl.origin.replace("//0.0.0.0:", "//localhost:");
+  const origin = normalizeOrigin(requestUrl.origin);
 
   if (authError) {
     console.error("[AuthCallback] OAuthプロバイダ認証エラー:", {
@@ -21,7 +45,7 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(buildLoginSuccessUrl(origin, next));
     }
 
     console.error("[AuthCallback] セッション交換エラー:", {
@@ -32,5 +56,5 @@ export async function GET(request: Request) {
   }
 
   // 認証エラー時はログインページにリダイレクト
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  return NextResponse.redirect(buildLoginErrorUrl(origin));
 }

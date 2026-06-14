@@ -5,6 +5,22 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { AuthFooter } from "@/app/components/auth/AuthFooter";
 
+function isSafeInternalPath(value: string | null): value is string {
+  return !!value && value.startsWith("/") && !value.startsWith("//");
+}
+
+function buildAuthCallbackUrl() {
+  const origin = location.origin.replace("//0.0.0.0:", "//localhost:");
+  const callbackUrl = new URL("/auth/callback", origin);
+  const next = new URLSearchParams(location.search).get("next");
+
+  if (isSafeInternalPath(next)) {
+    callbackUrl.searchParams.set("next", next);
+  }
+
+  return callbackUrl.toString();
+}
+
 export default function LoginPage() {
   // メール認証を再開する場合は、useState/FormEvent とメールログインフォームを戻す。
   // const [email, setEmail] = useState("");
@@ -14,12 +30,10 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     const supabase = createClient();
-    // 0.0.0.0 でアクセスした場合は localhost に補正（Supabase Redirect URLs との一致のため）
-    const origin = location.origin.replace("//0.0.0.0:", "//localhost:");
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback`,
+        redirectTo: buildAuthCallbackUrl(),
       },
     });
   };
