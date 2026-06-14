@@ -15,6 +15,15 @@ export interface OpportunityRecommendation {
   matchScore: number
 }
 
+export interface RecommendationFilters {
+  /** 団体の活動カテゴリ */
+  category?: string
+  /** 案件場所または団体の活動地域 */
+  region?: string
+  /** 参加形態 */
+  participationMode?: "online" | "offline"
+}
+
 export interface RecommendationResult {
   /** マッチングスコア順の案件一覧 */
   recommendations: OpportunityRecommendation[]

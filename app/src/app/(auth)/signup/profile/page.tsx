@@ -8,7 +8,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { ProgressBar } from "@/app/components/ui/ProgressBar";
-import { SIGNUP_TEMP_KEY } from "@/app/(auth)/signup/page";
+import { SIGNUP_TEMP_KEY } from "@/app/(auth)/signup/constants";
 
 /** ステップ数に基づくプログレスバー値 */
 const STEP2_PROGRESS = Math.round((2 / 3) * 100);

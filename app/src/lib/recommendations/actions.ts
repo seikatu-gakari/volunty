@@ -3,7 +3,11 @@
 import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
 import type { BIG5Scores } from "@/lib/personality/types"
-import type { OpportunityRecommendation, RecommendationResult } from "./types"
+import type {
+  OpportunityRecommendation,
+  RecommendationFilters,
+  RecommendationResult,
+} from "./types"
 import { calculateMatchScore } from "./matching"
 
 const BIG5_TRAIT_KEYS = [
@@ -13,6 +17,8 @@ const BIG5_TRAIT_KEYS = [
   "neuroticism",
   "openness",
 ] as const
+
+const ONLINE_KEYWORDS = ["オンライン", "リモート"] as const
 
 /**
  * 未知の値が BIG5Scores 型かどうかを実行時に検証するタイプガード
@@ -38,6 +44,60 @@ function toPartialBIG5Scores(
   return result
 }
 
+function normalizeFilterValue(value?: string): string | null {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === "string")
+}
+
+function matchesCategory(value: unknown, category: string): boolean {
+  return toStringArray(value).some((item) => item === category)
+}
+
+function matchesRegion(
+  location: string | null,
+  activityAreas: unknown,
+  region: string
+): boolean {
+  const locationMatched = location?.includes(region) ?? false
+  const areaMatched = toStringArray(activityAreas).some((area) =>
+    area.includes(region)
+  )
+  return locationMatched || areaMatched
+}
+
+function normalizeParticipationMode(
+  value?: string
+): RecommendationFilters["participationMode"] | null {
+  return value === "online" || value === "offline" ? value : null
+}
+
+function isOnlineOpportunity(
+  location: string | null,
+  activityAreas: unknown
+): boolean {
+  const values = [
+    ...(location ? [location] : []),
+    ...toStringArray(activityAreas),
+  ]
+  return values.some((value) =>
+    ONLINE_KEYWORDS.some((keyword) => value.includes(keyword))
+  )
+}
+
+function matchesParticipationMode(
+  location: string | null,
+  activityAreas: unknown,
+  participationMode: NonNullable<RecommendationFilters["participationMode"]>
+): boolean {
+  const online = isOnlineOpportunity(location, activityAreas)
+  return participationMode === "online" ? online : !online
+}
+
 /**
  * 現在のログインユーザーのBIG5診断スコアをもとに、
  * マッチングスコア順にソートされたおすすめ案件一覧を返す。
@@ -46,7 +106,9 @@ function toPartialBIG5Scores(
  * - 診断未実施時: recommendations=[], hasCompletedDiagnosis=false
  * - 正常時: マッチングスコア降順の案件一覧
  */
-export async function fetchRecommendations(): Promise<RecommendationResult> {
+export async function fetchRecommendations(
+  filters?: RecommendationFilters
+): Promise<RecommendationResult> {
   try {
     const supabase = await createClient()
 
@@ -69,6 +131,12 @@ export async function fetchRecommendations(): Promise<RecommendationResult> {
       return { recommendations: [], hasCompletedDiagnosis: false }
     }
 
+    const categoryFilter = normalizeFilterValue(filters?.category)
+    const regionFilter = normalizeFilterValue(filters?.region)
+    const participationModeFilter = normalizeParticipationMode(
+      filters?.participationMode
+    )
+
     // 公開中の案件を団体名とともに取得
     const opportunities = await prisma.opportunity.findMany({
       where: { status: "published" },
@@ -76,9 +144,14 @@ export async function fetchRecommendations(): Promise<RecommendationResult> {
         id: true,
         title: true,
         description: true,
+        location: true,
         requirementTraits: true,
         organization: {
-          select: { organizationName: true },
+          select: {
+            organizationName: true,
+            activityCategories: true,
+            activityAreas: true,
+          },
         },
       },
     })
@@ -87,8 +160,45 @@ export async function fetchRecommendations(): Promise<RecommendationResult> {
       return { recommendations: [], hasCompletedDiagnosis: true }
     }
 
+    const filteredOpportunities = opportunities.filter((opp) => {
+      if (
+        categoryFilter &&
+        !matchesCategory(opp.organization.activityCategories, categoryFilter)
+      ) {
+        return false
+      }
+
+      if (
+        regionFilter &&
+        !matchesRegion(
+          opp.location,
+          opp.organization.activityAreas,
+          regionFilter
+        )
+      ) {
+        return false
+      }
+
+      if (
+        participationModeFilter &&
+        !matchesParticipationMode(
+          opp.location,
+          opp.organization.activityAreas,
+          participationModeFilter
+        )
+      ) {
+        return false
+      }
+
+      return true
+    })
+
+    if (filteredOpportunities.length === 0) {
+      return { recommendations: [], hasCompletedDiagnosis: true }
+    }
+
     // マッチングスコアを計算してソート
-    const recommendations: OpportunityRecommendation[] = opportunities
+    const recommendations: OpportunityRecommendation[] = filteredOpportunities
       .map((opp) => ({
         id: opp.id,
         title: opp.title,

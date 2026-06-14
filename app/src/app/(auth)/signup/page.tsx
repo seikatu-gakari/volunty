@@ -8,9 +8,6 @@ import { ProgressBar } from "@/app/components/ui/ProgressBar";
 import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { AuthFooter } from "@/app/components/auth/AuthFooter";
 
-/** Step 1 で一時保存するキー（メールアドレスのみ） */
-export const SIGNUP_TEMP_KEY = "volunty_signup_temp";
-
 export default function SignupPage() {
   const router = useRouter();
   // メール認証を再開する場合は、useState/FormEvent とメール登録フォームを戻す。
