@@ -3,6 +3,9 @@ import type { MyPageData } from "./types";
 
 const mockGetUser = vi.fn();
 const mockFetchParticipantProfileByUserIdWithDebug = vi.fn();
+const mockDeleteManyUser = vi.fn();
+const mockDeleteAuthUser = vi.fn();
+const mockRedirect = vi.fn();
 
 type MatchingRow = {
   id: string;
@@ -61,7 +64,35 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-const { fetchMyPageData } = await import("./actions");
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(() => ({
+    auth: {
+      admin: {
+        deleteUser: (...args: unknown[]) => mockDeleteAuthUser(...args),
+      },
+    },
+  })),
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    user: {
+      deleteMany: (...args: unknown[]) => mockDeleteManyUser(...args),
+    },
+  },
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: (...args: unknown[]) => mockRedirect(...args),
+}));
+
+const { deleteMyAccount, fetchMyPageData } = await import("./actions");
+
+function createDeleteFormData(confirmation: string) {
+  const formData = new FormData();
+  formData.set("confirmation", confirmation);
+  return formData;
+}
 
 describe("fetchMyPageData", () => {
   beforeEach(() => {
@@ -69,6 +100,8 @@ describe("fetchMyPageData", () => {
     mockMatchingRows = [];
     mockOpportunityRows = [];
     mockMatchingError = null;
+    mockDeleteManyUser.mockResolvedValue({ count: 1 });
+    mockDeleteAuthUser.mockResolvedValue({ data: { user: null }, error: null });
   });
 
   it("未認証の場合、空のデータを返す", async () => {
@@ -111,6 +144,7 @@ describe("fetchMyPageData", () => {
       region: "東京都",
       diagnosis_type: "イノベーター・リーダー",
       diagnosis_scores: { extraversion: 85, agreeableness: 70 },
+      diagnosis_updated_at: null,
     });
     expect(result.alert).toBeNull();
   });
@@ -264,5 +298,105 @@ describe("fetchMyPageData", () => {
 
     expect(result.profile).toBeNull();
     expect(result.applications).toEqual([]);
+  });
+});
+
+describe("deleteMyAccount", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDeleteManyUser.mockResolvedValue({ count: 1 });
+    mockDeleteAuthUser.mockResolvedValue({ data: { user: null }, error: null });
+  });
+
+  it("確認語句が一致しない場合、削除せずエラーを返す", async () => {
+    const result = await deleteMyAccount(
+      { error: null },
+      createDeleteFormData("削除")
+    );
+
+    expect(result).toEqual({
+      error: "確認欄に「削除する」と入力してください。",
+    });
+    expect(mockDeleteManyUser).not.toHaveBeenCalled();
+    expect(mockDeleteAuthUser).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("未認証の場合、削除せずエラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: null },
+      error: { message: "Not authenticated" },
+    });
+
+    const result = await deleteMyAccount(
+      { error: null },
+      createDeleteFormData("削除する")
+    );
+
+    expect(result).toEqual({
+      error: "ログイン状態を確認できませんでした。再ログインしてからお試しください。",
+    });
+    expect(mockDeleteManyUser).not.toHaveBeenCalled();
+    expect(mockDeleteAuthUser).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("認証済みの場合、m_user と Supabase Auth ユーザーを物理削除してログイン画面へ遷移する", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+
+    await deleteMyAccount({ error: null }, createDeleteFormData("削除する"));
+
+    expect(mockDeleteManyUser).toHaveBeenCalledWith({
+      where: { id: "user-123" },
+    });
+    expect(mockDeleteAuthUser).toHaveBeenCalledWith("user-123", false);
+    expect(mockRedirect).toHaveBeenCalledWith("/login?accountDeleted=1");
+  });
+
+  it("DB 削除に失敗した場合、Auth ユーザーを削除せずエラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+    mockDeleteManyUser.mockRejectedValue(new Error("DB error"));
+
+    const result = await deleteMyAccount(
+      { error: null },
+      createDeleteFormData("削除する")
+    );
+
+    expect(result).toEqual({
+      error: "アカウント削除に失敗しました。時間をおいて再度お試しください。",
+    });
+    expect(mockDeleteAuthUser).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("Auth ユーザー削除に失敗した場合、再試行できるエラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123", email: "test@example.com" } },
+      error: null,
+    });
+    mockDeleteAuthUser.mockResolvedValue({
+      data: { user: null },
+      error: { message: "Auth admin error" },
+    });
+
+    const result = await deleteMyAccount(
+      { error: null },
+      createDeleteFormData("削除する")
+    );
+
+    expect(result).toEqual({
+      error:
+        "認証アカウントの削除に失敗しました。時間をおいて再度お試しください。",
+    });
+    expect(mockDeleteManyUser).toHaveBeenCalledWith({
+      where: { id: "user-123" },
+    });
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

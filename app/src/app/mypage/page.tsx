@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchMyPageData } from "@/lib/mypage/actions";
 import type { ApplicationStatus } from "@/lib/mypage/types";
 import { PERSONALITY_TYPES } from "@/lib/personality/constants";
+import { DeleteAccountForm } from "./DeleteAccountForm";
 
 /** ステータスに応じたラベル・アイコン・カラー */
 function statusDisplay(status: ApplicationStatus) {
@@ -182,7 +183,7 @@ export default async function MyPage() {
         </div>
 
         {/* 応募一覧セクション */}
-        <Card>
+        <Card className="mb-8">
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
@@ -259,6 +260,21 @@ export default async function MyPage() {
                 </Link>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* アカウント削除 */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-red-50">
+                <AlertTriangle className="size-5 text-red-700" />
+              </div>
+              <h2 className="text-lg font-bold text-text-dark">アカウント削除</h2>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <DeleteAccountForm />
           </CardContent>
         </Card>
       </main>

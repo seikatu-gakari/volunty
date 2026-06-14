@@ -51,3 +51,8 @@ export interface MyPageData {
   applications: ApplicationWithDetails[];
   alert: DataFetchAlert | null;
 }
+
+/** アカウント削除フォームの状態 */
+export interface DeleteAccountState {
+  error: string | null;
+}
