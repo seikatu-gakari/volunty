@@ -1,5 +1,9 @@
+"use client"
+
 import Link from "next/link"
-import { Search, X } from "lucide-react"
+import { Loader2, Search, X } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { type FormEvent, useState } from "react"
 import type { RecommendationFilters as RecommendationFiltersType } from "@/lib/recommendations/types"
 
 const CATEGORY_OPTIONS = [
@@ -51,14 +55,66 @@ interface RecommendationFiltersProps {
   filters: RecommendationFiltersType
 }
 
+interface SearchableFilters {
+  category: string
+  region: string
+  participationMode: string
+}
+
+function readStringFormValue(formData: FormData, key: string) {
+  const value = formData.get(key)
+  return typeof value === "string" ? value : ""
+}
+
+function createFilterQuery(filters: SearchableFilters) {
+  const params = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === "") continue
+    params.set(key, value)
+  }
+
+  return params.toString()
+}
+
 /**
  * おすすめ案件一覧のカテゴリ・地域フィルタ。
  * GET パラメータで絞り込み条件をページへ渡す。
  */
 export function RecommendationFilters({ filters }: RecommendationFiltersProps) {
+  const router = useRouter()
+  const [searchingQuery, setSearchingQuery] = useState<string | null>(null)
+  const currentQuery = createFilterQuery({
+    category: filters.category ?? "",
+    region: filters.region ?? "",
+    participationMode: filters.participationMode ?? "",
+  })
+  const isSearching = searchingQuery !== null && searchingQuery !== currentQuery
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const formData = new FormData(event.currentTarget)
+    const nextFilters = {
+      category: readStringFormValue(formData, "category"),
+      region: readStringFormValue(formData, "region"),
+      participationMode: readStringFormValue(formData, "participationMode"),
+    }
+
+    const query = createFilterQuery(nextFilters)
+    const isSameFilters = query === currentQuery
+
+    if (isSameFilters) return
+
+    setSearchingQuery(query)
+    router.push(query ? `/recommendations?${query}` : "/recommendations")
+  }
+
   return (
     <form
+      aria-label="おすすめ案件フィルター"
       method="get"
+      onSubmit={handleSubmit}
       className="mb-6 grid gap-4 rounded-[10px] border border-card-border bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end"
     >
       <div className="flex flex-col gap-1">
@@ -127,14 +183,20 @@ export function RecommendationFilters({ filters }: RecommendationFiltersProps) {
       <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
         <button
           type="submit"
-          className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark sm:flex-none"
+          disabled={isSearching}
+          className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark disabled:cursor-wait disabled:opacity-80 sm:flex-none"
         >
-          <Search className="size-4" />
-          絞り込む
+          {isSearching ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Search className="size-4" />
+          )}
+          {isSearching ? "検索中" : "絞り込む"}
         </button>
         <Link
           href="/recommendations"
-          className="flex h-11 items-center justify-center gap-2 rounded-lg border border-card-border px-4 text-sm font-medium text-text-body hover:bg-background"
+          aria-disabled={isSearching}
+          className="flex h-11 items-center justify-center gap-2 rounded-lg border border-card-border px-4 text-sm font-medium text-text-body hover:bg-background aria-disabled:pointer-events-none aria-disabled:opacity-60"
         >
           <X className="size-4" />
           クリア
