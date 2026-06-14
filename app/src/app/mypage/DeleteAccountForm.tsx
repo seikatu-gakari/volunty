@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
+import { useToast } from "@/app/components/ui/ToastProvider";
 import { deleteMyAccount } from "@/lib/mypage/actions";
 import type { DeleteAccountState } from "@/lib/mypage/types";
 
@@ -17,6 +18,17 @@ export function DeleteAccountForm() {
     deleteMyAccount,
     initialState
   );
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    if (!state.error) return;
+
+    showToast({
+      type: "error",
+      title: "アカウント削除に失敗しました",
+      description: state.error,
+    });
+  }, [showToast, state.error]);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">

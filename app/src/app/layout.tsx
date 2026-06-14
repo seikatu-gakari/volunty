@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans_JP } from "next/font/google";
+import { ToastProvider } from "@/app/components/ui/ToastProvider";
 import "./globals.css";
 
 const notoSansJP = Noto_Sans_JP({
@@ -22,7 +23,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja" suppressHydrationWarning>
-      <body className={`${notoSansJP.variable} antialiased`} suppressHydrationWarning>{children}</body>
+      <body
+        className={`${notoSansJP.variable} antialiased`}
+        suppressHydrationWarning
+      >
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }
