@@ -18,6 +18,8 @@ const BIG5_TRAIT_KEYS = [
   "openness",
 ] as const
 
+const ONLINE_KEYWORDS = ["オンライン", "リモート"] as const
+
 /**
  * 未知の値が BIG5Scores 型かどうかを実行時に検証するタイプガード
  */
@@ -68,6 +70,34 @@ function matchesRegion(
   return locationMatched || areaMatched
 }
 
+function normalizeParticipationMode(
+  value?: string
+): RecommendationFilters["participationMode"] | null {
+  return value === "online" || value === "offline" ? value : null
+}
+
+function isOnlineOpportunity(
+  location: string | null,
+  activityAreas: unknown
+): boolean {
+  const values = [
+    ...(location ? [location] : []),
+    ...toStringArray(activityAreas),
+  ]
+  return values.some((value) =>
+    ONLINE_KEYWORDS.some((keyword) => value.includes(keyword))
+  )
+}
+
+function matchesParticipationMode(
+  location: string | null,
+  activityAreas: unknown,
+  participationMode: NonNullable<RecommendationFilters["participationMode"]>
+): boolean {
+  const online = isOnlineOpportunity(location, activityAreas)
+  return participationMode === "online" ? online : !online
+}
+
 /**
  * 現在のログインユーザーのBIG5診断スコアをもとに、
  * マッチングスコア順にソートされたおすすめ案件一覧を返す。
@@ -103,6 +133,9 @@ export async function fetchRecommendations(
 
     const categoryFilter = normalizeFilterValue(filters?.category)
     const regionFilter = normalizeFilterValue(filters?.region)
+    const participationModeFilter = normalizeParticipationMode(
+      filters?.participationMode
+    )
 
     // 公開中の案件を団体名とともに取得
     const opportunities = await prisma.opportunity.findMany({
@@ -141,6 +174,17 @@ export async function fetchRecommendations(
           opp.location,
           opp.organization.activityAreas,
           regionFilter
+        )
+      ) {
+        return false
+      }
+
+      if (
+        participationModeFilter &&
+        !matchesParticipationMode(
+          opp.location,
+          opp.organization.activityAreas,
+          participationModeFilter
         )
       ) {
         return false

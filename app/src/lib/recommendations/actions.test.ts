@@ -179,6 +179,81 @@ describe("fetchRecommendations", () => {
     ])
   })
 
+  it("participationMode が online の場合、オンラインまたはリモートの案件だけを返す", async () => {
+    mockFindOpportunities.mockResolvedValue([
+      createOpportunity({
+        id: "online-location",
+        location: "オンライン",
+        organization: {
+          organizationName: "オンライン団体",
+          activityCategories: ["IT支援"],
+          activityAreas: ["全国"],
+        },
+      }),
+      createOpportunity({
+        id: "remote-area",
+        location: "東京都渋谷区",
+        organization: {
+          organizationName: "リモート団体",
+          activityCategories: ["IT支援"],
+          activityAreas: ["リモート"],
+        },
+      }),
+      createOpportunity({
+        id: "offline",
+        location: "東京都練馬区",
+        organization: {
+          organizationName: "対面団体",
+          activityCategories: ["地域活動"],
+          activityAreas: ["練馬区"],
+        },
+      }),
+    ])
+
+    const result = await fetchRecommendations({ participationMode: "online" })
+
+    expect(result.recommendations.map((item) => item.id)).toEqual([
+      "online-location",
+      "remote-area",
+    ])
+  })
+
+  it("participationMode が offline の場合、オンラインまたはリモートを含まない案件だけを返す", async () => {
+    mockFindOpportunities.mockResolvedValue([
+      createOpportunity({
+        id: "online-location",
+        location: "オンライン",
+        organization: {
+          organizationName: "オンライン団体",
+          activityCategories: ["IT支援"],
+          activityAreas: ["全国"],
+        },
+      }),
+      createOpportunity({
+        id: "remote-area",
+        location: "東京都渋谷区",
+        organization: {
+          organizationName: "リモート団体",
+          activityCategories: ["IT支援"],
+          activityAreas: ["リモート"],
+        },
+      }),
+      createOpportunity({
+        id: "offline",
+        location: "東京都練馬区",
+        organization: {
+          organizationName: "対面団体",
+          activityCategories: ["地域活動"],
+          activityAreas: ["練馬区"],
+        },
+      }),
+    ])
+
+    const result = await fetchRecommendations({ participationMode: "offline" })
+
+    expect(result.recommendations.map((item) => item.id)).toEqual(["offline"])
+  })
+
   it("フィルタ後に該当案件がない場合、診断済みの空結果を返す", async () => {
     mockFindOpportunities.mockResolvedValue([
       createOpportunity({

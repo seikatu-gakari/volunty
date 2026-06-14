@@ -12,6 +12,7 @@ type RecommendationsPageProps = {
   searchParams?: Promise<{
     category?: string | string[]
     region?: string | string[]
+    participationMode?: string | string[]
   }>
 }
 
@@ -19,6 +20,13 @@ function pickSearchParam(value?: string | string[]): string | undefined {
   const param = Array.isArray(value) ? value[0] : value
   const trimmed = param?.trim()
   return trimmed ? trimmed : undefined
+}
+
+function pickParticipationMode(
+  value?: string | string[]
+): RecommendationFilters["participationMode"] | undefined {
+  const param = pickSearchParam(value)
+  return param === "online" || param === "offline" ? param : undefined
 }
 
 /**
@@ -35,8 +43,11 @@ export default async function RecommendationsPage({
   const filters: RecommendationFilters = {
     category: pickSearchParam(params?.category),
     region: pickSearchParam(params?.region),
+    participationMode: pickParticipationMode(params?.participationMode),
   }
-  const hasActiveFilters = Boolean(filters.category || filters.region)
+  const hasActiveFilters = Boolean(
+    filters.category || filters.region || filters.participationMode
+  )
 
   // 認証チェック
   let user = null

@@ -20,6 +20,8 @@ export interface RecommendationFilters {
   category?: string
   /** 案件場所または団体の活動地域 */
   region?: string
+  /** 参加形態 */
+  participationMode?: "online" | "offline"
 }
 
 export interface RecommendationResult {
