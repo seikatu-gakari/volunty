@@ -39,7 +39,7 @@ lint: ## ESLintをコンテナ内で実行（コード品質チェック）
 	$(COMPOSE) run --rm $(SERVICE) npm run lint
 
 type-check: ## TypeScriptの型チェックをコンテナ内で実行（npm run buildで検証）
-	$(COMPOSE) run --rm $(SERVICE) npm run build
+	$(COMPOSE) run --rm -e NODE_ENV=production $(SERVICE) npm run build
 
 build-next: ## Next.jsの本番ビルドをホストマシンで実行（本番デプロイ前の検証用）
 	cd $(APP_DIR) && npm run build

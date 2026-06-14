@@ -1,14 +1,9 @@
-"use client";
-
+import Link from "next/link";
 import { Mail } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/app/components/ui/Card";
-import { Button } from "@/app/components/ui/Button";
 import { ProgressBar } from "@/app/components/ui/ProgressBar";
 
 export default function SignupCompletePage() {
-  const router = useRouter();
-
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
       <Card className="w-full max-w-[640px]">
@@ -28,13 +23,12 @@ export default function SignupCompletePage() {
                 メール内のリンクをクリックして登録を完了してください。
               </p>
             </div>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => router.push("/login")}
+            <Link
+              href="/login"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-card-border bg-background px-4 text-sm font-medium text-text-dark transition-colors hover:bg-tab-bg"
             >
               ログインページへ
-            </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

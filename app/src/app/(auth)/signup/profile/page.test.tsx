@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import SignupProfilePage from "./page";
-import { SIGNUP_TEMP_KEY } from "@/app/(auth)/signup/page";
+import { SIGNUP_TEMP_KEY } from "@/app/(auth)/signup/constants";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
