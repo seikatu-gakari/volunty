@@ -6,7 +6,7 @@ const STEPS = [
     label: "STEP 1",
     icon: ClipboardList,
     title: "診断・登録",
-    desc: "16〜60問に答えて、あなたの特性や興味を診断。登録は無料です。",
+    desc: "16問の簡易診断または60問の詳細診断で、あなたの特性や興味を診断。登録は無料です。",
     color: "bg-orange-100 text-orange-600",
   },
   {

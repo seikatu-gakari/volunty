@@ -337,7 +337,7 @@ export default function Home() {
                 color: "bg-primary",
                 title: "ボランティア診断",
                 description:
-                  "10問または96問の質問に答えて、あなたのボランティアタイプを診断します",
+                  "16問の簡易診断または60問の詳細診断で、あなたのボランティアタイプを診断します",
               },
               {
                 step: 2,
