@@ -4,6 +4,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import {
+  getParticipantRoleError,
+  resolveOnboardingRole,
+} from "@/lib/onboarding/role";
 import type {
   RegisterParticipantData,
   RegisterParticipantResult,
@@ -79,6 +83,20 @@ export async function registerParticipant(
 
     if (!user) {
       return { success: false, error: "ログインが必要です" };
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { role: true },
+    });
+    const metadata = user.user_metadata as Record<string, unknown> | undefined;
+    const role = resolveOnboardingRole({
+      dbRole: dbUser?.role,
+      metadataRole: metadata?.role,
+    });
+
+    if (role !== "participant") {
+      return { success: false, error: getParticipantRoleError(role) };
     }
 
     // 必須フィールドのバリデーション

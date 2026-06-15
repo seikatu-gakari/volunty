@@ -26,6 +26,7 @@ vi.mock("@/lib/supabase/server", () => ({
 // Prisma のモック
 const mockPrismaUserUpdate = vi.fn();
 const mockPrismaUserUpsert = vi.fn();
+const mockPrismaUserFindUnique = vi.fn();
 const mockPrismaOrgUpsert = vi.fn();
 const mockPrismaParticipantUpsert = vi.fn();
 vi.mock("@/lib/prisma", () => ({
@@ -33,6 +34,7 @@ vi.mock("@/lib/prisma", () => ({
     user: {
       update: (...args: unknown[]) => mockPrismaUserUpdate(...args),
       upsert: (...args: unknown[]) => mockPrismaUserUpsert(...args),
+      findUnique: (...args: unknown[]) => mockPrismaUserFindUnique(...args),
     },
     organizationProfile: {
       upsert: (...args: unknown[]) => mockPrismaOrgUpsert(...args),
@@ -101,6 +103,7 @@ describe("registerParticipant", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrismaUserUpsert.mockResolvedValue({});
+    mockPrismaUserFindUnique.mockResolvedValue({ role: "participant" });
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -115,6 +118,64 @@ describe("registerParticipant", () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe("ログインが必要です");
     expect(mockPrismaParticipantUpsert).not.toHaveBeenCalled();
+  });
+
+  it("organization ロールの場合、参加者プロフィールを登録できない", async () => {
+    mockGetUser.mockReturnValue({
+      data: {
+        user: {
+          id: "org-user-123",
+          email: "org@example.com",
+          user_metadata: { role: "organization" },
+        },
+      },
+    });
+    mockPrismaUserFindUnique.mockResolvedValue({ role: "organization" });
+
+    const result = await registerParticipant({
+      name: "団体ユーザー",
+      birthday: "1990-01-15",
+      region: "東京都",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("参加者アカウントでログインしてください");
+    expect(mockPrismaUserFindUnique).toHaveBeenCalledWith({
+      where: { id: "org-user-123" },
+      select: { role: true },
+    });
+    expect(mockPrismaUserUpsert).not.toHaveBeenCalled();
+    expect(mockPrismaParticipantUpsert).not.toHaveBeenCalled();
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+  });
+
+  it("ロール未選択の場合、参加者プロフィールを登録できない", async () => {
+    mockGetUser.mockReturnValue({
+      data: {
+        user: {
+          id: "no-role-user-123",
+          email: "user@example.com",
+          user_metadata: {},
+        },
+      },
+    });
+    mockPrismaUserFindUnique.mockResolvedValue(null);
+
+    const result = await registerParticipant({
+      name: "未選択ユーザー",
+      birthday: "1990-01-15",
+      region: "東京都",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("参加者ロールの選択が必要です");
+    expect(mockPrismaUserFindUnique).toHaveBeenCalledWith({
+      where: { id: "no-role-user-123" },
+      select: { role: true },
+    });
+    expect(mockPrismaUserUpsert).not.toHaveBeenCalled();
+    expect(mockPrismaParticipantUpsert).not.toHaveBeenCalled();
+    expect(mockUpdateUser).not.toHaveBeenCalled();
   });
 
   it("nameが空の場合、バリデーションエラーを返す", async () => {
@@ -174,6 +235,10 @@ describe("registerParticipant", () => {
     });
 
     expect(result).toEqual({ success: true });
+    expect(mockPrismaUserFindUnique).toHaveBeenCalledWith({
+      where: { id: "user-123" },
+      select: { role: true },
+    });
 
     expect(mockPrismaParticipantUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
