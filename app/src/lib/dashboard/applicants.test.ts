@@ -12,6 +12,24 @@ const mockUpdate = vi.fn();
 const mockUpdateEq = vi.fn();
 const mockIn = vi.fn();
 
+type OrderableResult<T> = {
+  data: T;
+  error?: unknown;
+  order: (...orderArgs: unknown[]) => OrderableResult<T>;
+};
+
+function createOrderResult<T>(result: {
+  data: T;
+  error?: unknown;
+}): OrderableResult<T> {
+  const query: OrderableResult<T> = {
+    ...result,
+    order: (...orderArgs: unknown[]) => mockOrder(...orderArgs),
+  };
+
+  return query;
+}
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: {
@@ -34,18 +52,15 @@ vi.mock("@/lib/supabase/server", () => ({
                   };
                 },
                 order: (...orderArgs: unknown[]) => {
-                  mockOrder(...orderArgs);
-                  return mockOrder();
+                  return mockOrder(...orderArgs);
                 },
               };
             },
             in: (...inArgs: unknown[]) => {
-              mockIn(...inArgs);
-              return mockIn();
+              return mockIn(...inArgs);
             },
             order: (...orderArgs: unknown[]) => {
-              mockOrder(...orderArgs);
-              return mockOrder();
+              return mockOrder(...orderArgs);
             },
           };
         },
@@ -59,8 +74,7 @@ vi.mock("@/lib/supabase/server", () => ({
           };
         },
         in: (...inArgs: unknown[]) => {
-          mockIn(...inArgs);
-          return mockIn();
+          return mockIn(...inArgs);
         },
       };
     },
@@ -152,19 +166,21 @@ describe("fetchApplicantsForOpportunity", () => {
       });
 
     // t_matching_candidate 取得
-    mockOrder.mockReturnValue({
-      data: [
-        {
-          id: "app-1",
-          status: "applied",
-          message: "応募メッセージ",
-          match_score: 75.5,
-          applied_at: "2026-01-20T00:00:00Z",
-          participant_id: "user-participant-1",
-        },
-      ],
-      error: null,
-    });
+    mockOrder.mockReturnValue(
+      createOrderResult({
+        data: [
+          {
+            id: "app-1",
+            status: "applied",
+            message: "応募メッセージ",
+            match_score: 75.5,
+            applied_at: "2026-01-20T00:00:00Z",
+            participant_id: "user-participant-1",
+          },
+        ],
+        error: null,
+      })
+    );
 
     // m_participant_profile 取得
     mockIn.mockReturnValue({
@@ -219,13 +235,143 @@ describe("fetchApplicantsForOpportunity", () => {
         error: null,
       });
 
-    mockOrder.mockReturnValue({ data: [], error: null });
+    mockOrder.mockReturnValue(createOrderResult({ data: [], error: null }));
 
     const result: ApplicantsResult =
       await fetchApplicantsForOpportunity("opp-1");
 
     expect(result.data).not.toBeNull();
     expect(result.data!.applicants).toEqual([]);
+  });
+
+  it("応募者取得時に相性スコア降順、応募日時降順で並べる", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({
+        data: {
+          id: "opp-1",
+          title: "テスト案件",
+          description: null,
+          status: "published",
+          requirement_traits: null,
+          created_at: "2026-01-15T00:00:00Z",
+        },
+        error: null,
+      });
+
+    mockOrder.mockReturnValue(createOrderResult({ data: [], error: null }));
+
+    await fetchApplicantsForOpportunity("opp-1");
+
+    expect(mockOrder).toHaveBeenCalledWith("match_score", {
+      ascending: false,
+      nullsFirst: false,
+    });
+    expect(mockOrder).toHaveBeenCalledWith("applied_at", {
+      ascending: false,
+    });
+  });
+
+  it("応募者一覧は相性スコア降順、同点時は応募日時降順、スコアなしは最後に返す", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({
+        data: {
+          id: "opp-1",
+          title: "テスト案件",
+          description: null,
+          status: "published",
+          requirement_traits: null,
+          created_at: "2026-01-15T00:00:00Z",
+        },
+        error: null,
+      });
+
+    mockOrder.mockReturnValue(
+      createOrderResult({
+        data: [
+          {
+            id: "app-null",
+            status: "applied",
+            message: null,
+            match_score: null,
+            applied_at: "2026-01-23T00:00:00Z",
+            participant_id: "user-participant-null",
+          },
+          {
+            id: "app-mid-old",
+            status: "applied",
+            message: null,
+            match_score: 80,
+            applied_at: "2026-01-20T00:00:00Z",
+            participant_id: "user-participant-mid-old",
+          },
+          {
+            id: "app-high",
+            status: "applied",
+            message: null,
+            match_score: 90,
+            applied_at: "2026-01-18T00:00:00Z",
+            participant_id: "user-participant-high",
+          },
+          {
+            id: "app-mid-new",
+            status: "applied",
+            message: null,
+            match_score: 80,
+            applied_at: "2026-01-22T00:00:00Z",
+            participant_id: "user-participant-mid-new",
+          },
+        ],
+        error: null,
+      })
+    );
+
+    mockIn.mockReturnValue({
+      data: [
+        {
+          user_id: "user-participant-null",
+          name: "未計算さん",
+          diagnosis_type: null,
+          diagnosis_scores: null,
+        },
+        {
+          user_id: "user-participant-mid-old",
+          name: "同点古いさん",
+          diagnosis_type: null,
+          diagnosis_scores: null,
+        },
+        {
+          user_id: "user-participant-high",
+          name: "高スコアさん",
+          diagnosis_type: null,
+          diagnosis_scores: null,
+        },
+        {
+          user_id: "user-participant-mid-new",
+          name: "同点新しいさん",
+          diagnosis_type: null,
+          diagnosis_scores: null,
+        },
+      ],
+      error: null,
+    });
+
+    const result: ApplicantsResult =
+      await fetchApplicantsForOpportunity("opp-1");
+
+    expect(result.data?.applicants.map((applicant) => applicant.id)).toEqual([
+      "app-high",
+      "app-mid-new",
+      "app-mid-old",
+      "app-null",
+    ]);
   });
 
   it("DB エラー時もクラッシュせずエラーを返す", async () => {
@@ -434,19 +580,21 @@ describe("fetchApplicantsForOpportunity", () => {
       });
 
     // 応募者データ（t_matching_candidate のみ、participants は別クエリ）
-    mockOrder.mockReturnValue({
-      data: [
-        {
-          id: "app-1",
-          participant_id: "user-participant-1",
-          status: "applied",
-          match_score: 75,
-          message: "応募メッセージ",
-          created_at: "2026-01-20T00:00:00Z",
-        },
-      ],
-      error: null,
-    });
+    mockOrder.mockReturnValue(
+      createOrderResult({
+        data: [
+          {
+            id: "app-1",
+            participant_id: "user-participant-1",
+            status: "applied",
+            match_score: 75,
+            message: "応募メッセージ",
+            created_at: "2026-01-20T00:00:00Z",
+          },
+        ],
+        error: null,
+      })
+    );
 
     // 参加者プロフィール（m_participant_profile）
     mockIn.mockReturnValueOnce({
@@ -501,7 +649,7 @@ describe("fetchApplicantsForOpportunity", () => {
       error: null,
     });
 
-    mockOrder.mockReturnValue({ data: [] });
+    mockOrder.mockReturnValue(createOrderResult({ data: [] }));
 
     const result: ApplicantsResult =
       await fetchApplicantsForOpportunity("opp-1");

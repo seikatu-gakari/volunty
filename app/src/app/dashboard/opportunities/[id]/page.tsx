@@ -271,7 +271,7 @@ export default async function OpportunityApplicantsPage({
               <div className="flex flex-col">
                 <h2 className="text-lg font-bold text-text-dark">応募者一覧</h2>
                 <span className="text-xs text-text-body">
-                  {data.applicants.length}件の応募
+                  {data.applicants.length}件の応募・相性スコア順
                 </span>
               </div>
             </div>
