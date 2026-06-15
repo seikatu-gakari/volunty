@@ -15,7 +15,6 @@ import type {
   Applicant,
   ApplicantsResult,
   UpdateApplicationStatusResult,
-  ApplicantDetail,
   ApplicantDetailResult,
 } from "./types";
 import { PERSONALITY_TYPES } from "@/lib/personality/constants";
@@ -668,11 +667,14 @@ export async function fetchApplicantDetail(
       );
     }
 
-    // PERSONALITY_TYPES から詳細を引き当て
+    // PERSONALITY_TYPES から詳細を引き当て（id 保存を優先し、既存の name 保存にも対応）
     const diagnosisType = participant?.diagnosis_type ?? null;
     const typeDetail = diagnosisType
-      ? PERSONALITY_TYPES.find((t) => t.name === diagnosisType) ?? null
+      ? PERSONALITY_TYPES.find((t) => t.id === diagnosisType) ??
+        PERSONALITY_TYPES.find((t) => t.name === diagnosisType) ??
+        null
       : null;
+    const diagnosisTypeLabel = typeDetail?.name ?? diagnosisType;
 
     return {
       data: {
@@ -681,7 +683,7 @@ export async function fetchApplicantDetail(
         message: (appData.message as string) ?? null,
         created_at: (appData.applied_at as string) ?? "",
         participant_name: participant?.name ?? "不明",
-        diagnosis_type: diagnosisType,
+        diagnosis_type: diagnosisTypeLabel,
         diagnosis_scores: participant?.diagnosis_scores ?? null,
         match_score: matchScore,
         opportunity_id: oppData.id as string,
