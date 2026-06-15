@@ -410,6 +410,76 @@ describe("fetchApplicantDetail", () => {
     ).toContain("イベント統括");
   });
 
+  it("診断タイプが id で保存されている場合も詳細を引き当てる", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+
+    mockSingle
+      .mockReturnValueOnce({
+        data: {
+          id: "app-1",
+          status: "applied",
+          message: "応募メッセージです",
+          applied_at: "2026-01-20T00:00:00Z",
+          opportunity_id: "opp-1",
+          participant_id: "user-participant-1",
+          match_score: 91,
+        },
+        error: null,
+      })
+      .mockReturnValueOnce({
+        data: { id: "profile-123" },
+        error: null,
+      })
+      .mockReturnValueOnce({
+        data: {
+          id: "opp-1",
+          title: "子ども支援ボランティア",
+          requirement_traits: { agreeableness: 80 },
+        },
+        error: null,
+      })
+      .mockReturnValueOnce({
+        data: {
+          name: "テスト花子",
+          diagnosis_type: "supporter-care",
+          diagnosis_scores: {
+            extraversion: 65,
+            agreeableness: 85,
+            conscientiousness: 70,
+            neuroticism: 35,
+            openness: 60,
+          },
+        },
+        error: null,
+      });
+
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("app-1");
+
+    expect(result.data).not.toBeNull();
+    expect(result.data!.participant_name).toBe("テスト花子");
+    expect(result.data!.diagnosis_type).toBe("サポーター・ケアタイプ");
+    expect(result.data!.diagnosis_scores).toEqual({
+      extraversion: 65,
+      agreeableness: 85,
+      conscientiousness: 70,
+      neuroticism: 35,
+      openness: 60,
+    });
+    expect(result.data!.match_score).toBe(91);
+    expect(result.data!.personality_type_detail).not.toBeNull();
+    expect(result.data!.personality_type_detail!.name).toBe(
+      "サポーター・ケアタイプ"
+    );
+    expect(result.data!.personality_type_detail!.description).toBe(
+      "他人の感情に敏感で、献身的にサポート"
+    );
+  });
+
   it("診断未実施の応募者でも正常に返す", async () => {
     const mockUser = { id: "org-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({
