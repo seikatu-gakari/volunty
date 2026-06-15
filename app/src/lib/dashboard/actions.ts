@@ -414,6 +414,7 @@ export async function fetchApplicantsForOpportunity(
       .from("t_matching_candidate")
       .select("id, status, message, match_score, applied_at, participant_id")
       .eq("opportunity_id", opportunityId)
+      .order("match_score", { ascending: false, nullsFirst: false })
       .order("applied_at", { ascending: false });
 
     // 参加者プロフィールを別クエリで取得（split-fetch パターン）
@@ -474,6 +475,26 @@ export async function fetchApplicantsForOpportunity(
         diagnosis_scores: profile?.diagnosis_scores ?? null,
         match_score: matchScore,
       };
+    });
+
+    applicants.sort((a, b) => {
+      const scoreA = a.match_score ?? Number.NEGATIVE_INFINITY;
+      const scoreB = b.match_score ?? Number.NEGATIVE_INFINITY;
+
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+
+      const appliedAtA = Date.parse(a.created_at);
+      const appliedAtB = Date.parse(b.created_at);
+      const timeA = Number.isNaN(appliedAtA) ? 0 : appliedAtA;
+      const timeB = Number.isNaN(appliedAtB) ? 0 : appliedAtB;
+
+      if (timeA !== timeB) {
+        return timeB - timeA;
+      }
+
+      return a.id.localeCompare(b.id);
     });
 
     return {
