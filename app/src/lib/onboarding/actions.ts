@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { ensureUserRecord } from "@/lib/auth/ensure-user-record";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
@@ -31,38 +32,14 @@ export async function selectRole(role: "participant" | "organization") {
   });
   if (authError) throw new Error(`ロール更新に失敗しました: ${authError.message}`);
 
-  // DB のロールも同期
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { role },
-  });
+  // DB のロールも同期し、m_user 未作成環境でも進めるようにする
+  await ensureUserRecord(user, { role, updateRole: true });
 
   redirect(
     role === "organization"
       ? "/onboarding/organization"
       : "/onboarding/participant"
   );
-}
-
-/**
- * m_user レコードが存在しなければ作成する（Supabaseトリガー未動作時のセーフガード）
- */
-async function ensureUserExists(
-  userId: string,
-  email: string | undefined,
-  name: string | undefined,
-  role: "participant" | "organization"
-) {
-  await prisma.user.upsert({
-    where: { id: userId },
-    update: {},
-    create: {
-      id: userId,
-      email: email ?? null,
-      name: name ?? null,
-      role,
-    },
-  });
 }
 
 /**
@@ -119,8 +96,8 @@ export async function registerParticipant(
       return { success: false, error: "都道府県は必須です" };
     }
 
-    // m_user がなければ作成（トリガー未動作時のセーフガード）
-    await ensureUserExists(user.id, user.email, data.name, "participant");
+    // m_user を保証し、ロールも参加者として同期する
+    await ensureUserRecord(user, { role: "participant", updateRole: true });
 
     await prisma.participantProfile.upsert({
       where: { userId: user.id },
@@ -225,8 +202,8 @@ export async function registerOrganization(
         ? data.activityCategories
         : undefined;
 
-    // m_user がなければ作成（トリガー未動作時のセーフガード）
-    await ensureUserExists(user.id, user.email, data.representativeName, "organization");
+    // m_user を保証し、ロールも団体として同期する
+    await ensureUserRecord(user, { role: "organization", updateRole: true });
 
     // 団体プロフィールを作成（既存の場合は更新）
     await prisma.organizationProfile.upsert({

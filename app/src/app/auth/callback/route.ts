@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureUserRecord } from "@/lib/auth/ensure-user-record";
 import { createClient } from "@/lib/supabase/server";
 
 function normalizeOrigin(origin: string) {
@@ -19,9 +20,9 @@ function buildLoginSuccessUrl(origin: string, next: string | null) {
   return redirectUrl.toString();
 }
 
-function buildLoginErrorUrl(origin: string) {
+function buildLoginErrorUrl(origin: string, reason = "auth") {
   const redirectUrl = new URL("/login", origin);
-  redirectUrl.searchParams.set("error", "auth");
+  redirectUrl.searchParams.set("error", reason);
   return redirectUrl.toString();
 }
 
@@ -45,6 +46,23 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const {
+        data: { user },
+        error: getUserError,
+      } = await supabase.auth.getUser();
+
+      if (getUserError || !user) {
+        console.error("[AuthCallback] ユーザー取得エラー:", getUserError);
+        return NextResponse.redirect(buildLoginErrorUrl(origin, "user-sync"));
+      }
+
+      try {
+        await ensureUserRecord(user);
+      } catch (err) {
+        console.error("[AuthCallback] m_user同期エラー:", err);
+        return NextResponse.redirect(buildLoginErrorUrl(origin, "user-sync"));
+      }
+
       return NextResponse.redirect(buildLoginSuccessUrl(origin, next));
     }
 

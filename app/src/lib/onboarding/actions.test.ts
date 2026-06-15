@@ -63,28 +63,68 @@ describe("selectRole", () => {
   });
 
   it("参加者ロール設定成功後、/onboarding/participant にリダイレクトする", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+    mockGetUser.mockReturnValue({
+      data: {
+        user: {
+          id: "user-123",
+          email: "participant@example.com",
+          user_metadata: {
+            full_name: "参加 太郎",
+            avatar_url: "https://example.com/avatar.png",
+          },
+        },
+      },
+    });
     mockUpdateUser.mockReturnValue({ error: null });
-    mockPrismaUserUpdate.mockResolvedValue({});
 
     await expect(selectRole("participant")).rejects.toThrow("NEXT_REDIRECT");
 
     expect(mockUpdateUser).toHaveBeenCalledWith({ data: { role: "participant" } });
-    expect(mockPrismaUserUpdate).toHaveBeenCalledWith({
+    expect(mockPrismaUserUpsert).toHaveBeenCalledWith({
       where: { id: "user-123" },
-      data: { role: "participant" },
+      update: expect.objectContaining({
+        email: "participant@example.com",
+        name: "参加 太郎",
+        avatarUrl: "https://example.com/avatar.png",
+        lastLoginAt: expect.any(Date),
+        role: "participant",
+      }),
+      create: expect.objectContaining({
+        id: "user-123",
+        email: "participant@example.com",
+        name: "参加 太郎",
+        avatarUrl: "https://example.com/avatar.png",
+        lastLoginAt: expect.any(Date),
+        role: "participant",
+      }),
     });
     expect(mockRedirect).toHaveBeenCalledWith("/onboarding/participant");
   });
 
   it("団体ロール設定成功後、/onboarding/organization にリダイレクトする", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-456" } } });
+    mockGetUser.mockReturnValue({
+      data: {
+        user: {
+          id: "user-456",
+          email: "organization@example.com",
+          user_metadata: {
+            name: "団体 花子",
+          },
+        },
+      },
+    });
     mockUpdateUser.mockReturnValue({ error: null });
-    mockPrismaUserUpdate.mockResolvedValue({});
 
     await expect(selectRole("organization")).rejects.toThrow("NEXT_REDIRECT");
 
     expect(mockUpdateUser).toHaveBeenCalledWith({ data: { role: "organization" } });
+    expect(mockPrismaUserUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "user-456" },
+        update: expect.objectContaining({ role: "organization" }),
+        create: expect.objectContaining({ role: "organization" }),
+      })
+    );
     expect(mockRedirect).toHaveBeenCalledWith("/onboarding/organization");
   });
 
@@ -95,6 +135,7 @@ describe("selectRole", () => {
     await expect(selectRole("participant")).rejects.toThrow(
       "ロール更新に失敗しました: Auth error"
     );
+    expect(mockPrismaUserUpsert).not.toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

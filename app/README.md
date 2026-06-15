@@ -111,7 +111,21 @@ make supabase-start
 
 `Unsupported provider: provider is not enabled` が出る場合は、`.env.local` の Google OAuth 環境変数を設定したうえで Supabase を再起動してください。
 
-### 4. テーブル・データの確認
+### 4. Supabase Auth → m_user 同期
+
+Volunty では OAuth callback、ロール選択、プロフィール登録時にアプリ側で `m_user` を `upsert` します。そのため、Supabase Auth トリガーが未適用でも基本のオンボーディングフローは動作します。
+
+補助的な同期経路として、本番・ローカルともに Prisma migration 適用後、`app/prisma/supabase-auth-trigger.sql` を Supabase SQL Editor または `psql` で適用してください。
+
+```bash
+# リポジトリルートから実行する場合
+psql "$DIRECT_URL" -f app/prisma/supabase-auth-trigger.sql
+
+# app/ ディレクトリから実行する場合
+psql "$DIRECT_URL" -f prisma/supabase-auth-trigger.sql
+```
+
+### 5. テーブル・データの確認
 
 **Supabase Studio（GUI）**
 

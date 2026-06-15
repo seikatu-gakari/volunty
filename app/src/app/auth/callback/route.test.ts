@@ -4,19 +4,38 @@ import { GET } from "./route";
 
 const mocks = vi.hoisted(() => ({
   exchangeCodeForSession: vi.fn(),
+  getUser: vi.fn(),
+  ensureUserRecord: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => ({
     auth: {
       exchangeCodeForSession: mocks.exchangeCodeForSession,
+      getUser: mocks.getUser,
     },
   }),
 }));
 
+vi.mock("@/lib/auth/ensure-user-record", () => ({
+  ensureUserRecord: mocks.ensureUserRecord,
+}));
+
 describe("auth callback route", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.getUser.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-123",
+          email: "user@example.com",
+          user_metadata: { full_name: "山田 太郎" },
+        },
+      },
+      error: null,
+    });
+    mocks.ensureUserRecord.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -33,6 +52,12 @@ describe("auth callback route", () => {
     );
 
     expect(mocks.exchangeCodeForSession).toHaveBeenCalledWith("ok");
+    expect(mocks.getUser).toHaveBeenCalled();
+    expect(mocks.ensureUserRecord).toHaveBeenCalledWith({
+      id: "user-123",
+      email: "user@example.com",
+      user_metadata: { full_name: "山田 太郎" },
+    });
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/mypage?tab=profile&toast=login-success"
     );
@@ -49,6 +74,40 @@ describe("auth callback route", () => {
 
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/login?error=auth"
+    );
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.ensureUserRecord).not.toHaveBeenCalled();
+  });
+
+  it("ユーザー取得に失敗した場合は user-sync エラーでログイン画面へ戻す", async () => {
+    mocks.exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    mocks.getUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: "user not found" },
+    });
+
+    const response = await GET(
+      new Request("http://0.0.0.0:3000/auth/callback?code=ok")
+    );
+
+    expect(mocks.ensureUserRecord).not.toHaveBeenCalled();
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/login?error=user-sync"
+    );
+  });
+
+  it("m_user 同期に失敗した場合は user-sync エラーでログイン画面へ戻す", async () => {
+    mocks.exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    mocks.ensureUserRecord.mockRejectedValueOnce(new Error("DB error"));
+
+    const response = await GET(
+      new Request("http://0.0.0.0:3000/auth/callback?code=ok")
+    );
+
+    expect(mocks.getUser).toHaveBeenCalled();
+    expect(mocks.ensureUserRecord).toHaveBeenCalled();
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/login?error=user-sync"
     );
   });
 
