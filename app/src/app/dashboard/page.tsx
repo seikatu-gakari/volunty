@@ -161,6 +161,13 @@ export default async function DashboardPage() {
               団体プロフィールを編集
             </Link>
             <Link
+              href="/dashboard/participants"
+              className="inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-dark shadow-sm transition-colors hover:bg-primary/5"
+            >
+              <Users className="size-4" />
+              おすすめ参加者を見る
+            </Link>
+            <Link
               href="/dashboard/opportunities/new"
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-dark"
             >
