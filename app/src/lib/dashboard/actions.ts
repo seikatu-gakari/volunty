@@ -596,7 +596,9 @@ export async function fetchApplicantsForOpportunity(
     // 応募者一覧を取得（t_matching_candidate）
     const { data: matchingData } = await supabase
       .from("t_matching_candidate")
-      .select("id, status, message, match_score, applied_at, participant_id")
+      .select(
+        "id, status, message, match_score, applied_at, status_changed_at, participant_id"
+      )
       .eq("opportunity_id", opportunityId)
       .order("match_score", { ascending: false, nullsFirst: false })
       .order("applied_at", { ascending: false });
@@ -654,6 +656,8 @@ export async function fetchApplicantsForOpportunity(
         status: mapApplicationStatus(m.status as string),
         message: (m.message as string) ?? null,
         created_at: (m.applied_at as string) ?? "",
+        completed_at:
+          m.status === "completed" ? (m.status_changed_at as string) : null,
         participant_name: profile?.name ?? "不明",
         diagnosis_type: profile?.diagnosis_type ?? null,
         diagnosis_scores: profile?.diagnosis_scores ?? null,
@@ -703,7 +707,8 @@ export async function fetchApplicantsForOpportunity(
  */
 function mapApplicationStatus(dbStatus: string): Applicant["status"] {
   if (dbStatus === "applied" || dbStatus === "queued") return "pending";
-  if (dbStatus === "accepted" || dbStatus === "completed") return "approved";
+  if (dbStatus === "accepted") return "approved";
+  if (dbStatus === "completed") return "completed";
   if (dbStatus === "declined") return "rejected";
   return "pending";
 }
@@ -716,7 +721,7 @@ function mapApplicationStatus(dbStatus: string): Applicant["status"] {
  */
 export async function updateApplicationStatus(
   applicationId: string,
-  newStatus: "approved" | "rejected"
+  newStatus: "approved" | "rejected" | "completed"
 ): Promise<UpdateApplicationStatusResult> {
   try {
     const supabase = await createClient();
@@ -733,7 +738,7 @@ export async function updateApplicationStatus(
     // 応募データを取得
     const { data: appData, error: appError } = await supabase
       .from("t_matching_candidate")
-      .select("id, opportunity_id")
+      .select("id, opportunity_id, status")
       .eq("id", applicationId)
       .single();
 
@@ -764,13 +769,26 @@ export async function updateApplicationStatus(
       return { success: false, error: "この操作を行う権限がありません" };
     }
 
+    if (newStatus === "completed" && appData.status !== "accepted") {
+      return {
+        success: false,
+        error: "承認済みの応募のみ活動完了にできます",
+      };
+    }
+
     // UI ステータスを DB ステータスにマッピング
-    const dbStatus = newStatus === "approved" ? "accepted" : "declined";
+    const dbStatus =
+      newStatus === "approved"
+        ? "accepted"
+        : newStatus === "rejected"
+          ? "declined"
+          : "completed";
+    const now = new Date().toISOString();
 
     // ステータスを更新
     const { error: updateError } = await supabase
       .from("t_matching_candidate")
-      .update({ status: dbStatus })
+      .update({ status: dbStatus, status_changed_at: now, updated_at: now })
       .eq("id", applicationId);
 
     if (updateError) {
@@ -810,7 +828,9 @@ export async function fetchApplicantDetail(
     // 応募データを取得
     const { data: appData, error: appError } = await supabase
       .from("t_matching_candidate")
-      .select("id, status, message, match_score, applied_at, opportunity_id, participant_id")
+      .select(
+        "id, status, message, match_score, applied_at, status_changed_at, opportunity_id, participant_id"
+      )
       .eq("id", applicationId)
       .single();
 
@@ -887,6 +907,10 @@ export async function fetchApplicantDetail(
         status: mapApplicationStatus(appData.status as string),
         message: (appData.message as string) ?? null,
         created_at: (appData.applied_at as string) ?? "",
+        completed_at:
+          appData.status === "completed"
+            ? (appData.status_changed_at as string)
+            : null,
         participant_name: participant?.name ?? "不明",
         diagnosis_type: diagnosisTypeLabel,
         diagnosis_scores: participant?.diagnosis_scores ?? null,

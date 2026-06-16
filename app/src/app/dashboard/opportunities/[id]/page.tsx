@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
+  CheckCircle2,
   Users,
   Clock,
   Lock,
@@ -160,9 +161,18 @@ function ApplicantCard({
 
         {/* 応募日 + 詳細リンク */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 text-xs text-text-body/70">
-            <Clock className="size-3" />
-            応募日: {new Date(applicant.created_at).toLocaleDateString("ja-JP")}
+          <div className="flex flex-col gap-1 text-xs text-text-body/70">
+            <span className="flex items-center gap-1">
+              <Clock className="size-3" />
+              応募日: {new Date(applicant.created_at).toLocaleDateString("ja-JP")}
+            </span>
+            {applicant.completed_at && (
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="size-3" />
+                完了日:{" "}
+                {new Date(applicant.completed_at).toLocaleDateString("ja-JP")}
+              </span>
+            )}
           </div>
           <Link
             href={`/dashboard/opportunities/${opportunityId}/applicants/${applicant.id}`}

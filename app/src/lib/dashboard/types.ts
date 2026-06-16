@@ -53,7 +53,7 @@ export interface UpdateOpportunityResult {
 }
 
 /** 応募ステータス */
-export type ApplicationStatus = "pending" | "approved" | "rejected";
+export type ApplicationStatus = "pending" | "approved" | "rejected" | "completed";
 
 /** 応募者情報（applications + participants JOIN 結果） */
 export interface Applicant {
@@ -65,6 +65,8 @@ export interface Applicant {
   message: string | null;
   /** 応募日 */
   created_at: string;
+  /** 活動完了日 */
+  completed_at: string | null;
   /** 参加者名 */
   participant_name: string;
   /** 診断タイプ（10類型名） */
@@ -117,6 +119,8 @@ export interface ApplicantDetail {
   message: string | null;
   /** 応募日 */
   created_at: string;
+  /** 活動完了日 */
+  completed_at: string | null;
   /** 参加者名 */
   participant_name: string;
   /** 診断タイプ名（10類型名） */

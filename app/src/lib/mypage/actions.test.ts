@@ -13,6 +13,7 @@ type MatchingRow = {
   message: string | null;
   created_at: string;
   applied_at: string | null;
+  status_changed_at: string;
   opportunity_id: string;
 };
 
@@ -169,6 +170,7 @@ describe("fetchMyPageData", () => {
         message: "応募メッセージ",
         created_at: "2026-01-01T00:00:00.000Z",
         applied_at: "2026-01-01T00:00:00.000Z",
+        status_changed_at: "2026-01-01T00:00:00.000Z",
         opportunity_id: "opp-1",
       },
       {
@@ -177,6 +179,7 @@ describe("fetchMyPageData", () => {
         message: null,
         created_at: "2026-01-02T00:00:00.000Z",
         applied_at: "2026-01-02T00:00:00.000Z",
+        status_changed_at: "2026-01-02T00:00:00.000Z",
         opportunity_id: "opp-2",
       },
     ];
@@ -205,12 +208,16 @@ describe("fetchMyPageData", () => {
 
     const pendingApp = result.applications[1];
     expect(pendingApp.status).toBe("pending");
+    expect(pendingApp.completed_at).toBeNull();
+    expect(pendingApp.can_request_certificate).toBe(false);
     expect(pendingApp.opportunity.title).toBe("環境保全ボランティア");
     expect(pendingApp.opportunity.organization_name).toBe("NPO法人テスト");
     expect(pendingApp.opportunity.organization_line_id).toBeNull();
 
     const approvedApp = result.applications[0];
     expect(approvedApp.status).toBe("approved");
+    expect(approvedApp.completed_at).toBeNull();
+    expect(approvedApp.can_request_certificate).toBe(false);
     expect(approvedApp.opportunity.title).toBe("子ども支援活動");
     expect(approvedApp.opportunity.organization_name).toBe("支援団体A");
     expect(approvedApp.opportunity.organization_line_id).toBe("@support_line");
@@ -236,6 +243,7 @@ describe("fetchMyPageData", () => {
         message: null,
         created_at: "2026-01-03T00:00:00.000Z",
         applied_at: "2026-01-03T00:00:00.000Z",
+        status_changed_at: "2026-01-03T00:00:00.000Z",
         opportunity_id: "opp-3",
       },
       {
@@ -244,6 +252,7 @@ describe("fetchMyPageData", () => {
         message: null,
         created_at: "2026-01-04T00:00:00.000Z",
         applied_at: "2026-01-04T00:00:00.000Z",
+        status_changed_at: "2026-02-10T12:34:00.000Z",
         opportunity_id: "opp-4",
       },
     ];
@@ -270,10 +279,14 @@ describe("fetchMyPageData", () => {
 
     const rejectedApp = result.applications[1];
     expect(rejectedApp.status).toBe("rejected");
+    expect(rejectedApp.completed_at).toBeNull();
+    expect(rejectedApp.can_request_certificate).toBe(false);
     expect(rejectedApp.opportunity.organization_line_id).toBeNull();
 
     const completedApp = result.applications[0];
-    expect(completedApp.status).toBe("approved");
+    expect(completedApp.status).toBe("completed");
+    expect(completedApp.completed_at).toBe("2026-02-10T12:34:00.000Z");
+    expect(completedApp.can_request_certificate).toBe(true);
     expect(completedApp.opportunity.organization_line_id).toBe(
       "@production_line"
     );
