@@ -15,7 +15,15 @@ import type { ApproachStatus } from "@/lib/approaches/types";
 
 export const dynamic = "force-dynamic";
 
-function statusDisplay(status: ApproachStatus) {
+function statusDisplay(status: ApproachStatus, isExpired: boolean) {
+  if (isExpired) {
+    return {
+      label: "期限切れ",
+      icon: <Clock className="size-4" />,
+      color: "text-text-body bg-background border-card-border",
+    };
+  }
+
   switch (status) {
     case "accepted":
       return {
@@ -66,7 +74,7 @@ export default async function MyApproachesPage() {
             受信アプローチ
           </h1>
           <p className="mt-2 text-sm text-text-body">
-            団体から届いたスカウトメッセージを確認できます。
+            団体から届いたアプローチを確認できます。
           </p>
         </div>
 
@@ -79,7 +87,10 @@ export default async function MyApproachesPage() {
         {approaches.length > 0 ? (
           <div className="space-y-4">
             {approaches.map((approach) => {
-              const display = statusDisplay(approach.status);
+              const display = statusDisplay(
+                approach.status,
+                approach.isExpired
+              );
               return (
                 <Link key={approach.id} href={`/mypage/approaches/${approach.id}`}>
                   <Card className="transition-shadow hover:shadow-md">
@@ -103,7 +114,21 @@ export default async function MyApproachesPage() {
                       <p className="line-clamp-2 text-sm leading-6 text-text-body">
                         {approach.message}
                       </p>
-                      {approach.contact?.lineId && (
+                      <div className="flex flex-wrap gap-4 text-xs text-text-body">
+                        <span>
+                          受信日:{" "}
+                          {new Date(approach.createdAt).toLocaleDateString(
+                            "ja-JP"
+                          )}
+                        </span>
+                        <span>
+                          回答期限:{" "}
+                          {new Date(approach.expiresAt).toLocaleDateString(
+                            "ja-JP"
+                          )}
+                        </span>
+                      </div>
+                      {approach.hasContact && (
                         <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3">
                           <MessageCircle className="size-4 text-green-700" />
                           <span className="text-sm font-medium text-green-800">

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { CheckCircle2, Loader2, Send } from "lucide-react";
 import Link from "next/link";
+import { APPROACH_MESSAGE_MAX_LENGTH } from "@/lib/approaches/constants";
 import { sendApproach } from "@/lib/approaches/actions";
 import type { ApproachOpportunityOption } from "@/lib/approaches/types";
 
@@ -100,7 +101,7 @@ export function ApproachForm({
           htmlFor="approach-message"
           className="text-sm font-medium text-text-dark"
         >
-          アプローチメッセージ
+          アプローチ文
         </label>
         <textarea
           id="approach-message"
@@ -108,13 +109,18 @@ export function ApproachForm({
           onChange={(event) => setMessage(event.target.value)}
           placeholder="活動内容や参加してほしい理由を入力してください"
           rows={6}
+          maxLength={APPROACH_MESSAGE_MAX_LENGTH}
           disabled={isPending || !firstAvailable}
           className="w-full resize-none rounded-lg border border-input-border bg-white px-4 py-3 text-sm text-text-dark placeholder:text-text-body/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
         />
+        <div className="flex justify-end text-xs text-text-body">
+          {message.length}/{APPROACH_MESSAGE_MAX_LENGTH}
+        </div>
       </div>
 
       <div className="rounded-lg bg-background p-4 text-xs leading-6 text-text-body">
-        参加者がアプローチを承諾するまで、団体の LINE ID などの連絡先は参加者に表示されません。
+        アプリ内でメッセージのやり取りはできません。承諾後にLINE等で連絡します。
+        参加者がアプローチを承諾するまで、団体の連絡先は参加者に表示されません。
       </div>
 
       {result?.error && <p className="text-sm text-red-600">{result.error}</p>}

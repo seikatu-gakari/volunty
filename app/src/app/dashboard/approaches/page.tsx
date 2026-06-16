@@ -15,7 +15,15 @@ import type { ApproachStatus } from "@/lib/approaches/types";
 
 export const dynamic = "force-dynamic";
 
-function statusDisplay(status: ApproachStatus) {
+function statusDisplay(status: ApproachStatus, isExpired: boolean) {
+  if (isExpired) {
+    return {
+      label: "期限切れ",
+      icon: <Clock className="size-4" />,
+      color: "text-text-body bg-background border-card-border",
+    };
+  }
+
   switch (status) {
     case "accepted":
       return {
@@ -91,7 +99,10 @@ export default async function DashboardApproachesPage() {
         {approaches.length > 0 ? (
           <div className="space-y-4">
             {approaches.map((approach) => {
-              const display = statusDisplay(approach.status);
+              const display = statusDisplay(
+                approach.status,
+                approach.isExpired
+              );
               return (
                 <Card key={approach.id}>
                   <CardContent>
@@ -118,6 +129,12 @@ export default async function DashboardApproachesPage() {
                       <span>
                         送信日:{" "}
                         {new Date(approach.createdAt).toLocaleDateString(
+                          "ja-JP"
+                        )}
+                      </span>
+                      <span>
+                        回答期限:{" "}
+                        {new Date(approach.expiresAt).toLocaleDateString(
                           "ja-JP"
                         )}
                       </span>

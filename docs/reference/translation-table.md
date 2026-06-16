@@ -15,10 +15,11 @@
 | 辞退               | Decline / Rejection        | 団体が応募を断ること                       | status: declined    | ステータス遷移                     |
 | 参加証明書         | Participation Certificate  | ボランティア活動完了後に発行される証明書   | Certificate         | DBテーブル: t_certificate          |
 | 証明書発行         | Certificate Issuance       | 参加証明書を生成・交付すること             | certificate_status  | 発行リクエスト→承認→発行の流れ     |
-| 活動完了報告       | Activity Completion Report | 団体が活動終了を記録すること               | status: completed   | 証明書発行の前提条件               |  | 双方向アプローチ | Bidirectional Approach | 団体と参加者が互いにアプローチできる仕組み | Approach | DBテーブル: t_approach |
-| アプローチ送信     | Send Approach              | 団体が参加者にスカウトメッセージを送ること | approach_status     | 送信→未読→承諾/辞退                |
-| アプローチ受信     | Receive Approach           | 参加者が団体からのアプローチを確認すること | approach_status     | 未読→既読→承諾/辞退                |
-| スカウトメッセージ | Scout Message              | 団体が参加者に送る勧誘メッセージ           | approach_message    | アプローチの本文                   |
+| 活動完了報告       | Activity Completion Report | 団体が活動終了を記録すること               | status: completed   | 証明書発行の前提条件               |
+| 双方向アプローチ   | Bidirectional Approach     | 団体から参加者へ一回きりのアプローチ文を送る仕組み | Approach            | DBテーブル: t_approach             |
+| アプローチ送信     | Send Approach              | 団体が参加者にアプローチ文を送ること       | approach_status     | 送信→承諾/辞退。14日で期限切れ表示 |
+| アプローチ受信     | Receive Approach           | 参加者が団体からのアプローチを確認すること | approach_status     | 未回答→承諾/辞退                   |
+| アプローチ文       | Approach Text              | 団体が参加者に送る一回きりの勧誘文         | approach_message    | アプリ内チャットは持たない         |
 | 団体審査           | Organization Review        | 管理者が団体登録を承認・却下するプロセス   | review_status       | DBテーブル: t_organization_review  |
 | 審査ステータス     | Review Status              | 審査の進行状態（申請中、承認、却下）       | status              | pending / approved / rejected      |
 | 審査承認           | Approval                   | 管理者が団体登録を許可すること             | status: approved    | 承認後、団体は全機能にアクセス可能 |

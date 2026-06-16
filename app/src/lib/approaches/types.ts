@@ -34,13 +34,16 @@ export interface ApproachListItem {
   message: string;
   matchScore: number | null;
   createdAt: string;
+  expiresAt: string;
   respondedAt: string | null;
+  isExpired: boolean;
   participantProfileId?: string;
   participantName?: string;
   opportunityId: string;
   opportunityTitle: string;
   organizationName?: string;
   contact: ApproachContact | null;
+  hasContact: boolean;
 }
 
 export interface ApproachDetail extends ApproachListItem {

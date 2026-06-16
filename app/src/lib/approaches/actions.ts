@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import type { BIG5Scores } from "@/lib/personality/types";
 import { calculateMatchScore } from "@/lib/recommendations/matching";
+import { APPROACH_MESSAGE_MAX_LENGTH } from "./constants";
 import type {
   ApproachContact,
   ApproachDetail,
@@ -18,6 +19,10 @@ import type {
   MyApproachDetailResult,
   MyApproachesResult,
 } from "./types";
+
+const APPROACH_EXPIRATION_DAYS = 14;
+const APPROACH_DAILY_SEND_LIMIT = 20;
+const PARTICIPANT_ACTIVE_APPROACH_LIMIT = 10;
 
 const BIG5_TRAIT_KEYS = [
   "extraversion",
@@ -67,6 +72,7 @@ interface ApproachRecord {
   message: string;
   matchScore: number | null;
   createdAt: Date | string;
+  expiresAt: Date | string;
   respondedAt: Date | string | null;
   opportunity: OpportunityRecord;
   organization?: OrganizationContactRecord;
@@ -168,9 +174,34 @@ function toNullableIsoString(value: Date | string | null): string | null {
   return value ? toIsoString(value) : null;
 }
 
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
 function toApproachStatus(value: string): ApproachStatus {
   if (value === "accepted" || value === "declined") return value;
   return "sent";
+}
+
+function isApproachExpired(
+  status: ApproachStatus,
+  expiresAt: Date | string,
+  now = new Date()
+): boolean {
+  return status === "sent" && new Date(expiresAt).getTime() < now.getTime();
+}
+
+function hasContact(contact: ApproachContact | null): boolean {
+  return Boolean(contact?.email || contact?.lineId || contact?.lineUrl);
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2002"
+  );
 }
 
 function mapParticipant(participant: ParticipantRecord): ApproachParticipant {
@@ -213,6 +244,8 @@ function calculateApproachMatchScore(
 function mapApproachForParticipant(approach: ApproachRecord): ApproachListItem {
   const status = toApproachStatus(approach.status);
   const organization = approach.organization;
+  const contact = organization ? buildContact(status, organization) : null;
+  const expired = isApproachExpired(status, approach.expiresAt);
 
   return {
     id: approach.id,
@@ -220,27 +253,36 @@ function mapApproachForParticipant(approach: ApproachRecord): ApproachListItem {
     message: approach.message,
     matchScore: approach.matchScore,
     createdAt: toIsoString(approach.createdAt),
+    expiresAt: toIsoString(approach.expiresAt),
     respondedAt: toNullableIsoString(approach.respondedAt),
+    isExpired: expired,
     opportunityId: approach.opportunity.id,
     opportunityTitle: approach.opportunity.title,
     organizationName: organization?.organizationName ?? "団体名未設定",
-    contact: organization ? buildContact(status, organization) : null,
+    contact,
+    hasContact: hasContact(contact),
   };
 }
 
 function mapApproachForDashboard(approach: ApproachRecord): ApproachListItem {
+  const status = toApproachStatus(approach.status);
+  const expired = isApproachExpired(status, approach.expiresAt);
+
   return {
     id: approach.id,
-    status: toApproachStatus(approach.status),
+    status,
     message: approach.message,
     matchScore: approach.matchScore,
     createdAt: toIsoString(approach.createdAt),
+    expiresAt: toIsoString(approach.expiresAt),
     respondedAt: toNullableIsoString(approach.respondedAt),
+    isExpired: expired,
     participantProfileId: approach.participantProfile?.id,
     participantName: approach.participantProfile?.name ?? "参加者名未設定",
     opportunityId: approach.opportunity.id,
     opportunityTitle: approach.opportunity.title,
     contact: null,
+    hasContact: false,
   };
 }
 
@@ -375,11 +417,19 @@ export async function sendApproach(input: {
   if (!message) {
     return {
       success: false,
-      error: "アプローチメッセージを入力してください",
+      error: "アプローチ文を入力してください",
+    };
+  }
+
+  if (message.length > APPROACH_MESSAGE_MAX_LENGTH) {
+    return {
+      success: false,
+      error: "アプローチ文は1000文字以内で入力してください",
     };
   }
 
   try {
+    const now = new Date();
     const auth = await getCurrentUserId();
     if ("error" in auth) return { success: false, error: auth.error };
 
@@ -444,6 +494,35 @@ export async function sendApproach(input: {
       };
     }
 
+    const dailySentCount = await prisma.approach.count({
+      where: {
+        organizationId: organization.id,
+        createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+      },
+    });
+
+    if (dailySentCount >= APPROACH_DAILY_SEND_LIMIT) {
+      return {
+        success: false,
+        error: "1日に送信できるアプローチ数の上限に達しました",
+      };
+    }
+
+    const activeReceivedCount = await prisma.approach.count({
+      where: {
+        participantProfileId: participant.id,
+        status: "sent",
+        expiresAt: { gt: now },
+      },
+    });
+
+    if (activeReceivedCount >= PARTICIPANT_ACTIVE_APPROACH_LIMIT) {
+      return {
+        success: false,
+        error: "この参加者は未回答のアプローチが多いため、現在は送信できません",
+      };
+    }
+
     const created = await prisma.approach.create({
       data: {
         organizationId: organization.id,
@@ -454,12 +533,20 @@ export async function sendApproach(input: {
           participant.diagnosisScores,
           opportunity.requirementTraits
         ),
+        expiresAt: addDays(now, APPROACH_EXPIRATION_DAYS),
       },
       select: { id: true },
     });
 
     return { success: true, approachId: created.id };
   } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      return {
+        success: false,
+        error: "この参加者にはこの案件ですでにアプローチ済みです",
+      };
+    }
+
     console.error("[sendApproach] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
   }
@@ -483,6 +570,7 @@ export async function fetchDashboardApproaches(): Promise<DashboardApproachesRes
         message: true,
         matchScore: true,
         createdAt: true,
+        expiresAt: true,
         respondedAt: true,
         participantProfile: {
           select: { id: true, name: true },
@@ -521,6 +609,7 @@ export async function fetchMyApproaches(): Promise<MyApproachesResult> {
         message: true,
         matchScore: true,
         createdAt: true,
+        expiresAt: true,
         respondedAt: true,
         opportunity: {
           select: { id: true, title: true },
@@ -569,6 +658,7 @@ export async function fetchMyApproachDetail(
         message: true,
         matchScore: true,
         createdAt: true,
+        expiresAt: true,
         respondedAt: true,
         opportunity: {
           select: { id: true, title: true },
@@ -615,7 +705,7 @@ export async function respondToApproach(
         id: approachId,
         participantProfileId: participant.id,
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, expiresAt: true },
     });
 
     if (!approach) {
@@ -626,6 +716,13 @@ export async function respondToApproach(
       return {
         success: false,
         error: "このアプローチはすでに回答済みです",
+      };
+    }
+
+    if (isApproachExpired(toApproachStatus(approach.status), approach.expiresAt)) {
+      return {
+        success: false,
+        error: "このアプローチの回答期限は過ぎています",
       };
     }
 

@@ -16,7 +16,15 @@ import { ApproachResponseActions } from "./ApproachResponseActions";
 
 export const dynamic = "force-dynamic";
 
-function statusDisplay(status: ApproachStatus) {
+function statusDisplay(status: ApproachStatus, isExpired: boolean) {
+  if (isExpired) {
+    return {
+      label: "期限切れ",
+      icon: <Clock className="size-4" />,
+      color: "text-text-body bg-background border-card-border",
+    };
+  }
+
   switch (status) {
     case "accepted":
       return {
@@ -57,7 +65,11 @@ export default async function MyApproachDetailPage({
     notFound();
   }
 
-  const display = statusDisplay(approach.status);
+  const display = statusDisplay(approach.status, approach.isExpired);
+  const contact =
+    approach.status === "accepted" && approach.hasContact
+      ? approach.contact
+      : null;
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -95,6 +107,10 @@ export default async function MyApproachDetailPage({
                 受信日:{" "}
                 {new Date(approach.createdAt).toLocaleDateString("ja-JP")}
               </span>
+              <span>
+                回答期限:{" "}
+                {new Date(approach.expiresAt).toLocaleDateString("ja-JP")}
+              </span>
               {approach.respondedAt && (
                 <span>
                   回答日:{" "}
@@ -113,7 +129,7 @@ export default async function MyApproachDetailPage({
             <div className="flex items-center gap-2">
               <MessageSquare className="size-5 text-primary" />
               <h2 className="text-lg font-bold text-text-dark">
-                アプローチメッセージ
+                アプローチ文
               </h2>
             </div>
           </CardHeader>
@@ -121,10 +137,13 @@ export default async function MyApproachDetailPage({
             <p className="whitespace-pre-wrap leading-7 text-text-body">
               {approach.message}
             </p>
+            <div className="mt-4 rounded-lg bg-background p-4 text-xs leading-6 text-text-body">
+              アプリ内でメッセージのやり取りはできません。承諾後にLINE等で連絡します。
+            </div>
           </CardContent>
         </Card>
 
-        {approach.status === "sent" && (
+        {approach.status === "sent" && !approach.isExpired && (
           <Card className="mb-6">
             <CardHeader>
               <h2 className="text-lg font-bold text-text-dark">
@@ -140,7 +159,17 @@ export default async function MyApproachDetailPage({
           </Card>
         )}
 
-        {approach.status === "accepted" && approach.contact && (
+        {approach.isExpired && (
+          <Card className="mb-6">
+            <CardContent>
+              <p className="text-sm leading-6 text-text-body">
+                回答期限を過ぎているため、このアプローチには回答できません。
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {contact && (
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -152,34 +181,34 @@ export default async function MyApproachDetailPage({
             </CardHeader>
             <CardContent>
               <dl className="space-y-3 text-sm">
-                {approach.contact.lineId && (
+                {contact.lineId && (
                   <div className="rounded-lg bg-green-50 p-3">
                     <dt className="text-xs text-green-700">LINE ID</dt>
                     <dd className="mt-1 font-medium text-green-800">
-                      {approach.contact.lineId}
+                      {contact.lineId}
                     </dd>
                   </div>
                 )}
-                {approach.contact.lineUrl && (
+                {contact.lineUrl && (
                   <div className="rounded-lg bg-green-50 p-3">
                     <dt className="text-xs text-green-700">LINE URL</dt>
                     <dd className="mt-1">
                       <a
-                        href={approach.contact.lineUrl}
+                        href={contact.lineUrl}
                         className="font-medium text-green-800 underline"
                         target="_blank"
                         rel="noreferrer"
                       >
-                        {approach.contact.lineUrl}
+                        {contact.lineUrl}
                       </a>
                     </dd>
                   </div>
                 )}
-                {approach.contact.email && (
+                {contact.email && (
                   <div className="rounded-lg bg-green-50 p-3">
                     <dt className="text-xs text-green-700">メール</dt>
                     <dd className="mt-1 font-medium text-green-800">
-                      {approach.contact.email}
+                      {contact.email}
                     </dd>
                   </div>
                 )}

@@ -8,8 +8,8 @@ const FEATURES = [
   },
   {
     icon: Search,
-    title: "スカウトマッチング",
-    desc: "あなたに興味を持った団体からスカウトが届く、双方向のマッチング。",
+    title: "双方向アプローチ",
+    desc: "あなたに興味を持った団体からアプローチが届く、双方向のマッチング。",
   },
   {
     icon: MessageCircle,

@@ -526,8 +526,9 @@ BIG5から判定される10人物タイプの定義。
 ---
 
 ### 3.12a t_approach（団体から参加者へのアプローチ）
-団体が公開プロフィールの参加者に送るスカウトメッセージと、参加者の承諾・辞退状態を管理。
+団体が公開プロフィールの参加者に送る一回きりのアプローチ文と、参加者の承諾・辞退状態を管理。
 既存の応募フローは `t_matching_candidate` に残し、アプローチは専用テーブルで扱う。
+アプリ内チャットや複数メッセージのやり取りは持たず、承諾後に団体連絡先のみを表示する。
 
 | カラム名               | 型          | NULL     | デフォルト        | 説明                                     |
 | ---------------------- | ----------- | -------- | ----------------- | ---------------------------------------- |
@@ -535,9 +536,10 @@ BIG5から判定される10人物タイプの定義。
 | organization_id        | UUID        | NOT NULL | -                 | m_organization_profile.id 外部キー       |
 | participant_profile_id | UUID        | NOT NULL | -                 | m_participant_profile.id 外部キー        |
 | opportunity_id         | UUID        | NOT NULL | -                 | m_opportunity.id 外部キー                |
-| message                | TEXT        | NOT NULL | -                 | 団体から参加者へのアプローチメッセージ   |
+| message                | TEXT        | NOT NULL | -                 | 団体から参加者へのアプローチ文           |
 | match_score            | FLOAT       | NULL     | -                 | 送信時点の相性スコア                     |
 | status                 | VARCHAR(20) | NOT NULL | 'sent'            | sent, accepted, declined                 |
+| expires_at             | TIMESTAMP   | NOT NULL | -                 | 参加者の回答期限                         |
 | responded_at           | TIMESTAMP   | NULL     | -                 | 参加者が承諾・辞退した日時               |
 | created_at             | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 作成日時                                 |
 | updated_at             | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 更新日時                                 |
@@ -552,6 +554,7 @@ BIG5から判定される10人物タイプの定義。
 - INDEX: `idx_approach_participant_profile` ON `participant_profile_id`
 - INDEX: `idx_approach_opportunity` ON `opportunity_id`
 - INDEX: `idx_approach_status` ON `status`
+- INDEX: `idx_approach_expires_at` ON `expires_at`
 
 ---
 

@@ -10,6 +10,7 @@ CREATE TABLE "t_approach" (
     "message" TEXT NOT NULL,
     "match_score" DOUBLE PRECISION,
     "status" "approach_status" NOT NULL DEFAULT 'sent',
+    "expires_at" TIMESTAMP(3) NOT NULL,
     "responded_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -31,6 +32,9 @@ CREATE INDEX "t_approach_opportunity_id_idx" ON "t_approach"("opportunity_id");
 
 -- CreateIndex
 CREATE INDEX "t_approach_status_idx" ON "t_approach"("status");
+
+-- CreateIndex
+CREATE INDEX "t_approach_expires_at_idx" ON "t_approach"("expires_at");
 
 -- CreateIndex
 CREATE INDEX "t_approach_created_at_idx" ON "t_approach"("created_at" DESC);
