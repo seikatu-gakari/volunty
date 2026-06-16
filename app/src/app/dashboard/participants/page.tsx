@@ -4,6 +4,7 @@ import {
   Brain,
   ChevronRight,
   MapPin,
+  MessageSquarePlus,
   SearchX,
   Sparkles,
   Tag,
@@ -115,6 +116,11 @@ function ParticipantCard({
             </span>
           </div>
         </dl>
+
+        <span className="inline-flex items-center gap-2 text-sm font-medium text-primary">
+          <MessageSquarePlus className="size-4" />
+          詳細を確認してアプローチ
+        </span>
       </div>
     </Link>
   );
@@ -155,16 +161,25 @@ export default async function DashboardParticipantsPage() {
               おすすめ参加者
             </h1>
             <p className="mt-2 text-sm text-text-body">
-              自団体の公開中募集案件に対する最高相性スコア順で表示しています。
+              自団体の公開中募集案件に対する最高相性スコア順で表示しています。詳細から参加者へアプローチできます。
             </p>
           </div>
-          <Link
-            href="/dashboard/opportunities/new"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-dark"
-          >
-            <Sparkles className="size-4" />
-            募集案件を作成
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/dashboard/approaches"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-dark shadow-sm transition-colors hover:bg-primary/5"
+            >
+              <MessageSquarePlus className="size-4" />
+              送信履歴を見る
+            </Link>
+            <Link
+              href="/dashboard/opportunities/new"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-dark"
+            >
+              <Sparkles className="size-4" />
+              募集案件を作成
+            </Link>
+          </div>
         </div>
 
         {error && (

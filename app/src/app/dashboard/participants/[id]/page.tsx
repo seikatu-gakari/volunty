@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import { fetchApproachSendData } from "@/lib/approaches/actions";
 import { fetchRecommendedParticipantDetail } from "@/lib/dashboard/actions";
 import type { RecommendedParticipant } from "@/lib/dashboard/recommended-participants";
 
@@ -134,6 +135,32 @@ export default async function DashboardParticipantDetailPage({
     notFound();
   }
 
+  const {
+    opportunities,
+    error: approachError,
+  } = await fetchApproachSendData(id);
+
+  if (approachError === "ログインが必要です") {
+    redirect("/login");
+  }
+  if (approachError === "団体プロフィールが見つかりません") {
+    redirect("/onboarding/organization");
+  }
+  if (approachError === "承認済み団体のみ利用できます") {
+    redirect("/onboarding/pending");
+  }
+  if (approachError === "参加者が見つかりません") {
+    notFound();
+  }
+
+  const availableCount = opportunities.filter(
+    (opportunity) => !opportunity.alreadyApproached
+  ).length;
+  const canApproach = !approachError && availableCount > 0;
+  const disabledApproachLabel = approachError
+    ? "アプローチ準備不可"
+    : "送信可能な案件がありません";
+
   return (
     <div className="min-h-screen bg-background font-sans">
       <Header />
@@ -163,14 +190,24 @@ export default async function DashboardParticipantDetailPage({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                disabled
-                className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-body"
-              >
-                <MessageSquarePlus className="size-4" />
-                アプローチする（準備中）
-              </button>
+              {canApproach ? (
+                <Link
+                  href={`/dashboard/approaches/new/${participant.id}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-dark"
+                >
+                  <MessageSquarePlus className="size-4" />
+                  アプローチする
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-body"
+                >
+                  <MessageSquarePlus className="size-4" />
+                  {disabledApproachLabel}
+                </button>
+              )}
             </div>
 
             {participant.bio && (
@@ -271,6 +308,43 @@ export default async function DashboardParticipantDetailPage({
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-bold text-text-dark">
+              アプローチ可能な案件
+            </h2>
+          </CardHeader>
+          <CardContent>
+            {approachError ? (
+              <p className="text-sm leading-6 text-text-body">
+                {approachError}
+              </p>
+            ) : opportunities.length > 0 ? (
+              <div className="space-y-3">
+                {opportunities.map((opportunity) => (
+                  <div
+                    key={opportunity.id}
+                    className="rounded-lg border border-card-border px-3 py-2 text-sm"
+                  >
+                    <div className="font-medium text-text-dark">
+                      {opportunity.title}
+                    </div>
+                    <div className="mt-1 text-xs text-text-body">
+                      {opportunity.alreadyApproached
+                        ? "この案件では送信済みです"
+                        : "送信できます"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-text-body">
+                公開中の募集案件がありません。先に募集案件を公開してください。
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

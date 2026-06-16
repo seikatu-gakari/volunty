@@ -14,7 +14,7 @@ const STEPS = [
     label: "STEP 2",
     icon: Search,
     title: "マッチング",
-    desc: "AIが相性スコア順に活動を提案。団体からスカウトが届くことも。",
+    desc: "AIが相性スコア順に活動を提案。団体からアプローチが届くことも。",
     color: "bg-primary/10 text-primary",
   },
   {
