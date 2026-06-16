@@ -11,7 +11,7 @@
 export type OpportunityStatus = "draft" | "published" | "closed";
 
 /** 応募ステータス */
-export type ApplicationStatus = "pending" | "approved" | "rejected";
+export type ApplicationStatus = "pending" | "approved" | "rejected" | "completed";
 
 /** 募集団体情報 */
 export interface OrganizationInfo {
@@ -37,6 +37,7 @@ export interface ExistingApplication {
   status: ApplicationStatus;
   message: string | null;
   created_at: string;
+  completed_at: string | null;
 }
 
 /** fetchOpportunityDetail の戻り値 */

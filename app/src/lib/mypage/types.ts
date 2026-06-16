@@ -7,7 +7,7 @@
  */
 
 /** 応募ステータス */
-export type ApplicationStatus = "pending" | "approved" | "rejected";
+export type ApplicationStatus = "pending" | "approved" | "rejected" | "completed";
 
 /** 参加者プロフィール（participants テーブル） */
 export interface ParticipantProfile {
@@ -35,6 +35,8 @@ export interface ApplicationWithDetails {
   status: ApplicationStatus;
   message: string | null;
   created_at: string;
+  completed_at: string | null;
+  can_request_certificate: boolean;
   opportunity: ApplicationOpportunity;
 }
 

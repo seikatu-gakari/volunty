@@ -6,6 +6,8 @@
  * - applications: 各案件の応募者数（COUNT）
  */
 
+import type { RecommendedParticipant } from "./recommended-participants";
+
 /** 募集案件ステータス（DBスキーマ: draft / published / closed） */
 export type OpportunityStatus = "draft" | "published" | "closed";
 
@@ -51,7 +53,7 @@ export interface UpdateOpportunityResult {
 }
 
 /** 応募ステータス */
-export type ApplicationStatus = "pending" | "approved" | "rejected";
+export type ApplicationStatus = "pending" | "approved" | "rejected" | "completed";
 
 /** 応募者情報（applications + participants JOIN 結果） */
 export interface Applicant {
@@ -63,6 +65,8 @@ export interface Applicant {
   message: string | null;
   /** 応募日 */
   created_at: string;
+  /** 活動完了日 */
+  completed_at: string | null;
   /** 参加者名 */
   participant_name: string;
   /** 診断タイプ（10類型名） */
@@ -115,6 +119,8 @@ export interface ApplicantDetail {
   message: string | null;
   /** 応募日 */
   created_at: string;
+  /** 活動完了日 */
+  completed_at: string | null;
   /** 参加者名 */
   participant_name: string;
   /** 診断タイプ名（10類型名） */
@@ -141,6 +147,31 @@ export interface ApplicantDetail {
 export interface ApplicantDetailResult {
   /** 応募者詳細データ（見つからない場合は null） */
   data: ApplicantDetail | null;
+  /** エラーメッセージ */
+  error?: string;
+}
+
+/** おすすめ参加者一覧の空状態理由 */
+export type RecommendedParticipantsEmptyReason =
+  | "no_published_opportunities"
+  | "no_recommended_participants";
+
+/** fetchRecommendedParticipants の戻り値 */
+export interface RecommendedParticipantsResult {
+  /** 相性スコア順の参加者候補 */
+  participants: RecommendedParticipant[];
+  /** 表示すべき空状態の理由 */
+  emptyReason?: RecommendedParticipantsEmptyReason;
+  /** エラーメッセージ */
+  error?: string;
+}
+
+/** fetchRecommendedParticipantDetail の戻り値 */
+export interface RecommendedParticipantDetailResult {
+  /** 参加者詳細データ（見つからない場合は null） */
+  participant: RecommendedParticipant | null;
+  /** 表示すべき空状態の理由 */
+  emptyReason?: RecommendedParticipantsEmptyReason;
   /** エラーメッセージ */
   error?: string;
 }

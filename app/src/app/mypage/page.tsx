@@ -37,6 +37,12 @@ function statusDisplay(status: ApplicationStatus) {
         icon: <CheckCircle2 className="size-4" />,
         color: "text-green-700 bg-green-50 border-green-200",
       };
+    case "completed":
+      return {
+        label: "活動完了",
+        icon: <CheckCircle2 className="size-4" />,
+        color: "text-primary bg-primary/10 border-primary/20",
+      };
     case "rejected":
       return {
         label: "辞退",
@@ -230,8 +236,9 @@ export default async function MyPage() {
                           </span>
                         </div>
 
-                        {/* マッチング成立時のみ LINE ID を表示 */}
-                        {app.status === "approved" &&
+                        {/* マッチング成立後のみ LINE ID を表示 */}
+                        {(app.status === "approved" ||
+                          app.status === "completed") &&
                           app.opportunity.organization_line_id && (
                             <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3">
                               <MessageCircle className="size-4 text-green-700" />
@@ -250,6 +257,14 @@ export default async function MyPage() {
                           応募日:{" "}
                           {new Date(app.created_at).toLocaleDateString("ja-JP")}
                         </p>
+                        {app.completed_at && (
+                          <p className="text-xs text-text-body">
+                            完了日:{" "}
+                            {new Date(app.completed_at).toLocaleDateString(
+                              "ja-JP"
+                            )}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );

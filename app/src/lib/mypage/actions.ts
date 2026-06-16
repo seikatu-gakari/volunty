@@ -29,9 +29,8 @@ const MATCHING_STATUS_TO_APPLICATION_STATUS: Record<
   ApplicationWithDetails["status"]
 > = {
   applied: "pending",
-  // accepted / completed は応募成立済みとして同じ UI（approved）で扱う
   accepted: "approved",
-  completed: "approved",
+  completed: "completed",
   declined: "rejected",
 };
 
@@ -103,7 +102,9 @@ export async function fetchMyPageData(): Promise<MyPageData> {
   try {
     const { data: candidateData, error: candidateError } = await supabase
       .from("t_matching_candidate")
-      .select("id, status, message, created_at, applied_at, opportunity_id")
+      .select(
+        "id, status, message, created_at, applied_at, status_changed_at, opportunity_id"
+      )
       .eq("participant_id", user.id)
       .in("status", [...MATCHING_CANDIDATE_STATUSES])
       .order("created_at", { ascending: false });
@@ -178,6 +179,10 @@ export async function fetchMyPageData(): Promise<MyPageData> {
         }
 
         const status = MATCHING_STATUS_TO_APPLICATION_STATUS[rawStatus];
+        const completedAt =
+          rawStatus === "completed"
+            ? (candidate.status_changed_at as string | null)
+            : null;
         return [
           {
             id: candidate.id as string,
@@ -186,12 +191,16 @@ export async function fetchMyPageData(): Promise<MyPageData> {
             created_at:
               (candidate.applied_at as string | null) ??
               (candidate.created_at as string),
+            completed_at: completedAt,
+            can_request_certificate: status === "completed",
             opportunity: {
               id: opportunityId,
               title: opportunity.title,
               organization_name: opportunity.organization_name,
               organization_line_id:
-                status === "approved" ? opportunity.organization_line_id : null,
+                status === "approved" || status === "completed"
+                  ? opportunity.organization_line_id
+                  : null,
             },
           },
         ];
