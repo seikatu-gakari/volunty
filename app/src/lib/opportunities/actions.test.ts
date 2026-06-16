@@ -166,6 +166,7 @@ describe("fetchOpportunityDetail", () => {
       status: "applied",
       message: "参加したいです",
       applied_at: "2026-01-15T00:00:00Z",
+      status_changed_at: "2026-01-15T00:00:00Z",
     };
 
     let callCount = 0;
@@ -182,7 +183,54 @@ describe("fetchOpportunityDetail", () => {
     expect(result.existingApplication).not.toBeNull();
     // DBステータス "applied" は UI では "pending" にマッピングされる
     expect(result.existingApplication?.status).toBe("pending");
+    expect(result.existingApplication?.completed_at).toBeNull();
     expect(result.existingApplication?.message).toBe("参加したいです");
+  });
+
+  it("活動完了済みの場合、existingApplication に completed と完了日時を含める", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+
+    const mockOpp = {
+      id: "opp-1",
+      title: "子ども支援活動",
+      description: null,
+      requirement_traits: null,
+      status: "published",
+      created_at: "2026-01-01T00:00:00Z",
+      m_organization_profile: {
+        id: "org-2",
+        organization_name: "支援団体A",
+        description: null,
+      },
+    };
+
+    const mockApp = {
+      id: "app-1",
+      status: "completed",
+      message: "参加しました",
+      applied_at: "2026-01-15T00:00:00Z",
+      status_changed_at: "2026-02-01T10:00:00Z",
+    };
+
+    let callCount = 0;
+    mockSingle.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return { data: mockOpp, error: null };
+      if (callCount === 2) return { data: null, error: null };
+      return { data: mockApp, error: null };
+    });
+
+    const result: OpportunityDetailResult =
+      await fetchOpportunityDetail("opp-1");
+
+    expect(result.existingApplication?.status).toBe("completed");
+    expect(result.existingApplication?.completed_at).toBe(
+      "2026-02-01T10:00:00Z"
+    );
   });
 
   it("予期しないエラー時もクラッシュせず空データを返す", async () => {
@@ -380,6 +428,7 @@ describe("applyToOpportunity", () => {
         match_score: 75, // calculateMatchScore のモック戻り値
         message: "参加したいです",
         applied_at: expect.any(String),
+        status_changed_at: expect.any(String),
         created_at: expect.any(String),
         updated_at: expect.any(String),
       })

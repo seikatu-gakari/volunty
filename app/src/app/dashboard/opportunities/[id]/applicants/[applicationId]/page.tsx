@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
+  CheckCircle2,
   User,
   MessageSquare,
   Sparkles,
@@ -170,6 +171,13 @@ export default async function ApplicantDetailPage({
                 応募日:{" "}
                 {new Date(data.created_at).toLocaleDateString("ja-JP")}
               </span>
+              {data.completed_at && (
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="size-3" />
+                  完了日:{" "}
+                  {new Date(data.completed_at).toLocaleDateString("ja-JP")}
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>

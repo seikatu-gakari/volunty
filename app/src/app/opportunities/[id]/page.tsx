@@ -32,6 +32,12 @@ function statusDisplay(status: ApplicationStatus) {
         icon: <CheckCircle2 className="size-4" />,
         color: "text-green-700 bg-green-50 border-green-200",
       };
+    case "completed":
+      return {
+        label: "活動完了",
+        icon: <CheckCircle2 className="size-4" />,
+        color: "text-primary bg-primary/10 border-primary/20",
+      };
     case "rejected":
       return {
         label: "辞退",
@@ -247,6 +253,14 @@ export default async function OpportunityDetailPage({
                     existingApplication.created_at
                   ).toLocaleDateString("ja-JP")}
                 </p>
+                {existingApplication.completed_at && (
+                  <p className="text-xs text-text-body">
+                    完了日:{" "}
+                    {new Date(
+                      existingApplication.completed_at
+                    ).toLocaleDateString("ja-JP")}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -147,7 +147,7 @@ export async function fetchOpportunityDetail(
 
     const { data: appData } = await supabase
       .from("t_matching_candidate")
-      .select("id, status, message, applied_at")
+      .select("id, status, message, applied_at, status_changed_at")
       .eq("opportunity_id", opportunityId)
       .eq("participant_id", user.id)
       .single();
@@ -158,6 +158,10 @@ export async function fetchOpportunityDetail(
         status: mapMatchingStatus(appData.status as string),
         message: (appData.message as string) ?? null,
         created_at: (appData.applied_at as string) ?? "",
+        completed_at:
+          appData.status === "completed"
+            ? (appData.status_changed_at as string)
+            : null,
       };
     }
 
@@ -183,7 +187,8 @@ export async function fetchOpportunityDetail(
  */
 function mapMatchingStatus(dbStatus: string): ExistingApplication["status"] {
   if (dbStatus === "applied" || dbStatus === "queued") return "pending";
-  if (dbStatus === "accepted" || dbStatus === "completed") return "approved";
+  if (dbStatus === "accepted") return "approved";
+  if (dbStatus === "completed") return "completed";
   if (dbStatus === "declined") return "rejected";
   return "pending";
 }
@@ -268,6 +273,7 @@ export async function applyToOpportunity(
         status: "applied",
         match_score: matchScore,
         applied_at: now,
+        status_changed_at: now,
         created_at: now,
         updated_at: now,
       });

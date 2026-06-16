@@ -175,6 +175,7 @@ describe("fetchApplicantsForOpportunity", () => {
             message: "応募メッセージ",
             match_score: 75.5,
             applied_at: "2026-01-20T00:00:00Z",
+            status_changed_at: "2026-01-20T00:00:00Z",
             participant_id: "user-participant-1",
           },
         ],
@@ -214,7 +215,63 @@ describe("fetchApplicantsForOpportunity", () => {
     expect(applicant.participant_name).toBe("テスト太郎");
     expect(applicant.diagnosis_type).toBe("イノベーター・リーダー");
     expect(applicant.status).toBe("pending"); // DB: applied → UI: pending
+    expect(applicant.completed_at).toBeNull();
     expect(applicant.match_score).toBe(75.5);
+  });
+
+  it("活動完了済みの応募者は completed と完了日時を返す", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({
+        data: {
+          id: "opp-1",
+          title: "テスト案件",
+          description: null,
+          status: "published",
+          requirement_traits: null,
+          created_at: "2026-01-15T00:00:00Z",
+        },
+        error: null,
+      });
+
+    mockOrder.mockReturnValue(
+      createOrderResult({
+        data: [
+          {
+            id: "app-completed",
+            status: "completed",
+            message: null,
+            match_score: 85,
+            applied_at: "2026-01-20T00:00:00Z",
+            status_changed_at: "2026-02-01T09:30:00Z",
+            participant_id: "user-participant-completed",
+          },
+        ],
+        error: null,
+      })
+    );
+
+    mockIn.mockReturnValue({
+      data: [
+        {
+          user_id: "user-participant-completed",
+          name: "完了太郎",
+          diagnosis_type: null,
+          diagnosis_scores: null,
+        },
+      ],
+      error: null,
+    });
+
+    const result: ApplicantsResult =
+      await fetchApplicantsForOpportunity("opp-1");
+
+    const applicant = result.data!.applicants[0];
+    expect(applicant.status).toBe("completed");
+    expect(applicant.completed_at).toBe("2026-02-01T09:30:00Z");
   });
 
   it("応募者が0件の場合、空配列を返す", async () => {
@@ -428,7 +485,7 @@ describe("updateApplicationStatus", () => {
     // t_matching_candidate 取得成功
     mockSingle
       .mockReturnValueOnce({
-        data: { id: "app-1", opportunity_id: "opp-1" },
+        data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
         error: null,
       })
       // m_organization_profile 取得失敗
@@ -447,7 +504,7 @@ describe("updateApplicationStatus", () => {
 
     mockSingle
       .mockReturnValueOnce({
-        data: { id: "app-1", opportunity_id: "opp-1" },
+        data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
         error: null,
       })
       .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
@@ -469,7 +526,7 @@ describe("updateApplicationStatus", () => {
 
     mockSingle
       .mockReturnValueOnce({
-        data: { id: "app-1", opportunity_id: "opp-1" },
+        data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
         error: null,
       })
       .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
@@ -481,7 +538,13 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "approved");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "accepted" }); // UI: approved → DB: accepted
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "accepted",
+        status_changed_at: expect.any(String),
+        updated_at: expect.any(String),
+      })
+    ); // UI: approved → DB: accepted
     expect(mockFrom).toHaveBeenCalledWith("t_matching_candidate");
   });
 
@@ -491,7 +554,7 @@ describe("updateApplicationStatus", () => {
 
     mockSingle
       .mockReturnValueOnce({
-        data: { id: "app-1", opportunity_id: "opp-1" },
+        data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
         error: null,
       })
       .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
@@ -503,7 +566,60 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "rejected");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "declined" }); // UI: rejected → DB: declined
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "declined",
+        status_changed_at: expect.any(String),
+        updated_at: expect.any(String),
+      })
+    ); // UI: rejected → DB: declined
+  });
+
+  it("承認済み応募を活動完了に更新できる", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle
+      .mockReturnValueOnce({
+        data: { id: "app-1", opportunity_id: "opp-1", status: "accepted" },
+        error: null,
+      })
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({ data: { id: "opp-1" }, error: null });
+
+    mockUpdateEq.mockReturnValue({ error: null });
+
+    const result: UpdateApplicationStatusResult =
+      await updateApplicationStatus("app-1", "completed");
+
+    expect(result.success).toBe(true);
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "completed",
+        status_changed_at: expect.any(String),
+        updated_at: expect.any(String),
+      })
+    );
+  });
+
+  it("承認済み以外の応募は活動完了に更新できない", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle
+      .mockReturnValueOnce({
+        data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
+        error: null,
+      })
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({ data: { id: "opp-1" }, error: null });
+
+    const result: UpdateApplicationStatusResult =
+      await updateApplicationStatus("app-1", "completed");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("承認済みの応募のみ活動完了にできます");
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
   it("DB エラー時もクラッシュせずエラーを返す", async () => {
@@ -724,7 +840,7 @@ describe("updateApplicationStatus", () => {
     // 3回目: 案件の認可チェック → 失敗
     mockSingle
       .mockReturnValueOnce({
-        data: { id: "app-1", opportunity_id: "opp-1" },
+        data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
         error: null,
       })
       .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
@@ -750,7 +866,7 @@ describe("updateApplicationStatus", () => {
     // 応募データ取得
     mockSingle
       .mockReturnValueOnce({
-        data: { id: "app-1", opportunity_id: "opp-1" },
+        data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
         error: null,
       })
       // 団体プロフィール取得
@@ -768,7 +884,13 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "approved");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "accepted" });
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "accepted",
+        status_changed_at: expect.any(String),
+        updated_at: expect.any(String),
+      })
+    );
     expect(mockFrom).toHaveBeenCalledWith("t_matching_candidate");
   });
 
@@ -781,7 +903,7 @@ describe("updateApplicationStatus", () => {
 
     mockSingle
       .mockReturnValueOnce({
-        data: { id: "app-1", opportunity_id: "opp-1" },
+        data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
         error: null,
       })
       .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
@@ -796,7 +918,13 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "rejected");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "declined" });
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "declined",
+        status_changed_at: expect.any(String),
+        updated_at: expect.any(String),
+      })
+    );
   });
 
   it("DB エラー時もクラッシュせずエラーを返す", async () => {
