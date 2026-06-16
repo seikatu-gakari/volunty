@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   CircleDashed,
   Building2,
+  MessageSquarePlus,
   X,
 } from "lucide-react";
 import { redirect } from "next/navigation";
@@ -159,6 +160,20 @@ export default async function DashboardPage() {
             >
               <Pencil className="size-4" />
               団体プロフィールを編集
+            </Link>
+            <Link
+              href="/dashboard/participants"
+              className="inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-dark shadow-sm transition-colors hover:bg-primary/5"
+            >
+              <Users className="size-4" />
+              参加者を探す
+            </Link>
+            <Link
+              href="/dashboard/approaches"
+              className="inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-dark shadow-sm transition-colors hover:bg-primary/5"
+            >
+              <MessageSquarePlus className="size-4" />
+              アプローチ履歴
             </Link>
             <Link
               href="/dashboard/opportunities/new"

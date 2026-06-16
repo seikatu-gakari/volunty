@@ -525,6 +525,36 @@ BIG5から判定される10人物タイプの定義。
 
 ---
 
+### 3.12a t_approach（団体から参加者へのアプローチ）
+団体が公開プロフィールの参加者に送るスカウトメッセージと、参加者の承諾・辞退状態を管理。
+既存の応募フローは `t_matching_candidate` に残し、アプローチは専用テーブルで扱う。
+
+| カラム名               | 型          | NULL     | デフォルト        | 説明                                     |
+| ---------------------- | ----------- | -------- | ----------------- | ---------------------------------------- |
+| id                     | UUID        | NOT NULL | gen_random_uuid() | 主キー                                   |
+| organization_id        | UUID        | NOT NULL | -                 | m_organization_profile.id 外部キー       |
+| participant_profile_id | UUID        | NOT NULL | -                 | m_participant_profile.id 外部キー        |
+| opportunity_id         | UUID        | NOT NULL | -                 | m_opportunity.id 外部キー                |
+| message                | TEXT        | NOT NULL | -                 | 団体から参加者へのアプローチメッセージ   |
+| match_score            | FLOAT       | NULL     | -                 | 送信時点の相性スコア                     |
+| status                 | VARCHAR(20) | NOT NULL | 'sent'            | sent, accepted, declined                 |
+| responded_at           | TIMESTAMP   | NULL     | -                 | 参加者が承諾・辞退した日時               |
+| created_at             | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 作成日時                                 |
+| updated_at             | TIMESTAMP   | NOT NULL | CURRENT_TIMESTAMP | 更新日時                                 |
+
+**制約:**
+- PRIMARY KEY: `id`
+- FOREIGN KEY: `organization_id` REFERENCES `m_organization_profile(id)` ON DELETE CASCADE
+- FOREIGN KEY: `participant_profile_id` REFERENCES `m_participant_profile(id)` ON DELETE CASCADE
+- FOREIGN KEY: `opportunity_id` REFERENCES `m_opportunity(id)` ON DELETE CASCADE
+- UNIQUE: `(organization_id, participant_profile_id, opportunity_id)`
+- INDEX: `idx_approach_organization` ON `organization_id`
+- INDEX: `idx_approach_participant_profile` ON `participant_profile_id`
+- INDEX: `idx_approach_opportunity` ON `opportunity_id`
+- INDEX: `idx_approach_status` ON `status`
+
+---
+
 ### 3.13 t_user_activity_log（ユーザー行動ログ）
 ユーザーの行動履歴を記録（分析・機械学習用）。
 

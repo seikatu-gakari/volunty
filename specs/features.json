@@ -15,9 +15,9 @@
         { "id": "P-6",  "name": "団体詳細閲覧",           "status": "pending",  "notes": "未実装" },
         { "id": "P-7",  "name": "募集案件への応募",       "status": "pending",  "notes": "未実装" },
         { "id": "P-8",  "name": "応募状況確認",           "status": "pending",  "notes": "未実装" },
-        { "id": "P-9",  "name": "団体からのアプローチ受信","status": "pending",  "notes": "未実装" },
-        { "id": "P-10", "name": "アプローチへの返信",     "status": "pending",  "notes": "未実装" },
-        { "id": "P-11", "name": "マッチ成立後LINE表示",   "status": "pending",  "notes": "未実装" },
+        { "id": "P-9",  "name": "団体からのアプローチ受信","status": "pass",     "notes": "/mypage/approaches で受信一覧・詳細を表示" },
+        { "id": "P-10", "name": "アプローチへの返信",     "status": "pass",     "notes": "参加者がアプローチを承諾・辞退可能" },
+        { "id": "P-11", "name": "マッチ成立後LINE表示",   "status": "pass",     "notes": "応募承認後およびアプローチ承諾後に団体連絡先を表示" },
         { "id": "P-12", "name": "参加証明書発行",         "status": "pending",  "notes": "未実装" },
         { "id": "P-13", "name": "参加証明書一覧",         "status": "pending",  "notes": "未実装" },
         { "id": "P-14", "name": "診断やり直し",           "status": "pending",  "notes": "Nice to Have。未実装" }
@@ -32,8 +32,8 @@
         { "id": "O-3",  "name": "募集案件の作成",            "status": "pending", "notes": "未実装" },
         { "id": "O-4",  "name": "募集案件の編集・終了",      "status": "pending", "notes": "未実装" },
         { "id": "O-5",  "name": "おすすめ参加者一覧",        "status": "pending", "notes": "未実装" },
-        { "id": "O-6",  "name": "参加者へのアプローチ送信",  "status": "pending", "notes": "未実装" },
-        { "id": "O-7",  "name": "アプローチ送信履歴",        "status": "pending", "notes": "未実装" },
+        { "id": "O-6",  "name": "参加者へのアプローチ送信",  "status": "pass",    "notes": "/dashboard/participants から公開参加者へ案件単位で送信可能" },
+        { "id": "O-7",  "name": "アプローチ送信履歴",        "status": "pass",    "notes": "/dashboard/approaches で送信履歴と回答状態を表示" },
         { "id": "O-8",  "name": "応募者詳細確認",            "status": "pending", "notes": "未実装" },
         { "id": "O-9",  "name": "応募の承認・辞退",          "status": "pending", "notes": "未実装" },
         { "id": "O-10", "name": "活動完了報告",              "status": "pending", "notes": "未実装" },
@@ -63,8 +63,8 @@
   },
   "summary": {
     "total": 39,
-    "pass": 3,
+    "pass": 8,
     "partial": 1,
-    "pending": 35
+    "pending": 30
   }
 }

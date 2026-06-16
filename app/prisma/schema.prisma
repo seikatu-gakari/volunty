@@ -62,6 +62,15 @@ enum OrganizationReviewStatus {
   @@map("organization_review_status")
 }
 
+/// 団体から参加者へのアプローチ回答ステータス
+enum ApproachStatus {
+  sent
+  accepted
+  declined
+
+  @@map("approach_status")
+}
+
 // ============================================
 // マスタテーブル（m_ プレフィックス）
 // ============================================
@@ -110,7 +119,8 @@ model ParticipantProfile {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   // リレーション
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approaches Approach[]
 
   @@index([preferredLocation])
   @@map("m_participant_profile")
@@ -142,6 +152,7 @@ model OrganizationProfile {
   // リレーション
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
+  approaches    Approach[]
 
   @@index([reviewStatus])
   @@index([verified])
@@ -190,6 +201,7 @@ model Opportunity {
   // リレーション
   organization       OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   matchingCandidates MatchingCandidate[]
+  approaches         Approach[]
 
   @@index([status])
   @@index([publishedAt])
@@ -251,4 +263,31 @@ model MatchingCandidate {
   @@index([opportunityId])
   @@index([matchScore(sort: Desc)])
   @@map("t_matching_candidate")
+}
+
+/// アプローチ — 団体から参加者へのスカウトメッセージと回答状態を管理
+model Approach {
+  id                   String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String         @map("organization_id") @db.Uuid
+  participantProfileId String         @map("participant_profile_id") @db.Uuid
+  opportunityId        String         @map("opportunity_id") @db.Uuid
+  message              String         @db.Text
+  matchScore           Float?         @map("match_score")
+  status               ApproachStatus @default(sent)
+  respondedAt          DateTime?      @map("responded_at")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  // リレーション
+  organization       OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participantProfile ParticipantProfile  @relation(fields: [participantProfileId], references: [id], onDelete: Cascade)
+  opportunity        Opportunity         @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, participantProfileId, opportunityId])
+  @@index([organizationId])
+  @@index([participantProfileId])
+  @@index([opportunityId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("t_approach")
 }
