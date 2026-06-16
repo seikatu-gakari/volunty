@@ -1,9 +1,15 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import type { BIG5Scores } from "@/lib/personality/types";
 import { calculateMatchScore } from "@/lib/recommendations/matching";
+import {
+  buildRecommendedParticipants,
+  type RecommendedParticipantCandidate,
+  type RecommendedParticipantOpportunity,
+} from "./recommended-participants";
 import type {
   DashboardData,
   DashboardOpportunity,
@@ -16,6 +22,8 @@ import type {
   ApplicantsResult,
   UpdateApplicationStatusResult,
   ApplicantDetailResult,
+  RecommendedParticipantDetailResult,
+  RecommendedParticipantsResult,
 } from "./types";
 import { PERSONALITY_TYPES } from "@/lib/personality/constants";
 
@@ -92,6 +100,182 @@ export async function fetchMyOpportunities(): Promise<DashboardData> {
   }
 
   return { opportunities };
+}
+
+async function fetchApprovedOrganizationProfile(
+  userId: string
+): Promise<{ id: string } | { error: string }> {
+  const organizationProfile = await prisma.organizationProfile.findUnique({
+    where: { userId },
+    select: { id: true, reviewStatus: true },
+  });
+
+  if (!organizationProfile) {
+    return { error: "団体プロフィールが見つかりません" };
+  }
+
+  if (organizationProfile.reviewStatus !== "approved") {
+    return { error: "承認済み団体のみ利用できます" };
+  }
+
+  return { id: organizationProfile.id };
+}
+
+async function fetchPublishedOpportunityRequirements(
+  organizationId: string
+): Promise<RecommendedParticipantOpportunity[]> {
+  return prisma.opportunity.findMany({
+    where: { organizationId, status: "published" },
+    select: { id: true, requirementTraits: true, title: true },
+  });
+}
+
+async function fetchPublicParticipantCandidates(): Promise<
+  RecommendedParticipantCandidate[]
+> {
+  return prisma.participantProfile.findMany({
+    where: { publicProfile: true },
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      region: true,
+      bio: true,
+      interests: true,
+      availability: true,
+      preferredLocation: true,
+      publicProfile: true,
+      diagnosisType: true,
+      diagnosisMode: true,
+      diagnosisScores: true,
+    },
+  });
+}
+
+async function fetchRecommendedParticipantCandidate(
+  participantProfileId: string
+): Promise<RecommendedParticipantCandidate | null> {
+  return prisma.participantProfile.findUnique({
+    where: { id: participantProfileId },
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      region: true,
+      bio: true,
+      interests: true,
+      availability: true,
+      preferredLocation: true,
+      publicProfile: true,
+      diagnosisType: true,
+      diagnosisMode: true,
+      diagnosisScores: true,
+    },
+  });
+}
+
+/**
+ * 団体向けおすすめ参加者一覧を取得する。
+ *
+ * 自団体の公開中募集案件ごとに参加者との相性を計算し、
+ * 参加者ごとの最高スコアを代表スコアとして返す。
+ */
+export async function fetchRecommendedParticipants(): Promise<RecommendedParticipantsResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { participants: [], error: "ログインが必要です" };
+    }
+
+    const organizationProfile = await fetchApprovedOrganizationProfile(user.id);
+    if ("error" in organizationProfile) {
+      return { participants: [], error: organizationProfile.error };
+    }
+
+    const opportunities = await fetchPublishedOpportunityRequirements(
+      organizationProfile.id
+    );
+    if (opportunities.length === 0) {
+      return {
+        participants: [],
+        emptyReason: "no_published_opportunities",
+      };
+    }
+
+    const candidates = await fetchPublicParticipantCandidates();
+    const participants = buildRecommendedParticipants(candidates, opportunities);
+
+    return {
+      participants,
+      emptyReason:
+        participants.length === 0 ? "no_recommended_participants" : undefined,
+    };
+  } catch (err) {
+    console.error("[fetchRecommendedParticipants] 予期しないエラー:", err);
+    return { participants: [], error: "予期しないエラーが発生しました" };
+  }
+}
+
+/**
+ * 団体向けおすすめ参加者の詳細を取得する。
+ *
+ * 非公開プロフィール、診断未実施プロフィール、存在しないプロフィールは
+ * 参加者なしとして扱う。
+ */
+export async function fetchRecommendedParticipantDetail(
+  participantProfileId: string
+): Promise<RecommendedParticipantDetailResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { participant: null, error: "ログインが必要です" };
+    }
+
+    const organizationProfile = await fetchApprovedOrganizationProfile(user.id);
+    if ("error" in organizationProfile) {
+      return { participant: null, error: organizationProfile.error };
+    }
+
+    const opportunities = await fetchPublishedOpportunityRequirements(
+      organizationProfile.id
+    );
+    if (opportunities.length === 0) {
+      return {
+        participant: null,
+        emptyReason: "no_published_opportunities",
+      };
+    }
+
+    const candidate = await fetchRecommendedParticipantCandidate(
+      participantProfileId
+    );
+    if (!candidate) {
+      return { participant: null, error: "参加者が見つかりません" };
+    }
+
+    const [participant] = buildRecommendedParticipants(
+      [candidate],
+      opportunities
+    );
+    if (!participant) {
+      return { participant: null, error: "参加者が見つかりません" };
+    }
+
+    return { participant };
+  } catch (err) {
+    console.error("[fetchRecommendedParticipantDetail] 予期しないエラー:", err);
+    return { participant: null, error: "予期しないエラーが発生しました" };
+  }
 }
 
 /** BIG5 特性キーの一覧 */
