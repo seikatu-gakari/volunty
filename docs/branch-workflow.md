@@ -58,6 +58,30 @@ git push origin feature/my-feature
 | `preview` へのpush             | Preview                      |
 | `develop` / `feature/*` のpush | **スキップ（デプロイなし）** |
 
+## 本番DBマイグレーション
+
+`main` へのマージで Prisma migration 関連ファイルが更新された場合、GitHub Actions の `Production DB Migration` workflow が自動実行されます。
+
+対象ファイル:
+
+- `app/prisma/migrations/**`
+- `app/prisma/schema.prisma`
+- `app/prisma.config.ts`
+- `app/package.json`
+- `app/package-lock.json`
+- `.github/workflows/production-db-migrate.yml`
+
+workflow は `app/` で `npx prisma migrate deploy` を実行します。未適用 migration がなければ何も適用せず終了し、未適用 migration があれば本番DBへ適用します。手元の `app/.env.local` を本番用に書き換えて migration する運用は行いません。
+
+GitHub の `Repository` → `Settings` → `Secrets and variables` → `Actions` に以下を設定してください。
+
+| Secret名                  | 用途                                                                 |
+| ------------------------- | -------------------------------------------------------------------- |
+| `PRODUCTION_DATABASE_URL` | 本番アプリ用の PostgreSQL 接続文字列                                 |
+| `PRODUCTION_DIRECT_URL`   | Prisma migration 用の Supabase Session Mode Pooler 接続文字列（5432） |
+
+失敗時は GitHub の `Actions` → `Production DB Migration` でログを確認し、Secret や接続先を修正してから `Run workflow` で再実行します。
+
 ### ブランチ制限の設定（初回のみ・Vercelダッシュボード）
 
 Vercel → プロジェクト → **Settings → Git → Ignored Build Step** に以下を入力して保存：

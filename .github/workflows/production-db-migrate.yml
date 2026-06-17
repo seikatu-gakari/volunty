@@ -1,0 +1,66 @@
+name: Production DB Migration
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/prisma/migrations/**"
+      - "app/prisma/schema.prisma"
+      - "app/prisma.config.ts"
+      - "app/package.json"
+      - "app/package-lock.json"
+      - ".github/workflows/production-db-migrate.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: production-db-migration
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Apply production Prisma migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Validate production database secrets
+        shell: bash
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "PRODUCTION_DATABASE_URL GitHub Secret が設定されていません" >&2
+            exit 1
+          fi
+
+          if [ -z "$DIRECT_URL" ]; then
+            echo "PRODUCTION_DIRECT_URL GitHub Secret が設定されていません" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Show migration status
+        run: npx prisma migrate status
+        continue-on-error: true
+
+      - name: Apply pending migrations
+        run: npx prisma migrate deploy
