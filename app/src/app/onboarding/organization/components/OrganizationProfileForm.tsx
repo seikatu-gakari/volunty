@@ -6,7 +6,6 @@ import {
   Building2,
   User,
   Mail,
-  MapPin,
   Globe,
   FileText,
   Tag,
@@ -94,6 +93,13 @@ export function OrganizationProfileForm({
     setLoading(true);
 
     try {
+      const normalizedContactLineId = contactLineId.trim();
+      if (!normalizedContactLineId) {
+        setError("LINE公式アカウントIDは必須です");
+        setLoading(false);
+        return;
+      }
+
       const result = await registerOrganization({
         organizationName,
         representativeName,
@@ -103,7 +109,7 @@ export function OrganizationProfileForm({
         activityCategories: activityCategories.length > 0 ? activityCategories : undefined,
         websiteUrl: websiteUrl || undefined,
         logoUrl: logoUrl || undefined,
-        contactLineId: contactLineId || undefined,
+        contactLineId: normalizedContactLineId,
         contactLineUrl: contactLineUrl || undefined,
       });
 
@@ -143,7 +149,7 @@ export function OrganizationProfileForm({
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-8" noValidate>
             {/* 基本情報セクション */}
             <section className="flex flex-col gap-5">
               <div className="flex items-center gap-2 border-b border-card-border pb-2">
@@ -273,18 +279,20 @@ export function OrganizationProfileForm({
             <section className="flex flex-col gap-5">
               <div className="flex items-center gap-2 border-b border-card-border pb-2">
                 <MessageCircle className="size-5 text-primary" />
-                <h2 className="text-lg font-bold text-text-dark">LINE 連携（任意）</h2>
+                <h2 className="text-lg font-bold text-text-dark">LINE 連携</h2>
               </div>
-              <p className="text-xs text-text-body">
-                マッチング成立後のスムーズな連絡のため、公式LINE等の登録を推奨しています。
-              </p>
+              <div className="flex flex-col gap-1 text-xs text-text-body">
+                <p>参加者との連絡に使用する団体・公式LINEアカウントのIDを入力してください。</p>
+                <p>個人アカウントではなく、団体で管理できるアカウントの利用を推奨します。</p>
+              </div>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <Input
-                  label="LINE ID"
+                  label="LINE公式アカウントID"
                   icon={MessageCircle}
                   placeholder="@volunty_npo"
                   value={contactLineId}
                   onChange={(e) => setContactLineId(e.target.value)}
+                  required
                 />
                 <Input
                   label="LINE 友達追加 URL"

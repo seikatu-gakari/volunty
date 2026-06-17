@@ -141,13 +141,11 @@ export async function registerParticipant(
 /**
  * 団体プロフィール充実度スコアを計算する（0-100）
  *
- * - 必須4項目（各10点）: 40点
+ * - 必須5項目（各10点）: 50点
  * - 団体説明: 20点
  * - 活動カテゴリ: 10点
  * - ウェブサイトURL: 10点
  * - ロゴURL: 10点
- * - LINE ID: 5点
- * - LINE URL: 5点
  */
 function calcProfileCompleteness(data: RegisterOrganizationData): number {
   let score = 0;
@@ -155,12 +153,11 @@ function calcProfileCompleteness(data: RegisterOrganizationData): number {
   if (data.representativeName?.trim()) score += 10;
   if (data.contactEmail?.trim()) score += 10;
   if (data.activityAreas && data.activityAreas.length > 0) score += 10;
+  if (data.contactLineId.trim()) score += 10;
   if (data.description?.trim()) score += 20;
   if (data.activityCategories && data.activityCategories.length > 0) score += 10;
   if (data.websiteUrl?.trim()) score += 10;
   if (data.logoUrl?.trim()) score += 10;
-  if (data.contactLineId?.trim()) score += 5;
-  if (data.contactLineUrl?.trim()) score += 5;
   return score;
 }
 
@@ -194,8 +191,13 @@ export async function registerOrganization(
     if (!data.activityAreas || data.activityAreas.length === 0) {
       return { success: false, error: "活動地域を1つ以上選択してください" };
     }
+    if (!data.contactLineId?.trim()) {
+      return { success: false, error: "LINE公式アカウントIDは必須です" };
+    }
 
     const profileCompleteness = calcProfileCompleteness(data);
+    const normalizedContactLineId = data.contactLineId.trim();
+    const normalizedContactLineUrl = data.contactLineUrl?.trim() || null;
 
     const normalizedActivityCategories =
       data.activityCategories && data.activityCategories.length > 0
@@ -217,8 +219,8 @@ export async function registerOrganization(
         activityCategories: normalizedActivityCategories,
         websiteUrl: data.websiteUrl?.trim() || null,
         logoUrl: data.logoUrl?.trim() || null,
-        contactLineId: data.contactLineId?.trim() || null,
-        contactLineUrl: data.contactLineUrl?.trim() || null,
+        contactLineId: normalizedContactLineId,
+        contactLineUrl: normalizedContactLineUrl,
         reviewStatus: "pending",
         reviewComment: null,
         reviewedAt: null,
@@ -236,8 +238,8 @@ export async function registerOrganization(
         activityCategories: normalizedActivityCategories,
         websiteUrl: data.websiteUrl?.trim() || null,
         logoUrl: data.logoUrl?.trim() || null,
-        contactLineId: data.contactLineId?.trim() || null,
-        contactLineUrl: data.contactLineUrl?.trim() || null,
+        contactLineId: normalizedContactLineId,
+        contactLineUrl: normalizedContactLineUrl,
         reviewStatus: "pending",
         reviewComment: null,
         reviewedAt: null,
