@@ -79,6 +79,7 @@ configure_supported_node
 log "Repository: $repo_root"
 log "Node: $(node --version 2>/dev/null || printf 'not found')"
 log "npm: $(npm --version 2>/dev/null || printf 'not found')"
+log "Docker / Supabase / dev server は起動しません。"
 
 if [ ! -f "$app_dir/.env.local" ]; then
   log "app/.env.local がありません。必要な場合は local checkout で用意し、.worktreeinclude で worktree にコピーしてください。"

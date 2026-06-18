@@ -10,19 +10,7 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
 log "Repository: $repo_root"
-
-for path in \
-  "app/.next" \
-  "app/coverage" \
-  "app/.turbo" \
-  "app/tsconfig.tsbuildinfo" \
-  "app/next-env.d.ts"
-do
-  if [ -e "$path" ]; then
-    log "生成物を削除します: $path"
-    rm -rf "$path"
-  fi
-done
-
-log "Docker / Supabase / node_modules は削除・停止しません。"
-log "クリーンアップが完了しました。"
+log "Codex がこの後 worktree ディレクトリ全体を削除します。"
+log "worktree 内の node_modules やビルド成果物は、ディレクトリ削除に含まれます。"
+log "Docker / Supabase / dev server は setup script で起動しないため、ここでは停止処理を行いません。"
+log "クリーンアップ前処理が完了しました。"
