@@ -7,9 +7,12 @@
  */
 
 import type { RecommendedParticipant } from "./recommended-participants";
+import type { ParticipationMode } from "@/lib/opportunities/constants";
 
 /** 募集案件ステータス（DBスキーマ: draft / published / closed） */
 export type OpportunityStatus = "draft" | "published" | "closed";
+
+export type { ParticipationMode };
 
 /** 自団体の募集案件（応募者数付き） */
 export interface DashboardOpportunity {
@@ -38,6 +41,18 @@ export interface OpportunityEditData {
   description: string;
   required_traits: Record<string, number> | null;
   status: OpportunityStatus;
+  /** 活動場所 */
+  location: string | null;
+  /** 開始日（YYYY-MM-DD） */
+  start_date: string | null;
+  /** 終了日（YYYY-MM-DD） */
+  end_date: string | null;
+  /** 定員 */
+  capacity: number | null;
+  /** カテゴリ */
+  category: string | null;
+  /** 参加形態 */
+  participation_mode: ParticipationMode | null;
 }
 
 /** fetchOpportunityForEdit の戻り値 */

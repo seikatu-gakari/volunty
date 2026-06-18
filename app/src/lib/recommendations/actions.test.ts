@@ -40,9 +40,10 @@ type MockOpportunity = {
   description: string | null
   requirementTraits: Record<string, number> | null
   location: string | null
+  category: string | null
+  participationMode: "online" | "offline" | "hybrid" | null
   organization: {
     organizationName: string
-    activityCategories: string[] | null
     activityAreas: string[] | null
   }
 }
@@ -57,9 +58,10 @@ function createOpportunity({
     description: null,
     requirementTraits: { extraversion: 50 },
     location: "東京都渋谷区",
+    category: "環境保全",
+    participationMode: "offline",
     organization: {
       organizationName: `${id} 団体`,
-      activityCategories: ["環境保全"],
       activityAreas: ["渋谷区"],
     },
     ...overrides,
@@ -73,24 +75,10 @@ describe("fetchRecommendations", () => {
     mockFindParticipant.mockResolvedValue({ diagnosisScores })
   })
 
-  it("category が指定された場合、団体の活動カテゴリに一致する案件だけを返す", async () => {
+  it("category が指定された場合、案件のカテゴリに一致する案件だけを返す", async () => {
     mockFindOpportunities.mockResolvedValue([
-      createOpportunity({
-        id: "env-1",
-        organization: {
-          organizationName: "環境団体",
-          activityCategories: ["環境保全", "地域活動"],
-          activityAreas: ["渋谷区"],
-        },
-      }),
-      createOpportunity({
-        id: "edu-1",
-        organization: {
-          organizationName: "教育団体",
-          activityCategories: ["教育"],
-          activityAreas: ["渋谷区"],
-        },
-      }),
+      createOpportunity({ id: "env-1", category: "環境保全" }),
+      createOpportunity({ id: "edu-1", category: "教育" }),
     ])
 
     const result = await fetchRecommendations({ category: "環境保全" })
@@ -107,7 +95,6 @@ describe("fetchRecommendations", () => {
         location: "神奈川県横浜市",
         organization: {
           organizationName: "地域団体",
-          activityCategories: ["地域活動"],
           activityAreas: ["東京都渋谷区"],
         },
       }),
@@ -117,7 +104,6 @@ describe("fetchRecommendations", () => {
         location: "東京都渋谷区",
         organization: {
           organizationName: "場所一致団体",
-          activityCategories: ["地域活動"],
           activityAreas: ["世田谷区"],
         },
       }),
@@ -126,7 +112,6 @@ describe("fetchRecommendations", () => {
         location: "大阪府大阪市",
         organization: {
           organizationName: "対象外団体",
-          activityCategories: ["地域活動"],
           activityAreas: ["大阪府"],
         },
       }),
@@ -144,26 +129,26 @@ describe("fetchRecommendations", () => {
     mockFindOpportunities.mockResolvedValue([
       createOpportunity({
         id: "both-match",
+        category: "環境保全",
         organization: {
           organizationName: "両方一致団体",
-          activityCategories: ["環境保全"],
           activityAreas: ["渋谷区"],
         },
       }),
       createOpportunity({
         id: "category-only",
+        category: "環境保全",
         location: "大阪府大阪市",
         organization: {
           organizationName: "カテゴリのみ団体",
-          activityCategories: ["環境保全"],
           activityAreas: ["大阪府"],
         },
       }),
       createOpportunity({
         id: "region-only",
+        category: "教育",
         organization: {
           organizationName: "地域のみ団体",
-          activityCategories: ["教育"],
           activityAreas: ["渋谷区"],
         },
       }),
@@ -179,91 +164,43 @@ describe("fetchRecommendations", () => {
     ])
   })
 
-  it("participationMode が online の場合、オンラインまたはリモートの案件だけを返す", async () => {
+  it("participationMode が online の場合、参加形態が online の案件だけを返す", async () => {
     mockFindOpportunities.mockResolvedValue([
-      createOpportunity({
-        id: "online-location",
-        location: "オンライン",
-        organization: {
-          organizationName: "オンライン団体",
-          activityCategories: ["IT支援"],
-          activityAreas: ["全国"],
-        },
-      }),
-      createOpportunity({
-        id: "remote-area",
-        location: "東京都渋谷区",
-        organization: {
-          organizationName: "リモート団体",
-          activityCategories: ["IT支援"],
-          activityAreas: ["リモート"],
-        },
-      }),
-      createOpportunity({
-        id: "offline",
-        location: "東京都練馬区",
-        organization: {
-          organizationName: "対面団体",
-          activityCategories: ["地域活動"],
-          activityAreas: ["練馬区"],
-        },
-      }),
+      createOpportunity({ id: "online-1", participationMode: "online" }),
+      createOpportunity({ id: "offline-1", participationMode: "offline" }),
     ])
 
     const result = await fetchRecommendations({ participationMode: "online" })
 
-    expect(result.recommendations.map((item) => item.id)).toEqual([
-      "online-location",
-      "remote-area",
-    ])
+    expect(result.recommendations.map((item) => item.id)).toEqual(["online-1"])
   })
 
-  it("participationMode が offline の場合、オンラインまたはリモートを含まない案件だけを返す", async () => {
+  it("participationMode が offline の場合、参加形態が offline の案件だけを返す", async () => {
     mockFindOpportunities.mockResolvedValue([
-      createOpportunity({
-        id: "online-location",
-        location: "オンライン",
-        organization: {
-          organizationName: "オンライン団体",
-          activityCategories: ["IT支援"],
-          activityAreas: ["全国"],
-        },
-      }),
-      createOpportunity({
-        id: "remote-area",
-        location: "東京都渋谷区",
-        organization: {
-          organizationName: "リモート団体",
-          activityCategories: ["IT支援"],
-          activityAreas: ["リモート"],
-        },
-      }),
-      createOpportunity({
-        id: "offline",
-        location: "東京都練馬区",
-        organization: {
-          organizationName: "対面団体",
-          activityCategories: ["地域活動"],
-          activityAreas: ["練馬区"],
-        },
-      }),
+      createOpportunity({ id: "online-1", participationMode: "online" }),
+      createOpportunity({ id: "offline-1", participationMode: "offline" }),
     ])
 
     const result = await fetchRecommendations({ participationMode: "offline" })
 
-    expect(result.recommendations.map((item) => item.id)).toEqual(["offline"])
+    expect(result.recommendations.map((item) => item.id)).toEqual(["offline-1"])
+  })
+
+  it("hybrid の案件は online/offline 両方のフィルタに合致する", async () => {
+    mockFindOpportunities.mockResolvedValue([
+      createOpportunity({ id: "hybrid-1", participationMode: "hybrid" }),
+    ])
+
+    const online = await fetchRecommendations({ participationMode: "online" })
+    const offline = await fetchRecommendations({ participationMode: "offline" })
+
+    expect(online.recommendations.map((item) => item.id)).toEqual(["hybrid-1"])
+    expect(offline.recommendations.map((item) => item.id)).toEqual(["hybrid-1"])
   })
 
   it("フィルタ後に該当案件がない場合、診断済みの空結果を返す", async () => {
     mockFindOpportunities.mockResolvedValue([
-      createOpportunity({
-        id: "edu-1",
-        organization: {
-          organizationName: "教育団体",
-          activityCategories: ["教育"],
-          activityAreas: ["渋谷区"],
-        },
-      }),
+      createOpportunity({ id: "edu-1", category: "教育" }),
     ])
 
     const result = await fetchRecommendations({ category: "環境保全" })

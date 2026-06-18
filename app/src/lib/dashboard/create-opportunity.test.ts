@@ -229,6 +229,126 @@ describe("createOpportunity", () => {
     expect(result.error).toBe("案件の作成に失敗しました");
   });
 
+  it("追加項目（場所・日程・定員・カテゴリ・参加形態）を保存できる", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: null });
+
+    const fd = buildFormData({
+      title: "環境保全ボランティア",
+      description: "森林再生活動を行います",
+      location: "渋谷区",
+      startDate: "2026-07-01",
+      endDate: "2026-07-10",
+      capacity: "10",
+      category: "環境保全",
+      participationMode: "offline",
+    });
+
+    await createOpportunity(fd);
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location: "渋谷区",
+        start_date: "2026-07-01",
+        end_date: "2026-07-10",
+        capacity: 10,
+        category: "環境保全",
+        participation_mode: "offline",
+      })
+    );
+  });
+
+  it("追加項目が未入力の場合は null で保存される", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: null });
+
+    const fd = buildFormData({ title: "テスト案件", description: "テスト説明" });
+
+    await createOpportunity(fd);
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location: null,
+        start_date: null,
+        end_date: null,
+        capacity: null,
+        category: null,
+        participation_mode: null,
+      })
+    );
+  });
+
+  it("終了日が開始日より前の場合、バリデーションエラーを返す", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    const fd = buildFormData({
+      title: "テスト案件",
+      description: "テスト説明",
+      startDate: "2026-07-10",
+      endDate: "2026-07-01",
+    });
+
+    const result: CreateOpportunityResult = await createOpportunity(fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("終了日は開始日以降の日付を指定してください");
+  });
+
+  it("定員が0以下の場合、バリデーションエラーを返す", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    const fd = buildFormData({
+      title: "テスト案件",
+      description: "テスト説明",
+      capacity: "0",
+    });
+
+    const result: CreateOpportunityResult = await createOpportunity(fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("定員は1以上の整数で入力してください");
+  });
+
+  it("不正なカテゴリの場合、バリデーションエラーを返す", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    const fd = buildFormData({
+      title: "テスト案件",
+      description: "テスト説明",
+      category: "存在しないカテゴリ",
+    });
+
+    const result: CreateOpportunityResult = await createOpportunity(fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("カテゴリの値が正しくありません");
+  });
+
+  it("不正な参加形態の場合、バリデーションエラーを返す", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    const fd = buildFormData({
+      title: "テスト案件",
+      description: "テスト説明",
+      participationMode: "invalid",
+    });
+
+    const result: CreateOpportunityResult = await createOpportunity(fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("参加形態の値が正しくありません");
+  });
+
   it("予期しないエラー時もクラッシュせずエラーを返す", async () => {
     const mockUser = { id: "org-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({

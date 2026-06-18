@@ -9,11 +9,20 @@ import {
   ArrowLeft,
   Plus,
   Save,
+  MapPin,
+  Calendar,
+  Users,
+  Tag,
+  Globe,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
-import type { OpportunityStatus } from "@/lib/dashboard/types";
+import type { OpportunityStatus, ParticipationMode } from "@/lib/dashboard/types";
+import {
+  CATEGORY_OPTIONS,
+  PARTICIPATION_MODE_OPTIONS,
+} from "@/lib/opportunities/constants";
 
 /** BIG5 特性の日本語ラベル */
 const BIG5_TRAITS = [
@@ -30,6 +39,18 @@ export interface OpportunityFormData {
   description: string;
   required_traits: Record<string, number> | null;
   status?: OpportunityStatus;
+  /** 活動場所 */
+  location?: string | null;
+  /** 開始日（YYYY-MM-DD） */
+  start_date?: string | null;
+  /** 終了日（YYYY-MM-DD） */
+  end_date?: string | null;
+  /** 定員 */
+  capacity?: number | null;
+  /** カテゴリ */
+  category?: string | null;
+  /** 参加形態 */
+  participation_mode?: ParticipationMode | null;
 }
 
 interface OpportunityFormProps {
@@ -183,6 +204,124 @@ export function OpportunityForm({
                 placeholder="活動内容、日時、場所、参加条件などを記載してください"
                 className="w-full rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark placeholder:text-text-body focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
+            </div>
+          </div>
+
+          {/* 募集情報 */}
+          <div className="flex flex-col gap-4">
+            {/* 活動場所 */}
+            <Input
+              label="活動場所（任意）"
+              name="location"
+              icon={MapPin}
+              type="text"
+              placeholder="例: 渋谷区 / オンライン"
+              defaultValue={initialData?.location ?? ""}
+            />
+
+            {/* 開始日・終了日 */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1">
+                <label
+                  htmlFor="startDate"
+                  className="text-sm font-medium text-text-dark"
+                >
+                  開始日（任意）
+                </label>
+                <div className="relative">
+                  <Calendar className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-body" />
+                  <input
+                    id="startDate"
+                    name="startDate"
+                    type="date"
+                    defaultValue={initialData?.start_date ?? ""}
+                    className="w-full rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label
+                  htmlFor="endDate"
+                  className="text-sm font-medium text-text-dark"
+                >
+                  終了日（任意）
+                </label>
+                <div className="relative">
+                  <Calendar className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-body" />
+                  <input
+                    id="endDate"
+                    name="endDate"
+                    type="date"
+                    defaultValue={initialData?.end_date ?? ""}
+                    className="w-full rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 定員 */}
+            <Input
+              label="定員（任意）"
+              name="capacity"
+              icon={Users}
+              type="number"
+              min={1}
+              placeholder="例: 10"
+              defaultValue={
+                initialData?.capacity != null ? String(initialData.capacity) : ""
+              }
+            />
+
+            {/* カテゴリ */}
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="category"
+                className="text-sm font-medium text-text-dark"
+              >
+                カテゴリ（任意）
+              </label>
+              <div className="relative">
+                <Tag className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-body" />
+                <select
+                  id="category"
+                  name="category"
+                  defaultValue={initialData?.category ?? ""}
+                  className="w-full appearance-none rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">指定しない</option>
+                  {CATEGORY_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* 参加形態 */}
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="participationMode"
+                className="text-sm font-medium text-text-dark"
+              >
+                参加形態（任意）
+              </label>
+              <div className="relative">
+                <Globe className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-body" />
+                <select
+                  id="participationMode"
+                  name="participationMode"
+                  defaultValue={initialData?.participation_mode ?? ""}
+                  className="w-full appearance-none rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">指定しない</option>
+                  {PARTICIPATION_MODE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 

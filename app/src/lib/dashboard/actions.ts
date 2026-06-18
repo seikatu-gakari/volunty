@@ -26,6 +26,11 @@ import type {
   RecommendedParticipantsResult,
 } from "./types";
 import { PERSONALITY_TYPES } from "@/lib/personality/constants";
+import {
+  isValidCategory,
+  isValidParticipationMode,
+  type ParticipationMode,
+} from "@/lib/opportunities/constants";
 
 /**
  * 団体ダッシュボード用：自団体の募集案件一覧を取得
@@ -287,6 +292,95 @@ const BIG5_TRAIT_KEYS = [
   "openness",
 ] as const;
 
+/** DATE カラムの値を YYYY-MM-DD に正規化する（ISO タイムスタンプにも対応） */
+function normalizeDateOnly(value: string | null): string | null {
+  if (!value) return null;
+  // "2026-06-19" や "2026-06-19T00:00:00.000Z" の先頭10文字を取り出す
+  return value.slice(0, 10);
+}
+
+/** YYYY-MM-DD 形式の日付文字列か判定する */
+function isValidDateString(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(value);
+  return !Number.isNaN(time);
+}
+
+/** 募集案件の追加項目（場所・日程・定員・カテゴリ・参加形態）のパース結果 */
+interface OpportunityExtraFields {
+  location: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  capacity: number | null;
+  category: string | null;
+  participation_mode: ParticipationMode | null;
+}
+
+/**
+ * FormData から募集案件の追加項目を取得・検証する。
+ * すべて任意項目だが、値がある場合は整合性を検証する。
+ * 検証エラー時は { error } を返す。
+ */
+function parseOpportunityExtraFields(
+  formData: FormData
+): { data: OpportunityExtraFields } | { error: string } {
+  const getTrimmed = (key: string): string => {
+    const raw = formData.get(key);
+    return typeof raw === "string" ? raw.trim() : "";
+  };
+
+  const location = getTrimmed("location");
+  const startDate = getTrimmed("startDate");
+  const endDate = getTrimmed("endDate");
+  const capacityRaw = getTrimmed("capacity");
+  const category = getTrimmed("category");
+  const participationMode = getTrimmed("participationMode");
+
+  // 日付の検証
+  if (startDate && !isValidDateString(startDate)) {
+    return { error: "開始日の形式が正しくありません" };
+  }
+  if (endDate && !isValidDateString(endDate)) {
+    return { error: "終了日の形式が正しくありません" };
+  }
+  if (startDate && endDate && endDate < startDate) {
+    return { error: "終了日は開始日以降の日付を指定してください" };
+  }
+
+  // 定員の検証
+  let capacity: number | null = null;
+  if (capacityRaw) {
+    const num = Number(capacityRaw);
+    if (!Number.isInteger(num) || num <= 0) {
+      return { error: "定員は1以上の整数で入力してください" };
+    }
+    capacity = num;
+  }
+
+  // カテゴリの検証
+  if (category && !isValidCategory(category)) {
+    return { error: "カテゴリの値が正しくありません" };
+  }
+
+  // 参加形態の検証
+  if (participationMode && !isValidParticipationMode(participationMode)) {
+    return { error: "参加形態の値が正しくありません" };
+  }
+
+  return {
+    data: {
+      location: location || null,
+      start_date: startDate || null,
+      end_date: endDate || null,
+      capacity,
+      category: category || null,
+      participation_mode: participationMode
+        ? (participationMode as ParticipationMode)
+        : null,
+    },
+  };
+}
+
 /**
  * 募集案件を新規作成する
  *
@@ -337,6 +431,12 @@ export async function createOpportunity(
     }
   }
 
+  // 追加項目（場所・日程・定員・カテゴリ・参加形態）の取得と検証
+  const extra = parseOpportunityExtraFields(formData);
+  if ("error" in extra) {
+    return { success: false, error: extra.error };
+  }
+
   try {
     // 団体プロフィールIDを取得
     const { data: orgProfile, error: profileError } = await supabase
@@ -358,6 +458,7 @@ export async function createOpportunity(
         requirement_traits:
           Object.keys(requiredTraits).length > 0 ? requiredTraits : null,
         status: "published",
+        ...extra.data,
       });
 
     if (insertError) {
@@ -428,7 +529,9 @@ export async function fetchOpportunityForEdit(
 
     const { data, error: fetchError } = await supabase
       .from("m_opportunity")
-      .select("id, title, description, requirement_traits, status")
+      .select(
+        "id, title, description, requirement_traits, status, location, start_date, end_date, capacity, category, participation_mode"
+      )
       .eq("id", id)
       .eq("organization_id", (orgProfile as unknown as { id: string }).id)
       .single();
@@ -437,13 +540,33 @@ export async function fetchOpportunityForEdit(
       return { opportunity: null };
     }
 
+    const row = data as unknown as {
+      id: string;
+      title: string;
+      description: string | null;
+      requirement_traits: Record<string, number> | null;
+      status: OpportunityStatus;
+      location: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      capacity: number | null;
+      category: string | null;
+      participation_mode: ParticipationMode | null;
+    };
+
     const opportunity: OpportunityEditData = {
-      id: data.id as string,
-      title: data.title as string,
-      description: (data.description as string) ?? "",
-      required_traits:
-        ((data as unknown as { requirement_traits: Record<string, number> | null }).requirement_traits) ?? null,
-      status: data.status as OpportunityStatus,
+      id: row.id,
+      title: row.title,
+      description: row.description ?? "",
+      required_traits: row.requirement_traits ?? null,
+      status: row.status,
+      location: row.location ?? null,
+      // DATE カラムは YYYY-MM-DD 形式に正規化（<input type="date"> 用）
+      start_date: normalizeDateOnly(row.start_date),
+      end_date: normalizeDateOnly(row.end_date),
+      capacity: row.capacity ?? null,
+      category: row.category ?? null,
+      participation_mode: row.participation_mode ?? null,
     };
 
     return { opportunity };
@@ -508,6 +631,12 @@ export async function updateOpportunity(
     }
   }
 
+  // 追加項目（場所・日程・定員・カテゴリ・参加形態）の取得と検証
+  const extra = parseOpportunityExtraFields(formData);
+  if ("error" in extra) {
+    return { success: false, error: extra.error };
+  }
+
   try {
     // 団体プロフィールIDを取得
     const { data: orgProfile, error: profileError } = await supabase
@@ -525,6 +654,7 @@ export async function updateOpportunity(
       description,
       requirement_traits:
         Object.keys(requiredTraits).length > 0 ? requiredTraits : null,
+      ...extra.data,
     };
     if (status) {
       updateData.status = status;

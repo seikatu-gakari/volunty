@@ -8,12 +8,18 @@ import {
   ArrowLeft,
   Brain,
   Sparkles,
+  MapPin,
+  Calendar,
+  Users,
+  Tag,
+  Globe,
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
 import { fetchOpportunityDetail } from "@/lib/opportunities/actions";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
+import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
 import { TraitVisualization } from "./components/TraitVisualization";
 import { ApplyForm } from "./components/ApplyForm";
 
@@ -159,6 +165,78 @@ export default async function OpportunityDetailPage({
               <p className="whitespace-pre-wrap text-sm leading-6 text-text-body">
                 {opportunity.description}
               </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 募集情報 */}
+        {(opportunity.location ||
+          opportunity.start_date ||
+          opportunity.end_date ||
+          opportunity.capacity !== null ||
+          opportunity.category ||
+          opportunity.participation_mode) && (
+          <Card className="mb-6">
+            <CardHeader>
+              <h2 className="text-lg font-bold text-text-dark">募集情報</h2>
+            </CardHeader>
+            <CardContent>
+              <dl className="flex flex-col gap-3 text-sm">
+                {opportunity.location && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="size-4 shrink-0 text-primary" />
+                    <dt className="w-24 shrink-0 text-text-body">活動場所</dt>
+                    <dd className="text-text-dark">{opportunity.location}</dd>
+                  </div>
+                )}
+                {(opportunity.start_date || opportunity.end_date) && (
+                  <div className="flex items-center gap-3">
+                    <Calendar className="size-4 shrink-0 text-primary" />
+                    <dt className="w-24 shrink-0 text-text-body">開催期間</dt>
+                    <dd className="text-text-dark">
+                      {opportunity.start_date
+                        ? new Date(opportunity.start_date).toLocaleDateString(
+                            "ja-JP"
+                          )
+                        : "未定"}
+                      {" 〜 "}
+                      {opportunity.end_date
+                        ? new Date(opportunity.end_date).toLocaleDateString(
+                            "ja-JP"
+                          )
+                        : "未定"}
+                    </dd>
+                  </div>
+                )}
+                {opportunity.capacity !== null && (
+                  <div className="flex items-center gap-3">
+                    <Users className="size-4 shrink-0 text-primary" />
+                    <dt className="w-24 shrink-0 text-text-body">定員</dt>
+                    <dd className="text-text-dark">
+                      {opportunity.capacity}名（現在{opportunity.current_applicants}
+                      名応募）
+                    </dd>
+                  </div>
+                )}
+                {opportunity.participation_mode && (
+                  <div className="flex items-center gap-3">
+                    <Globe className="size-4 shrink-0 text-primary" />
+                    <dt className="w-24 shrink-0 text-text-body">参加形態</dt>
+                    <dd className="text-text-dark">
+                      {PARTICIPATION_MODE_OPTIONS.find(
+                        (o) => o.value === opportunity.participation_mode
+                      )?.label ?? opportunity.participation_mode}
+                    </dd>
+                  </div>
+                )}
+                {opportunity.category && (
+                  <div className="flex items-center gap-3">
+                    <Tag className="size-4 shrink-0 text-primary" />
+                    <dt className="w-24 shrink-0 text-text-body">カテゴリ</dt>
+                    <dd className="text-text-dark">{opportunity.category}</dd>
+                  </div>
+                )}
+              </dl>
             </CardContent>
           </Card>
         )}

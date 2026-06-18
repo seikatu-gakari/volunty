@@ -78,6 +78,13 @@ export async function fetchOpportunityDetail(
         requirement_traits,
         status,
         created_at,
+        location,
+        start_date,
+        end_date,
+        capacity,
+        current_applicants,
+        category,
+        participation_mode,
         m_organization_profile (
           id,
           organization_name,
@@ -117,6 +124,17 @@ export async function fetchOpportunityDetail(
         description: org?.description ?? null,
       },
       created_at: oppData.created_at as string,
+      location: (oppData.location as string | null) ?? null,
+      start_date:
+        ((oppData.start_date as string | null) ?? null)?.slice(0, 10) ?? null,
+      end_date:
+        ((oppData.end_date as string | null) ?? null)?.slice(0, 10) ?? null,
+      capacity: (oppData.capacity as number | null) ?? null,
+      current_applicants: (oppData.current_applicants as number | null) ?? 0,
+      category: (oppData.category as string | null) ?? null,
+      participation_mode:
+        (oppData.participation_mode as OpportunityDetail["participation_mode"]) ??
+        null,
     };
 
     // 参加者プロフィールを取得（マッチングスコア計算用）
