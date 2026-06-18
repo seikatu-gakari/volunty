@@ -14,5 +14,12 @@
       "Bash(node --version:*)",
       "mcp__context7__query-docs"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "context7",
+    "figma",
+    "playwright",
+    "serena",
+    "Vercel"
+  ]
 }
