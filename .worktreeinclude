@@ -1,0 +1,2 @@
+# Codex managed worktree で app 実行コマンドに必要なローカル env をコピーする。
+app/.env.local
