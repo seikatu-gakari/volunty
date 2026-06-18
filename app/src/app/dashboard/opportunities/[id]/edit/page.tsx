@@ -46,6 +46,12 @@ export default async function EditOpportunityPage({
             description: opportunity.description,
             required_traits: opportunity.required_traits,
             status: opportunity.status,
+            location: opportunity.location,
+            start_date: opportunity.start_date,
+            end_date: opportunity.end_date,
+            capacity: opportunity.capacity,
+            category: opportunity.category,
+            participation_mode: opportunity.participation_mode,
           }}
         />
       </main>

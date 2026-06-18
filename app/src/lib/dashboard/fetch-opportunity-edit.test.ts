@@ -166,6 +166,39 @@ describe("fetchOpportunityForEdit", () => {
     expect(result.opportunity?.description).toBe("");
   });
 
+  it("追加項目を取得し、日付を YYYY-MM-DD に正規化する", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockSingle.mockReturnValueOnce({
+      data: {
+        id: "opp-3",
+        title: "テスト案件",
+        description: "説明",
+        requirement_traits: null,
+        status: "published",
+        location: "渋谷区",
+        // ISO タイムスタンプ形式でも正規化されること
+        start_date: "2026-07-01T00:00:00.000Z",
+        end_date: "2026-07-10",
+        capacity: 10,
+        category: "環境保全",
+        participation_mode: "offline",
+      },
+      error: null,
+    });
+
+    const result: OpportunityEditResult =
+      await fetchOpportunityForEdit("opp-3");
+
+    expect(result.opportunity?.location).toBe("渋谷区");
+    expect(result.opportunity?.start_date).toBe("2026-07-01");
+    expect(result.opportunity?.end_date).toBe("2026-07-10");
+    expect(result.opportunity?.capacity).toBe(10);
+    expect(result.opportunity?.category).toBe("環境保全");
+    expect(result.opportunity?.participation_mode).toBe("offline");
+  });
+
   it("DB エラー時もクラッシュせずエラーを返す", async () => {
     const mockUser = { id: "user-123" };
     mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });

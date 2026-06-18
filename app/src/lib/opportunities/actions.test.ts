@@ -109,6 +109,13 @@ describe("fetchOpportunityDetail", () => {
       requirement_traits: { extraversion: 70, agreeableness: 80 },
       status: "published",
       created_at: "2026-01-01T00:00:00Z",
+      location: "渋谷区",
+      start_date: "2026-07-01T00:00:00.000Z",
+      end_date: "2026-07-10",
+      capacity: 10,
+      current_applicants: 3,
+      category: "環境保全",
+      participation_mode: "offline",
       m_organization_profile: { id: "org-1", organization_name: "NPO法人テスト", description: "テスト団体です" },
     };
 
@@ -139,6 +146,14 @@ describe("fetchOpportunityDetail", () => {
     expect(result.opportunity?.description).toBe("森林保全活動です");
     expect(result.opportunity?.organization.name).toBe("NPO法人テスト");
     expect(result.opportunity?.status).toBe("published");
+    // 追加項目（日付は YYYY-MM-DD に正規化される）
+    expect(result.opportunity?.location).toBe("渋谷区");
+    expect(result.opportunity?.start_date).toBe("2026-07-01");
+    expect(result.opportunity?.end_date).toBe("2026-07-10");
+    expect(result.opportunity?.capacity).toBe(10);
+    expect(result.opportunity?.current_applicants).toBe(3);
+    expect(result.opportunity?.category).toBe("環境保全");
+    expect(result.opportunity?.participation_mode).toBe("offline");
     expect(result.isParticipant).toBe(true);
     expect(result.matchScore).toBe(75); // モックされた calculateMatchScore の戻り値
     expect(result.existingApplication).toBeNull();

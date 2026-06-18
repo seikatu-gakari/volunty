@@ -203,6 +203,58 @@ describe("updateOpportunity", () => {
     );
   });
 
+  it("追加項目（場所・日程・定員・カテゴリ・参加形態）を更新できる", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockUpdateResult = { error: null };
+
+    const fd = buildFormData({
+      title: "更新された案件",
+      description: "更新された説明",
+      location: "新宿区",
+      startDate: "2026-08-01",
+      endDate: "2026-08-05",
+      capacity: "20",
+      category: "教育",
+      participationMode: "online",
+    });
+
+    await updateOpportunity("opp-1", fd);
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location: "新宿区",
+        start_date: "2026-08-01",
+        end_date: "2026-08-05",
+        capacity: 20,
+        category: "教育",
+        participation_mode: "online",
+      })
+    );
+  });
+
+  it("終了日が開始日より前の場合、バリデーションエラーを返す", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    const fd = buildFormData({
+      title: "テスト案件",
+      description: "テスト説明",
+      startDate: "2026-08-05",
+      endDate: "2026-08-01",
+    });
+
+    const result: UpdateOpportunityResult = await updateOpportunity(
+      "opp-1",
+      fd
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("終了日は開始日以降の日付を指定してください");
+  });
+
   it("ステータスが未指定の場合はステータスを更新しない", async () => {
     const mockUser = { id: "org-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({

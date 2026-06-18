@@ -32,6 +32,15 @@ enum OpportunityStatus {
   @@map("opportunity_status")
 }
 
+/// 参加形態
+enum ParticipationMode {
+  online // オンライン
+  offline // オフライン（対面）
+  hybrid // ハイブリッド
+
+  @@map("participation_mode")
+}
+
 /// マッチング（応募）ステータス
 enum MatchingStatus {
   queued // キュー待ち（レコメンド生成済み）
@@ -203,6 +212,8 @@ model Opportunity {
   startDate         DateTime?         @map("start_date") @db.Date
   endDate           DateTime?         @map("end_date") @db.Date
   capacity          Int?
+  category          String?           @db.VarChar(50) // カテゴリ
+  participationMode ParticipationMode? @map("participation_mode") // 参加形態
   currentApplicants Int               @default(0) @map("current_applicants")
   status            OpportunityStatus @default(draft)
   publishedAt       DateTime?         @map("published_at")

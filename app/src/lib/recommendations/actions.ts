@@ -18,8 +18,6 @@ const BIG5_TRAIT_KEYS = [
   "openness",
 ] as const
 
-const ONLINE_KEYWORDS = ["オンライン", "リモート"] as const
-
 /**
  * 未知の値が BIG5Scores 型かどうかを実行時に検証するタイプガード
  */
@@ -54,8 +52,8 @@ function toStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string")
 }
 
-function matchesCategory(value: unknown, category: string): boolean {
-  return toStringArray(value).some((item) => item === category)
+function matchesCategory(category: string | null, filter: string): boolean {
+  return category === filter
 }
 
 function matchesRegion(
@@ -76,26 +74,13 @@ function normalizeParticipationMode(
   return value === "online" || value === "offline" ? value : null
 }
 
-function isOnlineOpportunity(
-  location: string | null,
-  activityAreas: unknown
-): boolean {
-  const values = [
-    ...(location ? [location] : []),
-    ...toStringArray(activityAreas),
-  ]
-  return values.some((value) =>
-    ONLINE_KEYWORDS.some((keyword) => value.includes(keyword))
-  )
-}
-
 function matchesParticipationMode(
-  location: string | null,
-  activityAreas: unknown,
-  participationMode: NonNullable<RecommendationFilters["participationMode"]>
+  participationMode: string | null,
+  filter: NonNullable<RecommendationFilters["participationMode"]>
 ): boolean {
-  const online = isOnlineOpportunity(location, activityAreas)
-  return participationMode === "online" ? online : !online
+  // hybrid 案件は online/offline 両方のフィルタに合致する
+  if (participationMode === "hybrid") return true
+  return participationMode === filter
 }
 
 /**
@@ -145,11 +130,12 @@ export async function fetchRecommendations(
         title: true,
         description: true,
         location: true,
+        category: true,
+        participationMode: true,
         requirementTraits: true,
         organization: {
           select: {
             organizationName: true,
-            activityCategories: true,
             activityAreas: true,
           },
         },
@@ -161,10 +147,7 @@ export async function fetchRecommendations(
     }
 
     const filteredOpportunities = opportunities.filter((opp) => {
-      if (
-        categoryFilter &&
-        !matchesCategory(opp.organization.activityCategories, categoryFilter)
-      ) {
+      if (categoryFilter && !matchesCategory(opp.category, categoryFilter)) {
         return false
       }
 
@@ -181,11 +164,7 @@ export async function fetchRecommendations(
 
       if (
         participationModeFilter &&
-        !matchesParticipationMode(
-          opp.location,
-          opp.organization.activityAreas,
-          participationModeFilter
-        )
+        !matchesParticipationMode(opp.participationMode, participationModeFilter)
       ) {
         return false
       }

@@ -5,17 +5,7 @@ import { Loader2, Search, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { type FormEvent, useState } from "react"
 import type { RecommendationFilters as RecommendationFiltersType } from "@/lib/recommendations/types"
-
-const CATEGORY_OPTIONS = [
-  "環境保全",
-  "地域活動",
-  "教育",
-  "子ども支援",
-  "居場所づくり",
-  "IT支援",
-  "高齢者支援",
-  "障がい者サポート",
-]
+import { CATEGORY_OPTIONS } from "@/lib/opportunities/constants"
 
 const REGION_OPTIONS = [
   "渋谷区",

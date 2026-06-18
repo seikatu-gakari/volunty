@@ -7,6 +7,8 @@
  * - applications: 応募情報
  */
 
+import type { ParticipationMode } from "@/lib/opportunities/constants";
+
 /** 案件ステータス（DBスキーマ: draft / published / closed） */
 export type OpportunityStatus = "draft" | "published" | "closed";
 
@@ -29,6 +31,20 @@ export interface OpportunityDetail {
   status: OpportunityStatus;
   organization: OrganizationInfo;
   created_at: string;
+  /** 活動場所 */
+  location: string | null;
+  /** 開始日（YYYY-MM-DD） */
+  start_date: string | null;
+  /** 終了日（YYYY-MM-DD） */
+  end_date: string | null;
+  /** 定員 */
+  capacity: number | null;
+  /** 現在の応募者数 */
+  current_applicants: number;
+  /** カテゴリ */
+  category: string | null;
+  /** 参加形態 */
+  participation_mode: ParticipationMode | null;
 }
 
 /** 既存の応募情報 */
