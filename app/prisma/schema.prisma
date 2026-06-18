@@ -71,6 +71,15 @@ enum ApproachStatus {
   @@map("approach_status")
 }
 
+/// 参加証明書ステータス
+enum CertificateStatus {
+  pending // 申請中
+  issued // 承認・発行済み
+  rejected // 却下
+
+  @@map("certificate_status")
+}
+
 // ============================================
 // マスタテーブル（m_ プレフィックス）
 // ============================================
@@ -93,6 +102,7 @@ model User {
   organizationProfile OrganizationProfile?
   diagnosisResults    DiagnosisResult[]
   matchingCandidates  MatchingCandidate[]
+  certificates        Certificate[]
 
   @@index([email])
   @@index([role])
@@ -153,6 +163,7 @@ model OrganizationProfile {
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   opportunities Opportunity[]
   approaches    Approach[]
+  certificates  Certificate[]
 
   @@index([reviewStatus])
   @@index([verified])
@@ -202,6 +213,7 @@ model Opportunity {
   organization       OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   matchingCandidates MatchingCandidate[]
   approaches         Approach[]
+  certificates       Certificate[]
 
   @@index([status])
   @@index([publishedAt])
@@ -256,6 +268,7 @@ model MatchingCandidate {
   participant     User             @relation(fields: [participantId], references: [id], onDelete: Cascade)
   opportunity     Opportunity      @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   diagnosisResult DiagnosisResult? @relation(fields: [diagnosisResultId], references: [id], onDelete: SetNull)
+  certificate     Certificate?
 
   @@unique([participantId, opportunityId])
   @@index([status])
@@ -292,4 +305,36 @@ model Approach {
   @@index([expiresAt])
   @@index([createdAt(sort: Desc)])
   @@map("t_approach")
+}
+
+/// 参加証明書 — 活動完了済み応募に対する証明書申請・発行状態を管理
+model Certificate {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId     String            @unique @map("application_id") @db.Uuid
+  participantId     String            @map("participant_id") @db.Uuid
+  organizationId    String            @map("organization_id") @db.Uuid
+  opportunityId     String            @map("opportunity_id") @db.Uuid
+  status            CertificateStatus @default(pending)
+  certificateNumber String?           @unique @map("certificate_number") @db.VarChar(40)
+  requestedAt       DateTime          @default(now()) @map("requested_at")
+  approvedAt        DateTime?         @map("approved_at")
+  issuedAt          DateTime?         @map("issued_at")
+  rejectedAt        DateTime?         @map("rejected_at")
+  rejectionReason   String?           @map("rejection_reason") @db.Text
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  // リレーション
+  application  MatchingCandidate  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  participant  User               @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  organization OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  opportunity  Opportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([participantId])
+  @@index([organizationId])
+  @@index([opportunityId])
+  @@index([requestedAt(sort: Desc)])
+  @@index([issuedAt(sort: Desc)])
+  @@map("t_certificate")
 }

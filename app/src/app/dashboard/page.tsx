@@ -13,6 +13,7 @@ import {
   Building2,
   MessageSquarePlus,
   X,
+  FileCheck2,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
@@ -174,6 +175,13 @@ export default async function DashboardPage() {
             >
               <MessageSquarePlus className="size-4" />
               アプローチ履歴
+            </Link>
+            <Link
+              href="/dashboard/certificates"
+              className="inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-4 py-2 text-sm font-medium text-text-dark shadow-sm transition-colors hover:bg-primary/5"
+            >
+              <FileCheck2 className="size-4" />
+              証明書申請
             </Link>
             <Link
               href="/dashboard/opportunities/new"
