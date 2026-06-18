@@ -362,6 +362,7 @@ describe("registerOrganization", () => {
       representativeName: "山田 太郎",
       contactEmail: "contact@example.org",
       activityAreas: ["東京都"],
+      contactLineId: "@test_org",
     });
 
     expect(result.success).toBe(false);
@@ -377,6 +378,7 @@ describe("registerOrganization", () => {
       representativeName: "山田 太郎",
       contactEmail: "contact@example.org",
       activityAreas: ["東京都"],
+      contactLineId: "@test_org",
     });
 
     expect(result.success).toBe(false);
@@ -392,6 +394,7 @@ describe("registerOrganization", () => {
       representativeName: "",
       contactEmail: "contact@example.org",
       activityAreas: ["東京都"],
+      contactLineId: "@test_org",
     });
 
     expect(result.success).toBe(false);
@@ -407,6 +410,7 @@ describe("registerOrganization", () => {
       representativeName: "山田 太郎",
       contactEmail: "",
       activityAreas: ["東京都"],
+      contactLineId: "@test_org",
     });
 
     expect(result.success).toBe(false);
@@ -422,6 +426,7 @@ describe("registerOrganization", () => {
       representativeName: "山田 太郎",
       contactEmail: "contact@example.org",
       activityAreas: [],
+      contactLineId: "@test_org",
     });
 
     expect(result.success).toBe(false);
@@ -429,7 +434,23 @@ describe("registerOrganization", () => {
     expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
   });
 
-  it("必須フィールドのみで正常登録できる（充実度40）", async () => {
+  it("LINE公式アカウントIDが空の場合、バリデーションエラーを返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+
+    const result = await registerOrganization({
+      organizationName: "NPO法人テスト",
+      representativeName: "山田 太郎",
+      contactEmail: "contact@example.org",
+      activityAreas: ["東京都"],
+      contactLineId: "   ",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("LINE公式アカウントIDは必須です");
+    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
+  });
+
+  it("必須フィールドのみで正常登録できる（充実度50）", async () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
     mockPrismaOrgUpsert.mockResolvedValue({});
     mockUpdateUser.mockReturnValue({ error: null });
@@ -439,6 +460,7 @@ describe("registerOrganization", () => {
       representativeName: "山田 太郎",
       contactEmail: "contact@example.org",
       activityAreas: ["東京都"],
+      contactLineId: "  @test_org  ",
     });
 
     expect(result.success).toBe(true);
@@ -450,7 +472,14 @@ describe("registerOrganization", () => {
           representativeName: "山田 太郎",
           contactEmail: "contact@example.org",
           activityAreas: ["東京都"],
-          profileCompleteness: 40,
+          contactLineId: "@test_org",
+          contactLineUrl: null,
+          profileCompleteness: 50,
+        }),
+        update: expect.objectContaining({
+          contactLineId: "@test_org",
+          contactLineUrl: null,
+          profileCompleteness: 50,
         }),
       })
     );
@@ -496,6 +525,7 @@ describe("registerOrganization", () => {
       representativeName: "山田 太郎",
       contactEmail: "contact@example.org",
       activityAreas: ["東京都"],
+      contactLineId: "@test_org",
     });
 
     expect(mockUpdateUser).toHaveBeenCalledWith({

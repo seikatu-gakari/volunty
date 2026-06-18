@@ -10,8 +10,8 @@ export interface RegisterOrganizationData {
   activityCategories?: string[];
   websiteUrl?: string;
   logoUrl?: string;
-  // Step 3: 連絡手段（任意）
-  contactLineId?: string;
+  // Step 3: 連絡手段
+  contactLineId: string;
   contactLineUrl?: string;
 }
 
