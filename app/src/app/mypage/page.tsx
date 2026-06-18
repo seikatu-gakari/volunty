@@ -12,6 +12,7 @@ import {
   Pencil,
   AlertTriangle,
   Inbox,
+  FileCheck2,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
@@ -168,7 +169,7 @@ export default async function MyPage() {
         </Card>
 
         {/* アクションリンク */}
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href={diagnosisActionHref}
             className="flex items-center gap-3 rounded-[10px] border border-card-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
@@ -194,6 +195,15 @@ export default async function MyPage() {
             <Inbox className="size-5 text-primary" />
             <span className="text-sm font-medium text-text-dark">
               受信アプローチを見る
+            </span>
+          </Link>
+          <Link
+            href="/mypage/certificates"
+            className="flex items-center gap-3 rounded-[10px] border border-card-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+          >
+            <FileCheck2 className="size-5 text-primary" />
+            <span className="text-sm font-medium text-text-dark">
+              参加証明書を見る
             </span>
           </Link>
         </div>
@@ -264,6 +274,15 @@ export default async function MyPage() {
                               "ja-JP"
                             )}
                           </p>
+                        )}
+                        {app.can_request_certificate && (
+                          <Link
+                            href={`/mypage/certificates/request/${app.id}`}
+                            className="inline-flex w-fit items-center gap-2 rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/5"
+                          >
+                            <FileCheck2 className="size-4" />
+                            証明書を申請
+                          </Link>
                         )}
                       </div>
                     </div>
