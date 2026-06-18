@@ -31,7 +31,7 @@ export default async function Home() {
       {user && <AuthenticatedHome user={user} />}
 
       {!user && (
-        <main className="relative mx-auto w-full max-w-7xl px-4 pt-8 pb-20 sm:px-6 lg:px-8">
+        <main className="relative mx-auto w-full max-w-7xl overflow-x-hidden px-4 pt-8 pb-20 sm:px-6 lg:px-8">
           {/* 背景 blob 装飾 */}
           <div className="lp-blob top-[120px] -left-32 size-[420px] bg-primary/25" aria-hidden />
           <div className="lp-blob top-[640px] -right-32 size-[520px] bg-[#fbb672]/40" aria-hidden />
