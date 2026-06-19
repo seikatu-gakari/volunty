@@ -70,6 +70,40 @@ export interface UpdateOpportunityResult {
 /** 応募ステータス */
 export type ApplicationStatus = "pending" | "approved" | "rejected" | "completed";
 
+/** マッチング履歴に表示する応募ステータス */
+export type MatchingHistoryStatus = Extract<
+  ApplicationStatus,
+  "approved" | "rejected"
+>;
+
+/** 団体向けマッチング履歴の1件 */
+export interface MatchingHistoryItem {
+  /** 応募ID */
+  id: string;
+  /** 履歴表示用ステータス */
+  status: MatchingHistoryStatus;
+  /** 応募者名 */
+  participant_name: string;
+  /** 案件ID */
+  opportunity_id: string;
+  /** 案件タイトル */
+  opportunity_title: string;
+  /** 応募日時 */
+  applied_at: string | null;
+  /** 承認・辞退の処理日時 */
+  status_changed_at: string;
+  /** マッチングスコア (0-100) */
+  match_score: number | null;
+}
+
+/** fetchMatchingHistory の戻り値 */
+export interface MatchingHistoryResult {
+  /** 自団体の承認・辞退済み応募履歴 */
+  history: MatchingHistoryItem[];
+  /** エラーメッセージ */
+  error?: string;
+}
+
 /** 応募者情報（applications + participants JOIN 結果） */
 export interface Applicant {
   /** 応募ID */
