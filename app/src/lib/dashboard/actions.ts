@@ -22,6 +22,8 @@ import type {
   ApplicantsResult,
   UpdateApplicationStatusResult,
   ApplicantDetailResult,
+  MatchingHistoryResult,
+  MatchingHistoryStatus,
   RecommendedParticipantDetailResult,
   RecommendedParticipantsResult,
 } from "./types";
@@ -841,6 +843,116 @@ function mapApplicationStatus(dbStatus: string): Applicant["status"] {
   if (dbStatus === "completed") return "completed";
   if (dbStatus === "declined") return "rejected";
   return "pending";
+}
+
+function mapMatchingHistoryStatus(
+  dbStatus: string
+): MatchingHistoryStatus | null {
+  if (dbStatus === "accepted") return "approved";
+  if (dbStatus === "declined") return "rejected";
+  return null;
+}
+
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function toNullableIsoString(value: Date | string | null): string | null {
+  return value ? toIsoString(value) : null;
+}
+
+/**
+ * 団体向けマッチング履歴を取得する。
+ *
+ * 自団体の応募のうち、承認・辞退済みのものだけを処理日時順で返す。
+ */
+export async function fetchMatchingHistory(): Promise<MatchingHistoryResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { history: [], error: "ログインが必要です" };
+    }
+
+    const organizationProfile = await prisma.organizationProfile.findUnique({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        reviewStatus: true,
+        user: { select: { role: true } },
+      },
+    });
+
+    if (!organizationProfile) {
+      return { history: [], error: "団体プロフィールが見つかりません" };
+    }
+
+    if (organizationProfile.user.role !== "organization") {
+      return { history: [], error: "団体アカウントのみ利用できます" };
+    }
+
+    if (organizationProfile.reviewStatus !== "approved") {
+      return { history: [], error: "承認済み団体のみ利用できます" };
+    }
+
+    const records = await prisma.matchingCandidate.findMany({
+      where: {
+        status: { in: ["accepted", "declined"] },
+        opportunity: { organizationId: organizationProfile.id },
+      },
+      select: {
+        id: true,
+        status: true,
+        appliedAt: true,
+        statusChangedAt: true,
+        matchScore: true,
+        participant: {
+          select: {
+            name: true,
+            participantProfile: { select: { name: true } },
+          },
+        },
+        opportunity: {
+          select: { id: true, title: true },
+        },
+      },
+      orderBy: [
+        { statusChangedAt: "desc" },
+        { appliedAt: "desc" },
+        { id: "asc" },
+      ],
+    });
+
+    const history = records.flatMap((record) => {
+      const status = mapMatchingHistoryStatus(record.status);
+      if (!status) return [];
+
+      return [
+        {
+          id: record.id,
+          status,
+          participant_name:
+            record.participant.participantProfile?.name ??
+            record.participant.name ??
+            "不明",
+          opportunity_id: record.opportunity.id,
+          opportunity_title: record.opportunity.title,
+          applied_at: toNullableIsoString(record.appliedAt),
+          status_changed_at: toIsoString(record.statusChangedAt),
+          match_score: record.matchScore,
+        },
+      ];
+    });
+
+    return { history };
+  } catch (err) {
+    console.error("[fetchMatchingHistory] 予期しないエラー:", err);
+    return { history: [], error: "予期しないエラーが発生しました" };
+  }
 }
 
 /**
