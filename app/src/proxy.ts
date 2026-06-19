@@ -17,9 +17,28 @@ const AUTH_CALLBACK = "/auth/callback";
 /** パブリックルート（認証不要、リダイレクトなし） */
 const PUBLIC_PATHS = new Set(["/"]);
 
+/** 認証必須ルートの prefix */
+const PROTECTED_PATH_PREFIXES = [
+  "/admin",
+  "/dashboard",
+  "/diagnosis",
+  "/mypage",
+  "/onboarding",
+  "/opportunities",
+  "/organizations",
+  "/recommendations",
+];
+
 /** 認証系パス（ログイン済みなら / へリダイレクト） */
 function isAuthPath(pathname: string): boolean {
   return pathname === "/login" || pathname.startsWith("/signup");
+}
+
+/** 認証必須ルートかどうか */
+function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
 }
 
 /** オンボーディングパス（認証必須だがプロフィールチェック不要） */
@@ -64,11 +83,17 @@ export async function proxy(request: NextRequest) {
   }
 
   // --- パブリック（/）: 未認証ならスルー、認証済みならロール/オンボーディングチェックを実施 ---
-  if (PUBLIC_PATHS.has(pathname)) {
+  const isPublicPath = PUBLIC_PATHS.has(pathname);
+  if (isPublicPath) {
     if (!user) {
       return response;
     }
     // 認証済みユーザーは下のロール・オンボーディングチェックに進む
+  }
+
+  // --- 保護対象外の未知URLなどは Next.js の 404 判定へ通す ---
+  if (!isPublicPath && !isProtectedPath(pathname)) {
+    return response;
   }
 
   // --- 以下は認証必須 ---
