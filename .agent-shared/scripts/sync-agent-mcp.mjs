@@ -146,12 +146,24 @@ function isMcpTableHeader(line) {
   return /^\s*\[mcp_servers(?:\]|\.)/.test(line);
 }
 
+function isGeneratedMcpComment(line) {
+  return (
+    line === "# MCP server sections generated from .agent-shared/mcp/servers.json." ||
+    line === "# Edit .agent-shared/mcp/servers.json, then rerun:" ||
+    line === "# node .agent-shared/scripts/sync-agent-mcp.mjs --codex-config .codex/config.toml"
+  );
+}
+
 function stripCodexMcpSections(toml) {
   const lines = toml.replace(/\r\n/g, "\n").split("\n");
   const keptLines = [];
   let skippingMcpSection = false;
 
   for (const line of lines) {
+    if (isGeneratedMcpComment(line)) {
+      continue;
+    }
+
     if (isMcpTableHeader(line)) {
       skippingMcpSection = true;
       continue;

@@ -10,6 +10,7 @@ argument-hint: '例: MCP設定を変更 / GitHub MCPトークンの扱い / .mcp
 - MCP サーバー定義の正は `.agent-shared/mcp/servers.json` とする。
 - `.codex/config.toml` の MCP セクションは直接編集せず、次のコマンドで同期する。
   `node .agent-shared/scripts/sync-agent-mcp.mjs --codex-config .codex/config.toml`
+- Codex worktree setup では `.agent-shared/scripts/codex-worktree-setup.sh` が同じ同期を自動実行する。
 - GitHub MCP の認証情報は `GITHUB_MCP_TOKEN` 環境変数からのみ注入する。
 - tracked file にトークンや認証情報を書かない。
 

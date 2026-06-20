@@ -73,8 +73,18 @@ test("updates only MCP sections in a Codex config from the shared server source"
     "--codex-config",
     codexConfigPath,
   ]);
+  await execFileAsync("node", [
+    scriptPath,
+    "--source",
+    sourcePath,
+    "--out-dir",
+    outDir,
+    "--codex-config",
+    codexConfigPath,
+  ]);
 
   const updatedConfig = await readFile(codexConfigPath, "utf8");
+  const generatedHeaderCount = updatedConfig.match(/MCP server sections generated/g)?.length ?? 0;
 
   assert.match(updatedConfig, /personality = "friendly"/);
   assert.match(updatedConfig, /\[profiles\.local\]/);
@@ -83,4 +93,17 @@ test("updates only MCP sections in a Codex config from the shared server source"
   assert.match(updatedConfig, /\[mcp_servers\.serena\]/);
   assert.match(updatedConfig, /"--open-web-dashboard", "false"/);
   assert.match(updatedConfig, /\[mcp_servers\.vercel\]/);
+  assert.equal(generatedHeaderCount, 1);
+});
+
+test("Codex worktree setup syncs Codex MCP config from the shared server source", async () => {
+  const setupScript = await readFile(
+    fileURLToPath(new URL("./codex-worktree-setup.sh", import.meta.url)),
+    "utf8",
+  );
+
+  assert.match(
+    setupScript,
+    /node "\$repo_root\/\.agent-shared\/scripts\/sync-agent-mcp\.mjs" --codex-config "\$repo_root\/\.codex\/config\.toml"/,
+  );
 });
