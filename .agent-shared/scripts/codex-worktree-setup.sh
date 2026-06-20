@@ -64,6 +64,24 @@ configure_supported_node() {
   hash -r
 }
 
+sync_codex_mcp_config() {
+  local sync_script="$repo_root/.agent-shared/scripts/sync-agent-mcp.mjs"
+  local codex_config="$repo_root/.codex/config.toml"
+
+  if [ ! -f "$sync_script" ]; then
+    log "MCP 同期スクリプトが見つからないため、Codex MCP 設定の同期をスキップします。"
+    return 0
+  fi
+
+  if [ ! -f "$repo_root/.agent-shared/mcp/servers.json" ]; then
+    log "MCP サーバー定義が見つからないため、Codex MCP 設定の同期をスキップします。"
+    return 0
+  fi
+
+  log "Codex MCP 設定を同期します。"
+  node "$repo_root/.agent-shared/scripts/sync-agent-mcp.mjs" --codex-config "$repo_root/.codex/config.toml"
+}
+
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 app_dir="$repo_root/app"
 
@@ -80,6 +98,8 @@ log "Repository: $repo_root"
 log "Node: $(node --version 2>/dev/null || printf 'not found')"
 log "npm: $(npm --version 2>/dev/null || printf 'not found')"
 log "Docker / Supabase / dev server は起動しません。"
+
+sync_codex_mcp_config
 
 if [ ! -f "$app_dir/.env.local" ]; then
   log "app/.env.local がありません。必要な場合は local checkout で用意し、.worktreeinclude で worktree にコピーしてください。"

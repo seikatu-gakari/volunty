@@ -28,6 +28,9 @@ for (let i = 2; i < process.argv.length; i += 1) {
 const sourcePath = path.resolve(String(args.get("source") || defaultSource));
 const outDir = path.resolve(String(args.get("out-dir") || defaultOutDir));
 const stdoutOnly = args.has("stdout");
+const codexConfigPath = args.has("codex-config")
+  ? path.resolve(String(args.get("codex-config")))
+  : null;
 
 const raw = JSON.parse(await readFile(sourcePath, "utf8"));
 const servers = raw.servers && typeof raw.servers === "object" ? raw.servers : raw;
@@ -95,11 +98,13 @@ function pushInlineObject(lines, key, value) {
   lines.push(`${key} = { ${body} }`);
 }
 
-function toCodexToml(allServers) {
-  const lines = [
-    "# Generated from ~/.agent-shared/mcp/servers.json.",
-    "# Review this file before copying sections into ~/.codex/config.toml or .codex/config.toml.",
-  ];
+function toCodexToml(allServers, options = {}) {
+  const lines =
+    options.headerLines ||
+    [
+      "# Generated from ~/.agent-shared/mcp/servers.json.",
+      "# Review this file before copying sections into ~/.codex/config.toml or .codex/config.toml.",
+    ];
 
   for (const [name, server] of Object.entries(allServers)) {
     lines.push("", `[mcp_servers.${name}]`);
@@ -133,6 +138,77 @@ function toCodexToml(allServers) {
   return `${lines.join("\n")}\n`;
 }
 
+function isTomlTableHeader(line) {
+  return /^\s*\[[^\]]+\]\s*(?:#.*)?$/.test(line);
+}
+
+function isMcpTableHeader(line) {
+  return /^\s*\[mcp_servers(?:\]|\.)/.test(line);
+}
+
+function isGeneratedMcpComment(line) {
+  return (
+    line === "# MCP server sections generated from .agent-shared/mcp/servers.json." ||
+    line === "# Edit .agent-shared/mcp/servers.json, then rerun:" ||
+    line === "# node .agent-shared/scripts/sync-agent-mcp.mjs --codex-config .codex/config.toml"
+  );
+}
+
+function stripCodexMcpSections(toml) {
+  const lines = toml.replace(/\r\n/g, "\n").split("\n");
+  const keptLines = [];
+  let skippingMcpSection = false;
+
+  for (const line of lines) {
+    if (isGeneratedMcpComment(line)) {
+      continue;
+    }
+
+    if (isMcpTableHeader(line)) {
+      skippingMcpSection = true;
+      continue;
+    }
+
+    if (skippingMcpSection) {
+      if (isTomlTableHeader(line)) {
+        skippingMcpSection = false;
+        keptLines.push(line);
+      }
+      continue;
+    }
+
+    keptLines.push(line);
+  }
+
+  while (keptLines.at(-1)?.trim() === "") {
+    keptLines.pop();
+  }
+
+  return keptLines.join("\n");
+}
+
+function mergeCodexConfig(existingToml, generatedMcpToml) {
+  const nonMcpToml = stripCodexMcpSections(existingToml).trimEnd();
+  const mcpToml = generatedMcpToml.trimEnd();
+
+  if (!nonMcpToml) {
+    return `${mcpToml}\n`;
+  }
+
+  return `${nonMcpToml}\n\n${mcpToml}\n`;
+}
+
+async function readOptionalFile(filePath) {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  }
+}
+
 const claudeConfig = {
   mcpServers: Object.fromEntries(
     Object.entries(servers).map(([name, server]) => [name, toClaudeServer(server)]),
@@ -140,6 +216,13 @@ const claudeConfig = {
 };
 const claudeJson = `${JSON.stringify(claudeConfig, null, 2)}\n`;
 const codexToml = toCodexToml(servers);
+const codexConfigMcpToml = toCodexToml(servers, {
+  headerLines: [
+    "# MCP server sections generated from .agent-shared/mcp/servers.json.",
+    "# Edit .agent-shared/mcp/servers.json, then rerun:",
+    "# node .agent-shared/scripts/sync-agent-mcp.mjs --codex-config .codex/config.toml",
+  ],
+});
 
 if (stdoutOnly) {
   console.log("## claude.mcp.json");
@@ -152,5 +235,14 @@ if (stdoutOnly) {
   await writeFile(path.join(outDir, "codex.config.generated.toml"), codexToml);
   console.log(`Generated ${path.join(outDir, "claude.mcp.json")}`);
   console.log(`Generated ${path.join(outDir, "codex.config.generated.toml")}`);
-  console.log("既存の Claude Code/Codex MCP 設定は上書きしていません。");
+
+  if (codexConfigPath) {
+    const existingCodexConfig = await readOptionalFile(codexConfigPath);
+    const updatedCodexConfig = mergeCodexConfig(existingCodexConfig, codexConfigMcpToml);
+    await mkdir(path.dirname(codexConfigPath), { recursive: true });
+    await writeFile(codexConfigPath, updatedCodexConfig);
+    console.log(`Updated ${codexConfigPath}`);
+  } else {
+    console.log("既存の Claude Code/Codex MCP 設定は上書きしていません。");
+  }
 }
