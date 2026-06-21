@@ -3,13 +3,14 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  MessageCircle,
   MessageSquare,
   XCircle,
 } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
+import { LineContactCard } from "@/app/components/LineContactCard";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import { buildLineFriendContact } from "@/lib/line/contact";
 import { fetchMyApproachDetail } from "@/lib/approaches/actions";
 import type { ApproachStatus } from "@/lib/approaches/types";
 import { ApproachResponseActions } from "./ApproachResponseActions";
@@ -70,6 +71,19 @@ export default async function MyApproachDetailPage({
     approach.status === "accepted" && approach.hasContact
       ? approach.contact
       : null;
+  const lineContact = contact
+    ? buildLineFriendContact({
+        url: contact.lineUrl,
+        id: contact.lineId,
+      })
+    : null;
+  const contactCard = contact ? (
+    await LineContactCard({
+      addUrl: lineContact?.addUrl ?? null,
+      displayId: lineContact?.displayId ?? null,
+      email: contact.email,
+    })
+  ) : null;
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -169,53 +183,7 @@ export default async function MyApproachDetailPage({
           </Card>
         )}
 
-        {contact && (
-          <Card className="mb-6">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <MessageCircle className="size-5 text-primary" />
-                <h2 className="text-lg font-bold text-text-dark">
-                  団体連絡先
-                </h2>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <dl className="space-y-3 text-sm">
-                {contact.lineId && (
-                  <div className="rounded-lg bg-green-50 p-3">
-                    <dt className="text-xs text-green-700">LINE ID</dt>
-                    <dd className="mt-1 font-medium text-green-800">
-                      {contact.lineId}
-                    </dd>
-                  </div>
-                )}
-                {contact.lineUrl && (
-                  <div className="rounded-lg bg-green-50 p-3">
-                    <dt className="text-xs text-green-700">LINE URL</dt>
-                    <dd className="mt-1">
-                      <a
-                        href={contact.lineUrl}
-                        className="font-medium text-green-800 underline"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {contact.lineUrl}
-                      </a>
-                    </dd>
-                  </div>
-                )}
-                {contact.email && (
-                  <div className="rounded-lg bg-green-50 p-3">
-                    <dt className="text-xs text-green-700">メール</dt>
-                    <dd className="mt-1 font-medium text-green-800">
-                      {contact.email}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </CardContent>
-          </Card>
-        )}
+        {contactCard}
       </main>
     </div>
   );
