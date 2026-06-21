@@ -56,6 +56,8 @@ export interface AdminUserListItem {
   email: string | null;
   avatarUrl: string | null;
   isActive: boolean;
+  suspendedAt: string | null;
+  suspendReason: string | null;
   region: string | null;
   organizationVerified: boolean | null;
   lastLoginAt: string | null;
@@ -88,6 +90,8 @@ export async function fetchUsers(): Promise<AdminUserListItem[]> {
       name: true,
       avatarUrl: true,
       isActive: true,
+      suspendedAt: true,
+      suspendReason: true,
       lastLoginAt: true,
       createdAt: true,
       participantProfile: {
@@ -110,6 +114,8 @@ export async function fetchUsers(): Promise<AdminUserListItem[]> {
     email: user.email,
     avatarUrl: user.avatarUrl,
     isActive: user.isActive,
+    suspendedAt: user.suspendedAt?.toISOString() ?? null,
+    suspendReason: user.suspendReason,
     region:
       user.role === "participant"
         ? user.participantProfile?.region ?? null
@@ -354,6 +360,87 @@ export async function rejectOrganization(
     return {
       success: false,
       error: err instanceof Error ? err.message : "否認に失敗しました",
+    };
+  }
+}
+
+/** ユーザーアカウントを凍結する（管理者のみ） */
+export async function suspendUser(
+  userId: string,
+  reason: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const adminUser = await requireAdmin();
+
+    const normalizedReason = reason.trim();
+    if (!normalizedReason) {
+      return { success: false, error: "凍結理由を入力してください" };
+    }
+
+    if (userId === adminUser.id) {
+      return { success: false, error: "自分自身は凍結できません" };
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!target) {
+      return { success: false, error: "対象ユーザーが見つかりません" };
+    }
+
+    if (target.role === "admin") {
+      return { success: false, error: "管理者は凍結できません" };
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isActive: false,
+        suspendedAt: new Date(),
+        suspendReason: normalizedReason,
+        suspendedBy: adminUser.id,
+      },
+    });
+
+    revalidatePath("/admin/users");
+
+    return { success: true };
+  } catch (err) {
+    console.error("[suspendUser]", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "凍結に失敗しました",
+    };
+  }
+}
+
+/** ユーザーアカウントの凍結を解除する（管理者のみ） */
+export async function reactivateUser(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requireAdmin();
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isActive: true,
+        suspendedAt: null,
+        suspendReason: null,
+        suspendedBy: null,
+      },
+    });
+
+    revalidatePath("/admin/users");
+
+    return { success: true };
+  } catch (err) {
+    console.error("[reactivateUser]", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "凍結解除に失敗しました",
     };
   }
 }

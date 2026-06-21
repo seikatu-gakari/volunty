@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockGetUser = vi.fn();
 const mockFindUser = vi.fn();
 const mockFindUsers = vi.fn();
+const mockUpdateUser = vi.fn();
 const mockCountUsers = vi.fn();
 const mockCountMatchingCandidates = vi.fn();
 const mockCountOrganizations = vi.fn();
@@ -28,6 +29,7 @@ vi.mock("@/lib/prisma", () => ({
     user: {
       findUnique: (...args: unknown[]) => mockFindUser(...args),
       findMany: (...args: unknown[]) => mockFindUsers(...args),
+      update: (...args: unknown[]) => mockUpdateUser(...args),
       count: (...args: unknown[]) => mockCountUsers(...args),
     },
     matchingCandidate: {
@@ -104,6 +106,8 @@ describe("admin/actions", () => {
         name: "  ",
         avatarUrl: null,
         isActive: true,
+        suspendedAt: null,
+        suspendReason: null,
         lastLoginAt: new Date("2026-06-19T10:00:00.000Z"),
         createdAt: new Date("2026-06-18T10:00:00.000Z"),
         participantProfile: {
@@ -119,6 +123,8 @@ describe("admin/actions", () => {
         name: null,
         avatarUrl: "https://example.com/avatar.png",
         isActive: false,
+        suspendedAt: new Date("2026-06-19T12:00:00.000Z"),
+        suspendReason: "規約違反のため",
         lastLoginAt: null,
         createdAt: new Date("2026-06-17T10:00:00.000Z"),
         participantProfile: null,
@@ -134,6 +140,8 @@ describe("admin/actions", () => {
         name: "管理者",
         avatarUrl: null,
         isActive: true,
+        suspendedAt: null,
+        suspendReason: null,
         lastLoginAt: null,
         createdAt: new Date("2026-06-16T10:00:00.000Z"),
         participantProfile: null,
@@ -152,6 +160,8 @@ describe("admin/actions", () => {
         name: true,
         avatarUrl: true,
         isActive: true,
+        suspendedAt: true,
+        suspendReason: true,
         lastLoginAt: true,
         createdAt: true,
         participantProfile: {
@@ -170,6 +180,8 @@ describe("admin/actions", () => {
         email: "participant@example.com",
         avatarUrl: null,
         isActive: true,
+        suspendedAt: null,
+        suspendReason: null,
         region: "東京都",
         organizationVerified: null,
         lastLoginAt: "2026-06-19T10:00:00.000Z",
@@ -182,6 +194,8 @@ describe("admin/actions", () => {
         email: "org@example.com",
         avatarUrl: "https://example.com/avatar.png",
         isActive: false,
+        suspendedAt: "2026-06-19T12:00:00.000Z",
+        suspendReason: "規約違反のため",
         region: null,
         organizationVerified: true,
         lastLoginAt: null,
@@ -194,6 +208,8 @@ describe("admin/actions", () => {
         email: null,
         avatarUrl: null,
         isActive: true,
+        suspendedAt: null,
+        suspendReason: null,
         region: null,
         organizationVerified: null,
         lastLoginAt: null,
@@ -278,6 +294,8 @@ describe("admin/actions", () => {
         name: " ",
         avatarUrl: null,
         isActive: true,
+        suspendedAt: null,
+        suspendReason: null,
         lastLoginAt: null,
         createdAt: new Date("2026-06-18T10:00:00.000Z"),
         participantProfile: {
@@ -475,6 +493,92 @@ describe("admin/actions", () => {
         reviewComment: "提出情報を補足してください",
         reviewedBy: "admin-1",
       }),
+    });
+  });
+
+  describe("suspendUser", () => {
+    it("管理者が参加者を凍結できる", async () => {
+      mockFindUser
+        .mockResolvedValueOnce({ role: "admin" })
+        .mockResolvedValueOnce({ id: "target-1", role: "participant" });
+      mockUpdateUser.mockResolvedValue({});
+
+      const { suspendUser } = await import("./actions");
+      const result = await suspendUser("target-1", "規約違反のため");
+
+      expect(result.success).toBe(true);
+      expect(mockUpdateUser).toHaveBeenCalledWith({
+        where: { id: "target-1" },
+        data: expect.objectContaining({
+          isActive: false,
+          suspendReason: "規約違反のため",
+          suspendedBy: "admin-1",
+        }),
+      });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/users");
+    });
+
+    it("理由が空なら失敗する", async () => {
+      mockFindUser.mockResolvedValueOnce({ role: "admin" });
+
+      const { suspendUser } = await import("./actions");
+      const result = await suspendUser("target-1", "   ");
+
+      expect(result).toEqual({
+        success: false,
+        error: "凍結理由を入力してください",
+      });
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    });
+
+    it("管理者ロールのユーザーは凍結できない", async () => {
+      mockFindUser
+        .mockResolvedValueOnce({ role: "admin" })
+        .mockResolvedValueOnce({ id: "target-admin", role: "admin" });
+
+      const { suspendUser } = await import("./actions");
+      const result = await suspendUser("target-admin", "理由");
+
+      expect(result).toEqual({
+        success: false,
+        error: "管理者は凍結できません",
+      });
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    });
+
+    it("自分自身は凍結できない", async () => {
+      mockFindUser.mockResolvedValueOnce({ role: "admin" });
+
+      const { suspendUser } = await import("./actions");
+      const result = await suspendUser("admin-1", "理由");
+
+      expect(result).toEqual({
+        success: false,
+        error: "自分自身は凍結できません",
+      });
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reactivateUser", () => {
+    it("凍結を解除し監査カラムをクリアする", async () => {
+      mockFindUser.mockResolvedValueOnce({ role: "admin" });
+      mockUpdateUser.mockResolvedValue({});
+
+      const { reactivateUser } = await import("./actions");
+      const result = await reactivateUser("target-1");
+
+      expect(result.success).toBe(true);
+      expect(mockUpdateUser).toHaveBeenCalledWith({
+        where: { id: "target-1" },
+        data: {
+          isActive: true,
+          suspendedAt: null,
+          suspendReason: null,
+          suspendedBy: null,
+        },
+      });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/users");
     });
   });
 });
