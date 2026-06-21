@@ -104,6 +104,43 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(url, response);
   }
 
+  // --- 凍結チェック: is_active=false なら強制サインアウト ---
+  {
+    const supabaseUrl = getSupabaseServerUrl();
+    const supabaseAnonKey = getSupabaseAnonKey();
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+          cookieOptions: {
+            name: SUPABASE_AUTH_COOKIE_NAME,
+          },
+          cookies: {
+            getAll: () => request.cookies.getAll(),
+            setAll: (cookiesToSet) => {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                response.cookies.set(name, value, options)
+              );
+            },
+          },
+        });
+        const { data: account } = await supabase
+          .from("m_user")
+          .select("is_active")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (account && account.is_active === false) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/auth/signout";
+          url.search = "";
+          url.searchParams.set("reason", "suspended");
+          return redirectWithCookies(url, response);
+        }
+      } catch (err) {
+        console.error("[proxy] 凍結チェックに失敗:", err);
+      }
+    }
+  }
+
   // --- オンボーディングパス: 認証済みならスルー ---
   if (isOnboardingPath(pathname)) {
     return response;
