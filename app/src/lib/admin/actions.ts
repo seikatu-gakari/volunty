@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@/generated/prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 
@@ -59,42 +60,95 @@ export interface ReviewHistoryEntry {
   reviewerName: string | null;
 }
 
+export interface DashboardStats {
+  userCount: number;
+  matchingCount: number;
+  pendingReviewCount: number;
+}
+
+/** 管理ダッシュボード用のサマリ件数を取得する */
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  await requireAdmin();
+
+  const [userCount, matchingCount, pendingReviewCount] = await Promise.all([
+    prisma.user.count({
+      where: { role: { not: "admin" } },
+    }),
+    prisma.matchingCandidate.count({
+      where: { status: { in: ["applied", "accepted", "completed"] } },
+    }),
+    prisma.organizationProfile.count({
+      where: { reviewStatus: "pending" },
+    }),
+  ]);
+
+  return { userCount, matchingCount, pendingReviewCount };
+}
+
+const organizationReviewSelect = {
+  id: true,
+  userId: true,
+  organizationName: true,
+  representativeName: true,
+  contactEmail: true,
+  activityAreas: true,
+  description: true,
+  activityCategories: true,
+  websiteUrl: true,
+  profileCompleteness: true,
+  reviewStatus: true,
+  reviewComment: true,
+  reviewedAt: true,
+  reviewedBy: true,
+  verified: true,
+  createdAt: true,
+} satisfies Prisma.OrganizationProfileSelect;
+
+type OrganizationReviewRecord = Prisma.OrganizationProfileGetPayload<{
+  select: typeof organizationReviewSelect;
+}>;
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function mapPendingOrganization(
+  org: OrganizationReviewRecord
+): PendingOrganization {
+  return {
+    ...org,
+    activityAreas: toStringArray(org.activityAreas),
+    activityCategories: toStringArray(org.activityCategories),
+    reviewedAt: org.reviewedAt?.toISOString() ?? null,
+    createdAt: org.createdAt.toISOString(),
+  };
+}
+
 export async function fetchOrganizations(): Promise<PendingOrganization[]> {
   await requireAdmin();
 
   const orgs = await prisma.organizationProfile.findMany({
     orderBy: [{ verified: "asc" }, { createdAt: "desc" }],
-    select: {
-      id: true,
-      userId: true,
-      organizationName: true,
-      representativeName: true,
-      contactEmail: true,
-      activityAreas: true,
-      description: true,
-      activityCategories: true,
-      websiteUrl: true,
-      profileCompleteness: true,
-      reviewStatus: true,
-      reviewComment: true,
-      reviewedAt: true,
-      reviewedBy: true,
-      verified: true,
-      createdAt: true,
-    },
+    select: organizationReviewSelect,
   });
 
-  return orgs.map((org) => ({
-    ...org,
-    activityAreas: Array.isArray(org.activityAreas)
-      ? (org.activityAreas as string[])
-      : [],
-    activityCategories: Array.isArray(org.activityCategories)
-      ? (org.activityCategories as string[])
-      : [],
-    reviewedAt: org.reviewedAt?.toISOString() ?? null,
-    createdAt: org.createdAt.toISOString(),
-  }));
+  return orgs.map(mapPendingOrganization);
+}
+
+/** 審査対象の団体を1件取得する */
+export async function fetchOrganizationById(
+  orgId: string
+): Promise<PendingOrganization | null> {
+  await requireAdmin();
+
+  const org = await prisma.organizationProfile.findUnique({
+    where: { id: orgId },
+    select: organizationReviewSelect,
+  });
+
+  return org ? mapPendingOrganization(org) : null;
 }
 
 /** 承認・否認済みの審査履歴を取得する */
@@ -159,6 +213,7 @@ function revalidateAdminReviewViews() {
   revalidatePath("/admin/organizations");
   revalidatePath("/admin/reviews");
   revalidatePath("/admin/reviews/history");
+  revalidatePath("/admin/reviews/[id]", "page");
   revalidatePath("/onboarding/pending");
   revalidatePath("/dashboard");
 }

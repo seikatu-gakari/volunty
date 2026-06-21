@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
   CheckCircle2,
@@ -13,6 +14,7 @@ import {
   FileText,
   Tag,
   BarChart3,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -256,15 +258,24 @@ export function OrganizationReviewList({ organizations: initial }: Props) {
                   </div>
 
                   {/* 詳細トグル */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedId(isExpanded ? null : org.id)
-                    }
-                    className="cursor-pointer text-sm font-medium text-primary hover:underline"
-                  >
-                    {isExpanded ? "詳細を閉じる" : "詳細を表示"}
-                  </button>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedId(isExpanded ? null : org.id)
+                      }
+                      className="cursor-pointer text-left text-sm font-medium text-primary hover:underline"
+                    >
+                      {isExpanded ? "詳細を閉じる" : "詳細を表示"}
+                    </button>
+                    <Link
+                      href={`/admin/reviews/${org.id}`}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" />
+                      詳細画面を開く
+                    </Link>
+                  </div>
 
                   {/* 展開時の詳細 */}
                   {isExpanded && (
