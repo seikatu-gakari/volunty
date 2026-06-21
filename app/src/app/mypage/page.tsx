@@ -226,7 +226,7 @@ export default async function MyPage() {
                   return (
                     <div
                       key={app.id}
-                      className="rounded-lg border border-card-border p-4"
+                      className="rounded-lg border border-card-border p-4 transition-shadow hover:shadow-md"
                     >
                       <div className="flex flex-col gap-3">
                         <div className="flex items-start justify-between gap-2">
@@ -284,6 +284,12 @@ export default async function MyPage() {
                             証明書を申請
                           </Link>
                         )}
+                        <Link
+                          href={`/mypage/applications/${app.id}`}
+                          className="inline-flex w-fit items-center gap-2 text-xs font-medium text-primary hover:underline"
+                        >
+                          詳細を見る
+                        </Link>
                       </div>
                     </div>
                   );
