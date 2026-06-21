@@ -6,6 +6,8 @@
   --foreground: #6d2700;
   --primary: #fb5b01;
   --primary-dark: #c74700;
+  --line-green: #06c755;
+  --line-green-dark: #05a646;
   --text-dark: #6d2700;
   --text-body: #8b4513;
   --card-border: rgba(203, 71, 0, 0.2);
@@ -20,6 +22,8 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-primary-dark: var(--primary-dark);
+  --color-line-green: var(--line-green);
+  --color-line-green-dark: var(--line-green-dark);
   --color-text-dark: var(--text-dark);
   --color-text-body: var(--text-body);
   --color-card-border: var(--card-border);
