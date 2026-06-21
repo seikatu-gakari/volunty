@@ -329,6 +329,7 @@ export async function fetchMyApplicationDetail(
               select: {
                 organizationName: true,
                 contactLineId: true,
+                contactLineUrl: true,
               },
             },
           },
@@ -386,6 +387,9 @@ export async function fetchMyApplicationDetail(
           organization_name: candidate.opportunity.organization.organizationName,
           organization_line_id: showContact
             ? (candidate.opportunity.organization.contactLineId ?? null)
+            : null,
+          organization_line_url: showContact
+            ? (candidate.opportunity.organization.contactLineUrl ?? null)
             : null,
         },
       },

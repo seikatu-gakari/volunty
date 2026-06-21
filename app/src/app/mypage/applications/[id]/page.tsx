@@ -4,7 +4,6 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  MessageCircle,
   MessageSquare,
   MapPin,
   Calendar,
@@ -14,7 +13,9 @@ import {
 } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
+import { LineContactCard } from "@/app/components/LineContactCard";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import { buildLineFriendContact } from "@/lib/line/contact";
 import { fetchMyApplicationDetail } from "@/lib/mypage/actions";
 import type { ApplicationStatus } from "@/lib/mypage/types";
 
@@ -80,6 +81,10 @@ export default async function MyApplicationDetailPage({
   }
 
   const display = statusDisplay(application.status);
+  const lineContact = buildLineFriendContact({
+    url: application.opportunity.organization_line_url,
+    id: application.opportunity.organization_line_id,
+  });
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -206,26 +211,10 @@ export default async function MyApplicationDetailPage({
           </CardContent>
         </Card>
 
-        {application.opportunity.organization_line_id && (
-          <Card className="mb-6">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <MessageCircle className="size-5 text-primary" />
-                <h2 className="text-lg font-bold text-text-dark">
-                  団体連絡先
-                </h2>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg bg-green-50 p-3">
-                <p className="text-xs text-green-700">LINE ID</p>
-                <p className="mt-1 font-medium text-green-800">
-                  {application.opportunity.organization_line_id}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <LineContactCard
+          addUrl={lineContact.addUrl}
+          displayId={lineContact.displayId}
+        />
 
         {application.can_request_certificate && (
           <Link
