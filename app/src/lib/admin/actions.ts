@@ -48,6 +48,80 @@ export interface PendingOrganization {
   createdAt: string;
 }
 
+export interface AdminUserListItem {
+  id: string;
+  role: "participant" | "organization" | "admin";
+  displayName: string;
+  email: string | null;
+  avatarUrl: string | null;
+  isActive: boolean;
+  region: string | null;
+  organizationVerified: boolean | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+function resolveDisplayName(
+  userName: string | null,
+  participantName: string | null | undefined,
+  organizationName: string | null | undefined
+) {
+  return (
+    userName?.trim() ||
+    participantName?.trim() ||
+    organizationName?.trim() ||
+    "(名前未設定)"
+  );
+}
+
+/** 登録ユーザー一覧を取得する */
+export async function fetchUsers(): Promise<AdminUserListItem[]> {
+  await requireAdmin();
+
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      role: true,
+      email: true,
+      name: true,
+      avatarUrl: true,
+      isActive: true,
+      lastLoginAt: true,
+      createdAt: true,
+      participantProfile: {
+        select: { name: true, region: true },
+      },
+      organizationProfile: {
+        select: { organizationName: true, verified: true },
+      },
+    },
+  });
+
+  return users.map((user) => ({
+    id: user.id,
+    role: user.role,
+    displayName: resolveDisplayName(
+      user.name,
+      user.participantProfile?.name,
+      user.organizationProfile?.organizationName
+    ),
+    email: user.email,
+    avatarUrl: user.avatarUrl,
+    isActive: user.isActive,
+    region:
+      user.role === "participant"
+        ? user.participantProfile?.region ?? null
+        : null,
+    organizationVerified:
+      user.role === "organization"
+        ? user.organizationProfile?.verified ?? null
+        : null,
+    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+    createdAt: user.createdAt.toISOString(),
+  }));
+}
+
 export async function fetchOrganizations(): Promise<PendingOrganization[]> {
   await requireAdmin();
 
