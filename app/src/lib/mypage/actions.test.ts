@@ -5,6 +5,7 @@ const mockGetUser = vi.fn();
 const mockFetchParticipantProfileByUserIdWithDebug = vi.fn();
 const mockDeleteManyUser = vi.fn();
 const mockDeleteAuthUser = vi.fn();
+const mockFindFirstMatchingCandidate = vi.fn();
 const mockRedirect = vi.fn();
 
 type MatchingRow = {
@@ -80,6 +81,9 @@ vi.mock("@/lib/prisma", () => ({
     user: {
       deleteMany: (...args: unknown[]) => mockDeleteManyUser(...args),
     },
+    matchingCandidate: {
+      findFirst: (...args: unknown[]) => mockFindFirstMatchingCandidate(...args),
+    },
   },
 }));
 
@@ -101,6 +105,7 @@ describe("fetchMyPageData", () => {
     mockMatchingRows = [];
     mockOpportunityRows = [];
     mockMatchingError = null;
+    mockFindFirstMatchingCandidate.mockResolvedValue(null);
     mockDeleteManyUser.mockResolvedValue({ count: 1 });
     mockDeleteAuthUser.mockResolvedValue({ data: { user: null }, error: null });
   });
@@ -311,6 +316,158 @@ describe("fetchMyPageData", () => {
 
     expect(result.profile).toBeNull();
     expect(result.applications).toEqual([]);
+  });
+});
+
+describe("fetchMyApplicationDetail", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFindFirstMatchingCandidate.mockResolvedValue(null);
+  });
+
+  it("未認証の場合、error を返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: null },
+      error: { message: "Not authenticated" },
+    });
+
+    const { fetchMyApplicationDetail } = await import("./actions");
+    const result = await fetchMyApplicationDetail("app-1");
+
+    expect(result.application).toBeNull();
+    expect(result.error).toBe("ログインが必要です");
+  });
+
+  it("応募が見つからない場合、application が null でエラーなし", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
+    mockFindFirstMatchingCandidate.mockResolvedValue(null);
+
+    const { fetchMyApplicationDetail } = await import("./actions");
+    const result = await fetchMyApplicationDetail("unknown-id");
+
+    expect(mockFindFirstMatchingCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "unknown-id",
+          participantId: "user-1",
+          status: { in: ["applied", "accepted", "completed", "declined"] },
+        }),
+      })
+    );
+    expect(result.application).toBeNull();
+    expect(result.error).toBeNull();
+  });
+
+  it("pending ステータスの場合、LINE ID は null を返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
+    mockFindFirstMatchingCandidate.mockResolvedValue({
+      id: "app-1",
+      status: "applied",
+      message: "志望動機です",
+      appliedAt: new Date("2026-01-01T00:00:00.000Z"),
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      statusChangedAt: new Date("2026-01-01T00:00:00.000Z"),
+      opportunity: {
+        id: "opp-1",
+        title: "環境保全活動",
+        description: "説明テキスト",
+        location: "東京都",
+        startDate: new Date("2026-03-01"),
+        endDate: new Date("2026-03-31"),
+        category: "環境保全",
+        participationMode: "offline",
+        organization: {
+          organizationName: "NPO法人テスト",
+          contactLineId: "@test_line",
+        },
+      },
+    });
+
+    const { fetchMyApplicationDetail } = await import("./actions");
+    const result = await fetchMyApplicationDetail("app-1");
+
+    expect(result.application).not.toBeNull();
+    expect(result.application?.status).toBe("pending");
+    expect(result.application?.message).toBe("志望動機です");
+    expect(result.application?.opportunity.organization_line_id).toBeNull();
+    expect(result.application?.can_request_certificate).toBe(false);
+  });
+
+  it("approved ステータスの場合、LINE ID を返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
+    mockFindFirstMatchingCandidate.mockResolvedValue({
+      id: "app-2",
+      status: "accepted",
+      message: null,
+      appliedAt: new Date("2026-02-01T00:00:00.000Z"),
+      createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      statusChangedAt: new Date("2026-02-05T00:00:00.000Z"),
+      opportunity: {
+        id: "opp-2",
+        title: "子ども支援",
+        description: null,
+        location: null,
+        startDate: null,
+        endDate: null,
+        category: null,
+        participationMode: null,
+        organization: {
+          organizationName: "支援団体A",
+          contactLineId: "@line_a",
+        },
+      },
+    });
+
+    const { fetchMyApplicationDetail } = await import("./actions");
+    const result = await fetchMyApplicationDetail("app-2");
+
+    expect(result.application?.status).toBe("approved");
+    expect(result.application?.opportunity.organization_line_id).toBe("@line_a");
+  });
+
+  it("completed ステータスの場合、証明書申請可能フラグと完了日を返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
+    const completedAt = new Date("2026-03-10T12:00:00.000Z");
+    mockFindFirstMatchingCandidate.mockResolvedValue({
+      id: "app-3",
+      status: "completed",
+      message: null,
+      appliedAt: new Date("2026-01-15T00:00:00.000Z"),
+      createdAt: new Date("2026-01-15T00:00:00.000Z"),
+      statusChangedAt: completedAt,
+      opportunity: {
+        id: "opp-3",
+        title: "清掃活動",
+        description: null,
+        location: null,
+        startDate: null,
+        endDate: null,
+        category: null,
+        participationMode: null,
+        organization: {
+          organizationName: "地域団体",
+          contactLineId: "@local",
+        },
+      },
+    });
+
+    const { fetchMyApplicationDetail } = await import("./actions");
+    const result = await fetchMyApplicationDetail("app-3");
+
+    expect(result.application?.status).toBe("completed");
+    expect(result.application?.completed_at).toBe("2026-03-10T12:00:00.000Z");
+    expect(result.application?.can_request_certificate).toBe(true);
+  });
+
+  it("DB エラー時、エラーメッセージを返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
+    mockFindFirstMatchingCandidate.mockRejectedValue(new Error("DB error"));
+
+    const { fetchMyApplicationDetail } = await import("./actions");
+    const result = await fetchMyApplicationDetail("app-1");
+
+    expect(result.application).toBeNull();
+    expect(result.error).toBe("予期しないエラーが発生しました");
   });
 });
 
