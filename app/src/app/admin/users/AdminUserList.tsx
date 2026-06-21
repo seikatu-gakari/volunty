@@ -17,6 +17,7 @@ import {
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Input } from "@/app/components/ui/Input";
 import type { AdminUserListItem } from "@/lib/admin/actions";
+import { UserSuspensionControl } from "./UserSuspensionControl";
 
 interface Props {
   users: AdminUserListItem[];
@@ -216,6 +217,8 @@ export function AdminUserList({ users }: Props) {
                       <span>登録日: {formatDate(user.createdAt)}</span>
                     </div>
                   </div>
+
+                  <UserSuspensionControl user={user} />
                 </CardContent>
               </Card>
             );

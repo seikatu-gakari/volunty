@@ -96,15 +96,18 @@ enum CertificateStatus {
 /// ユーザー — Supabase Auth と連携
 /// id は auth.users.id と一致させる（トリガーで自動作成）
 model User {
-  id          String    @id @db.Uuid
-  role        UserRole  @default(participant)
-  email       String?   @db.VarChar(255)
-  name        String?   @db.VarChar(100)
-  avatarUrl   String?   @map("avatar_url")
-  isActive    Boolean   @default(true) @map("is_active")
-  lastLoginAt DateTime? @map("last_login_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id            String    @id @db.Uuid
+  role          UserRole  @default(participant)
+  email         String?   @db.VarChar(255)
+  name          String?   @db.VarChar(100)
+  avatarUrl     String?   @map("avatar_url")
+  isActive      Boolean   @default(true) @map("is_active")
+  suspendedAt   DateTime? @map("suspended_at")
+  suspendReason String?   @map("suspend_reason") @db.Text
+  suspendedBy   String?   @map("suspended_by") @db.Uuid
+  lastLoginAt   DateTime? @map("last_login_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // リレーション
   participantProfile  ParticipantProfile?
