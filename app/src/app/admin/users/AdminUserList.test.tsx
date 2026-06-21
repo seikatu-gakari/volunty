@@ -1,8 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AdminUserList } from "./AdminUserList";
 import type { AdminUserListItem } from "@/lib/admin/actions";
+
+vi.mock("@/lib/admin/actions", () => ({
+  suspendUser: vi.fn(),
+  reactivateUser: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 const users: AdminUserListItem[] = [
   {
@@ -12,6 +21,8 @@ const users: AdminUserListItem[] = [
     email: "participant@example.com",
     avatarUrl: null,
     isActive: true,
+    suspendedAt: null,
+    suspendReason: null,
     region: "東京都",
     organizationVerified: null,
     lastLoginAt: "2026-06-19T10:00:00.000Z",
@@ -24,6 +35,8 @@ const users: AdminUserListItem[] = [
     email: "org@example.com",
     avatarUrl: null,
     isActive: false,
+    suspendedAt: "2026-06-19T12:00:00.000Z",
+    suspendReason: "規約違反のため",
     region: null,
     organizationVerified: true,
     lastLoginAt: null,
@@ -36,6 +49,8 @@ const users: AdminUserListItem[] = [
     email: "admin@example.com",
     avatarUrl: null,
     isActive: true,
+    suspendedAt: null,
+    suspendReason: null,
     region: null,
     organizationVerified: null,
     lastLoginAt: null,
@@ -66,12 +81,17 @@ describe("AdminUserList", () => {
     expect(screen.queryByText("admin@example.com")).toBeNull();
   });
 
-  it("停止中ユーザーは状態バッジのみ表示し、凍結操作は表示しない", () => {
+  it("参加者と団体には凍結/解除操作を表示し、管理者には表示しない", () => {
     render(<AdminUserList users={users} />);
 
     expect(screen.getByText("停止中")).toBeDefined();
-    expect(screen.queryByRole("button", { name: "停止する" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "解除する" })).toBeNull();
+    expect(screen.getByRole("button", { name: "凍結する" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "凍結を解除" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: /管理者\s+1/ }));
+
+    expect(screen.getByRole("heading", { name: "管理者" })).toBeDefined();
     expect(screen.queryByRole("button", { name: "凍結する" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "凍結を解除" })).toBeNull();
   });
 });
