@@ -49,6 +49,17 @@ export interface PendingOrganization {
   createdAt: string;
 }
 
+/** 審査履歴の 1 エントリ */
+export interface ReviewHistoryEntry {
+  id: string;
+  organizationName: string;
+  reviewStatus: "approved" | "rejected";
+  reviewComment: string | null;
+  reviewedAt: string;
+  reviewedBy: string | null;
+  reviewerName: string | null;
+}
+
 export interface DashboardStats {
   userCount: number;
   matchingCount: number;
@@ -140,9 +151,68 @@ export async function fetchOrganizationById(
   return org ? mapPendingOrganization(org) : null;
 }
 
+/** 承認・否認済みの審査履歴を取得する */
+export async function fetchReviewHistory(): Promise<ReviewHistoryEntry[]> {
+  await requireAdmin();
+
+  const histories = await prisma.organizationProfile.findMany({
+    where: {
+      reviewStatus: { in: ["approved", "rejected"] },
+      reviewedAt: { not: null },
+    },
+    orderBy: { reviewedAt: "desc" },
+    select: {
+      id: true,
+      organizationName: true,
+      reviewStatus: true,
+      reviewComment: true,
+      reviewedAt: true,
+      reviewedBy: true,
+    },
+  });
+
+  const reviewerIds = Array.from(
+    new Set(
+      histories
+        .map((history) => history.reviewedBy)
+        .filter((reviewedBy): reviewedBy is string => reviewedBy !== null)
+    )
+  );
+
+  const reviewers =
+    reviewerIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: reviewerIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+  const reviewerNameMap = new Map(
+    reviewers.map((reviewer) => [reviewer.id, reviewer.name])
+  );
+
+  return histories.map((history) => {
+    if (!history.reviewedAt) {
+      throw new Error("審査日時がない履歴は表示できません");
+    }
+
+    return {
+      id: history.id,
+      organizationName: history.organizationName,
+      reviewStatus: history.reviewStatus as ReviewHistoryEntry["reviewStatus"],
+      reviewComment: history.reviewComment,
+      reviewedAt: history.reviewedAt.toISOString(),
+      reviewedBy: history.reviewedBy,
+      reviewerName: history.reviewedBy
+        ? (reviewerNameMap.get(history.reviewedBy) ?? null)
+        : null,
+    };
+  });
+}
+
 function revalidateAdminReviewViews() {
   revalidatePath("/admin/organizations");
   revalidatePath("/admin/reviews");
+  revalidatePath("/admin/reviews/history");
   revalidatePath("/admin/reviews/[id]", "page");
   revalidatePath("/onboarding/pending");
   revalidatePath("/dashboard");
