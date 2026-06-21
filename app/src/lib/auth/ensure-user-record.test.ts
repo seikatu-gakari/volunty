@@ -14,7 +14,8 @@ vi.mock("@/lib/prisma", () => ({
 const { ensureUserRecord } = await import("./ensure-user-record");
 
 function createSupabaseUser(
-  user: Partial<SupabaseUser> & Pick<SupabaseUser, "id">
+  user: Omit<Partial<SupabaseUser>, "email"> &
+    Pick<SupabaseUser, "id"> & { email?: string | null }
 ): SupabaseUser {
   return {
     app_metadata: {},

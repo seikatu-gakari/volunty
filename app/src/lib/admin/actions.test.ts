@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetUser = vi.fn();
 const mockFindUser = vi.fn();
+const mockCountUsers = vi.fn();
+const mockCountMatchingCandidates = vi.fn();
+const mockCountOrganizations = vi.fn();
 const mockFindOrganizations = vi.fn();
 const mockUpdateOrganization = vi.fn();
 const mockRevalidatePath = vi.fn();
@@ -22,15 +25,25 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
       findUnique: (...args: unknown[]) => mockFindUser(...args),
+      count: (...args: unknown[]) => mockCountUsers(...args),
+    },
+    matchingCandidate: {
+      count: (...args: unknown[]) => mockCountMatchingCandidates(...args),
     },
     organizationProfile: {
+      count: (...args: unknown[]) => mockCountOrganizations(...args),
       findMany: (...args: unknown[]) => mockFindOrganizations(...args),
       update: (...args: unknown[]) => mockUpdateOrganization(...args),
     },
   },
 }));
 
-const { fetchOrganizations, approveOrganization, rejectOrganization } = await import("./actions");
+const {
+  fetchDashboardStats,
+  fetchOrganizations,
+  approveOrganization,
+  rejectOrganization,
+} = await import("./actions");
 
 describe("admin/actions", () => {
   beforeEach(() => {
@@ -73,6 +86,29 @@ describe("admin/actions", () => {
         createdAt: "2026-04-17T10:00:00.000Z",
       }),
     ]);
+  });
+
+  it("管理ダッシュボード用のサマリ件数を取得する", async () => {
+    mockCountUsers.mockResolvedValue(12);
+    mockCountMatchingCandidates.mockResolvedValue(34);
+    mockCountOrganizations.mockResolvedValue(5);
+
+    const result = await fetchDashboardStats();
+
+    expect(result).toEqual({
+      userCount: 12,
+      matchingCount: 34,
+      pendingReviewCount: 5,
+    });
+    expect(mockCountUsers).toHaveBeenCalledWith({
+      where: { role: { not: "admin" } },
+    });
+    expect(mockCountMatchingCandidates).toHaveBeenCalledWith({
+      where: { status: { in: ["applied", "accepted", "completed"] } },
+    });
+    expect(mockCountOrganizations).toHaveBeenCalledWith({
+      where: { reviewStatus: "pending" },
+    });
   });
 
   it("承認時に承認状態と監査情報を更新する", async () => {

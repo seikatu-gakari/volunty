@@ -48,6 +48,31 @@ export interface PendingOrganization {
   createdAt: string;
 }
 
+export interface DashboardStats {
+  userCount: number;
+  matchingCount: number;
+  pendingReviewCount: number;
+}
+
+/** 管理ダッシュボード用のサマリ件数を取得する */
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  await requireAdmin();
+
+  const [userCount, matchingCount, pendingReviewCount] = await Promise.all([
+    prisma.user.count({
+      where: { role: { not: "admin" } },
+    }),
+    prisma.matchingCandidate.count({
+      where: { status: { in: ["applied", "accepted", "completed"] } },
+    }),
+    prisma.organizationProfile.count({
+      where: { reviewStatus: "pending" },
+    }),
+  ]);
+
+  return { userCount, matchingCount, pendingReviewCount };
+}
+
 export async function fetchOrganizations(): Promise<PendingOrganization[]> {
   await requireAdmin();
 
