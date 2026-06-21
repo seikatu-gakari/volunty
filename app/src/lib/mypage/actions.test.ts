@@ -425,6 +425,72 @@ describe("fetchMyApplicationDetail", () => {
     expect(result.application?.opportunity.organization_line_id).toBe("@line_a");
   });
 
+  it("マッチング成立時は organization_line_url を返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
+    mockFindFirstMatchingCandidate.mockResolvedValue({
+      id: "app-4",
+      status: "accepted",
+      message: null,
+      appliedAt: new Date("2026-02-01T00:00:00.000Z"),
+      createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      statusChangedAt: new Date("2026-02-05T00:00:00.000Z"),
+      opportunity: {
+        id: "opp-4",
+        title: "子ども支援",
+        description: null,
+        location: null,
+        startDate: null,
+        endDate: null,
+        category: null,
+        participationMode: null,
+        organization: {
+          organizationName: "支援団体A",
+          contactLineId: "@line_a",
+          contactLineUrl: "https://line.me/R/ti/p/@line_a",
+        },
+      },
+    });
+
+    const { fetchMyApplicationDetail } = await import("./actions");
+    const result = await fetchMyApplicationDetail("app-4");
+
+    expect(result.application?.opportunity.organization_line_url).toBe(
+      "https://line.me/R/ti/p/@line_a"
+    );
+  });
+
+  it("審査中は organization_line_url を秘匿する", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
+    mockFindFirstMatchingCandidate.mockResolvedValue({
+      id: "app-5",
+      status: "applied",
+      message: null,
+      appliedAt: new Date("2026-02-01T00:00:00.000Z"),
+      createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      statusChangedAt: new Date("2026-02-01T00:00:00.000Z"),
+      opportunity: {
+        id: "opp-5",
+        title: "子ども支援",
+        description: null,
+        location: null,
+        startDate: null,
+        endDate: null,
+        category: null,
+        participationMode: null,
+        organization: {
+          organizationName: "支援団体A",
+          contactLineId: "@line_a",
+          contactLineUrl: "https://line.me/R/ti/p/@line_a",
+        },
+      },
+    });
+
+    const { fetchMyApplicationDetail } = await import("./actions");
+    const result = await fetchMyApplicationDetail("app-5");
+
+    expect(result.application?.opportunity.organization_line_url).toBeNull();
+  });
+
   it("completed ステータスの場合、証明書申請可能フラグと完了日を返す", async () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
     const completedAt = new Date("2026-03-10T12:00:00.000Z");

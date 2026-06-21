@@ -72,6 +72,8 @@ export interface ApplicationDetailOpportunity {
   organization_name: string;
   /** マッチング成立（approved / completed）時のみ含まれる */
   organization_line_id: string | null;
+  /** マッチング成立（approved / completed）時のみ含まれる友だち追加URL */
+  organization_line_url: string | null;
 }
 
 /** 応募詳細情報（fetchMyApplicationDetail の戻り値本体） */
