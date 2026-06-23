@@ -1,70 +1,70 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "1.0.0",
-  "updatedAt": "2026-02-15",
-  "description": "Volunty MVP フィーチャーリスト — pass/failステータス付き",
+  "updatedAt": "2026-06-23",
+  "description": "Volunty MVP フィーチャーリスト — pass/partial/pendingステータス付き",
   "features": {
     "participant": {
       "label": "参加者向け機能",
       "items": [
-        { "id": "P-1",  "name": "OAuthログイン",          "status": "pending",  "notes": "Google OAuth。未実装" },
-        { "id": "P-2",  "name": "プロフィール登録",       "status": "pending",  "notes": "未実装" },
-        { "id": "P-3",  "name": "性格診断（簡易16問・詳細60問）", "status": "pass",     "notes": "BIG5ベース。XState制御。mode=brief|full対応。結果保存時に診断モードを保持" },
-        { "id": "P-4",  "name": "診断結果表示",           "status": "pass",     "notes": "10類型+BIG5スコアチャート" },
-        { "id": "P-5",  "name": "おすすめ案件一覧",       "status": "pending",  "notes": "マッチングスコア順表示。未実装" },
-        { "id": "P-6",  "name": "団体詳細閲覧",           "status": "pending",  "notes": "未実装" },
-        { "id": "P-7",  "name": "募集案件への応募",       "status": "pending",  "notes": "未実装" },
-        { "id": "P-8",  "name": "応募状況確認",           "status": "pending",  "notes": "未実装" },
-        { "id": "P-9",  "name": "団体からのアプローチ受信","status": "pass",     "notes": "/mypage/approaches で受信一覧・詳細・回答期限を表示" },
-        { "id": "P-10", "name": "アプローチへの返信",     "status": "pass",     "notes": "期限内の未回答アプローチを承諾・辞退可能。期限切れは回答不可" },
-        { "id": "P-11", "name": "マッチ成立後LINE表示",   "status": "pass",     "notes": "応募承認後およびアプローチ承諾後に団体連絡先のみ表示" },
-        { "id": "P-12", "name": "参加証明書発行",         "status": "pending",  "notes": "未実装" },
-        { "id": "P-13", "name": "参加証明書一覧",         "status": "pending",  "notes": "未実装" },
-        { "id": "P-14", "name": "診断やり直し",           "status": "pending",  "notes": "Nice to Have。未実装" }
+        { "id": "P-1", "name": "OAuthログイン", "status": "pass", "notes": "Google OAuthログインUI、callback route、m_user同期まで実装済み" },
+        { "id": "P-2", "name": "プロフィール登録", "status": "pass", "notes": "registerParticipantで参加者プロフィールをDB upsertし、ロール検証とリダイレクトを実装済み" },
+        { "id": "P-3", "name": "性格診断（簡易16問・詳細60問）", "status": "pass", "notes": "BIG5ベース。XState制御。mode=brief|full対応。結果保存時に診断モードを保持" },
+        { "id": "P-4", "name": "診断結果表示", "status": "pass", "notes": "10類型+BIG5スコアチャート。DB保存済み結果の取得に対応" },
+        { "id": "P-5", "name": "おすすめ案件一覧", "status": "pass", "notes": "/recommendations と fetchRecommendations でマッチングスコア順表示、カテゴリ・地域・参加形態フィルタに対応" },
+        { "id": "P-6", "name": "団体詳細閲覧", "status": "pass", "notes": "/organizations/[id] と fetchOrganizationDetail で団体情報・公開案件一覧を表示" },
+        { "id": "P-7", "name": "募集案件への応募", "status": "pass", "notes": "/opportunities/[id] と applyToOpportunity で応募メッセージ保存・重複応募防止に対応" },
+        { "id": "P-8", "name": "応募状況確認", "status": "pass", "notes": "/mypage と /mypage/applications/[id] で本人応募の進捗・詳細を表示" },
+        { "id": "P-9", "name": "団体からのアプローチ受信", "status": "pass", "notes": "/mypage/approaches で受信一覧・詳細・回答期限を表示" },
+        { "id": "P-10", "name": "アプローチへの返信", "status": "pass", "notes": "期限内の未回答アプローチを承諾・辞退可能。期限切れは回答不可" },
+        { "id": "P-11", "name": "マッチ成立後LINE表示", "status": "pass", "notes": "応募承認後およびアプローチ承諾後に団体連絡先のみ表示。LINE友だち追加URL/IDにも対応" },
+        { "id": "P-12", "name": "参加証明書発行", "status": "pass", "notes": "活動完了済み応募から申請し、団体承認後に証明書番号付きPDFをダウンロード可能" },
+        { "id": "P-13", "name": "参加証明書一覧", "status": "pass", "notes": "/mypage/certificates で申請中・発行済み・却下済み証明書を一覧/詳細表示" },
+        { "id": "P-14", "name": "診断やり直し", "status": "pass", "notes": "診断結果画面から再診断導線を提供し、submitDiagnosisで最新結果を更新・履歴作成" }
       ]
     },
     "organization": {
       "label": "団体向け機能",
       "items": [
-        { "id": "O-1",  "name": "OAuthログイン",             "status": "pending", "notes": "未実装" },
-        { "id": "O-2",  "name": "団体プロフィール登録",      "status": "pending", "notes": "未実装" },
-        { "id": "O-2a", "name": "審査ステータス確認",        "status": "pending", "notes": "未実装" },
-        { "id": "O-3",  "name": "募集案件の作成",            "status": "pending", "notes": "未実装" },
-        { "id": "O-4",  "name": "募集案件の編集・終了",      "status": "pending", "notes": "未実装" },
-        { "id": "O-5",  "name": "おすすめ参加者一覧",        "status": "pending", "notes": "未実装" },
-        { "id": "O-6",  "name": "参加者へのアプローチ送信",  "status": "pass",    "notes": "/dashboard/participants から公開参加者へ1000文字以内のアプローチ文を案件単位で送信可能。送信上限あり" },
-        { "id": "O-7",  "name": "アプローチ送信履歴",        "status": "pass",    "notes": "/dashboard/approaches で送信履歴・回答状態・回答期限を表示" },
-        { "id": "O-8",  "name": "応募者詳細確認",            "status": "pending", "notes": "未実装" },
-        { "id": "O-9",  "name": "応募の承認・辞退",          "status": "pending", "notes": "未実装" },
-        { "id": "O-10", "name": "活動完了報告",              "status": "pending", "notes": "未実装" },
-        { "id": "O-11", "name": "参加証明書発行承認",        "status": "pending", "notes": "未実装" },
-        { "id": "O-12", "name": "マッチング履歴",            "status": "pending", "notes": "Nice to Have。未実装" }
+        { "id": "O-1", "name": "OAuthログイン", "status": "pass", "notes": "共通OAuth基盤で団体ロール選択・オンボーディングへ遷移" },
+        { "id": "O-2", "name": "団体プロフィール登録", "status": "pass", "notes": "registerOrganizationで団体プロフィール、LINE連絡先、審査待ち状態をDB保存" },
+        { "id": "O-2a", "name": "審査ステータス確認", "status": "pass", "notes": "/onboarding/pending と保護ルートで未承認団体の状態表示・アクセス制御に対応" },
+        { "id": "O-3", "name": "募集案件の作成", "status": "pass", "notes": "/dashboard/opportunities/new と createOpportunity で案件作成、特性条件、カテゴリ、参加形態を保存" },
+        { "id": "O-4", "name": "募集案件の編集・終了", "status": "pass", "notes": "/dashboard/opportunities/[id]/edit と updateOpportunity で自団体案件の編集・ステータス更新に対応" },
+        { "id": "O-5", "name": "おすすめ参加者一覧", "status": "pass", "notes": "/dashboard/participants と fetchRecommendedParticipants で公開・診断済み参加者を相性スコア順に表示" },
+        { "id": "O-6", "name": "参加者へのアプローチ送信", "status": "pass", "notes": "/dashboard/participants から公開参加者へ1000文字以内のアプローチ文を案件単位で送信可能。送信上限あり" },
+        { "id": "O-7", "name": "アプローチ送信履歴", "status": "pass", "notes": "/dashboard/approaches で送信履歴・回答状態・回答期限を表示" },
+        { "id": "O-8", "name": "応募者詳細確認", "status": "pass", "notes": "/dashboard/opportunities/[id]/applicants/[applicationId] で診断タイプ、BIG5スコア、応募メッセージを表示" },
+        { "id": "O-9", "name": "応募の承認・辞退", "status": "pass", "notes": "updateApplicationStatusで自団体応募のみ承認・辞退でき、UI操作も実装済み" },
+        { "id": "O-10", "name": "活動完了報告", "status": "pass", "notes": "承認済み応募をcompletedへ更新し、証明書申請可能状態へ接続" },
+        { "id": "O-11", "name": "参加証明書発行承認", "status": "pass", "notes": "/dashboard/certificates で証明書申請一覧・詳細・承認/却下に対応" },
+        { "id": "O-12", "name": "マッチング履歴", "status": "pass", "notes": "/dashboard/history で承認・辞退済み応募を処理日時順に表示" }
       ]
     },
     "admin": {
       "label": "管理者向け機能",
       "items": [
-        { "id": "A-1", "name": "ユーザー一覧",   "status": "pending", "notes": "Nice to Have。未実装" },
-        { "id": "A-2", "name": "団体登録審査",   "status": "pending", "notes": "未実装" },
-        { "id": "A-3", "name": "審査履歴確認",   "status": "pending", "notes": "未実装" },
-        { "id": "A-4", "name": "アカウント凍結", "status": "pending", "notes": "Nice to Have。未実装" }
+        { "id": "A-1", "name": "ユーザー一覧", "status": "pass", "notes": "/admin/users で参加者・団体・管理者を検索/ロール別表示。#142反映済み" },
+        { "id": "A-2", "name": "団体登録審査", "status": "pass", "notes": "/admin/reviews と /admin/reviews/[id] で団体審査、承認、否認に対応" },
+        { "id": "A-3", "name": "審査履歴確認", "status": "pass", "notes": "/admin/reviews/history と fetchReviewHistory で審査者名付き履歴を表示。#143反映済み" },
+        { "id": "A-4", "name": "アカウント凍結", "status": "pass", "notes": "suspendUser/reactivateUser と /admin/users の操作UI、凍結ユーザーのログアウト誘導を実装。#145反映済み" }
       ]
     },
     "common": {
       "label": "共通機能",
       "items": [
-        { "id": "C-1", "name": "OAuth認証基盤",      "status": "pending", "notes": "未実装" },
-        { "id": "C-2", "name": "ロール管理",         "status": "pending", "notes": "未実装" },
-        { "id": "C-3", "name": "レスポンシブ対応",   "status": "pass",    "notes": "Tailwind CSSでモバイルファースト実装済み" },
-        { "id": "C-4", "name": "エラーハンドリング", "status": "pending", "notes": "XStateのerror状態のみ。共通化は未実装" },
-        { "id": "C-5", "name": "ローディング状態",   "status": "partial", "notes": "診断計算中のみ実装。汎用化は未実装" }
+        { "id": "C-1", "name": "OAuth認証基盤", "status": "pass", "notes": "Supabase SSR、Google OAuth callback、signout、ユーザー同期テストを実装済み" },
+        { "id": "C-2", "name": "ロール管理", "status": "pass", "notes": "participant / organization / admin のDBロール、オンボーディング分岐、保護ルートを実装済み" },
+        { "id": "C-3", "name": "レスポンシブ対応", "status": "pass", "notes": "Tailwind CSSでモバイルファースト実装済み。主要画面にレスポンシブレイアウトを適用" },
+        { "id": "C-4", "name": "エラーハンドリング", "status": "pass", "notes": "主要route segmentにerror.tsxを追加し、CommonErrorDisplayとリトライ導線、Server Actionエラー表示方針を整備済み" },
+        { "id": "C-5", "name": "ローディング状態", "status": "pass", "notes": "主要な一覧・詳細・ダッシュボード・フォームrouteにloading.tsxを追加し、共通LoadingSkeletonでスケルトン表示を整備済み" }
       ]
     }
   },
   "summary": {
-    "total": 39,
-    "pass": 8,
-    "partial": 1,
-    "pending": 30
+    "total": 36,
+    "pass": 36,
+    "partial": 0,
+    "pending": 0
   }
 }
