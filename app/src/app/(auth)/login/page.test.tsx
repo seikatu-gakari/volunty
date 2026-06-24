@@ -46,6 +46,9 @@ describe("LoginPage", () => {
         provider: "google",
         options: {
           redirectTo: "http://localhost:3000/auth/callback?next=%2Fmypage",
+          queryParams: {
+            prompt: "select_account",
+          },
         },
       });
     });
