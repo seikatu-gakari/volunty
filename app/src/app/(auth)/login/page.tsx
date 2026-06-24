@@ -34,6 +34,9 @@ export default function LoginPage() {
       provider: "google",
       options: {
         redirectTo: buildAuthCallbackUrl(),
+        queryParams: {
+          prompt: "select_account",
+        },
       },
     });
   };
