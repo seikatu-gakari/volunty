@@ -77,6 +77,8 @@ git diff --cached
 
 リポジトリ構成を見て、実行可能な範囲で検証する。package manager は lockfile に合わせる。
 
+実装・修正・リファクタリングを含む場合は、commit 前に `volunty-test-completion-gate` を使い、必要な UT/E2E の追加と実行結果を確認する。適用外と判断した区分は、その理由を完了報告へ残す。
+
 優先順位:
 
 1. `pnpm-lock.yaml` があれば `pnpm`
