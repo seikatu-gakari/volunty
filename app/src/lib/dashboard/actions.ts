@@ -451,6 +451,8 @@ export async function createOpportunity(
       return { success: false, error: "団体プロフィールが見つかりません" };
     }
 
+    // Supabase REST経由ではPrismaの @updatedAt が適用されないため明示する。
+    const now = new Date().toISOString();
     const { error: insertError } = await supabase
       .from("m_opportunity")
       .insert({
@@ -460,10 +462,14 @@ export async function createOpportunity(
         requirement_traits:
           Object.keys(requiredTraits).length > 0 ? requiredTraits : null,
         status: "published",
+        published_at: now,
+        created_at: now,
+        updated_at: now,
         ...extra.data,
       });
 
     if (insertError) {
+      console.error("[createOpportunity] INSERT エラー:", insertError);
       return { success: false, error: "案件の作成に失敗しました" };
     }
   } catch {

@@ -3,7 +3,9 @@ import "server-only";
 export type PersonaKey =
   | "participant-fresh"
   | "participant-onboarded"
+  | "participant-suspendable"
   | "organization-approved"
+  | "organization-pending"
   | "admin";
 
 export interface Persona {
@@ -27,11 +29,23 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     role: "participant",
     description: "プロフィール＋診断済み参加者",
   },
+  "participant-suspendable": {
+    key: "participant-suspendable",
+    email: "e2e-participant-suspendable@example.com",
+    role: "participant",
+    description: "admin の凍結/解除フロー専用（毎回 isActive=true に戻す）",
+  },
   "organization-approved": {
     key: "organization-approved",
     email: "e2e-org-approved@example.com",
     role: "organization",
     description: "承認済み団体ユーザー",
+  },
+  "organization-pending": {
+    key: "organization-pending",
+    email: "e2e-org-pending@example.com",
+    role: "organization",
+    description: "審査待ち団体（毎回 reviewStatus=pending に戻す）",
   },
   admin: {
     key: "admin",

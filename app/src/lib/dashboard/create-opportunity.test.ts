@@ -151,6 +151,24 @@ describe("createOpportunity", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("Supabase REST経由の作成時に必須タイムスタンプを明示する", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: null });
+
+    await createOpportunity(
+      buildFormData({ title: "テスト案件", description: "テスト説明" })
+    );
+
+    const inserted = mockInsert.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(inserted.created_at).toEqual(expect.any(String));
+    expect(inserted.updated_at).toBe(inserted.created_at);
+    expect(inserted.published_at).toBe(inserted.created_at);
+  });
+
   it("特性スコア付きで案件を作成できる", async () => {
     const mockUser = { id: "org-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({
