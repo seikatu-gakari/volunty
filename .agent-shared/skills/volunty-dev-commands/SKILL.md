@@ -22,6 +22,18 @@ cd app && npm run test
 cd app && npx vitest run <file>
 ```
 
+## E2E
+
+```bash
+make e2e
+make e2e-ui
+make e2e-report
+```
+
+- 通常の自動実行には `make e2e` を使う。
+- 対話デバッグには `make e2e-ui`、直近結果の確認には `make e2e-report` を使う。
+- 実行前提と対象ケースは `specs/e2e-playwright-smoke.md` を確認する。
+
 ## Docker 操作
 
 ```bash
