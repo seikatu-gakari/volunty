@@ -10,6 +10,7 @@
 - 破壊的変更は必ず確認する。
 - TypeScript では型安全性を優先する。
 - テスト、lint、型チェックを可能な限り実行する。
+- 実装・修正・リファクタリング完了前に `volunty-test-completion-gate` で UT/E2E の追加要否を判定し、必要なテストを追加・実行する。
 - 実装後に変更点、確認結果、残タスクをまとめる。
 
 ## 基本方針
@@ -34,6 +35,7 @@
 | ブランチ運用         | `.agent-shared/skills/volunty-branch-workflow/SKILL.md`           | feature ブランチ、PR、preview/main への流れを確認する       |
 | ドキュメントマップ   | `.agent-shared/skills/volunty-document-map/SKILL.md`              | 関連設計書・仕様書の参照先を確認する                        |
 | AI 開発時の注意事項  | `.agent-shared/skills/volunty-ai-development-guidelines/SKILL.md` | 実装前の確認事項、Supabase・設計書参照ルールを確認する      |
+| テスト完了判定       | `.agent-shared/skills/volunty-test-completion-gate/SKILL.md`      | 実装完了前に UT/E2E の追加要否と結果を確認する              |
 | Super MVP 監査       | `.agent-shared/skills/super-mvp-implementation-audit/SKILL.md`    | Super MVP の実装状況、設計書との差分、未実装機能を確認する  |
 | RTK                  | `.agent-shared/skills/volunty-rtk-cli/SKILL.md`                   | ローカルコマンド出力を削減したい時に確認する                |
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Volunty Test Completion Gate"
+  short_description: "Volunty実装完了前に必要なUTとE2Eを判定して検証する"
+  default_prompt: "Use $volunty-test-completion-gate to verify the required UT and E2E coverage before completing this Volunty implementation."

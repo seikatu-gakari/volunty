@@ -16,9 +16,11 @@ argument-hint: '例: 実装前の注意事項を確認 / 新機能を追加 / Su
 8. カラー: CSS 変数ベースの Tailwind クラスを使用し、色のハードコードは禁止する。
 9. XState: 複数ステップのフローは XState で実装する。
 10. Supabase 認証: `@/lib/supabase/` 経由で扱い、直接 SDK 呼び出しを避ける。
+11. 完了ゲート: 実装・修正・リファクタリング完了前に `volunty-test-completion-gate` で UT/E2E の追加要否と結果を確認する。
 
 ## 関連 skill
 
 - 実装規約の詳細: [volunty-coding-conventions](../volunty-coding-conventions/SKILL.md)
 - アーキテクチャの詳細: [volunty-architecture-design](../volunty-architecture-design/SKILL.md)
 - ドキュメント参照先: [volunty-document-map](../volunty-document-map/SKILL.md)
+- テスト完了判定: [volunty-test-completion-gate](../volunty-test-completion-gate/SKILL.md)

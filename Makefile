@@ -2,10 +2,10 @@ COMPOSE ?= docker compose
 SERVICE ?= next-app
 APP_DIR ?= app
 
-.PHONY: help install build up up-detached down restart logs shell lint type-check build-next clean supabase-start supabase-stop supabase-status supabase-reset supabase-clean db-migrate db-seed db-setup promote-admin promote-admin-prod
+.PHONY: help install build up up-detached down restart logs shell lint type-check build-next clean supabase-start supabase-stop supabase-status supabase-reset supabase-clean db-migrate db-seed db-setup promote-admin promote-admin-prod e2e e2e-ui e2e-report
 
 help: ## 利用可能なコマンド一覧を表示
-	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?##"} {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?##"} {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 install: ## ホストマシンに依存関係をインストール（app/package.jsonに基づきnpm installを実行）
 	cd $(APP_DIR) && npm install
@@ -43,6 +43,18 @@ type-check: ## TypeScriptの型チェックをコンテナ内で実行（npm run
 
 build-next: ## Next.jsの本番ビルドをホストマシンで実行（本番デプロイ前の検証用）
 	cd $(APP_DIR) && npm run build
+
+e2e: ## E2Eスモークをフルオート実行（supabase→seed→dev自動起動→test→HTMLレポート）
+	@echo "Supabase ローカル環境を起動中..."
+	@set -a; . ./app/.env.local 2>/dev/null; set +a; supabase start >/dev/null 2>&1 || true
+	@set -a; . ./app/.env.local 2>/dev/null; set +a; supabase migration up --local >/dev/null
+	cd $(APP_DIR) && set -a; . ./.env.local 2>/dev/null; set +a; npm run test:e2e
+
+e2e-ui: ## Playwright UIモードで起動（デバッグ用）
+	cd $(APP_DIR) && set -a; . ./.env.local 2>/dev/null; set +a; npm run test:e2e:ui
+
+e2e-report: ## 直近のHTMLレポートを表示
+	cd $(APP_DIR) && npm run test:e2e:report
 
 clean: ## コンテナを停止してボリュームも削除（完全クリーンアップ）
 	$(COMPOSE) down -v
