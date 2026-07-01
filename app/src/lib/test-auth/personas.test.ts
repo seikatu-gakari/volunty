@@ -5,6 +5,14 @@ vi.mock("server-only", () => ({}));
 import { PERSONAS, resolvePersona } from "./personas";
 
 describe("resolvePersona", () => {
+  it.each([
+    "participant-diagnosis",
+    "participant-lifecycle",
+    "participant-delete",
+  ])("%s を参加者ペルソナとして解決できる", (key) => {
+    expect(resolvePersona(key)?.role).toBe("participant");
+  });
+
   it("定義済みの persona キーを解決できる", () => {
     for (const [key, persona] of Object.entries(PERSONAS)) {
       expect(resolvePersona(key)).toEqual(persona);

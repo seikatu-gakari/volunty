@@ -23,26 +23,35 @@ const mocks = vi.hoisted(() => ({
   userUpsert: vi.fn(),
   userUpdate: vi.fn(),
   participantProfileUpsert: vi.fn(),
+  participantProfileDeleteMany: vi.fn(),
   personalityTypeFindUnique: vi.fn(),
   diagnosisResultFindFirst: vi.fn(),
   diagnosisResultCreate: vi.fn(),
+  diagnosisResultDeleteMany: vi.fn(),
   organizationProfileUpsert: vi.fn(),
   opportunityFindFirst: vi.fn(),
   opportunityCreate: vi.fn(),
   opportunityUpdate: vi.fn(),
   matchingCandidateDeleteMany: vi.fn(),
   matchingCandidateUpsert: vi.fn(),
+  approachUpsert: vi.fn(),
+  certificateUpsert: vi.fn(),
+  certificateDeleteMany: vi.fn(),
   disconnect: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { upsert: mocks.userUpsert, update: mocks.userUpdate },
-    participantProfile: { upsert: mocks.participantProfileUpsert },
+    participantProfile: {
+      upsert: mocks.participantProfileUpsert,
+      deleteMany: mocks.participantProfileDeleteMany,
+    },
     personalityType: { findUnique: mocks.personalityTypeFindUnique },
     diagnosisResult: {
       findFirst: mocks.diagnosisResultFindFirst,
       create: mocks.diagnosisResultCreate,
+      deleteMany: mocks.diagnosisResultDeleteMany,
     },
     organizationProfile: { upsert: mocks.organizationProfileUpsert },
     opportunity: {
@@ -53,6 +62,11 @@ vi.mock("@/lib/prisma", () => ({
     matchingCandidate: {
       deleteMany: mocks.matchingCandidateDeleteMany,
       upsert: mocks.matchingCandidateUpsert,
+    },
+    approach: { upsert: mocks.approachUpsert },
+    certificate: {
+      upsert: mocks.certificateUpsert,
+      deleteMany: mocks.certificateDeleteMany,
     },
     $disconnect: mocks.disconnect,
   },
@@ -95,6 +109,24 @@ describe("seedE2eUsers", () => {
         role: "participant",
         description: "onboarded",
       },
+      "participant-diagnosis": {
+        key: "participant-diagnosis",
+        email: "e2e-participant-diagnosis@example.com",
+        role: "participant",
+        description: "diagnosis",
+      },
+      "participant-lifecycle": {
+        key: "participant-lifecycle",
+        email: "e2e-participant-lifecycle@example.com",
+        role: "participant",
+        description: "lifecycle",
+      },
+      "participant-delete": {
+        key: "participant-delete",
+        email: "e2e-participant-delete@example.com",
+        role: "participant",
+        description: "delete",
+      },
       "participant-suspendable": {
         key: "participant-suspendable",
         email: "e2e-participant-suspendable@example.com",
@@ -127,20 +159,32 @@ describe("seedE2eUsers", () => {
     mocks.userUpsert.mockResolvedValue({});
     mocks.userUpdate.mockResolvedValue({});
     mocks.participantProfileUpsert.mockResolvedValue({});
+    mocks.participantProfileDeleteMany.mockResolvedValue({ count: 0 });
     mocks.personalityTypeFindUnique.mockResolvedValue({ id: "ptype-id" });
     mocks.diagnosisResultFindFirst.mockResolvedValue({ id: "diagnosis-id" });
     mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
+    mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
     mocks.organizationProfileUpsert
       .mockResolvedValueOnce({ id: "approved-org-id" })
       .mockResolvedValueOnce({ id: "pending-org-id" });
-    mocks.opportunityFindFirst
-      .mockResolvedValueOnce({ id: "organization-flow-opportunity-id" })
-      .mockResolvedValueOnce({ id: "participant-application-opportunity-id" });
+    mocks.opportunityFindFirst.mockImplementation(
+      async ({ where }: { where: { title: string } }) => ({
+        id: `existing-${where.title}`,
+      })
+    );
+    mocks.opportunityCreate.mockImplementation(
+      async ({ data }: { data: { title: string } }) => ({
+        id: `created-${data.title}`,
+      })
+    );
     mocks.opportunityUpdate.mockImplementation(async ({ where }: { where: { id: string } }) => ({
       id: where.id,
     }));
     mocks.matchingCandidateDeleteMany.mockResolvedValue({ count: 0 });
     mocks.matchingCandidateUpsert.mockResolvedValue({ id: "candidate-id" });
+    mocks.approachUpsert.mockResolvedValue({ id: "approach-id" });
+    mocks.certificateUpsert.mockResolvedValue({ id: "certificate-id" });
+    mocks.certificateDeleteMany.mockResolvedValue({ count: 0 });
     vi.stubEnv("E2E_TEST_USER_PASSWORD", "test-password");
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
@@ -245,25 +289,54 @@ describe("seedE2eUsers", () => {
     mocks.participantProfileUpsert.mockResolvedValue({ id: "participant-profile-id" });
     mocks.diagnosisResultFindFirst.mockResolvedValue(null);
     mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
+    mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
     mocks.organizationProfileUpsert
       .mockReset()
       .mockResolvedValueOnce({ id: "approved-org-id" })
       .mockResolvedValueOnce({ id: "pending-org-id" });
     mocks.opportunityFindFirst.mockReset().mockResolvedValue(null);
-    mocks.opportunityCreate
-      .mockResolvedValueOnce({ id: "organization-flow-opportunity-id" })
-      .mockResolvedValueOnce({ id: "participant-application-opportunity-id" });
+    mocks.opportunityCreate.mockImplementation(
+      async ({ data }: { data: { title: string } }) => ({
+        id: `created-${data.title}`,
+      })
+    );
     mocks.matchingCandidateDeleteMany.mockResolvedValue({ count: 0 });
     mocks.matchingCandidateUpsert.mockResolvedValue({ id: "candidate-id" });
+    mocks.approachUpsert.mockResolvedValue({ id: "approach-id" });
+    mocks.certificateUpsert.mockResolvedValue({ id: "certificate-id" });
+    mocks.certificateDeleteMany.mockResolvedValue({ count: 0 });
     mocks.userUpdate.mockResolvedValue({});
 
     await seedE2eUsers();
+
+    expect(mocks.updateUserById).toHaveBeenCalledWith(
+      "participant-fresh-id",
+      expect.objectContaining({
+        user_metadata: {
+          full_name: "E2E participant-fresh",
+          onboarding_completed: false,
+          role: null,
+        },
+      })
+    );
+    expect(mocks.participantProfileDeleteMany).toHaveBeenCalledWith({
+      where: { userId: "participant-fresh-id" },
+    });
 
     expect(mocks.participantProfileUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: "participant-onboarded-id" },
       })
     );
+    for (const userId of [
+      "participant-diagnosis-id",
+      "participant-lifecycle-id",
+      "participant-delete-id",
+    ]) {
+      expect(mocks.participantProfileUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId } })
+      );
+    }
     expect(mocks.diagnosisResultCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -273,11 +346,11 @@ describe("seedE2eUsers", () => {
       })
     );
     expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(2);
-    expect(mocks.opportunityCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.opportunityCreate).toHaveBeenCalledTimes(12);
     expect(mocks.matchingCandidateDeleteMany).toHaveBeenCalledWith({
       where: {
         participantId: "participant-onboarded-id",
-        opportunityId: "participant-application-opportunity-id",
+        opportunityId: "created-E2E 応募対象案件",
       },
     });
     expect(mocks.matchingCandidateUpsert).toHaveBeenCalledWith(
@@ -285,7 +358,7 @@ describe("seedE2eUsers", () => {
         where: {
           participantId_opportunityId: {
             participantId: "participant-onboarded-id",
-            opportunityId: "organization-flow-opportunity-id",
+            opportunityId: "created-E2E 団体フロー案件",
           },
         },
         update: expect.objectContaining({ status: "applied" }),
@@ -300,5 +373,8 @@ describe("seedE2eUsers", () => {
         suspendedBy: null,
       },
     });
+    expect(mocks.approachUpsert).toHaveBeenCalledTimes(3);
+    expect(mocks.certificateUpsert).toHaveBeenCalledTimes(3);
+    expect(mocks.certificateDeleteMany).toHaveBeenCalledTimes(1);
   });
 });

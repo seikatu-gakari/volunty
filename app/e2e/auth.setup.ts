@@ -4,6 +4,9 @@ import { test as setup } from "@playwright/test";
 const personas = [
   { key: "participant-onboarded", file: "participant" },
   { key: "participant-fresh", file: "participant-fresh" },
+  { key: "participant-diagnosis", file: "participant-diagnosis" },
+  { key: "participant-lifecycle", file: "participant-lifecycle" },
+  { key: "participant-delete", file: "participant-delete" },
   { key: "participant-suspendable", file: "participant-suspendable" },
   { key: "organization-approved", file: "organization" },
   { key: "organization-pending", file: "organization-pending" },

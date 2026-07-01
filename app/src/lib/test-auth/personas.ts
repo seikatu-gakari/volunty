@@ -3,6 +3,9 @@ import "server-only";
 export type PersonaKey =
   | "participant-fresh"
   | "participant-onboarded"
+  | "participant-diagnosis"
+  | "participant-lifecycle"
+  | "participant-delete"
   | "participant-suspendable"
   | "organization-approved"
   | "organization-pending"
@@ -28,6 +31,24 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-participant-onboarded@example.com",
     role: "participant",
     description: "プロフィール＋診断済み参加者",
+  },
+  "participant-diagnosis": {
+    key: "participant-diagnosis",
+    email: "e2e-participant-diagnosis@example.com",
+    role: "participant",
+    description: "プロフィール登録済み／診断未実施の参加者",
+  },
+  "participant-lifecycle": {
+    key: "participant-lifecycle",
+    email: "e2e-participant-lifecycle@example.com",
+    role: "participant",
+    description: "応募・アプローチ・証明書フロー専用の参加者",
+  },
+  "participant-delete": {
+    key: "participant-delete",
+    email: "e2e-participant-delete@example.com",
+    role: "participant",
+    description: "アカウント物理削除フロー専用（seedで毎回再作成）",
   },
   "participant-suspendable": {
     key: "participant-suspendable",
