@@ -29,6 +29,37 @@ const PROTECTED_PATH_PREFIXES = [
   "/recommendations",
 ];
 
+type AppRole = "participant" | "organization" | "admin";
+
+const ROLE_PATH_PREFIXES: Record<AppRole, readonly string[]> = {
+  participant: [
+    "/diagnosis",
+    "/mypage",
+    "/opportunities",
+    "/organizations",
+    "/recommendations",
+  ],
+  organization: ["/dashboard"],
+  admin: ["/admin"],
+};
+
+function isAppRole(value: unknown): value is AppRole {
+  return value === "participant" || value === "organization" || value === "admin";
+}
+
+function matchesPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function isRoleAllowed(pathname: string, role: AppRole): boolean {
+  const owner = (
+    Object.entries(ROLE_PATH_PREFIXES) as [AppRole, readonly string[]][]
+  ).find(([, prefixes]) =>
+    prefixes.some((prefix) => matchesPrefix(pathname, prefix))
+  )?.[0];
+  return owner === undefined || owner === role;
+}
+
 /** 認証系パス（ログイン済みなら / へリダイレクト） */
 function isAuthPath(pathname: string): boolean {
   return pathname === "/login" || pathname.startsWith("/signup");
@@ -148,32 +179,37 @@ export async function proxy(request: NextRequest) {
 
   // --- 保護ルート: ロール・オンボーディング状態チェック ---
   const metadata = user.user_metadata as Record<string, unknown>;
-  const role = metadata.role as string | undefined;
-
-  // 管理者: トップアクセス時は管理ダッシュボードへ。onboarding/verified チェックはスキップ
-  if (role === "admin") {
-    if (pathname === "/") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/admin/organizations";
-      return redirectWithCookies(url, response);
-    }
-    return response;
-  }
+  const rawRole = metadata.role;
 
   // ロール未選択 → /onboarding/role
-  if (!role) {
+  if (!isAppRole(rawRole)) {
     const url = request.nextUrl.clone();
     url.pathname = "/onboarding/role";
     return redirectWithCookies(url, response);
   }
+  const role = rawRole;
+
+  // 管理者: トップアクセス時は管理ダッシュボードへ
+  if (role === "admin" && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/organizations";
+    return redirectWithCookies(url, response);
+  }
 
   // オンボーディング未完了 → /onboarding/{role}
-  if (!metadata.onboarding_completed) {
+  if (role !== "admin" && !metadata.onboarding_completed) {
     const url = request.nextUrl.clone();
     url.pathname =
       role === "organization"
         ? "/onboarding/organization"
         : "/onboarding/participant";
+    return redirectWithCookies(url, response);
+  }
+
+  // 他ロール専用ルートへの越境をブロック
+  if (!isRoleAllowed(pathname, role)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/forbidden";
     return redirectWithCookies(url, response);
   }
 

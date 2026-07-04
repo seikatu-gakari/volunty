@@ -39,13 +39,17 @@ function mockGuestSession(request: NextRequest) {
   });
 }
 
-function mockAuthenticatedSession(request: NextRequest, userId: string) {
+function mockAuthenticatedSession(
+  request: NextRequest,
+  userId: string,
+  role: "participant" | "organization" | "admin" = "participant"
+) {
   mocks.updateSession.mockResolvedValue({
     response: NextResponse.next({ request }),
     user: {
       id: userId,
       user_metadata: {
-        role: "participant",
+        role,
         onboarding_completed: true,
       },
     },
@@ -124,5 +128,26 @@ describe("proxy", () => {
     expect(response.status).toBe(307);
     expect(location.pathname).toBe("/auth/signout");
     expect(location.searchParams.get("reason")).toBe("suspended");
+  });
+
+  it.each([
+    ["participant", "/dashboard"],
+    ["participant", "/admin"],
+    ["organization", "/mypage"],
+    ["organization", "/admin"],
+    ["admin", "/mypage"],
+    ["admin", "/dashboard"],
+  ] as const)("%s は %s へ越境できない", async (role, pathname) => {
+    const request = createRequest(pathname);
+    mockAuthenticatedSession(request, `${role}-1`, role);
+    mocks.maybeSingle.mockResolvedValueOnce({ data: { is_active: true } });
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url
+    );
+
+    expect(location.pathname).toBe("/forbidden");
   });
 });
