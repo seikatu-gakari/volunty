@@ -7,8 +7,11 @@ export type PersonaKey =
   | "participant-lifecycle"
   | "participant-delete"
   | "participant-suspendable"
+  | "participant-suspended"
   | "organization-approved"
   | "organization-pending"
+  | "organization-rejected"
+  | "organization-secondary"
   | "admin";
 
 export interface Persona {
@@ -56,6 +59,12 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     role: "participant",
     description: "admin の凍結/解除フロー専用（毎回 isActive=true に戻す）",
   },
+  "participant-suspended": {
+    key: "participant-suspended",
+    email: "e2e-participant-suspended@example.com",
+    role: "participant",
+    description: "凍結済みユーザーの強制退出確認専用",
+  },
   "organization-approved": {
     key: "organization-approved",
     email: "e2e-org-approved@example.com",
@@ -67,6 +76,18 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-org-pending@example.com",
     role: "organization",
     description: "審査待ち団体（毎回 reviewStatus=pending に戻す）",
+  },
+  "organization-rejected": {
+    key: "organization-rejected",
+    email: "e2e-org-rejected@example.com",
+    role: "organization",
+    description: "否認済み団体",
+  },
+  "organization-secondary": {
+    key: "organization-secondary",
+    email: "e2e-org-secondary@example.com",
+    role: "organization",
+    description: "他団体所有データへのアクセス境界確認専用",
   },
   admin: {
     key: "admin",

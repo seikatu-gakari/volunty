@@ -10,6 +10,8 @@ const personas = [
   { key: "participant-suspendable", file: "participant-suspendable" },
   { key: "organization-approved", file: "organization" },
   { key: "organization-pending", file: "organization-pending" },
+  { key: "organization-rejected", file: "organization-rejected" },
+  { key: "organization-secondary", file: "organization-secondary" },
   { key: "admin", file: "admin" },
 ] as const;
 
