@@ -98,3 +98,61 @@ test("C-E5: 凍結済みユーザーを強制退出して理由を表示する",
   await page.goto("/mypage");
   await expect(page).toHaveURL(/\/login(?:\?|$)/);
 });
+
+test("C-E6: 他団体の案件・応募者・証明書を閲覧更新できない", async ({ browser }) => {
+  const owner = await openAuthenticatedPage(browser, AUTH_STATE.organization);
+  await owner.page.goto("/dashboard");
+  const opportunityHref = await owner.page
+    .getByRole("link", { name: /E2E 団体フロー案件/ })
+    .getAttribute("href");
+  expect(opportunityHref).not.toBeNull();
+
+  await owner.page.goto(opportunityHref!);
+  const editHref = await owner.page
+    .getByRole("link", { name: "編集" })
+    .getAttribute("href");
+  const applicantHref = await owner.page
+    .getByRole("link", { name: "詳細を見る" })
+    .first()
+    .getAttribute("href");
+
+  await owner.page.goto("/dashboard/certificates");
+  const certificateHref = await owner.page
+    .getByRole("link", { name: /E2E 申請中証明書案件/ })
+    .getAttribute("href");
+  expect(editHref).not.toBeNull();
+  expect(applicantHref).not.toBeNull();
+  expect(certificateHref).not.toBeNull();
+  await owner.context.close();
+
+  const other = await openAuthenticatedPage(
+    browser,
+    "playwright/.auth/organization-secondary.json"
+  );
+  await other.page.goto(editHref!);
+  await expect(
+    other.page.getByRole("heading", { name: "ページが見つかりません" })
+  ).toBeVisible();
+  await expect(other.page.getByLabel("案件タイトル")).toHaveCount(0);
+
+  await other.page.goto(applicantHref!);
+  await expect(
+    other.page.getByRole("heading", { name: "ページが見つかりません" })
+  ).toBeVisible();
+  await expect(other.page.getByText("E2E 参加者(診断済)")).toHaveCount(0);
+  await expect(
+    other.page.getByRole("button", { name: "承認する" })
+  ).toHaveCount(0);
+
+  await other.page.goto(certificateHref!);
+  await expect(
+    other.page.getByText("証明書申請が見つかりません")
+  ).toBeVisible();
+  await expect(
+    other.page.getByRole("button", { name: "発行する" })
+  ).toHaveCount(0);
+  await expect(
+    other.page.getByRole("button", { name: "却下する" })
+  ).toHaveCount(0);
+  await other.context.close();
+});
