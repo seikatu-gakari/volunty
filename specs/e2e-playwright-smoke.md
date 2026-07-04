@@ -5,6 +5,11 @@
 > **対象環境**: ローカル Supabase のみ（本番・Vercel Preview への影響ゼロを維持する）。
 > **実装者**: codex（本仕様だけで単独実装できることを目標とする）。
 
+> **2026-07-01 参加者E2E拡張**: 参加者シナリオは
+> [`docs/superpowers/specs/2026-07-01-participant-e2e-design.md`](../docs/superpowers/specs/2026-07-01-participant-e2e-design.md)
+> を最新仕様とする。従来の `participant.spec.ts` は機能領域別の5ファイルへ分割され、
+> P-2〜P-14とアカウント削除を検証する。以下は初期スモーク導入時の設計記録として残す。
+
 ---
 
 ## 1. 前提と既存資産
