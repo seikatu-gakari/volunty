@@ -127,6 +127,12 @@ describe("seedE2eUsers", () => {
         role: "participant",
         description: "delete",
       },
+      "participant-logout": {
+        key: "participant-logout",
+        email: "e2e-participant-logout@example.com",
+        role: "participant",
+        description: "logout",
+      },
       "participant-suspendable": {
         key: "participant-suspendable",
         email: "e2e-participant-suspendable@example.com",
@@ -150,6 +156,12 @@ describe("seedE2eUsers", () => {
         email: "e2e-org-pending@example.com",
         role: "organization",
         description: "pending",
+      },
+      "organization-pending-readonly": {
+        key: "organization-pending-readonly",
+        email: "e2e-org-pending-readonly@example.com",
+        role: "organization",
+        description: "pending readonly",
       },
       "organization-rejected": {
         key: "organization-rejected",
@@ -312,6 +324,7 @@ describe("seedE2eUsers", () => {
       .mockReset()
       .mockResolvedValueOnce({ id: "approved-org-id" })
       .mockResolvedValueOnce({ id: "pending-org-id" })
+      .mockResolvedValueOnce({ id: "pending-readonly-org-id" })
       .mockResolvedValueOnce({ id: "rejected-org-id" })
       .mockResolvedValueOnce({ id: "secondary-org-id" });
     mocks.opportunityFindFirst.mockReset().mockResolvedValue(null);
@@ -365,7 +378,16 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(4);
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(5);
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "organization-pending-readonly-id" },
+        update: expect.objectContaining({
+          reviewStatus: "pending",
+          verified: false,
+        }),
+      })
+    );
     expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: "organization-rejected-id" },

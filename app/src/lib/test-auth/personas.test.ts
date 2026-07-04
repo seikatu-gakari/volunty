@@ -9,6 +9,7 @@ describe("resolvePersona", () => {
     "participant-diagnosis",
     "participant-lifecycle",
     "participant-delete",
+    "participant-logout",
     "participant-suspended",
   ])("%s を参加者ペルソナとして解決できる", (key) => {
     expect(resolvePersona(key)?.role).toBe("participant");
@@ -16,6 +17,7 @@ describe("resolvePersona", () => {
 
   it.each([
     ["organization-rejected", "organization"],
+    ["organization-pending-readonly", "organization"],
     ["organization-secondary", "organization"],
   ] as const)("%s を %s ペルソナとして解決できる", (key, role) => {
     expect(resolvePersona(key)?.role).toBe(role);

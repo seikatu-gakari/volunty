@@ -228,6 +228,10 @@ export async function seedE2eUsers(): Promise<void> {
   const suspendedId = requirePersonaId(idByEmail, "participant-suspended");
   const orgApprovedId = requirePersonaId(idByEmail, "organization-approved");
   const orgPendingId = requirePersonaId(idByEmail, "organization-pending");
+  const orgPendingReadonlyId = requirePersonaId(
+    idByEmail,
+    "organization-pending-readonly"
+  );
   const orgRejectedId = requirePersonaId(idByEmail, "organization-rejected");
   const orgSecondaryId = requirePersonaId(idByEmail, "organization-secondary");
 
@@ -600,6 +604,30 @@ export async function seedE2eUsers(): Promise<void> {
     create: {
       userId: orgPendingId,
       organizationName: "E2E審査待ち団体",
+      reviewStatus: "pending",
+      verified: false,
+      profileCompleteness: 80,
+      activityAreas: ["神奈川県"],
+      activityCategories: ["子ども支援"],
+    },
+  });
+
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgPendingReadonlyId },
+    update: {
+      organizationName: "E2E読取専用審査待ち団体",
+      reviewStatus: "pending",
+      verified: false,
+      reviewComment: null,
+      reviewedAt: null,
+      reviewedBy: null,
+      profileCompleteness: 80,
+      activityAreas: ["神奈川県"],
+      activityCategories: ["子ども支援"],
+    },
+    create: {
+      userId: orgPendingReadonlyId,
+      organizationName: "E2E読取専用審査待ち団体",
       reviewStatus: "pending",
       verified: false,
       profileCompleteness: 80,

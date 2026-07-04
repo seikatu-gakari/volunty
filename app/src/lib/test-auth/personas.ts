@@ -6,10 +6,12 @@ export type PersonaKey =
   | "participant-diagnosis"
   | "participant-lifecycle"
   | "participant-delete"
+  | "participant-logout"
   | "participant-suspendable"
   | "participant-suspended"
   | "organization-approved"
   | "organization-pending"
+  | "organization-pending-readonly"
   | "organization-rejected"
   | "organization-secondary"
   | "admin";
@@ -53,6 +55,12 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     role: "participant",
     description: "アカウント物理削除フロー専用（seedで毎回再作成）",
   },
+  "participant-logout": {
+    key: "participant-logout",
+    email: "e2e-participant-logout@example.com",
+    role: "participant",
+    description: "ログアウトによるセッション失効確認専用",
+  },
   "participant-suspendable": {
     key: "participant-suspendable",
     email: "e2e-participant-suspendable@example.com",
@@ -76,6 +84,12 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-org-pending@example.com",
     role: "organization",
     description: "審査待ち団体（毎回 reviewStatus=pending に戻す）",
+  },
+  "organization-pending-readonly": {
+    key: "organization-pending-readonly",
+    email: "e2e-org-pending-readonly@example.com",
+    role: "organization",
+    description: "審査待ち境界の読み取り確認専用",
   },
   "organization-rejected": {
     key: "organization-rejected",
