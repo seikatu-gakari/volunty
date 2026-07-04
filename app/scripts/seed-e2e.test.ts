@@ -133,6 +133,12 @@ describe("seedE2eUsers", () => {
         role: "participant",
         description: "suspendable",
       },
+      "participant-suspended": {
+        key: "participant-suspended",
+        email: "e2e-participant-suspended@example.com",
+        role: "participant",
+        description: "suspended",
+      },
       "organization-approved": {
         key: "organization-approved",
         email: "e2e-org-approved@example.com",
@@ -144,6 +150,18 @@ describe("seedE2eUsers", () => {
         email: "e2e-org-pending@example.com",
         role: "organization",
         description: "pending",
+      },
+      "organization-rejected": {
+        key: "organization-rejected",
+        email: "e2e-org-rejected@example.com",
+        role: "organization",
+        description: "rejected",
+      },
+      "organization-secondary": {
+        key: "organization-secondary",
+        email: "e2e-org-secondary@example.com",
+        role: "organization",
+        description: "secondary",
       },
       admin: {
         key: "admin",
@@ -293,7 +311,9 @@ describe("seedE2eUsers", () => {
     mocks.organizationProfileUpsert
       .mockReset()
       .mockResolvedValueOnce({ id: "approved-org-id" })
-      .mockResolvedValueOnce({ id: "pending-org-id" });
+      .mockResolvedValueOnce({ id: "pending-org-id" })
+      .mockResolvedValueOnce({ id: "rejected-org-id" })
+      .mockResolvedValueOnce({ id: "secondary-org-id" });
     mocks.opportunityFindFirst.mockReset().mockResolvedValue(null);
     mocks.opportunityCreate.mockImplementation(
       async ({ data }: { data: { title: string } }) => ({
@@ -345,7 +365,25 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(2);
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(4);
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "organization-rejected-id" },
+        update: expect.objectContaining({
+          reviewStatus: "rejected",
+          verified: false,
+        }),
+      })
+    );
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "organization-secondary-id" },
+        update: expect.objectContaining({
+          reviewStatus: "approved",
+          verified: true,
+        }),
+      })
+    );
     expect(mocks.opportunityCreate).toHaveBeenCalledTimes(12);
     expect(mocks.matchingCandidateDeleteMany).toHaveBeenCalledWith({
       where: {
@@ -372,6 +410,13 @@ describe("seedE2eUsers", () => {
         suspendReason: null,
         suspendedBy: null,
       },
+    });
+    expect(mocks.userUpdate).toHaveBeenCalledWith({
+      where: { id: "participant-suspended-id" },
+      data: expect.objectContaining({
+        isActive: false,
+        suspendReason: "E2E凍結ユーザー",
+      }),
     });
     expect(mocks.approachUpsert).toHaveBeenCalledTimes(3);
     expect(mocks.certificateUpsert).toHaveBeenCalledTimes(3);

@@ -225,8 +225,11 @@ export async function seedE2eUsers(): Promise<void> {
     idByEmail,
     "participant-suspendable"
   );
+  const suspendedId = requirePersonaId(idByEmail, "participant-suspended");
   const orgApprovedId = requirePersonaId(idByEmail, "organization-approved");
   const orgPendingId = requirePersonaId(idByEmail, "organization-pending");
+  const orgRejectedId = requirePersonaId(idByEmail, "organization-rejected");
+  const orgSecondaryId = requirePersonaId(idByEmail, "organization-secondary");
 
   // オンボーディングE2Eが作成した状態をseedごとに初期化する。
   await prisma.diagnosisResult.deleteMany({ where: { userId: freshId } });
@@ -605,12 +608,66 @@ export async function seedE2eUsers(): Promise<void> {
     },
   });
 
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgRejectedId },
+    update: {
+      organizationName: "E2E否認済み団体",
+      reviewStatus: "rejected",
+      verified: false,
+      reviewComment: "E2E否認理由",
+      profileCompleteness: 80,
+      activityAreas: ["埼玉県"],
+      activityCategories: ["福祉"],
+    },
+    create: {
+      userId: orgRejectedId,
+      organizationName: "E2E否認済み団体",
+      reviewStatus: "rejected",
+      verified: false,
+      reviewComment: "E2E否認理由",
+      profileCompleteness: 80,
+      activityAreas: ["埼玉県"],
+      activityCategories: ["福祉"],
+    },
+  });
+
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgSecondaryId },
+    update: {
+      organizationName: "E2E別所有者団体",
+      reviewStatus: "approved",
+      verified: true,
+      profileCompleteness: 100,
+      activityAreas: ["千葉県"],
+      activityCategories: ["教育"],
+    },
+    create: {
+      userId: orgSecondaryId,
+      organizationName: "E2E別所有者団体",
+      reviewStatus: "approved",
+      verified: true,
+      profileCompleteness: 100,
+      activityAreas: ["千葉県"],
+      activityCategories: ["教育"],
+    },
+  });
+
   await prisma.user.update({
     where: { id: suspendableId },
     data: {
       isActive: true,
       suspendedAt: null,
       suspendReason: null,
+      suspendedBy: null,
+    },
+  });
+
+  await prisma.user.update({
+    where: { id: suspendedId },
+    data: {
+      isActive: false,
+      suspendedAt: new Date(),
+      suspendReason: "E2E凍結ユーザー",
       suspendedBy: null,
     },
   });
