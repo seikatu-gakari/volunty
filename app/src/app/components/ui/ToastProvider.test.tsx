@@ -72,6 +72,22 @@ describe("ToastProvider", () => {
     expect(await screen.findByText("ログインに失敗しました")).toBeDefined();
   });
 
+  it("error=suspended はトーストを表示せずログイン画面用にパラメータを維持する", () => {
+    navigationState.search = "error=suspended";
+    window.history.replaceState(null, "", "/login?error=suspended");
+
+    render(
+      <ToastProvider>
+        <div>ログインページ</div>
+      </ToastProvider>
+    );
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(new URLSearchParams(window.location.search).get("error")).toBe(
+      "suspended"
+    );
+  });
+
   it("クライアント遷移後に URL パラメータが付いた場合もトーストを表示する", async () => {
     const { rerender } = render(
       <ToastProvider>

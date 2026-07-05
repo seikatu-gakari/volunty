@@ -53,4 +53,25 @@ describe("LoginPage", () => {
       });
     });
   });
+
+  it("凍結理由付きの場合はエラーメッセージを表示する", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "http://localhost:3000/login?error=suspended"
+    );
+
+    render(<LoginPage />);
+
+    expect(
+      await screen.findByRole("alert", {
+        name: "このアカウントは凍結されています。",
+      })
+    ).toBeDefined();
+  });
+
+  it("通常のログインでは凍結エラーを表示しない", () => {
+    render(<LoginPage />);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });
