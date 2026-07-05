@@ -23,6 +23,14 @@ const BIG5_SCORES = {
   openness: 55,
 };
 
+const LOW_BIG5_SCORES = {
+  extraversion: 20,
+  agreeableness: 25,
+  conscientiousness: 30,
+  neuroticism: 75,
+  openness: 25,
+};
+
 const ORGANIZATION_FLOW_OPPORTUNITY_TITLE = "E2E 団体フロー案件";
 const PARTICIPANT_APPLICATION_OPPORTUNITY_TITLE = "E2E 応募対象案件";
 const FILTER_OPPORTUNITY_TITLE = "E2E オンライン環境保全案件";
@@ -35,6 +43,22 @@ const CERTIFICATE_REJECTED_TITLE = "E2E 却下済み証明書案件";
 const APPROACH_ACCEPT_TITLE = "E2E 承諾対象アプローチ案件";
 const APPROACH_DECLINE_TITLE = "E2E 辞退対象アプローチ案件";
 const APPROACH_EXPIRED_TITLE = "E2E 期限切れアプローチ案件";
+
+const lifecycleTitles = {
+  recommendationHigh: "E2E 団体おすすめ高相性案件",
+  recommendationLow: "E2E 団体おすすめ低相性案件",
+  approachSend: "E2E 団体アプローチ送信案件",
+  approachSent: "E2E 団体アプローチ未回答案件",
+  approachAccepted: "E2E 団体アプローチ承諾済み案件",
+  approachDeclined: "E2E 団体アプローチ辞退済み案件",
+  approachExpired: "E2E 団体アプローチ期限切れ案件",
+  applicantDecline: "E2E 団体応募辞退案件",
+  historyAccepted: "E2E 団体履歴承認案件",
+  historyDeclined: "E2E 団体履歴辞退案件",
+  historyComplete: "E2E 団体活動完了案件",
+  certificateApprove: "E2E 団体証明書承認案件",
+  certificateReject: "E2E 団体証明書却下案件",
+} as const;
 
 interface OpportunitySeedOptions {
   location?: string;
@@ -50,7 +74,11 @@ function buildUserMetadata(
     full_name: `E2E ${persona.key}`,
   };
 
-  if (persona.key === "participant-fresh") {
+  const isFresh =
+    persona.key === "participant-fresh" ||
+    persona.key === "organization-fresh";
+
+  if (isFresh) {
     // updateUserById は metadata をマージするため、前回E2Eの値を明示的に消す。
     metadata.role = null;
     metadata.onboarding_completed = false;
@@ -117,7 +145,7 @@ async function upsertMatchingCandidate({
 }: {
   participantId: string;
   opportunityId: string;
-  status: "applied" | "accepted" | "completed";
+  status: "applied" | "accepted" | "declined" | "completed";
   message: string;
 }): Promise<string> {
   const now = new Date();
@@ -227,12 +255,24 @@ export async function seedE2eUsers(): Promise<void> {
   );
   const orgApprovedId = requirePersonaId(idByEmail, "organization-approved");
   const orgPendingId = requirePersonaId(idByEmail, "organization-pending");
+  const orgFreshId = requirePersonaId(idByEmail, "organization-fresh");
+  const orgReapplyId = requirePersonaId(idByEmail, "organization-reapply");
+  const orgProfileReviewId = requirePersonaId(
+    idByEmail,
+    "organization-profile-review"
+  );
+  const orgLifecycleId = requirePersonaId(
+    idByEmail,
+    "organization-lifecycle"
+  );
+  const orgForeignId = requirePersonaId(idByEmail, "organization-foreign");
 
   // オンボーディングE2Eが作成した状態をseedごとに初期化する。
   await prisma.diagnosisResult.deleteMany({ where: { userId: freshId } });
   await prisma.participantProfile.deleteMany({ where: { userId: freshId } });
+  await prisma.organizationProfile.deleteMany({ where: { userId: orgFreshId } });
 
-  await prisma.participantProfile.upsert({
+  const onboardedProfile = await prisma.participantProfile.upsert({
     where: { userId: onboardedId },
     update: {
       name: "E2E 参加者(診断済)",
@@ -284,7 +324,7 @@ export async function seedE2eUsers(): Promise<void> {
       region: "東京都",
       publicProfile: true,
       diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
+      diagnosisScores: LOW_BIG5_SCORES,
       diagnosisMode: "brief",
     },
     create: {
@@ -294,7 +334,7 @@ export async function seedE2eUsers(): Promise<void> {
       region: "東京都",
       publicProfile: true,
       diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
+      diagnosisScores: LOW_BIG5_SCORES,
       diagnosisMode: "brief",
     },
   });
@@ -337,6 +377,73 @@ export async function seedE2eUsers(): Promise<void> {
     });
   }
 
+  const organizationProfileDetails = {
+    representativeName: "E2E 代表者",
+    activityAreas: ["東京都"],
+    description: "団体向けE2Eの固定プロフィールです。",
+    activityCategories: ["地域活性化"],
+    websiteUrl: "https://example.com/volunty-e2e",
+    logoUrl: "https://example.com/volunty-e2e.png",
+    contactLineId: "@volunty-e2e",
+    contactLineUrl: "https://line.me/R/ti/p/@volunty-e2e",
+    profileCompleteness: 100,
+  };
+  const reapplyOrganizationData = {
+    ...organizationProfileDetails,
+    organizationName: "E2E再申請団体",
+    contactEmail: PERSONAS["organization-reapply"].email,
+    reviewStatus: "rejected" as const,
+    verified: false,
+    reviewComment: "E2E 再申請前の否認理由",
+  };
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgReapplyId },
+    update: reapplyOrganizationData,
+    create: { userId: orgReapplyId, ...reapplyOrganizationData },
+  });
+
+  const profileReviewOrganizationData = {
+    ...organizationProfileDetails,
+    organizationName: "E2Eプロフィール再審査団体",
+    contactEmail: PERSONAS["organization-profile-review"].email,
+    reviewStatus: "approved" as const,
+    verified: true,
+    reviewComment: null,
+  };
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgProfileReviewId },
+    update: profileReviewOrganizationData,
+    create: { userId: orgProfileReviewId, ...profileReviewOrganizationData },
+  });
+
+  const lifecycleOrganizationData = {
+    ...organizationProfileDetails,
+    organizationName: "E2Eライフサイクル団体",
+    contactEmail: PERSONAS["organization-lifecycle"].email,
+    reviewStatus: "approved" as const,
+    verified: true,
+    reviewComment: null,
+  };
+  const lifecycleOrganization = await prisma.organizationProfile.upsert({
+    where: { userId: orgLifecycleId },
+    update: lifecycleOrganizationData,
+    create: { userId: orgLifecycleId, ...lifecycleOrganizationData },
+  });
+
+  const foreignOrganizationData = {
+    ...organizationProfileDetails,
+    organizationName: "E2E別団体",
+    contactEmail: PERSONAS["organization-foreign"].email,
+    reviewStatus: "approved" as const,
+    verified: true,
+    reviewComment: null,
+  };
+  const foreignOrganization = await prisma.organizationProfile.upsert({
+    where: { userId: orgForeignId },
+    update: foreignOrganizationData,
+    create: { userId: orgForeignId, ...foreignOrganizationData },
+  });
+
   const approvedOrganization = await prisma.organizationProfile.upsert({
     where: { userId: orgApprovedId },
     update: {
@@ -363,6 +470,32 @@ export async function seedE2eUsers(): Promise<void> {
       contactLineUrl: "https://line.me/R/ti/p/@volunty-e2e",
     },
   });
+
+  await prisma.opportunity.deleteMany({
+    where: {
+      organizationId: lifecycleOrganization.id,
+      title: { startsWith: "E2E 団体案件管理" },
+    },
+  });
+
+  const organizationLifecycleOpportunityEntries = await Promise.all(
+    Object.values(lifecycleTitles).map(async (title) => [
+      title,
+      await upsertPublishedOpportunity(
+        lifecycleOrganization.id,
+        title,
+        `${title}の状態を確認する団体向けE2E固定案件です。`
+      ),
+    ] as const)
+  );
+  const organizationLifecycleOpportunityIds = new Map(
+    organizationLifecycleOpportunityEntries
+  );
+  await upsertPublishedOpportunity(
+    foreignOrganization.id,
+    "E2E 別団体所有案件",
+    "所有権境界を確認する別団体のE2E固定案件です。"
+  );
 
   const organizationFlowOpportunityId = await upsertPublishedOpportunity(
     approvedOrganization.id,
@@ -576,6 +709,104 @@ export async function seedE2eUsers(): Promise<void> {
       rejectionReason: "E2E 却下理由",
     },
   });
+
+  const organizationApplicationStates = [
+    [lifecycleTitles.applicantDecline, "applied"],
+    [lifecycleTitles.historyAccepted, "accepted"],
+    [lifecycleTitles.historyDeclined, "declined"],
+    [lifecycleTitles.historyComplete, "accepted"],
+    [lifecycleTitles.certificateApprove, "completed"],
+    [lifecycleTitles.certificateReject, "completed"],
+  ] as const;
+  const organizationApplicationEntries = await Promise.all(
+    organizationApplicationStates.map(async ([title, status]) => [
+      title,
+      await upsertMatchingCandidate({
+        participantId: lifecycleId,
+        opportunityId: organizationLifecycleOpportunityIds.get(title)!,
+        status,
+        message: `${title}へのE2E応募メッセージです。`,
+      }),
+    ] as const)
+  );
+  const organizationApplicationIds = new Map(organizationApplicationEntries);
+
+  await prisma.approach.deleteMany({
+    where: {
+      organizationId: lifecycleOrganization.id,
+      participantProfileId: onboardedProfile.id,
+      opportunityId: organizationLifecycleOpportunityIds.get(
+        lifecycleTitles.approachSend
+      )!,
+    },
+  });
+
+  const approachStates = [
+    [lifecycleTitles.approachSent, "sent", future, null],
+    [lifecycleTitles.approachAccepted, "accepted", future, now],
+    [lifecycleTitles.approachDeclined, "declined", future, now],
+    [lifecycleTitles.approachExpired, "sent", past, null],
+  ] as const;
+  for (const [title, status, expiresAt, respondedAt] of approachStates) {
+    const opportunityId = organizationLifecycleOpportunityIds.get(title)!;
+    await prisma.approach.upsert({
+      where: {
+        organizationId_participantProfileId_opportunityId: {
+          organizationId: lifecycleOrganization.id,
+          participantProfileId: lifecycleProfile.id,
+          opportunityId,
+        },
+      },
+      update: {
+        message: `${title}のE2Eアプローチ文です。`,
+        matchScore: 80,
+        status,
+        expiresAt,
+        respondedAt,
+      },
+      create: {
+        organizationId: lifecycleOrganization.id,
+        participantProfileId: lifecycleProfile.id,
+        opportunityId,
+        message: `${title}のE2Eアプローチ文です。`,
+        matchScore: 80,
+        status,
+        expiresAt,
+        respondedAt,
+      },
+    });
+  }
+
+  for (const title of [
+    lifecycleTitles.certificateApprove,
+    lifecycleTitles.certificateReject,
+  ] as const) {
+    const applicationId = organizationApplicationIds.get(title)!;
+    const opportunityId = organizationLifecycleOpportunityIds.get(title)!;
+    await prisma.certificate.upsert({
+      where: { applicationId },
+      update: {
+        status: "pending",
+        certificateNumber: null,
+        approvedAt: null,
+        issuedAt: null,
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+      create: {
+        applicationId,
+        participantId: lifecycleId,
+        organizationId: lifecycleOrganization.id,
+        opportunityId,
+        status: "pending",
+        certificateNumber: null,
+        approvedAt: null,
+        issuedAt: null,
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+    });
+  }
 
   void pendingApplicationId;
   void acceptedApplicationId;
