@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   personalityTypeFindUnique: vi.fn(),
   diagnosisResultFindFirst: vi.fn(),
   diagnosisResultCreate: vi.fn(),
+  diagnosisResultUpdate: vi.fn(),
   diagnosisResultDeleteMany: vi.fn(),
   organizationProfileDeleteMany: vi.fn(),
   organizationProfileUpsert: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock("@/lib/prisma", () => ({
     diagnosisResult: {
       findFirst: mocks.diagnosisResultFindFirst,
       create: mocks.diagnosisResultCreate,
+      update: mocks.diagnosisResultUpdate,
       deleteMany: mocks.diagnosisResultDeleteMany,
     },
     organizationProfile: {
@@ -207,6 +209,7 @@ describe("seedE2eUsers", () => {
     mocks.personalityTypeFindUnique.mockResolvedValue({ id: "ptype-id" });
     mocks.diagnosisResultFindFirst.mockResolvedValue({ id: "diagnosis-id" });
     mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
+    mocks.diagnosisResultUpdate.mockResolvedValue({ id: "diagnosis-id" });
     mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
     mocks.organizationProfileDeleteMany.mockResolvedValue({ count: 0 });
     mocks.organizationProfileUpsert.mockImplementation(
@@ -326,6 +329,59 @@ describe("seedE2eUsers", () => {
       "[seed] ユーザー一覧取得失敗: list failed"
     );
     expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  it("既存のlifecycle診断結果を固定値へ戻してO-E8応募に再利用する", async () => {
+    const authUsers = Object.values(mocks.personas).map((persona) => ({
+      id: `${persona.key}-id`,
+      email: persona.email,
+    }));
+    mocks.listUsers.mockResolvedValue({
+      data: { users: authUsers },
+      error: null,
+    });
+    mocks.updateUserById.mockResolvedValue({ error: null });
+    mocks.diagnosisResultFindFirst.mockImplementation(
+      async ({ where }: { where: { userId: string } }) => ({
+        id:
+          where.userId === "participant-lifecycle-id"
+            ? "existing-lifecycle-diagnosis-id"
+            : "diagnosis-id",
+      })
+    );
+
+    await seedE2eUsers();
+
+    expect(mocks.diagnosisResultUpdate).toHaveBeenCalledWith({
+      where: { id: "existing-lifecycle-diagnosis-id" },
+      data: {
+        personalityTypeId: "ptype-id",
+        big5Scores: {
+          extraversion: 20,
+          agreeableness: 25,
+          conscientiousness: 30,
+          neuroticism: 75,
+          openness: 25,
+        },
+        diagnosisMode: "brief",
+      },
+    });
+    expect(mocks.matchingCandidateUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          participantId_opportunityId: {
+            participantId: "participant-lifecycle-id",
+            opportunityId: "existing-E2E 団体応募辞退案件",
+          },
+        },
+        update: expect.objectContaining({
+          diagnosisResultId: "existing-lifecycle-diagnosis-id",
+        }),
+        create: expect.objectContaining({
+          diagnosisResultId: "existing-lifecycle-diagnosis-id",
+        }),
+      })
+    );
   });
 
   it("スモークに必要な状態データを作成し、副作用を初期状態へ戻す", async () => {

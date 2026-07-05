@@ -395,6 +395,15 @@ export async function seedE2eUsers(): Promise<void> {
       },
       select: { id: true },
     });
+  } else {
+    await prisma.diagnosisResult.update({
+      where: { id: lifecycleDiagnosisResult.id },
+      data: {
+        personalityTypeId: personalityType?.id ?? null,
+        big5Scores: LOW_BIG5_SCORES,
+        diagnosisMode: "brief",
+      },
+    });
   }
 
   const organizationProfileDetails = {
