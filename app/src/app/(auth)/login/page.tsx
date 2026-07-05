@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
@@ -22,6 +24,15 @@ function buildAuthCallbackUrl() {
 }
 
 export default function LoginPage() {
+  const [isSuspended, setIsSuspended] = useState(false);
+
+  useEffect(() => {
+    const error = new URLSearchParams(window.location.search).get("error");
+    // URL query は hydration 後に反映するため、初回 effect 内で状態を同期する。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsSuspended(error === "suspended");
+  }, []);
+
   // メール認証を再開する場合は、useState/FormEvent とメールログインフォームを戻す。
   // const [email, setEmail] = useState("");
   // const [password, setPassword] = useState("");
@@ -76,7 +87,15 @@ export default function LoginPage() {
           </h1>
         </CardHeader>
         <CardContent>
-
+          {isSuspended && (
+            <p
+              role="alert"
+              aria-label="このアカウントは凍結されています。"
+              className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              このアカウントは凍結されています。
+            </p>
+          )}
 
           <GoogleAuthButton
             label="Googleでログイン"
