@@ -156,3 +156,39 @@ test("C-E6: 他団体の案件・応募者・証明書を閲覧更新できな�
   ).toHaveCount(0);
   await other.context.close();
 });
+
+test("C-E7: モバイル表示で各ロールの主要導線を操作できる", async ({ browser }) => {
+  const viewport = { width: 390, height: 844 };
+
+  const participantContext = await browser.newContext({
+    storageState: AUTH_STATE.participant,
+    viewport,
+  });
+  const participantPage = await participantContext.newPage();
+  await participantPage.goto("/");
+  await participantPage.getByRole("button", { name: "メニューを開く" }).click();
+  await participantPage.getByRole("link", { name: "マイページ" }).click();
+  await expect(participantPage).toHaveURL(/\/mypage$/);
+  await participantContext.close();
+
+  const organizationContext = await browser.newContext({
+    storageState: AUTH_STATE.organization,
+    viewport,
+  });
+  const organizationPage = await organizationContext.newPage();
+  await organizationPage.goto("/");
+  await organizationPage.getByRole("button", { name: "メニューを開く" }).click();
+  await organizationPage.getByRole("link", { name: "ダッシュボード" }).click();
+  await expect(organizationPage).toHaveURL(/\/dashboard$/);
+  await organizationContext.close();
+
+  const adminContext = await browser.newContext({
+    storageState: AUTH_STATE.admin,
+    viewport,
+  });
+  const adminPage = await adminContext.newPage();
+  await adminPage.goto("/admin");
+  await adminPage.getByRole("link", { name: "団体審査一覧" }).click();
+  await expect(adminPage).toHaveURL(/\/admin\/organizations$/);
+  await adminContext.close();
+});
