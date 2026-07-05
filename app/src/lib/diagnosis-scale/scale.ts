@@ -1,4 +1,4 @@
-import type { ScaleDefinition, ScaleItem } from './types'
+import type { DiagnosisMode, ScaleDefinition, ScaleItem } from './types'
 
 /**
  * IPIP Lexical Big-Five Factor Markers 50項目 日本語版
@@ -103,12 +103,52 @@ export const IPIP_BFM_50_JA: ScaleDefinition = {
   items: ITEMS,
 }
 
+/**
+ * 簡易版（15項目）尺度定義。
+ *
+ * IPIP-BFM-50-JA の各ドメイン先頭3項目（displayOrder 1〜15。一次資料の出題順で
+ * 各ドメインが循環する構造上、機械的に「最初の3項目」＝各ドメイン3項目ずつになる）
+ * をそのまま抜粋したもの。項目文は一切改変しない。
+ *
+ * 注意: 50項目版の Apple & Neff (2012) 検証は50項目全体に対するものであり、
+ * この15項目抜粋自体の内的一貫性・妥当性は検証されていない。特性あたり3項目という
+ * 項目数は測定の安定性が低く、簡易な傾向把握のみを目的とする（docs/design/
+ * personality-matching-redesign.md 参照）。
+ */
+const BRIEF_ITEM_COUNT_PER_DOMAIN = 3
+const BRIEF_ITEMS: ScaleItem[] = [...ITEMS]
+  .sort((a, b) => a.displayOrder - b.displayOrder)
+  .slice(0, BRIEF_ITEM_COUNT_PER_DOMAIN * 5)
+
+export const IPIP_BFM_50_JA_BRIEF15: ScaleDefinition = {
+  scaleCode: 'ipip-bfm-50-ja-brief15',
+  scaleVersion: '1.0.0',
+  name: 'IPIP Lexical Big-Five Factor Markers 日本語版（簡易版・15項目）',
+  sourceUrl: 'https://ipip.ori.org/JapaneseBig-FiveFactorMarkers.htm',
+  scoringKeyUrl: 'https://ipip.ori.org/newBigFive5broadKey.htm',
+  license: 'IPIP: public domain（商用・非商用を問わず利用可。https://ipip.ori.org/newPermission.htm）',
+  licenseVerifiedAt: '2026-07-04',
+  validationReference:
+    'Apple, M. T., & Neff, P. (2012). Using Rasch measurement to validate the Big Five factor marker questionnaire for a Japanese university population. Journal of Applied Measurement, 13, 1-21. （50項目版に対する検証であり、本15項目抜粋自体は未検証）',
+  excerptCaveat:
+    '50項目版から各ドメイン先頭3項目を抜粋した簡易版。特性あたり3項目のため内的一貫性は50項目版より低く、傾向をすばやく把握する目的に限定して利用する。',
+  items: BRIEF_ITEMS,
+}
+
+/** モードに対応する尺度定義を返す */
+export function getScaleDefinition(mode: DiagnosisMode): ScaleDefinition {
+  return mode === 'brief' ? IPIP_BFM_50_JA_BRIEF15 : IPIP_BFM_50_JA
+}
+
 /** 出題順（displayOrder 昇順）の項目一覧 */
-export function getItemsInDisplayOrder(): ScaleItem[] {
-  return [...IPIP_BFM_50_JA.items].sort((a, b) => a.displayOrder - b.displayOrder)
+export function getItemsInDisplayOrder(scale: ScaleDefinition = IPIP_BFM_50_JA): ScaleItem[] {
+  return [...scale.items].sort((a, b) => a.displayOrder - b.displayOrder)
 }
 
 /** itemCode から項目を引く（存在しない場合 undefined） */
-export function findScaleItem(itemCode: string): ScaleItem | undefined {
-  return IPIP_BFM_50_JA.items.find((item) => item.itemCode === itemCode)
+export function findScaleItem(
+  itemCode: string,
+  scale: ScaleDefinition = IPIP_BFM_50_JA
+): ScaleItem | undefined {
+  return scale.items.find((item) => item.itemCode === itemCode)
 }

@@ -9,7 +9,7 @@
       "items": [
         { "id": "P-1", "name": "OAuthログイン", "status": "pass", "notes": "Google OAuthログインUI、callback route、m_user同期まで実装済み" },
         { "id": "P-2", "name": "プロフィール登録", "status": "pass", "notes": "registerParticipantで参加者プロフィールをDB upsertし、ロール検証とリダイレクトを実装済み" },
-        { "id": "P-3", "name": "性格傾向チェック（IPIP-BFM-50日本語版・全50問）", "status": "pass", "notes": "public domainのIPIP項目を使用。XState制御・中断再開・生回答保存の同意・回答品質判定に対応。尺度/採点/標準化/タイプ定義のバージョンを保存" },
+        { "id": "P-3", "name": "性格傾向チェック（IPIP-BFM-50日本語版・簡易15問/全50問）", "status": "pass", "notes": "public domainのIPIP項目を使用。簡易15問（各ドメイン先頭3項目を抜粋・scaleCode分離）と全50問の2モードから選択。XState制御・中断再開・生回答保存（常時）・回答品質判定に対応。尺度/採点/標準化/タイプ定義のバージョンを保存" },
         { "id": "P-4", "name": "診断結果表示", "status": "pass", "notes": "5ドメイン連続スコアが主結果。参考タイプ（活動スタイル）・尺度名/版/実施日・回答品質注記・非臨床/限界説明を表示。percentile表示なし" },
         { "id": "P-5", "name": "おすすめ案件一覧", "status": "pass", "notes": "/recommendations と fetchRecommendations でマッチングスコア順表示、カテゴリ・地域・参加形態フィルタに対応" },
         { "id": "P-6", "name": "団体詳細閲覧", "status": "pass", "notes": "/organizations/[id] と fetchOrganizationDetail で団体情報・公開案件一覧を表示" },

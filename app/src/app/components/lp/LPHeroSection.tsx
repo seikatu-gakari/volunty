@@ -92,7 +92,7 @@ export function LPHeroSection() {
           >
             <Zap className="size-5" />
             <span className="whitespace-nowrap">性格傾向チェックを始める</span>
-            <span className="ml-1 hidden text-xs font-normal opacity-75 2xl:inline">全50問・約5〜8分・無料</span>
+            <span className="ml-1 hidden text-xs font-normal opacity-75 2xl:inline">簡易15問・約2分/全50問・約5〜8分・無料</span>
             <ArrowRight className="ml-1 size-5" />
           </Link>
           <Link

@@ -12,7 +12,7 @@ export function LPBottomCTA() {
         あなたにぴったりの活動を、<br className="sm:hidden" />今日、見つけよう。
       </h2>
       <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/90">
-        50問の性格傾向チェックから、新しいつながりとちいさな達成感が始まります。
+        簡易診断（15問）や全50問の性格傾向チェックから、新しいつながりとちいさな達成感が始まります。
       </p>
       <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
         <Link

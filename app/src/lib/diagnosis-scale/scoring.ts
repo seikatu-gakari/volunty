@@ -3,6 +3,7 @@ import type {
   Big5Domain,
   DiagnosisAnswer,
   DomainScores,
+  ScaleDefinition,
   ScoringError,
   ScoringResult,
 } from './types'
@@ -12,14 +13,17 @@ import { BIG5_DOMAINS } from './types'
  * 診断採点（純粋関数）
  *
  * - 乱数・時刻・外部状態に依存せず、同じ回答と同じバージョンから常に同じ結果を返す
- * - 全50問の回答が必須。部分回答での採点は行わない
+ * - 指定した尺度（デフォルトは全50項目版）の全項目回答が必須。部分回答での採点は行わない
  * - 逆転項目（-keyed）は 6 - 回答値 で採点する
- * - raw score はドメイン内10項目の合計（10〜50 の整数）
- * - scaled score は (raw - 10) / 40 * 100 を小数1桁で保持する。
+ * - raw score はドメイン内項目数の合計（項目数〜項目数×5 の整数）
+ * - scaled score は (raw - 項目数) / (項目数×4) * 100 を小数1桁で保持する。
  *   これは回答の線形変換であり、母集団内の位置（percentile）ではない
  */
-export function scoreDiagnosis(answers: DiagnosisAnswer[]): ScoringResult {
-  const itemByCode = new Map(IPIP_BFM_50_JA.items.map((item) => [item.itemCode, item]))
+export function scoreDiagnosis(
+  answers: DiagnosisAnswer[],
+  scale: ScaleDefinition = IPIP_BFM_50_JA
+): ScoringResult {
+  const itemByCode = new Map(scale.items.map((item) => [item.itemCode, item]))
   const seen = new Set<string>()
   const reversedValues = new Map<string, number>()
 
@@ -45,7 +49,7 @@ export function scoreDiagnosis(answers: DiagnosisAnswer[]): ScoringResult {
     )
   }
 
-  const missingItemCodes = IPIP_BFM_50_JA.items
+  const missingItemCodes = scale.items
     .filter((item) => !seen.has(item.itemCode))
     .map((item) => item.itemCode)
   if (missingItemCodes.length > 0) {
@@ -53,7 +57,7 @@ export function scoreDiagnosis(answers: DiagnosisAnswer[]): ScoringResult {
   }
 
   const rawScores = emptyDomainScores()
-  for (const item of IPIP_BFM_50_JA.items) {
+  for (const item of scale.items) {
     const value = reversedValues.get(item.itemCode)
     if (value === undefined) {
       // missing_answers チェック後のため到達しない
@@ -62,9 +66,10 @@ export function scoreDiagnosis(answers: DiagnosisAnswer[]): ScoringResult {
     rawScores[item.domain] += value
   }
 
+  const itemCountByDomain = countItemsByDomain(scale)
   const scaledScores = emptyDomainScores()
   for (const domain of BIG5_DOMAINS) {
-    scaledScores[domain] = toScaledScore(rawScores[domain])
+    scaledScores[domain] = toScaledScore(rawScores[domain], itemCountByDomain[domain])
   }
 
   return {
@@ -72,17 +77,25 @@ export function scoreDiagnosis(answers: DiagnosisAnswer[]): ScoringResult {
     score: {
       rawScores,
       scaledScores,
-      scaleCode: IPIP_BFM_50_JA.scaleCode,
-      scaleVersion: IPIP_BFM_50_JA.scaleVersion,
+      scaleCode: scale.scaleCode,
+      scaleVersion: scale.scaleVersion,
       scoringAlgorithmVersion: SCORING_ALGORITHM_VERSION,
       normsVersion: NORMS_VERSION,
     },
   }
 }
 
-/** raw score (10-50) を表示用 0-100（小数1桁）へ線形変換する */
-function toScaledScore(raw: number): number {
-  return Math.round(((raw - 10) / 40) * 1000) / 10
+function countItemsByDomain(scale: ScaleDefinition): DomainScores {
+  const counts = emptyDomainScores()
+  for (const item of scale.items) {
+    counts[item.domain] += 1
+  }
+  return counts
+}
+
+/** raw score（項目数〜項目数×5）を表示用 0-100（小数1桁）へ線形変換する */
+function toScaledScore(raw: number, itemCount: number): number {
+  return Math.round(((raw - itemCount) / (itemCount * 4)) * 1000) / 10
 }
 
 function emptyDomainScores(): DomainScores {

@@ -1,9 +1,9 @@
 ## 基本設計
 
-> **注意（2026-07-05）**: 性格診断・マッチングに関する記述は再設計により更新されています。
+> **注意（2026-07-06 更新）**: 性格診断・マッチングに関する記述は再設計により更新されています。
 > 現行仕様は [docs/design/personality-matching-redesign.md](../design/personality-matching-redesign.md) と
 > `specs/personality-diagnosis-functionality.md` を参照してください
-> （IPIP-BFM-50日本語版・全50問、診断とマッチングの分離、ルールベースランキング）。
+> （IPIP-BFM-50日本語版・簡易15問/全50問の2モード、診断とマッチングの分離、ルールベースランキング）。
 
 
 ### 1. 前提と対象範囲

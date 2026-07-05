@@ -1,9 +1,10 @@
-import { findScaleItem, getItemsInDisplayOrder } from './scale'
+import { IPIP_BFM_50_JA, findScaleItem, getItemsInDisplayOrder } from './scale'
 import type {
   DiagnosisAnswer,
   QualityAssessment,
   QualityContext,
   QualityFlag,
+  ScaleDefinition,
 } from './types'
 import { BIG5_DOMAINS } from './types'
 
@@ -16,12 +17,20 @@ export const QUALITY_RULE_VERSION = '1.0.0'
 /** 1問あたりの最低想定回答時間（ミリ秒）。これ×項目数を下回ると too_fast */
 const MIN_MS_PER_ITEM = 1_000
 
-/** 同一選択肢の連続がこの数以上で straight_lining */
-const STRAIGHT_LINING_THRESHOLD = 15
+/** 同一選択肢の連続が全項目数のこの割合以上で straight_lining（最低5問） */
+const STRAIGHT_LINING_RATIO = 0.3
+const STRAIGHT_LINING_MIN_THRESHOLD = 5
 
 /** 逆転処理後のドメイン内標準偏差がこの値を超えるドメインの数 */
 const INCONSISTENT_SD_THRESHOLD = 1.6
 const INCONSISTENT_DOMAIN_COUNT = 2
+
+function straightLiningThreshold(totalItemCount: number): number {
+  return Math.max(
+    STRAIGHT_LINING_MIN_THRESHOLD,
+    Math.round(totalItemCount * STRAIGHT_LINING_RATIO)
+  )
+}
 
 /**
  * 回答品質を判定する（純粋関数）。
@@ -31,7 +40,8 @@ const INCONSISTENT_DOMAIN_COUNT = 2
  */
 export function assessResponseQuality(
   answers: DiagnosisAnswer[],
-  context: QualityContext
+  context: QualityContext,
+  scale: ScaleDefinition = IPIP_BFM_50_JA
 ): QualityAssessment {
   const flags: QualityFlag[] = []
 
@@ -42,12 +52,12 @@ export function assessResponseQuality(
     flags.push('too_fast')
   }
 
-  const longestStreak = calculateLongestStreak(answers)
-  if (longestStreak >= STRAIGHT_LINING_THRESHOLD) {
+  const longestStreak = calculateLongestStreak(answers, scale)
+  if (longestStreak >= straightLiningThreshold(scale.items.length)) {
     flags.push('straight_lining')
   }
 
-  if (isInconsistent(answers)) {
+  if (isInconsistent(answers, scale)) {
     flags.push('inconsistent')
   }
 
@@ -55,9 +65,12 @@ export function assessResponseQuality(
 }
 
 /** 出題順に並べた回答列での同一選択肢の最長連続数 */
-function calculateLongestStreak(answers: DiagnosisAnswer[]): number {
+function calculateLongestStreak(
+  answers: DiagnosisAnswer[],
+  scale: ScaleDefinition
+): number {
   const valueByCode = new Map(answers.map((a) => [a.itemCode, a.value]))
-  const ordered = getItemsInDisplayOrder()
+  const ordered = getItemsInDisplayOrder(scale)
     .map((item) => valueByCode.get(item.itemCode))
     .filter((value): value is number => value !== undefined)
 
@@ -76,12 +89,12 @@ function calculateLongestStreak(answers: DiagnosisAnswer[]): number {
  * 逆転処理後のドメイン内標準偏差が極端に大きいドメインが複数ある場合、
  * +keyed / -keyed へ矛盾した回答をしている可能性が高いと判定する。
  */
-function isInconsistent(answers: DiagnosisAnswer[]): boolean {
+function isInconsistent(answers: DiagnosisAnswer[], scale: ScaleDefinition): boolean {
   const reversedByDomain = new Map<string, number[]>(
     BIG5_DOMAINS.map((domain) => [domain, []])
   )
   for (const answer of answers) {
-    const item = findScaleItem(answer.itemCode)
+    const item = findScaleItem(answer.itemCode, scale)
     if (!item) continue
     const reversed = item.keyed === '-' ? 6 - answer.value : answer.value
     reversedByDomain.get(item.domain)?.push(reversed)

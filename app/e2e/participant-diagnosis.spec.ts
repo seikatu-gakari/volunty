@@ -1,15 +1,17 @@
 import { expect, type Page, test } from "@playwright/test";
 
 const TOTAL_QUESTIONS = 50;
+const BRIEF_TOTAL_QUESTIONS = 15;
 
 async function answerQuestions(
   page: Page,
-  options: { from: number; to: number; label?: string }
+  options: { from: number; to: number; label?: string; totalQuestions?: number }
 ) {
   const label = options.label ?? "どちらともいえない";
+  const totalQuestions = options.totalQuestions ?? TOTAL_QUESTIONS;
   for (let question = options.from; question <= options.to; question += 1) {
     await expect(
-      page.getByText(`質問 ${question} / ${TOTAL_QUESTIONS}`)
+      page.getByText(`質問 ${question} / ${totalQuestions}`)
     ).toBeVisible();
     await page.getByRole("button", { name: label }).click();
   }
@@ -23,7 +25,7 @@ test.describe("参加者性格診断", () => {
   }) => {
     await page.goto("/diagnosis");
 
-    // 開始画面: 非臨床・同意の説明が表示される
+    // 開始画面: 非臨床の説明が表示される
     await expect(
       page.getByRole("heading", { name: "性格傾向チェック（BIG5）" })
     ).toBeVisible();
@@ -31,10 +33,8 @@ test.describe("参加者性格診断", () => {
       page.getByText(/医療・心理臨床の診断ではありません/)
     ).toBeVisible();
 
-    // 生回答保存に同意して開始
-    await page.getByRole("checkbox").check();
     await page
-      .getByRole("button", { name: "診断を開始する（全50問）" })
+      .getByRole("button", { name: "全50問で診断を始める" })
       .click();
     await answerQuestions(page, { from: 1, to: TOTAL_QUESTIONS });
 
@@ -68,7 +68,7 @@ test.describe("参加者性格診断", () => {
   test("P-14: 診断を中断しても続きから再開できる", async ({ page }) => {
     await page.goto("/diagnosis");
     await page
-      .getByRole("button", { name: /診断を開始する（全50問）|最初からやり直す/ })
+      .getByRole("button", { name: /全50問で診断を始める|最初からやり直す/ })
       .click();
     await answerQuestions(page, { from: 1, to: 5, label: "やや当てはまる" });
 
@@ -86,5 +86,26 @@ test.describe("参加者性格診断", () => {
       label: "やや当てはまる",
     });
     await expect(page).toHaveURL(/\/diagnosis\/result$/);
+  });
+
+  test("簡易診断（15問）を回答すると結果画面に全50問への案内が表示される", async ({
+    page,
+  }) => {
+    await page.goto("/diagnosis");
+
+    await page
+      .getByRole("button", { name: /簡易診断を始める（15問）|最初からやり直す/ })
+      .click();
+    await answerQuestions(page, {
+      from: 1,
+      to: BRIEF_TOTAL_QUESTIONS,
+      totalQuestions: BRIEF_TOTAL_QUESTIONS,
+    });
+
+    await expect(page).toHaveURL(/\/diagnosis\/result$/);
+    await expect(
+      page.getByText(/IPIP Big-Five Factor Markers 日本語版（簡易版・15問）/)
+    ).toBeVisible();
+    await expect(page.getByText("簡易診断について")).toBeVisible();
   });
 });

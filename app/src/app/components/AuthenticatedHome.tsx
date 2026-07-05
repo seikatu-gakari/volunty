@@ -44,9 +44,11 @@ export function AuthenticatedHome({ user }: AuthenticatedHomeProps) {
             <Brain className="size-8 text-primary" />
             <div>
               <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                性格傾向チェック（全50問）
+                性格傾向チェック
               </h3>
-              <p className="text-sm text-text-body">約5〜8分・途中保存できます</p>
+              <p className="text-sm text-text-body">
+                簡易診断（15問・約2分）/ 全50問（約5〜8分）から選べます
+              </p>
             </div>
           </div>
           <ul className="flex flex-col gap-2">
@@ -78,7 +80,7 @@ export function AuthenticatedHome({ user }: AuthenticatedHomeProps) {
               color: "bg-primary",
               title: "性格傾向チェック",
               description:
-                "50問の質問で、5つの性格特性の傾向を確認します",
+                "簡易診断（15問）または全50問の質問で、5つの性格特性の傾向を確認します",
             },
             {
               step: 2,

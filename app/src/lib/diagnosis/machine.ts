@@ -1,6 +1,6 @@
 import { createMachine, assign } from 'xstate'
-import { getItemsInDisplayOrder } from '@/lib/diagnosis-scale/scale'
-import type { DiagnosisAnswer } from '@/lib/diagnosis-scale/types'
+import { getItemsInDisplayOrder, getScaleDefinition } from '@/lib/diagnosis-scale/scale'
+import type { DiagnosisAnswer, DiagnosisMode } from '@/lib/diagnosis-scale/types'
 
 /**
  * 診断フローの XState ステートマシン。
@@ -9,6 +9,7 @@ import type { DiagnosisAnswer } from '@/lib/diagnosis-scale/types'
  * 回答時間（elapsedMs）と変更回数（changedCount）は回答品質判定用に収集する。
  */
 export interface DiagnosisContext {
+  mode: DiagnosisMode
   currentQuestionIndex: number
   answers: DiagnosisAnswer[]
   /** 中断からの再開回数 */
@@ -16,21 +17,27 @@ export interface DiagnosisContext {
 }
 
 export type DiagnosisEvent =
-  | { type: 'START' }
+  | { type: 'START'; mode?: DiagnosisMode }
   | { type: 'ANSWER'; value: number; elapsedMs?: number }
   | { type: 'BACK' }
   | { type: 'RESET' }
   | {
       type: 'RESTORE'
+      mode: DiagnosisMode
       answers: DiagnosisAnswer[]
       currentQuestionIndex: number
       resumedCount: number
     }
 
 const initialContext: DiagnosisContext = {
+  mode: 'full',
   currentQuestionIndex: 0,
   answers: [],
   resumedCount: 0,
+}
+
+function itemsForMode(mode: DiagnosisMode) {
+  return getItemsInDisplayOrder(getScaleDefinition(mode))
 }
 
 export const diagnosisMachine = createMachine(
@@ -47,16 +54,20 @@ export const diagnosisMachine = createMachine(
         on: {
           START: {
             target: 'answering',
-            actions: assign(() => initialContext),
+            actions: assign(({ event }) => ({
+              ...initialContext,
+              mode: event.mode ?? 'full',
+            })),
           },
           RESTORE: {
             target: 'answering',
             actions: assign({
+              mode: ({ event }) => event.mode,
               answers: ({ event }) => event.answers,
               currentQuestionIndex: ({ event }) =>
                 Math.min(
                   Math.max(0, event.currentQuestionIndex),
-                  getItemsInDisplayOrder().length - 1
+                  itemsForMode(event.mode).length - 1
                 ),
               resumedCount: ({ event }) => event.resumedCount,
             }),
@@ -69,7 +80,7 @@ export const diagnosisMachine = createMachine(
             actions: assign({
               answers: ({ context, event }) => {
                 const currentItem =
-                  getItemsInDisplayOrder()[context.currentQuestionIndex]
+                  itemsForMode(context.mode)[context.currentQuestionIndex]
                 if (!currentItem) return context.answers
 
                 const existingIndex = context.answers.findIndex(
@@ -131,7 +142,7 @@ export const diagnosisMachine = createMachine(
   {
     guards: {
       isComplete: ({ context }) =>
-        context.currentQuestionIndex >= getItemsInDisplayOrder().length,
+        context.currentQuestionIndex >= itemsForMode(context.mode).length,
     },
   }
 )

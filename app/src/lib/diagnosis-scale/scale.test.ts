@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   IPIP_BFM_50_JA,
+  IPIP_BFM_50_JA_BRIEF15,
   SCORING_ALGORITHM_VERSION,
   NORMS_VERSION,
+  getScaleDefinition,
+  getItemsInDisplayOrder,
 } from './scale'
 import type { Big5Domain } from './types'
 
@@ -100,5 +103,49 @@ describe('IPIP_BFM_50_JA 尺度定義', () => {
     expect(SCORING_ALGORITHM_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
     // 日本人向け標準化データは存在しないため null
     expect(NORMS_VERSION).toBeNull()
+  })
+})
+
+describe('IPIP_BFM_50_JA_BRIEF15 簡易版尺度定義', () => {
+  it('15項目で構成される', () => {
+    expect(IPIP_BFM_50_JA_BRIEF15.items).toHaveLength(15)
+  })
+
+  it('各ドメイン3項目ずつ含む', () => {
+    const domains: Big5Domain[] = [
+      'extraversion',
+      'agreeableness',
+      'conscientiousness',
+      'emotionalStability',
+      'intellect',
+    ]
+    for (const domain of domains) {
+      expect(
+        IPIP_BFM_50_JA_BRIEF15.items.filter((item) => item.domain === domain)
+      ).toHaveLength(3)
+    }
+  })
+
+  it('全50項目版の displayOrder 1〜15 と完全に一致する（項目文言の改変なし・独自抜粋なし）', () => {
+    const fullFirst15 = getItemsInDisplayOrder(IPIP_BFM_50_JA).slice(0, 15)
+    expect(IPIP_BFM_50_JA_BRIEF15.items).toEqual(
+      expect.arrayContaining(fullFirst15)
+    )
+    expect(IPIP_BFM_50_JA_BRIEF15.items).toHaveLength(fullFirst15.length)
+  })
+
+  it('scaleCode が50項目版と異なる（バージョン・データを混同しないため）', () => {
+    expect(IPIP_BFM_50_JA_BRIEF15.scaleCode).toBe('ipip-bfm-50-ja-brief15')
+    expect(IPIP_BFM_50_JA_BRIEF15.scaleCode).not.toBe(IPIP_BFM_50_JA.scaleCode)
+  })
+
+  it('簡易版自体は未検証である旨の注記(excerptCaveat)を持つ', () => {
+    expect(IPIP_BFM_50_JA_BRIEF15.excerptCaveat).toBeDefined()
+    expect(IPIP_BFM_50_JA_BRIEF15.excerptCaveat?.length).toBeGreaterThan(0)
+  })
+
+  it('getScaleDefinition("brief") で簡易版、"full" で50項目版を返す', () => {
+    expect(getScaleDefinition('brief')).toBe(IPIP_BFM_50_JA_BRIEF15)
+    expect(getScaleDefinition('full')).toBe(IPIP_BFM_50_JA)
   })
 })

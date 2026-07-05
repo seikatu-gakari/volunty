@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { IPIP_BFM_50_JA } from './scale'
+import { IPIP_BFM_50_JA, IPIP_BFM_50_JA_BRIEF15 } from './scale'
 import { assessResponseQuality, QUALITY_RULE_VERSION } from './quality'
 import type { DiagnosisAnswer } from './types'
 
@@ -103,5 +103,38 @@ describe('assessResponseQuality', () => {
     const result = assessResponseQuality(uniformAnswers, { totalDurationMs: 10_000 })
     expect(result).not.toHaveProperty('rawScores')
     expect(result).not.toHaveProperty('scaledScores')
+  })
+})
+
+describe('assessResponseQuality 簡易版（15項目）', () => {
+  function briefOrderedAnswers(valueFor: (displayOrder: number) => number): DiagnosisAnswer[] {
+    return [...IPIP_BFM_50_JA_BRIEF15.items]
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((item) => ({ itemCode: item.itemCode, value: valueFor(item.displayOrder) }))
+  }
+
+  it('15問を14秒で回答すると too_fast（項目数に応じて閾値が縮小する）', () => {
+    const answers = briefOrderedAnswers(() => 3)
+    const result = assessResponseQuality(answers, { totalDurationMs: 14_000 }, IPIP_BFM_50_JA_BRIEF15)
+    expect(result.flags).toContain('too_fast')
+  })
+
+  it('15問全問同じ選択肢なら straight_lining（15項目の30%基準では最低5問で足りる）', () => {
+    const answers = briefOrderedAnswers(() => 4)
+    const result = assessResponseQuality(answers, { totalDurationMs: 60_000 }, IPIP_BFM_50_JA_BRIEF15)
+    expect(result.flags).toContain('straight_lining')
+    expect(result.longestStreak).toBe(15)
+  })
+
+  it('4問連続では straight_lining にならない（15項目では閾値5）', () => {
+    const answers = briefOrderedAnswers((order) => (order <= 4 ? 5 : order % 2 === 0 ? 2 : 4))
+    const result = assessResponseQuality(answers, { totalDurationMs: 60_000 }, IPIP_BFM_50_JA_BRIEF15)
+    expect(result.flags).not.toContain('straight_lining')
+  })
+
+  it('5問連続で straight_lining になる（15項目では閾値5）', () => {
+    const answers = briefOrderedAnswers((order) => (order <= 5 ? 5 : order % 2 === 0 ? 2 : 4))
+    const result = assessResponseQuality(answers, { totalDurationMs: 60_000 }, IPIP_BFM_50_JA_BRIEF15)
+    expect(result.flags).toContain('straight_lining')
   })
 })

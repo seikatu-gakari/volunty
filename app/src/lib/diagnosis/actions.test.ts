@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { IPIP_BFM_50_JA, SCORING_ALGORITHM_VERSION } from "@/lib/diagnosis-scale/scale";
+import {
+  IPIP_BFM_50_JA,
+  IPIP_BFM_50_JA_BRIEF15,
+  SCORING_ALGORITHM_VERSION,
+} from "@/lib/diagnosis-scale/scale";
 import { STYLE_TYPE_VERSION } from "@/lib/diagnosis-scale/style-types";
 import { QUALITY_RULE_VERSION } from "@/lib/diagnosis-scale/quality";
 import type { DiagnosisAnswer } from "@/lib/diagnosis-scale/types";
@@ -225,7 +229,6 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers: createMockAnswers(),
-      consentToStoreResponses: true,
     });
 
     expect(result.success).toBe(false);
@@ -241,7 +244,6 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers: createMockAnswers(),
-      consentToStoreResponses: true,
     });
 
     expect(result.success).toBe(false);
@@ -259,7 +261,6 @@ describe("submitDiagnosis", () => {
       answers: createMockAnswers(3),
       totalDurationMs: 200_000,
       resumedCount: 1,
-      consentToStoreResponses: true,
     });
 
     expect(result).toEqual({ success: true });
@@ -306,7 +307,7 @@ describe("submitDiagnosis", () => {
     });
   });
 
-  it("生回答の保存に同意していない場合、t_diagnosis_response へ保存しない", async () => {
+  it("生回答は常に t_diagnosis_response へ保存する", async () => {
     mockGetUser.mockReturnValue({
       data: { user: { id: "user-123" } },
       error: null,
@@ -315,12 +316,20 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers: createMockAnswers(),
-      consentToStoreResponses: false,
     });
 
     expect(result.success).toBe(true);
     expect(mockPrismaDiagnosisResultCreate).toHaveBeenCalledTimes(1);
-    expect(mockPrismaDiagnosisResponseCreateMany).not.toHaveBeenCalled();
+    expect(mockPrismaDiagnosisResponseCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            diagnosisResultId: "result-id",
+            itemCode: IPIP_BFM_50_JA.items[0].itemCode,
+          }),
+        ]),
+      })
+    );
   });
 
   it("回答数が不足している場合、保存せず日本語エラーを返す", async () => {
@@ -331,7 +340,6 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers: createMockAnswers().slice(0, 49),
-      consentToStoreResponses: true,
     });
 
     expect(result.success).toBe(false);
@@ -349,7 +357,6 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers,
-      consentToStoreResponses: true,
     });
 
     expect(result.success).toBe(false);
@@ -367,7 +374,6 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers,
-      consentToStoreResponses: true,
     });
 
     expect(result.success).toBe(false);
@@ -385,7 +391,6 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers,
-      consentToStoreResponses: true,
     });
 
     expect(result.success).toBe(false);
@@ -403,7 +408,6 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers: createMockAnswers(),
-      consentToStoreResponses: true,
     });
 
     expect(result.success).toBe(false);
@@ -417,10 +421,58 @@ describe("submitDiagnosis", () => {
 
     const result = await submitDiagnosis({
       answers: createMockAnswers(),
-      consentToStoreResponses: true,
     });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("予期しないエラーが発生しました");
+  });
+
+  it("mode: 'brief' の場合、簡易版15項目で採点し scaleCode が簡易版になる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "profile-id" });
+
+    const briefAnswers: DiagnosisAnswer[] = IPIP_BFM_50_JA_BRIEF15.items.map((item) => ({
+      itemCode: item.itemCode,
+      value: 3,
+    }));
+
+    const result = await submitDiagnosis({
+      answers: briefAnswers,
+      mode: "brief",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockPrismaDiagnosisResultCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scaleCode: "ipip-bfm-50-ja-brief15",
+          scaleVersion: IPIP_BFM_50_JA_BRIEF15.scaleVersion,
+          rawScores: {
+            extraversion: 9,
+            agreeableness: 9,
+            conscientiousness: 9,
+            emotionalStability: 9,
+            intellect: 9,
+          },
+        }),
+      })
+    );
+  });
+
+  it("mode: 'brief' で50項目分の回答を渡すと不明な質問としてエラーになる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+
+    const result = await submitDiagnosis({
+      answers: createMockAnswers(),
+      mode: "brief",
+    });
+
+    expect(result.success).toBe(false);
   });
 });

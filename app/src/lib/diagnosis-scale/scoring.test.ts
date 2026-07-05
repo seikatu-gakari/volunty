@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { IPIP_BFM_50_JA, SCORING_ALGORITHM_VERSION } from './scale'
+import { IPIP_BFM_50_JA, IPIP_BFM_50_JA_BRIEF15, SCORING_ALGORITHM_VERSION } from './scale'
 import { scoreDiagnosis } from './scoring'
 import type { Big5Domain, DiagnosisAnswer } from './types'
 
@@ -181,5 +181,74 @@ describe('scoreDiagnosis バリデーション', () => {
     expect(result.success).toBe(false)
     if (result.success) return
     expect(result.message).toMatch(/回答/)
+  })
+})
+
+describe('scoreDiagnosis 簡易版（15項目・ドメイン3項目）', () => {
+  it('全項目「非常に当てはまる(5)」: ドメイン内訳に応じた raw/scaled になる', () => {
+    // 簡易版の内訳は e01(+) e02(-) e03(+) / a01(-) a02(+) a03(-) / c01(+) c02(-) c03(+)
+    // / s01(-) s02(+) s03(-) / i01(+) i02(-) i03(+)
+    // E(2+/1-): 5*2 + 1*1 = 11 -> (11-3)/12*100 = 66.7
+    // A(1+/2-): 5*1 + 1*2 = 7  -> (7-3)/12*100 = 33.3
+    const answers: DiagnosisAnswer[] = IPIP_BFM_50_JA_BRIEF15.items.map((item) => ({
+      itemCode: item.itemCode,
+      value: 5,
+    }))
+    const result = scoreDiagnosis(answers, IPIP_BFM_50_JA_BRIEF15)
+    if (!result.success) throw new Error(result.message)
+    expect(result.score.rawScores.extraversion).toBe(11)
+    expect(result.score.scaledScores.extraversion).toBe(66.7)
+    expect(result.score.rawScores.agreeableness).toBe(7)
+    expect(result.score.scaledScores.agreeableness).toBe(33.3)
+  })
+
+  it('全ドメイン「どちらともいえない(3)」: raw 9 / scaled 50', () => {
+    const answers: DiagnosisAnswer[] = IPIP_BFM_50_JA_BRIEF15.items.map((item) => ({
+      itemCode: item.itemCode,
+      value: 3,
+    }))
+    const result = scoreDiagnosis(answers, IPIP_BFM_50_JA_BRIEF15)
+    if (!result.success) throw new Error(result.message)
+    const domains = Object.keys(result.score.rawScores) as Big5Domain[]
+    for (const domain of domains) {
+      expect(result.score.rawScores[domain]).toBe(9)
+      expect(result.score.scaledScores[domain]).toBe(50.0)
+    }
+  })
+
+  it('15問未満の回答を拒否する（簡易版は15項目必須）', () => {
+    const answers: DiagnosisAnswer[] = IPIP_BFM_50_JA_BRIEF15.items
+      .slice(0, 14)
+      .map((item) => ({ itemCode: item.itemCode, value: 3 }))
+    const result = scoreDiagnosis(answers, IPIP_BFM_50_JA_BRIEF15)
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.type).toBe('missing_answers')
+  })
+
+  it('50項目版の項目を簡易版として採点しようとすると不明な質問として拒否される', () => {
+    const fullOnlyItem = IPIP_BFM_50_JA.items.find(
+      (item) => !IPIP_BFM_50_JA_BRIEF15.items.some((brief) => brief.itemCode === item.itemCode)
+    )
+    if (!fullOnlyItem) throw new Error('fixture error')
+    const answers: DiagnosisAnswer[] = [
+      ...IPIP_BFM_50_JA_BRIEF15.items.slice(0, 14).map((item) => ({ itemCode: item.itemCode, value: 3 })),
+      { itemCode: fullOnlyItem.itemCode, value: 3 },
+    ]
+    const result = scoreDiagnosis(answers, IPIP_BFM_50_JA_BRIEF15)
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.type).toBe('unknown_item')
+  })
+
+  it('結果の scaleCode/scaleVersion は簡易版のものになる', () => {
+    const answers: DiagnosisAnswer[] = IPIP_BFM_50_JA_BRIEF15.items.map((item) => ({
+      itemCode: item.itemCode,
+      value: 3,
+    }))
+    const result = scoreDiagnosis(answers, IPIP_BFM_50_JA_BRIEF15)
+    if (!result.success) throw new Error(result.message)
+    expect(result.score.scaleCode).toBe('ipip-bfm-50-ja-brief15')
+    expect(result.score.scaleVersion).toBe(IPIP_BFM_50_JA_BRIEF15.scaleVersion)
   })
 })

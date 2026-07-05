@@ -4,27 +4,30 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMachine } from '@xstate/react'
 import { diagnosisMachine } from '@/lib/diagnosis/machine'
-import { getItemsInDisplayOrder, IPIP_BFM_50_JA } from '@/lib/diagnosis-scale/scale'
-import type { DiagnosisAnswer } from '@/lib/diagnosis-scale/types'
+import { getItemsInDisplayOrder, getScaleDefinition } from '@/lib/diagnosis-scale/scale'
+import type { DiagnosisAnswer, DiagnosisMode } from '@/lib/diagnosis-scale/types'
 import { submitDiagnosis } from '@/lib/diagnosis/actions'
 import { QuestionCard } from './QuestionCard'
 import { Card, CardContent } from '@/app/components/ui/Card'
-import { Loader2, Sparkles, Info } from 'lucide-react'
-
-/** 中断・再開用の保存キー（尺度バージョンが変わったら旧データは使わない） */
-const STORAGE_KEY = `volunty-diagnosis-progress-${IPIP_BFM_50_JA.scaleCode}-${IPIP_BFM_50_JA.scaleVersion}`
+import { Loader2, Sparkles, Info, Zap } from 'lucide-react'
 
 interface SavedProgress {
+  mode: DiagnosisMode
   answers: DiagnosisAnswer[]
   currentQuestionIndex: number
   resumedCount: number
-  consent: boolean
   elapsedTotalMs: number
 }
 
-function loadProgress(): SavedProgress | null {
+/** 中断・再開用の保存キー（モード・尺度バージョンが変わったら旧データは使わない） */
+function storageKeyFor(mode: DiagnosisMode): string {
+  const scale = getScaleDefinition(mode)
+  return `volunty-diagnosis-progress-${scale.scaleCode}-${scale.scaleVersion}`
+}
+
+function loadProgress(mode: DiagnosisMode): SavedProgress | null {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = window.localStorage.getItem(storageKeyFor(mode))
     if (!raw) return null
     const parsed = JSON.parse(raw) as SavedProgress
     if (!Array.isArray(parsed.answers) || parsed.answers.length === 0) return null
@@ -34,17 +37,17 @@ function loadProgress(): SavedProgress | null {
   }
 }
 
-function saveProgress(progress: SavedProgress) {
+function saveProgress(mode: DiagnosisMode, progress: SavedProgress) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress))
+    window.localStorage.setItem(storageKeyFor(mode), JSON.stringify(progress))
   } catch {
     // 保存できなくても診断は続行できる
   }
 }
 
-function clearProgress() {
+function clearProgress(mode: DiagnosisMode) {
   try {
-    window.localStorage.removeItem(STORAGE_KEY)
+    window.localStorage.removeItem(storageKeyFor(mode))
   } catch {
     // noop
   }
@@ -53,8 +56,9 @@ function clearProgress() {
 export function DiagnosisWizard() {
   const router = useRouter()
   const [state, send] = useMachine(diagnosisMachine)
-  const [consent, setConsent] = useState(false)
-  const [savedProgress, setSavedProgress] = useState<SavedProgress | null>(null)
+  const [savedProgressByMode, setSavedProgressByMode] = useState<
+    Partial<Record<DiagnosisMode, SavedProgress>>
+  >({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const savingRef = useRef(false)
   // 回答時間の計測（品質判定用の参考情報）
@@ -62,14 +66,18 @@ export function DiagnosisWizard() {
   const elapsedTotalRef = useRef<number>(0)
   const lastTickRef = useRef<number>(0)
 
-  const items = getItemsInDisplayOrder()
+  const mode = state.context.mode
+  const items = getItemsInDisplayOrder(getScaleDefinition(mode))
   const currentQuestionIndex = state.context.currentQuestionIndex
   const currentItem = items[currentQuestionIndex]
 
   // 中断データの読み込み（初回マウント時。ハイドレーション後に非同期で反映する）
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setSavedProgress(loadProgress())
+      setSavedProgressByMode({
+        full: loadProgress('full') ?? undefined,
+        brief: loadProgress('brief') ?? undefined,
+      })
     }, 0)
     return () => window.clearTimeout(timer)
   }, [])
@@ -83,14 +91,14 @@ export function DiagnosisWizard() {
   // 回答のたびに進捗を保存（中断・再開用）
   useEffect(() => {
     if (!state.matches('answering') || state.context.answers.length === 0) return
-    saveProgress({
+    saveProgress(mode, {
+      mode,
       answers: state.context.answers,
       currentQuestionIndex: state.context.currentQuestionIndex,
       resumedCount: state.context.resumedCount,
-      consent,
       elapsedTotalMs: elapsedTotalRef.current,
     })
-  }, [state, consent])
+  }, [state, mode])
 
   // 診断完了時に自動保存
   useEffect(() => {
@@ -100,13 +108,13 @@ export function DiagnosisWizard() {
 
     submitDiagnosis({
       answers: state.context.answers,
+      mode,
       totalDurationMs: Math.round(elapsedTotalRef.current),
       resumedCount: state.context.resumedCount,
-      consentToStoreResponses: consent,
     })
       .then((res) => {
         if (res.success) {
-          clearProgress()
+          clearProgress(mode)
           router.push('/diagnosis/result')
         } else {
           setSaveError(res.error ?? '保存に失敗しました')
@@ -117,7 +125,7 @@ export function DiagnosisWizard() {
         setSaveError('予期しないエラーが発生しました')
         savingRef.current = false
       })
-  }, [state, consent, router])
+  }, [state, mode, router])
 
   const handleAnswer = (value: number) => {
     const now = performance.now()
@@ -127,21 +135,22 @@ export function DiagnosisWizard() {
     send({ type: 'ANSWER', value, elapsedMs })
   }
 
-  const handleStart = () => {
-    clearProgress()
+  const handleStart = (startMode: DiagnosisMode) => {
+    clearProgress(startMode)
     elapsedTotalRef.current = 0
-    send({ type: 'START' })
+    send({ type: 'START', mode: startMode })
   }
 
-  const handleResume = () => {
-    if (!savedProgress) return
-    setConsent(savedProgress.consent)
-    elapsedTotalRef.current = savedProgress.elapsedTotalMs
+  const handleResume = (resumeMode: DiagnosisMode) => {
+    const saved = savedProgressByMode[resumeMode]
+    if (!saved) return
+    elapsedTotalRef.current = saved.elapsedTotalMs
     send({
       type: 'RESTORE',
-      answers: savedProgress.answers,
-      currentQuestionIndex: savedProgress.currentQuestionIndex,
-      resumedCount: savedProgress.resumedCount + 1,
+      mode: resumeMode,
+      answers: saved.answers,
+      currentQuestionIndex: saved.currentQuestionIndex,
+      resumedCount: saved.resumedCount + 1,
     })
   }
 
@@ -150,13 +159,13 @@ export function DiagnosisWizard() {
     savingRef.current = true
     submitDiagnosis({
       answers: state.context.answers,
+      mode,
       totalDurationMs: Math.round(elapsedTotalRef.current),
       resumedCount: state.context.resumedCount,
-      consentToStoreResponses: consent,
     })
       .then((res) => {
         if (res.success) {
-          clearProgress()
+          clearProgress(mode)
           router.push('/diagnosis/result')
         } else {
           setSaveError(res.error ?? '保存に失敗しました')
@@ -182,6 +191,9 @@ export function DiagnosisWizard() {
   }
 
   if (state.matches('idle')) {
+    const briefSaved = savedProgressByMode.brief
+    const fullSaved = savedProgressByMode.full
+
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
@@ -192,7 +204,7 @@ export function DiagnosisWizard() {
               国際的に公開されている性格研究用の質問項目（IPIP）をもとに、
               5つの性格特性の傾向を確認します。
               <br />
-              全50問・約5〜8分。途中で中断しても続きから再開できます。
+              途中で中断しても続きから再開できます。
             </p>
           </div>
 
@@ -210,41 +222,71 @@ export function DiagnosisWizard() {
             </ul>
           </div>
 
-          <label className="flex w-full items-start gap-2 rounded-lg border border-card-border bg-white p-4 text-left">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-              className="mt-0.5 size-4 accent-primary"
-            />
-            <span className="text-xs leading-5 text-text-body">
-              質問ごとの回答データの保存に同意します（任意）。
-              回答品質の確認と診断の改善のためにのみ利用し、アカウント削除時にすべて削除されます。
-              同意しない場合も診断は受けられます（集計結果のみ保存されます）。
-            </span>
-          </label>
-
-          {savedProgress && (
-            <div className="flex w-full flex-col items-center gap-2 rounded-lg bg-primary/5 p-4">
-              <p className="text-sm text-text-body">
-                前回の続き（{savedProgress.answers.length}問回答済み）があります。
+          <div className="grid w-full gap-4 sm:grid-cols-2">
+            {/* 簡易診断（15問） */}
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-card-border bg-white p-5">
+              <Zap className="size-8 text-primary" />
+              <div>
+                <p className="text-base font-bold text-text-dark">簡易診断</p>
+                <p className="text-xs text-text-body">15問・約2分</p>
+              </div>
+              <p className="text-xs leading-5 text-text-body">
+                スキマ時間でざっくり傾向を知りたい方向け。
+                項目数が少ないため、全50問版より結果の安定性は下がります。
               </p>
+              {briefSaved && (
+                <div className="flex w-full flex-col items-center gap-2 rounded-lg bg-primary/5 p-3">
+                  <p className="text-xs text-text-body">
+                    前回の続き（{briefSaved.answers.length}問回答済み）
+                  </p>
+                  <button
+                    onClick={() => handleResume('brief')}
+                    className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-xs font-medium text-white hover:bg-primary-dark"
+                  >
+                    続きから再開する
+                  </button>
+                </div>
+              )}
               <button
-                onClick={handleResume}
-                className="flex h-10 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-medium text-white hover:bg-primary-dark"
+                onClick={() => handleStart('brief')}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border-2 border-primary px-4 text-sm font-medium text-primary hover:bg-primary/5"
               >
-                続きから再開する
+                {briefSaved ? '最初からやり直す' : '簡易診断を始める（15問）'}
               </button>
             </div>
-          )}
 
-          <button
-            onClick={handleStart}
-            className="flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-medium text-white hover:bg-primary-dark"
-          >
-            <Sparkles className="size-5" />
-            {savedProgress ? '最初からやり直す' : '診断を開始する（全50問）'}
-          </button>
+            {/* 全50問診断 */}
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-card-border bg-white p-5">
+              <Sparkles className="size-8 text-primary" />
+              <div>
+                <p className="text-base font-bold text-text-dark">全50問でしっかり診断</p>
+                <p className="text-xs text-text-body">約5〜8分</p>
+              </div>
+              <p className="text-xs leading-5 text-text-body">
+                より安定した結果を得たい方におすすめ。
+                おすすめ案件の並び順にはこちらの結果がより参考になります。
+              </p>
+              {fullSaved && (
+                <div className="flex w-full flex-col items-center gap-2 rounded-lg bg-primary/5 p-3">
+                  <p className="text-xs text-text-body">
+                    前回の続き（{fullSaved.answers.length}問回答済み）
+                  </p>
+                  <button
+                    onClick={() => handleResume('full')}
+                    className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-xs font-medium text-white hover:bg-primary-dark"
+                  >
+                    続きから再開する
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => handleStart('full')}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark"
+              >
+                {fullSaved ? '最初からやり直す' : '全50問で診断を始める'}
+              </button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     )

@@ -20,6 +20,16 @@ const DOMAIN_COLORS: Record<Big5Domain, string> = {
   intellect: "bg-purple-500",
 };
 
+/** scaleCode ごとの表示名・注記（新しい尺度を追加する場合はここに登録する） */
+const SCALE_DISPLAY_INFO: Record<string, { label: string; briefNotice?: string }> = {
+  "ipip-bfm-50-ja": { label: "IPIP Big-Five Factor Markers 日本語版（50問）による診断" },
+  "ipip-bfm-50-ja-brief15": {
+    label: "IPIP Big-Five Factor Markers 日本語版（簡易版・15問）による診断",
+    briefNotice:
+      "簡易診断（15問）は全50問版から項目を抜粋したものです。項目数が少ないぶん結果の安定性は下がるため、より参考になる結果を得たい場合は全50問診断もお試しください。",
+  },
+};
+
 const QUALITY_FLAG_MESSAGES: Record<QualityFlag, string> = {
   too_fast:
     "回答時間が短めでした。結果が実際の傾向とずれている可能性があります。落ち着いて再診断すると、より参考になる結果が得られます。",
@@ -117,13 +127,14 @@ export default async function DiagnosisResultPage() {
     redirect("/diagnosis");
   }
 
-  const { scaledScores, styleType, qualityFlags, answeredAt } = result;
+  const { scaledScores, styleType, qualityFlags, answeredAt, scaleCode } = result;
   const answeredDate = new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "long",
     day: "numeric",
   }).format(new Date(answeredAt));
+  const scaleDisplay = SCALE_DISPLAY_INFO[scaleCode] ?? SCALE_DISPLAY_INFO["ipip-bfm-50-ja"];
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -148,10 +159,21 @@ export default async function DiagnosisResultPage() {
               </>
             )}
             <p className="mx-auto mt-4 max-w-xl text-xs leading-5 text-text-body">
-              IPIP Big-Five Factor Markers 日本語版（50問）による診断 / 実施日: {answeredDate}
+              {scaleDisplay.label} / 実施日: {answeredDate}
             </p>
           </CardContent>
         </Card>
+
+        {/* 簡易診断の注記 */}
+        {scaleDisplay.briefNotice && (
+          <div className="mb-6 rounded-[10px] border border-primary/30 bg-primary/5 p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-text-dark">
+              <Info className="size-4 text-primary" />
+              簡易診断について
+            </div>
+            <p className="text-xs leading-5 text-text-body">{scaleDisplay.briefNotice}</p>
+          </div>
+        )}
 
         {/* 回答品質の注記 */}
         {qualityFlags.length > 0 && (

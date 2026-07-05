@@ -74,9 +74,12 @@ export interface ScaleItem {
   displayOrder: number
 }
 
+/** 診断モード。full=全50項目、brief=各ドメイン先頭3項目の簡易版（15項目） */
+export type DiagnosisMode = 'full' | 'brief'
+
 /** 尺度定義（設問・採点キー・出典・ライセンスの単一情報源） */
 export interface ScaleDefinition {
-  scaleCode: 'ipip-bfm-50-ja'
+  scaleCode: 'ipip-bfm-50-ja' | 'ipip-bfm-50-ja-brief15'
   /** 項目文言・順序の変更で更新する semver */
   scaleVersion: string
   name: string
@@ -86,6 +89,11 @@ export interface ScaleDefinition {
   licenseVerifiedAt: string
   /** 日本語版の検証研究（存在する場合） */
   validationReference: string
+  /**
+   * 簡易版など、独自に項目を抜粋した尺度である場合の注記。
+   * 抜粋版自体の心理測定的検証（信頼性・妥当性）は行われていないことを明示する。
+   */
+  excerptCaveat?: string
   items: ScaleItem[]
 }
 

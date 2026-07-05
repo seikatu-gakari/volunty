@@ -5,6 +5,7 @@
 import type {
   ActivityStyleType,
   DiagnosisAnswer,
+  DiagnosisMode,
   DomainScores,
   QualityFlag,
 } from "@/lib/diagnosis-scale/types";
@@ -12,12 +13,12 @@ import type {
 /** submitDiagnosis の入力 */
 export interface SubmitDiagnosisInput {
   answers: DiagnosisAnswer[];
+  /** 診断モード。省略時は full（全50項目） */
+  mode?: DiagnosisMode;
   /** 診断全体の所要時間（ミリ秒）。回答品質判定に使用 */
   totalDurationMs?: number;
   /** 中断からの再開回数 */
   resumedCount?: number;
-  /** 生回答の保存への同意。false の場合は集計結果のみ保存する */
-  consentToStoreResponses: boolean;
 }
 
 /** submitDiagnosis の戻り値 */

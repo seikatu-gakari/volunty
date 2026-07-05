@@ -276,7 +276,7 @@ model DiagnosisResult {
   @@map("t_diagnosis_result")
 }
 
-/// 診断の生回答 — 同意がある場合のみ保存する
+/// 診断の生回答 — 常に保存する
 /// 保存目的: 回答品質の検証と、日本語版尺度の信頼性・因子構造の自社検証
 /// アカウント削除・診断結果削除で連鎖削除される
 model DiagnosisResponse {

@@ -3,7 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { NORMS_VERSION, SCORING_ALGORITHM_VERSION } from "@/lib/diagnosis-scale/scale";
+import {
+  NORMS_VERSION,
+  SCORING_ALGORITHM_VERSION,
+  getScaleDefinition,
+} from "@/lib/diagnosis-scale/scale";
 import { scoreDiagnosis, isDomainScores } from "@/lib/diagnosis-scale/scoring";
 import {
   assessResponseQuality,
@@ -104,7 +108,7 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
  *
  * - 回答から純粋関数で採点（尺度・採点・標準化・タイプ定義の各バージョンを記録）
  * - 回答品質を性格スコアとは別のメタデータとして判定・保存
- * - 生回答は同意がある場合のみ t_diagnosis_response へ保存
+ * - 生回答は常に t_diagnosis_response へ保存する（アカウント削除で連鎖削除）
  * - m_participant_profile.latest_diagnosis_result_id を最新結果へ更新
  */
 export async function submitDiagnosis(
@@ -122,7 +126,8 @@ export async function submitDiagnosis(
     }
 
     // 採点（バリデーション込み・決定的）
-    const scoring = scoreDiagnosis(input.answers);
+    const scale = getScaleDefinition(input.mode ?? "full");
+    const scoring = scoreDiagnosis(input.answers, scale);
     if (!scoring.success) {
       return { success: false, error: scoring.message };
     }
@@ -138,9 +143,11 @@ export async function submitDiagnosis(
     }
 
     // 回答品質（スコアには影響しない参考情報）
-    const quality = assessResponseQuality(input.answers, {
-      totalDurationMs: input.totalDurationMs,
-    });
+    const quality = assessResponseQuality(
+      input.answers,
+      { totalDurationMs: input.totalDurationMs },
+      scale
+    );
 
     // 活動スタイルの参考タイプ（補助情報）
     const styleType = findClosestStyleType(scoring.score.scaledScores);
@@ -165,17 +172,15 @@ export async function submitDiagnosis(
         select: { id: true },
       });
 
-      if (input.consentToStoreResponses) {
-        await tx.diagnosisResponse.createMany({
-          data: input.answers.map((answer) => ({
-            diagnosisResultId: created.id,
-            itemCode: answer.itemCode,
-            value: answer.value,
-            elapsedMs: answer.elapsedMs ?? null,
-            changedCount: answer.changedCount ?? null,
-          })),
-        });
-      }
+      await tx.diagnosisResponse.createMany({
+        data: input.answers.map((answer) => ({
+          diagnosisResultId: created.id,
+          itemCode: answer.itemCode,
+          value: answer.value,
+          elapsedMs: answer.elapsedMs ?? null,
+          changedCount: answer.changedCount ?? null,
+        })),
+      });
 
       await tx.participantProfile.update({
         where: { userId: user.id },
