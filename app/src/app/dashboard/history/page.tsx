@@ -35,6 +35,12 @@ function statusDisplay(status: MatchingHistoryStatus) {
         icon: <XCircle className="size-4" />,
         color: "text-red-700 bg-red-50 border-red-200",
       };
+    case "completed":
+      return {
+        label: "活動完了",
+        icon: <CheckCircle2 className="size-4" />,
+        color: "text-primary bg-primary/10 border-primary/20",
+      };
   }
 }
 
@@ -138,7 +144,7 @@ export default async function DashboardHistoryPage() {
             マッチング履歴
           </h1>
           <p className="mt-2 text-sm text-text-body">
-            過去に承認・辞退した応募の履歴を確認できます。
+            過去に承認・辞退・活動完了した応募の履歴を確認できます。
           </p>
         </div>
 
@@ -162,13 +168,13 @@ export default async function DashboardHistoryPage() {
                   <SearchX className="size-5 text-primary" />
                 </div>
                 <h2 className="text-lg font-bold text-text-dark">
-                  承認・辞退済みの応募はまだありません
+                  承認・辞退・活動完了済みの応募はまだありません
                 </h2>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm leading-6 text-text-body">
-                応募者一覧で承認または辞退した応募が、ここに履歴として表示されます。
+                応募者一覧で承認、辞退または活動完了した応募が、ここに履歴として表示されます。
               </p>
               <Link
                 href="/dashboard"

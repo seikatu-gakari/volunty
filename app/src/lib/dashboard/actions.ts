@@ -856,6 +856,7 @@ function mapMatchingHistoryStatus(
 ): MatchingHistoryStatus | null {
   if (dbStatus === "accepted") return "approved";
   if (dbStatus === "declined") return "rejected";
+  if (dbStatus === "completed") return "completed";
   return null;
 }
 
@@ -870,7 +871,7 @@ function toNullableIsoString(value: Date | string | null): string | null {
 /**
  * 団体向けマッチング履歴を取得する。
  *
- * 自団体の応募のうち、承認・辞退済みのものだけを処理日時順で返す。
+ * 自団体の応募のうち、承認・辞退・活動完了済みのものだけを処理日時順で返す。
  */
 export async function fetchMatchingHistory(): Promise<MatchingHistoryResult> {
   try {
@@ -907,7 +908,7 @@ export async function fetchMatchingHistory(): Promise<MatchingHistoryResult> {
 
     const records = await prisma.matchingCandidate.findMany({
       where: {
-        status: { in: ["accepted", "declined"] },
+        status: { in: ["accepted", "declined", "completed"] },
         opportunity: { organizationId: organizationProfile.id },
       },
       select: {
