@@ -6,7 +6,6 @@ import {
   Clock,
   History,
   SearchX,
-  Sparkles,
   User,
   XCircle,
 } from "lucide-react";
@@ -84,12 +83,6 @@ function MatchingHistoryCard({ item }: { item: MatchingHistoryItem }) {
             処理日時: {formatDateTime(item.status_changed_at)}
           </span>
           <span>応募日時: {formatDateTime(item.applied_at)}</span>
-          {item.match_score !== null && (
-            <span className="inline-flex items-center gap-1">
-              <Sparkles className="size-3.5 text-primary" />
-              相性スコア: {Math.round(item.match_score)}%
-            </span>
-          )}
         </div>
 
         <Link

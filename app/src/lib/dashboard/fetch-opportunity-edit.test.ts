@@ -79,7 +79,10 @@ describe("fetchOpportunityForEdit", () => {
         id: "opp-1",
         title: "環境保全ボランティア",
         description: "森林再生活動を行います",
-        requirement_traits: { extraversion: 70, openness: 80 },
+        activity_style_tags: ["talk-with-new-people", "creative-ideas"],
+        required_qualifications: ["普通自動車免許"],
+        min_age: 18,
+        max_age: null,
         status: "published",
       },
       error: null,
@@ -92,10 +95,15 @@ describe("fetchOpportunityForEdit", () => {
     expect(result.opportunity?.id).toBe("opp-1");
     expect(result.opportunity?.title).toBe("環境保全ボランティア");
     expect(result.opportunity?.description).toBe("森林再生活動を行います");
-    expect(result.opportunity?.required_traits).toEqual({
-      extraversion: 70,
-      openness: 80,
-    });
+    expect(result.opportunity?.activity_style_tags).toEqual([
+      "talk-with-new-people",
+      "creative-ideas",
+    ]);
+    expect(result.opportunity?.required_qualifications).toEqual([
+      "普通自動車免許",
+    ]);
+    expect(result.opportunity?.min_age).toBe(18);
+    expect(result.opportunity?.max_age).toBeNull();
     expect(result.opportunity?.status).toBe("published");
 
     // Supabase クエリの検証

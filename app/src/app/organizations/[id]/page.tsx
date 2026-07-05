@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Building2, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+import { Building2, ArrowLeft, ArrowRight } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
@@ -27,7 +27,7 @@ export default async function OrganizationDetailPage({
     redirect("/login");
   }
 
-  const { organization, opportunities, isParticipant } =
+  const { organization, opportunities } =
     await fetchOrganizationDetail(id);
 
   // 団体が存在しない場合は 404
@@ -91,15 +91,6 @@ export default async function OrganizationDetailPage({
             {opportunities.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {opportunities.map((opp) => {
-                  const scoreColor =
-                    opp.matchScore !== null
-                      ? opp.matchScore >= 80
-                        ? "bg-primary"
-                        : opp.matchScore >= 60
-                          ? "bg-primary-dark"
-                          : "bg-text-body"
-                      : "";
-
                   return (
                     <Link
                       key={opp.id}
@@ -110,27 +101,7 @@ export default async function OrganizationDetailPage({
                         <h3 className="text-base font-bold text-text-dark group-hover:text-primary">
                           {opp.title}
                         </h3>
-                        {isParticipant && opp.matchScore !== null && (
-                          <div className="flex shrink-0 items-center gap-1">
-                            <Sparkles className="size-4 text-primary" />
-                            <span className="text-lg font-bold text-text-dark">
-                              {opp.matchScore}
-                              <span className="text-xs font-normal text-text-body">
-                                %
-                              </span>
-                            </span>
-                          </div>
-                        )}
                       </div>
-
-                      {isParticipant && opp.matchScore !== null && (
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                          <div
-                            className={`h-full rounded-full ${scoreColor} transition-all`}
-                            style={{ width: `${opp.matchScore}%` }}
-                          />
-                        </div>
-                      )}
 
                       {opp.description && (
                         <p className="line-clamp-2 text-sm leading-5 text-text-body">

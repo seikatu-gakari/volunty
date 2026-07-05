@@ -24,10 +24,6 @@ export interface OrganizationOpportunity {
   title: string;
   /** 案件説明 */
   description: string | null;
-  /** 求める性格特性 */
-  required_traits: Record<string, number> | null;
-  /** マッチングスコア（参加者かつ診断済みの場合のみ、0-100） */
-  matchScore: number | null;
 }
 
 /** fetchOrganizationDetail の戻り値 */

@@ -104,7 +104,6 @@ describe("fetchMatchingHistory", () => {
         status: "accepted",
         appliedAt: new Date("2026-06-01T09:00:00.000Z"),
         statusChangedAt: new Date("2026-06-10T12:30:00.000Z"),
-        matchScore: 87.4,
         participant: {
           name: "ユーザー名フォールバック",
           participantProfile: { name: "山田 花子" },
@@ -119,7 +118,6 @@ describe("fetchMatchingHistory", () => {
         status: "declined",
         appliedAt: null,
         statusChangedAt: new Date("2026-06-09T08:15:00.000Z"),
-        matchScore: null,
         participant: {
           name: "佐藤 太郎",
           participantProfile: null,
@@ -143,7 +141,6 @@ describe("fetchMatchingHistory", () => {
         opportunity_title: "地域清掃ボランティア",
         applied_at: "2026-06-01T09:00:00.000Z",
         status_changed_at: "2026-06-10T12:30:00.000Z",
-        match_score: 87.4,
       },
       {
         id: "application-declined",
@@ -153,7 +150,6 @@ describe("fetchMatchingHistory", () => {
         opportunity_title: "学習支援スタッフ",
         applied_at: null,
         status_changed_at: "2026-06-09T08:15:00.000Z",
-        match_score: null,
       },
     ]);
     expect(mockFindOrganizationProfile).toHaveBeenCalledWith({

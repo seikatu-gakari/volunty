@@ -27,7 +27,13 @@ export interface OpportunityDetail {
   id: string;
   title: string;
   description: string | null;
-  required_traits: Record<string, number> | null;
+  /** 活動スタイルタグの表示ラベル（旧「求める性格特性」の置き換え） */
+  activity_style_labels: string[];
+  /** 必須資格（表示用。応募可否の判断は団体が行う） */
+  required_qualifications: string[];
+  /** 年齢要件（法的・安全上必要な場合のみ設定される） */
+  min_age: number | null;
+  max_age: number | null;
   status: OpportunityStatus;
   organization: OrganizationInfo;
   created_at: string;
@@ -60,8 +66,6 @@ export interface ExistingApplication {
 export interface OpportunityDetailResult {
   /** 案件データ（存在しない場合は null） */
   opportunity: OpportunityDetail | null;
-  /** マッチングスコア（参加者かつ診断済みの場合のみ、0-100） */
-  matchScore: number | null;
   /** 既存の応募（応募済みの場合） */
   existingApplication: ExistingApplication | null;
   /** ログインユーザーが参加者であるか */

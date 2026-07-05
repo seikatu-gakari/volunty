@@ -23,21 +23,23 @@ import {
   CATEGORY_OPTIONS,
   PARTICIPATION_MODE_OPTIONS,
 } from "@/lib/opportunities/constants";
+import { ACTIVITY_STYLE_TAGS } from "@/lib/recommendations/activity-style-tags";
 
-/** BIG5 特性の日本語ラベル */
-const BIG5_TRAITS = [
-  { key: "extraversion", label: "外向性" },
-  { key: "agreeableness", label: "協調性" },
-  { key: "conscientiousness", label: "誠実性" },
-  { key: "neuroticism", label: "神経症傾向" },
-  { key: "openness", label: "開放性" },
-] as const;
+/** 選択できる活動スタイルタグの上限 */
+const MAX_ACTIVITY_STYLE_TAGS = 3;
 
 /** フォームの初期値 */
 export interface OpportunityFormData {
   title: string;
   description: string;
-  required_traits: Record<string, number> | null;
+  /** 活動スタイルタグID（最大3） */
+  activity_style_tags?: string[];
+  /** 必須資格 */
+  required_qualifications?: string[];
+  /** 対象年齢の下限 */
+  min_age?: number | null;
+  /** 対象年齢の上限 */
+  max_age?: number | null;
   status?: OpportunityStatus;
   /** 活動場所 */
   location?: string | null;
@@ -75,46 +77,23 @@ export function OpportunityForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 初期値の特性スコアを設定
-  const initialTraitValues: Record<string, number> = {
-    extraversion: 50,
-    agreeableness: 50,
-    conscientiousness: 50,
-    neuroticism: 50,
-    openness: 50,
-  };
-  const initialEnabledTraits: Record<string, boolean> = {
-    extraversion: false,
-    agreeableness: false,
-    conscientiousness: false,
-    neuroticism: false,
-    openness: false,
-  };
-
-  // 編集モード時は既存の required_traits を反映
-  if (initialData?.required_traits) {
-    for (const [key, value] of Object.entries(initialData.required_traits)) {
-      if (key in initialTraitValues) {
-        initialTraitValues[key] = value;
-        initialEnabledTraits[key] = true;
-      }
-    }
-  }
-
-  const [traitValues, setTraitValues] =
-    useState<Record<string, number>>(initialTraitValues);
-  const [enabledTraits, setEnabledTraits] =
-    useState<Record<string, boolean>>(initialEnabledTraits);
+  const [selectedTags, setSelectedTags] = useState<string[]>(
+    initialData?.activity_style_tags ?? []
+  );
   const [status, setStatus] = useState<OpportunityStatus>(
     initialData?.status ?? "published"
   );
 
-  const handleTraitChange = (trait: string, value: number) => {
-    setTraitValues((prev) => ({ ...prev, [trait]: value }));
-  };
-
-  const handleTraitToggle = (trait: string) => {
-    setEnabledTraits((prev) => ({ ...prev, [trait]: !prev[trait] }));
+  const handleTagToggle = (tagId: string) => {
+    setSelectedTags((prev) => {
+      if (prev.includes(tagId)) {
+        return prev.filter((id) => id !== tagId);
+      }
+      if (prev.length >= MAX_ACTIVITY_STYLE_TAGS) {
+        return prev;
+      }
+      return [...prev, tagId];
+    });
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -125,11 +104,10 @@ export function OpportunityForm({
     try {
       const formData = new FormData(e.currentTarget);
 
-      // 無効化されている特性のフィールドは送信しない
-      for (const trait of BIG5_TRAITS) {
-        if (!enabledTraits[trait.key]) {
-          formData.delete(`trait_${trait.key}`);
-        }
+      // 活動スタイルタグは state から送信する
+      formData.delete("activityStyleTags");
+      for (const tagId of selectedTags) {
+        formData.append("activityStyleTags", tagId);
       }
 
       // 編集モード時はステータスを追加
@@ -358,60 +336,88 @@ export function OpportunityForm({
             </div>
           )}
 
-          {/* 求める性格特性 */}
+          {/* 活動スタイル */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <Brain className="size-4 text-primary" />
               <span className="text-sm font-medium text-text-dark">
-                求める性格特性（任意）
+                活動スタイル（任意・最大{MAX_ACTIVITY_STYLE_TAGS}つ）
               </span>
             </div>
             <p className="text-xs text-text-body">
-              チェックを入れた特性のスコアがマッチング時に考慮されます（0〜100）
+              活動の進め方に近いものを選ぶと、傾向の合う参加者へのおすすめ順に反映されます。
+              加点のみに使われ、参加者の応募が制限されることはありません。
             </p>
-            <div className="flex flex-col gap-4 rounded-lg border border-card-border bg-background/50 p-4">
-              {BIG5_TRAITS.map((trait) => (
-                <div key={trait.key} className="flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-2 rounded-lg border border-card-border bg-background/50 p-4">
+              {ACTIVITY_STYLE_TAGS.map((tag) => {
+                const checked = selectedTags.includes(tag.id);
+                const disabled =
+                  !checked && selectedTags.length >= MAX_ACTIVITY_STYLE_TAGS;
+                return (
+                  <label
+                    key={tag.id}
+                    className={`flex items-center gap-3 text-sm ${
+                      disabled ? "text-text-body/40" : "text-text-dark"
+                    }`}
+                  >
                     <input
                       type="checkbox"
-                      id={`enable_${trait.key}`}
-                      checked={enabledTraits[trait.key]}
-                      onChange={() => handleTraitToggle(trait.key)}
+                      checked={checked}
+                      disabled={disabled}
+                      onChange={() => handleTagToggle(tag.id)}
                       className="size-4 accent-primary focus:ring-2 focus:ring-primary/50"
                     />
-                    <label
-                      htmlFor={`enable_${trait.key}`}
-                      className="text-sm font-medium text-text-dark"
-                    >
-                      {trait.label}
-                    </label>
-                    {enabledTraits[trait.key] && (
-                      <span className="ml-auto text-sm font-medium text-primary">
-                        {traitValues[trait.key]}
-                      </span>
-                    )}
-                  </div>
-                  {enabledTraits[trait.key] && (
-                    <div className="flex items-center gap-3 pl-7">
-                      <span className="text-xs text-text-body">0</span>
-                      <input
-                        type="range"
-                        name={`trait_${trait.key}`}
-                        min={0}
-                        max={100}
-                        value={traitValues[trait.key]}
-                        onChange={(e) =>
-                          handleTraitChange(trait.key, Number(e.target.value))
-                        }
-                        aria-label={`${trait.label}のスコア`}
-                        className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-card-border accent-primary"
-                      />
-                      <span className="text-xs text-text-body">100</span>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    {tag.label}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 参加要件 */}
+          <div className="flex flex-col gap-3">
+            <span className="text-sm font-medium text-text-dark">
+              参加要件（任意）
+            </span>
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="requiredQualifications"
+                className="text-xs text-text-body"
+              >
+                必須資格（1行に1つ）
+              </label>
+              <textarea
+                id="requiredQualifications"
+                name="requiredQualifications"
+                rows={2}
+                defaultValue={(initialData?.required_qualifications ?? []).join("\n")}
+                placeholder="例: 普通自動車免許"
+                className="w-full rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark placeholder:text-text-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="対象年齢の下限（法令・安全上必要な場合のみ）"
+                name="minAge"
+                type="number"
+                min={0}
+                max={120}
+                placeholder="例: 18"
+                defaultValue={
+                  initialData?.min_age != null ? String(initialData.min_age) : ""
+                }
+              />
+              <Input
+                label="対象年齢の上限（法令・安全上必要な場合のみ）"
+                name="maxAge"
+                type="number"
+                min={0}
+                max={120}
+                placeholder="例: 65"
+                defaultValue={
+                  initialData?.max_age != null ? String(initialData.max_age) : ""
+                }
+              />
             </div>
           </div>
 

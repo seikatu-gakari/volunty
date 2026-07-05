@@ -14,7 +14,8 @@ app/src/
 │   ├── diagnosis/components/ # 診断UI（すべて "use client"）
 │   └── [route]/page.tsx      # onboarding / dashboard / mypage / opportunities ...
 └── lib/
-    ├── personality/          # types.ts / constants.ts / logic.ts / machine.ts
+    ├── diagnosis-scale/      # 尺度定数・採点・回答品質・参考タイプ（純粋関数）
+    ├── diagnosis/            # 診断 Server Actions + XState machine
     ├── supabase/             # client.ts / server.ts / middleware.ts
     └── [domain]/             # actions.ts（Server Actions）+ *.test.ts
 ```
@@ -32,4 +33,4 @@ app/src/
 
 - 画面から探す場合は `app/src/app/` から見る。
 - DB・認可・保存処理は `app/src/lib/**/actions.ts` と [app/prisma/schema.prisma](../../../app/prisma/schema.prisma) を確認する。
-- BIG5 診断は `app/src/lib/personality/` と `app/src/app/diagnosis/` を確認する。
+- BIG5 診断は `app/src/lib/diagnosis-scale/`・`app/src/lib/diagnosis/` と `app/src/app/diagnosis/` を確認する。

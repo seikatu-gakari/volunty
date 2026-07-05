@@ -1,5 +1,12 @@
 # BIG5性格診断API アーキテクチャ設計書
 
+> **注意（2026-07-05）**: 本書のうち診断・マッチングに関する記述
+> （AWS Bedrock による診断解説生成、BIG5特徴量の協調フィルタリング、重み40/40/20のハイブリッド統合、
+> `/api/diagnosis/*` エンドポイント設計）は再設計により**廃止**されました。
+> 現行の設計は [personality-matching-redesign.md](./personality-matching-redesign.md) を参照してください。
+> 診断・推薦は Server Actions（`app/src/lib/diagnosis/actions.ts` / `app/src/lib/recommendations/actions.ts`）で実装されています。
+
+
 ## 目次
 1. [概要](#概要)
 2. [アーキテクチャパターン](#アーキテクチャパターン)

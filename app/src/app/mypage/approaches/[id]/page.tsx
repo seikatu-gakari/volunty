@@ -131,9 +131,6 @@ export default async function MyApproachDetailPage({
                   {new Date(approach.respondedAt).toLocaleDateString("ja-JP")}
                 </span>
               )}
-              {approach.matchScore !== null && (
-                <span>相性スコア: {Math.round(approach.matchScore)}%</span>
-              )}
             </div>
           </CardContent>
         </Card>

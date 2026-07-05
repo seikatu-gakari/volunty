@@ -11,7 +11,8 @@ argument-hint: '例: 設計書を探す / DB設計を確認 / MVP計画を確認
 | [AGENTS.md](../../../AGENTS.md) | 全 AI エージェント共通の最小入口 |
 | [CLAUDE.md](../../../CLAUDE.md) | `@AGENTS.md` を import する Claude Code 用入口 |
 | [docs/architecture/](../../../docs/architecture/) | システム・基本設計書 |
-| [docs/design/personality-diagnosis-big5.md](../../../docs/design/personality-diagnosis-big5.md) | BIG5 診断アルゴリズム詳細設計 |
+| [docs/design/personality-matching-redesign.md](../../../docs/design/personality-matching-redesign.md) | 性格診断・マッチング基盤の現行設計（尺度・ライセンス・DB・評価計画） |
+| [docs/design/personality-diagnosis-big5.md](../../../docs/design/personality-diagnosis-big5.md) | 旧 BIG5 診断設計（廃止・参照のみ） |
 | [docs/design/database-design.md](../../../docs/design/database-design.md) | DB 設計書 |
 | [docs/requirements/mvp-plan.md](../../../docs/requirements/mvp-plan.md) | MVP 計画・機能・画面一覧 |
 | [docs/reference/translation-table.md](../../../docs/reference/translation-table.md) | 用語対訳表 |

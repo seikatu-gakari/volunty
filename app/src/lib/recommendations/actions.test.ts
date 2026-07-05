@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { BIG5Scores } from "@/lib/personality/types"
+import type { DomainScores } from "@/lib/diagnosis-scale/types"
 
 const mockGetUser = vi.fn()
 const mockFindParticipant = vi.fn()
 const mockFindOpportunities = vi.fn()
+const mockRecommendationLogCreate = vi.fn()
+const mockTransaction = vi.fn()
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -21,27 +23,38 @@ vi.mock("@/lib/prisma", () => ({
     opportunity: {
       findMany: (...args: unknown[]) => mockFindOpportunities(...args),
     },
+    recommendationLog: {
+      create: (...args: unknown[]) => mockRecommendationLogCreate(...args),
+    },
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
 }))
 
 const { fetchRecommendations } = await import("./actions")
 
-const diagnosisScores: BIG5Scores = {
-  extraversion: 50,
-  agreeableness: 50,
-  conscientiousness: 50,
-  neuroticism: 50,
-  openness: 50,
+const scaledScores: DomainScores = {
+  extraversion: 80,
+  agreeableness: 70,
+  conscientiousness: 60,
+  emotionalStability: 50,
+  intellect: 40,
 }
 
 type MockOpportunity = {
   id: string
   title: string
   description: string | null
-  requirementTraits: Record<string, number> | null
   location: string | null
   category: string | null
   participationMode: "online" | "offline" | "hybrid" | null
+  activityStyleTags: string[] | null
+  startDate: Date | null
+  endDate: Date | null
+  publishedAt: Date | null
+  capacity: number | null
+  currentApplicants: number
+  minAge: number | null
+  maxAge: number | null
   organization: {
     organizationName: string
     activityAreas: string[] | null
@@ -56,10 +69,17 @@ function createOpportunity({
     id,
     title: `${id} の案件`,
     description: null,
-    requirementTraits: { extraversion: 50 },
     location: "東京都渋谷区",
     category: "環境保全",
     participationMode: "offline",
+    activityStyleTags: null,
+    startDate: null,
+    endDate: null,
+    publishedAt: new Date(),
+    capacity: null,
+    currentApplicants: 0,
+    minAge: null,
+    maxAge: null,
     organization: {
       organizationName: `${id} 団体`,
       activityAreas: ["渋谷区"],
@@ -68,146 +88,141 @@ function createOpportunity({
   }
 }
 
+function participantRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    interests: ["環境保全"],
+    region: "東京都",
+    availability: null,
+    birthday: new Date("1995-04-01"),
+    latestDiagnosisResult: { id: "diag-1", scaledScores },
+    ...overrides,
+  }
+}
+
 describe("fetchRecommendations", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } } })
-    mockFindParticipant.mockResolvedValue({ diagnosisScores })
+    mockFindParticipant.mockResolvedValue(participantRecord())
+    // $transaction は create の呼び出し配列を受け取り、ログIDを返す
+    mockTransaction.mockImplementation(async (operations: unknown[]) =>
+      operations.map((_, i) => ({ id: `log-${i + 1}`, opportunityId: `opp-${i + 1}` }))
+    )
   })
 
-  it("category が指定された場合、案件のカテゴリに一致する案件だけを返す", async () => {
-    mockFindOpportunities.mockResolvedValue([
-      createOpportunity({ id: "env-1", category: "環境保全" }),
-      createOpportunity({ id: "edu-1", category: "教育" }),
-    ])
+  it("未ログインの場合、空の結果を返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: null } })
 
-    const result = await fetchRecommendations({ category: "環境保全" })
+    const result = await fetchRecommendations()
 
-    expect(result.hasCompletedDiagnosis).toBe(true)
-    expect(result.recommendations.map((item) => item.id)).toEqual(["env-1"])
+    expect(result).toEqual({ recommendations: [], hasCompletedDiagnosis: false })
+    expect(mockFindOpportunities).not.toHaveBeenCalled()
   })
 
-  it("region が指定された場合、案件場所または団体活動地域に一致する案件をスコア降順で返す", async () => {
-    mockFindOpportunities.mockResolvedValue([
-      createOpportunity({
-        id: "area-match",
-        requirementTraits: { extraversion: 70 },
-        location: "神奈川県横浜市",
-        organization: {
-          organizationName: "地域団体",
-          activityAreas: ["東京都渋谷区"],
-        },
-      }),
-      createOpportunity({
-        id: "location-match",
-        requirementTraits: { extraversion: 50 },
-        location: "東京都渋谷区",
-        organization: {
-          organizationName: "場所一致団体",
-          activityAreas: ["世田谷区"],
-        },
-      }),
-      createOpportunity({
-        id: "no-match",
-        location: "大阪府大阪市",
-        organization: {
-          organizationName: "対象外団体",
-          activityAreas: ["大阪府"],
-        },
-      }),
-    ])
+  it("参加者プロフィールがない場合、空の結果を返す", async () => {
+    mockFindParticipant.mockResolvedValue(null)
 
-    const result = await fetchRecommendations({ region: "渋谷区" })
+    const result = await fetchRecommendations()
 
-    expect(result.recommendations.map((item) => item.id)).toEqual([
-      "location-match",
-      "area-match",
-    ])
+    expect(result).toEqual({ recommendations: [], hasCompletedDiagnosis: false })
   })
 
-  it("category と region が指定された場合、両方に一致する案件だけを返す", async () => {
-    mockFindOpportunities.mockResolvedValue([
-      createOpportunity({
-        id: "both-match",
-        category: "環境保全",
-        organization: {
-          organizationName: "両方一致団体",
-          activityAreas: ["渋谷区"],
-        },
-      }),
-      createOpportunity({
-        id: "category-only",
-        category: "環境保全",
-        location: "大阪府大阪市",
-        organization: {
-          organizationName: "カテゴリのみ団体",
-          activityAreas: ["大阪府"],
-        },
-      }),
-      createOpportunity({
-        id: "region-only",
-        category: "教育",
-        organization: {
-          organizationName: "地域のみ団体",
-          activityAreas: ["渋谷区"],
-        },
-      }),
-    ])
+  it("未診断でも推薦は返り、hasCompletedDiagnosis は false になる", async () => {
+    mockFindParticipant.mockResolvedValue(
+      participantRecord({ latestDiagnosisResult: null })
+    )
+    mockFindOpportunities.mockResolvedValue([createOpportunity({ id: "opp-1" })])
 
-    const result = await fetchRecommendations({
-      category: "環境保全",
-      region: "渋谷区",
-    })
+    const result = await fetchRecommendations()
 
-    expect(result.recommendations.map((item) => item.id)).toEqual([
-      "both-match",
-    ])
+    expect(result.hasCompletedDiagnosis).toBe(false)
+    expect(result.recommendations).toHaveLength(1)
   })
 
-  it("participationMode が online の場合、参加形態が online の案件だけを返す", async () => {
+  it("興味分野に一致する案件が上位になり、推薦理由が付く", async () => {
     mockFindOpportunities.mockResolvedValue([
-      createOpportunity({ id: "online-1", participationMode: "online" }),
-      createOpportunity({ id: "offline-1", participationMode: "offline" }),
+      createOpportunity({ id: "other", category: "子ども支援" }),
+      createOpportunity({ id: "matched", category: "環境保全" }),
+    ])
+
+    const result = await fetchRecommendations()
+
+    expect(result.recommendations[0].id).toBe("matched")
+    expect(result.recommendations[0].reasons[0]).toContain("環境保全")
+  })
+
+  it("終了した案件・定員に達した案件はハード条件で除外される", async () => {
+    const past = new Date("2020-01-01")
+    mockFindOpportunities.mockResolvedValue([
+      createOpportunity({ id: "ended", endDate: past }),
+      createOpportunity({ id: "full", capacity: 5, currentApplicants: 5 }),
+      createOpportunity({ id: "open" }),
+    ])
+
+    const result = await fetchRecommendations()
+
+    expect(result.recommendations.map((r) => r.id)).toEqual(["open"])
+  })
+
+  it("category フィルタが機能する", async () => {
+    mockFindOpportunities.mockResolvedValue([
+      createOpportunity({ id: "env", category: "環境保全" }),
+      createOpportunity({ id: "kids", category: "子ども支援" }),
+    ])
+
+    const result = await fetchRecommendations({ category: "子ども支援" })
+
+    expect(result.recommendations.map((r) => r.id)).toEqual(["kids"])
+  })
+
+  it("participationMode フィルタで hybrid 案件は両方に合致する", async () => {
+    mockFindOpportunities.mockResolvedValue([
+      createOpportunity({ id: "online-opp", participationMode: "online" }),
+      createOpportunity({ id: "hybrid-opp", participationMode: "hybrid" }),
+      createOpportunity({ id: "offline-opp", participationMode: "offline" }),
     ])
 
     const result = await fetchRecommendations({ participationMode: "online" })
 
-    expect(result.recommendations.map((item) => item.id)).toEqual(["online-1"])
+    expect(new Set(result.recommendations.map((r) => r.id))).toEqual(
+      new Set(["online-opp", "hybrid-opp"])
+    )
   })
 
-  it("participationMode が offline の場合、参加形態が offline の案件だけを返す", async () => {
-    mockFindOpportunities.mockResolvedValue([
-      createOpportunity({ id: "online-1", participationMode: "online" }),
-      createOpportunity({ id: "offline-1", participationMode: "offline" }),
-    ])
+  it("表示した推薦を推薦ログとして記録する", async () => {
+    mockFindOpportunities.mockResolvedValue([createOpportunity({ id: "opp-1" })])
 
-    const result = await fetchRecommendations({ participationMode: "offline" })
+    await fetchRecommendations()
 
-    expect(result.recommendations.map((item) => item.id)).toEqual(["offline-1"])
+    expect(mockTransaction).toHaveBeenCalledTimes(1)
+    expect(mockRecommendationLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user-1",
+          opportunityId: "opp-1",
+          rank: 1,
+          matchingRuleVersion: expect.stringMatching(/^\d+\.\d+\.\d+$/),
+          diagnosisResultId: "diag-1",
+        }),
+      })
+    )
   })
 
-  it("hybrid の案件は online/offline 両方のフィルタに合致する", async () => {
-    mockFindOpportunities.mockResolvedValue([
-      createOpportunity({ id: "hybrid-1", participationMode: "hybrid" }),
-    ])
+  it("推薦ログの記録に失敗しても推薦は返る", async () => {
+    mockFindOpportunities.mockResolvedValue([createOpportunity({ id: "opp-1" })])
+    mockTransaction.mockRejectedValue(new Error("log failed"))
 
-    const online = await fetchRecommendations({ participationMode: "online" })
-    const offline = await fetchRecommendations({ participationMode: "offline" })
+    const result = await fetchRecommendations()
 
-    expect(online.recommendations.map((item) => item.id)).toEqual(["hybrid-1"])
-    expect(offline.recommendations.map((item) => item.id)).toEqual(["hybrid-1"])
+    expect(result.recommendations).toHaveLength(1)
+    expect(result.recommendations[0].recommendationLogId).toBeNull()
   })
 
-  it("フィルタ後に該当案件がない場合、診断済みの空結果を返す", async () => {
-    mockFindOpportunities.mockResolvedValue([
-      createOpportunity({ id: "edu-1", category: "教育" }),
-    ])
+  it("予期しないエラー時は空の結果を返す", async () => {
+    mockFindParticipant.mockRejectedValue(new Error("db down"))
 
-    const result = await fetchRecommendations({ category: "環境保全" })
+    const result = await fetchRecommendations()
 
-    expect(result).toEqual({
-      recommendations: [],
-      hasCompletedDiagnosis: true,
-    })
+    expect(result).toEqual({ recommendations: [], hasCompletedDiagnosis: false })
   })
 })

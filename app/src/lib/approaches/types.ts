@@ -15,7 +15,8 @@ export interface ApproachParticipant {
   bio: string | null;
   interests: string[];
   preferredLocation: string | null;
-  diagnosisType: string | null;
+  /** 活動スタイルの参考タイプ名（未診断の場合は null。生スコアは開示しない） */
+  styleTypeLabel: string | null;
 }
 
 export interface ApproachableParticipant extends ApproachParticipant {
@@ -32,7 +33,6 @@ export interface ApproachListItem {
   id: string;
   status: ApproachStatus;
   message: string;
-  matchScore: number | null;
   createdAt: string;
   expiresAt: string;
   respondedAt: string | null;

@@ -9,7 +9,6 @@ import {
   Unlock,
   Pencil,
   MessageSquare,
-  Sparkles,
   Brain,
   User,
   ChevronRight,
@@ -21,15 +20,6 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchApplicantsForOpportunity } from "@/lib/dashboard/actions";
 import type { Applicant, OpportunityStatus } from "@/lib/dashboard/types";
 import { StatusActions } from "./components/StatusActions";
-
-/** BIG5 特性の日本語ラベル */
-const BIG5_LABELS: Record<string, string> = {
-  extraversion: "外向性",
-  agreeableness: "協調性",
-  conscientiousness: "誠実性",
-  neuroticism: "神経症傾向",
-  openness: "開放性",
-};
 
 /** 案件ステータス表示 */
 function opportunityStatusDisplay(status: OpportunityStatus) {
@@ -55,37 +45,6 @@ function opportunityStatusDisplay(status: OpportunityStatus) {
   }
 }
 
-/** BIG5 スコアの概要表示 */
-function ScoresSummary({
-  scores,
-}: {
-  scores: Record<string, number> | null;
-}) {
-  if (!scores) {
-    return (
-      <p className="text-xs text-text-body">診断未実施</p>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {Object.entries(BIG5_LABELS).map(([key, label]) => {
-        const value = scores[key];
-        if (value === undefined) return null;
-        return (
-          <span
-            key={key}
-            className="inline-flex items-center gap-1 rounded bg-orange-50 px-2 py-0.5 text-xs text-text-body"
-          >
-            {label}
-            <span className="font-medium text-text-dark">{value}</span>
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
 /** 応募者カード */
 function ApplicantCard({
   applicant,
@@ -107,9 +66,9 @@ function ApplicantCard({
               <span className="text-sm font-medium text-text-dark">
                 {applicant.participant_name}
               </span>
-              {applicant.diagnosis_type && (
+              {applicant.style_type_label && (
                 <span className="text-xs text-text-body">
-                  {applicant.diagnosis_type}
+                  {applicant.style_type_label}（参考タイプ）
                 </span>
               )}
             </div>
@@ -120,34 +79,13 @@ function ApplicantCard({
           />
         </div>
 
-        {/* マッチングスコア */}
-        {applicant.match_score !== null && (
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" />
-            <span className="text-xs text-text-body">相性スコア</span>
-            <span className="text-sm font-bold text-text-dark">
-              {applicant.match_score}%
-            </span>
-            <div className="ml-1 h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
-              <div
-                className={`h-full rounded-full ${
-                  applicant.match_score >= 80
-                    ? "bg-primary"
-                    : applicant.match_score >= 60
-                      ? "bg-primary-dark"
-                      : "bg-text-body"
-                }`}
-                style={{ width: `${applicant.match_score}%` }}
-              />
-            </div>
+        {/* 診断状況（生スコアは開示しない） */}
+        {!applicant.style_type_label && (
+          <div className="flex items-start gap-2">
+            <Brain className="mt-0.5 size-4 shrink-0 text-text-body/50" />
+            <p className="text-xs text-text-body">診断未実施</p>
           </div>
         )}
-
-        {/* BIG5 スコア概要 */}
-        <div className="flex items-start gap-2">
-          <Brain className="mt-0.5 size-4 shrink-0 text-text-body/50" />
-          <ScoresSummary scores={applicant.diagnosis_scores} />
-        </div>
 
         {/* 応募メッセージ */}
         {applicant.message && (
@@ -281,7 +219,7 @@ export default async function OpportunityApplicantsPage({
               <div className="flex flex-col">
                 <h2 className="text-lg font-bold text-text-dark">応募者一覧</h2>
                 <span className="text-xs text-text-body">
-                  {data.applicants.length}件の応募・相性スコア順
+                  {data.applicants.length}件の応募・応募日順
                 </span>
               </div>
             </div>

@@ -2,8 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
-import type { BIG5Scores } from "@/lib/personality/types";
-import { calculateMatchScore } from "@/lib/recommendations/matching";
+import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
 import { APPROACH_MESSAGE_MAX_LENGTH } from "./constants";
 import type {
   ApproachContact,
@@ -24,14 +23,6 @@ const APPROACH_EXPIRATION_DAYS = 14;
 const APPROACH_DAILY_SEND_LIMIT = 20;
 const PARTICIPANT_ACTIVE_APPROACH_LIMIT = 10;
 
-const BIG5_TRAIT_KEYS = [
-  "extraversion",
-  "agreeableness",
-  "conscientiousness",
-  "neuroticism",
-  "openness",
-] as const;
-
 interface ApprovedOrganization {
   id: string;
   organizationName: string;
@@ -49,8 +40,7 @@ interface ParticipantRecord {
   interests: unknown;
   preferredLocation: string | null;
   publicProfile: boolean;
-  diagnosisType: string | null;
-  diagnosisScores: unknown;
+  latestDiagnosisResult: { styleTypeId: string | null } | null;
 }
 
 interface OrganizationContactRecord {
@@ -63,14 +53,12 @@ interface OrganizationContactRecord {
 interface OpportunityRecord {
   id: string;
   title: string;
-  requirementTraits?: unknown;
 }
 
 interface ApproachRecord {
   id: string;
   status: string;
   message: string;
-  matchScore: number | null;
   createdAt: Date | string;
   expiresAt: Date | string;
   respondedAt: Date | string | null;
@@ -140,27 +128,6 @@ async function fetchParticipantProfileByUserId(
   return participant;
 }
 
-function isBIG5Scores(value: unknown): value is BIG5Scores {
-  if (!value || typeof value !== "object") return false;
-  const obj = value as Record<string, unknown>;
-  return BIG5_TRAIT_KEYS.every((trait) => typeof obj[trait] === "number");
-}
-
-function toPartialBIG5Scores(value: unknown): Partial<BIG5Scores> {
-  if (!value || typeof value !== "object") return {};
-
-  const obj = value as Record<string, unknown>;
-  const result: Partial<BIG5Scores> = {};
-  for (const trait of BIG5_TRAIT_KEYS) {
-    const score = obj[trait];
-    if (typeof score === "number") {
-      result[trait] = score;
-    }
-  }
-
-  return result;
-}
-
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string");
@@ -205,6 +172,7 @@ function isUniqueConstraintError(error: unknown): boolean {
 }
 
 function mapParticipant(participant: ParticipantRecord): ApproachParticipant {
+  const styleTypeId = participant.latestDiagnosisResult?.styleTypeId ?? null;
   return {
     id: participant.id,
     name: participant.name,
@@ -212,7 +180,9 @@ function mapParticipant(participant: ParticipantRecord): ApproachParticipant {
     bio: participant.bio,
     interests: toStringArray(participant.interests),
     preferredLocation: participant.preferredLocation,
-    diagnosisType: participant.diagnosisType,
+    styleTypeLabel: styleTypeId
+      ? (findStyleTypeById(styleTypeId)?.name ?? null)
+      : null,
   };
 }
 
@@ -229,18 +199,6 @@ function buildContact(
   };
 }
 
-function calculateApproachMatchScore(
-  diagnosisScores: unknown,
-  requirementTraits: unknown
-): number | null {
-  if (!isBIG5Scores(diagnosisScores)) return null;
-
-  return calculateMatchScore(
-    diagnosisScores,
-    toPartialBIG5Scores(requirementTraits)
-  );
-}
-
 function mapApproachForParticipant(approach: ApproachRecord): ApproachListItem {
   const status = toApproachStatus(approach.status);
   const organization = approach.organization;
@@ -251,7 +209,6 @@ function mapApproachForParticipant(approach: ApproachRecord): ApproachListItem {
     id: approach.id,
     status,
     message: approach.message,
-    matchScore: approach.matchScore,
     createdAt: toIsoString(approach.createdAt),
     expiresAt: toIsoString(approach.expiresAt),
     respondedAt: toNullableIsoString(approach.respondedAt),
@@ -272,7 +229,6 @@ function mapApproachForDashboard(approach: ApproachRecord): ApproachListItem {
     id: approach.id,
     status,
     message: approach.message,
-    matchScore: approach.matchScore,
     createdAt: toIsoString(approach.createdAt),
     expiresAt: toIsoString(approach.expiresAt),
     respondedAt: toNullableIsoString(approach.respondedAt),
@@ -307,8 +263,7 @@ export async function fetchApproachableParticipants(): Promise<ApproachableParti
         interests: true,
         preferredLocation: true,
         publicProfile: true,
-        diagnosisType: true,
-        diagnosisScores: true,
+        latestDiagnosisResult: { select: { styleTypeId: true } },
         approaches: {
           where: { organizationId: organization.id },
           select: { id: true },
@@ -358,8 +313,7 @@ export async function fetchApproachSendData(
         interests: true,
         preferredLocation: true,
         publicProfile: true,
-        diagnosisType: true,
-        diagnosisScores: true,
+        latestDiagnosisResult: { select: { styleTypeId: true } },
       },
     });
 
@@ -374,7 +328,7 @@ export async function fetchApproachSendData(
     const [opportunities, approaches] = await Promise.all([
       prisma.opportunity.findMany({
         where: { organizationId: organization.id, status: "published" },
-        select: { id: true, title: true, requirementTraits: true },
+        select: { id: true, title: true },
         orderBy: [{ createdAt: "desc" }],
       }),
       prisma.approach.findMany({
@@ -449,8 +403,7 @@ export async function sendApproach(input: {
         interests: true,
         preferredLocation: true,
         publicProfile: true,
-        diagnosisType: true,
-        diagnosisScores: true,
+        latestDiagnosisResult: { select: { styleTypeId: true } },
       },
     });
 
@@ -467,7 +420,6 @@ export async function sendApproach(input: {
       select: {
         id: true,
         title: true,
-        requirementTraits: true,
       },
     });
 
@@ -529,10 +481,6 @@ export async function sendApproach(input: {
         participantProfileId: participant.id,
         opportunityId: opportunity.id,
         message,
-        matchScore: calculateApproachMatchScore(
-          participant.diagnosisScores,
-          opportunity.requirementTraits
-        ),
         expiresAt: addDays(now, APPROACH_EXPIRATION_DAYS),
       },
       select: { id: true },
@@ -568,7 +516,6 @@ export async function fetchDashboardApproaches(): Promise<DashboardApproachesRes
         id: true,
         status: true,
         message: true,
-        matchScore: true,
         createdAt: true,
         expiresAt: true,
         respondedAt: true,
@@ -607,7 +554,6 @@ export async function fetchMyApproaches(): Promise<MyApproachesResult> {
         id: true,
         status: true,
         message: true,
-        matchScore: true,
         createdAt: true,
         expiresAt: true,
         respondedAt: true,
@@ -656,7 +602,6 @@ export async function fetchMyApproachDetail(
         id: true,
         status: true,
         message: true,
-        matchScore: true,
         createdAt: true,
         expiresAt: true,
         respondedAt: true,

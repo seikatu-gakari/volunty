@@ -6,7 +6,7 @@ const STEPS = [
     label: "STEP 1",
     icon: ClipboardList,
     title: "診断・登録",
-    desc: "16問の簡易診断または60問の詳細診断で、あなたの特性や興味を診断。登録は無料です。",
+    desc: "性格傾向チェック（簡易15問・約2分/全50問・約5〜8分から選べます）で、あなたの特性の傾向を確認。登録は無料です。",
     color: "bg-orange-100 text-orange-600",
   },
   {
@@ -14,7 +14,7 @@ const STEPS = [
     label: "STEP 2",
     icon: Search,
     title: "マッチング",
-    desc: "AIが相性スコア順に活動を提案。団体からアプローチが届くことも。",
+    desc: "興味や日程に合わせて、おすすめ順に活動を表示。団体からアプローチが届くことも。",
     color: "bg-primary/10 text-primary",
   },
   {

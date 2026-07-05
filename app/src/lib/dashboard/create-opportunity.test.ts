@@ -143,7 +143,10 @@ describe("createOpportunity", () => {
         title: "環境保全ボランティア",
         description: "森林再生活動を行います",
         status: "published",
-        requirement_traits: null,
+        activity_style_tags: null,
+        required_qualifications: null,
+        min_age: null,
+        max_age: null,
       })
     );
 
@@ -169,61 +172,104 @@ describe("createOpportunity", () => {
     expect(inserted.published_at).toBe(inserted.created_at);
   });
 
-  it("特性スコア付きで案件を作成できる", async () => {
+  it("活動スタイルタグ・参加要件付きで案件を作成できる", async () => {
     const mockUser = { id: "org-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({
       data: { user: mockUser },
       error: null,
     });
-    
+
     mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
     mockInsertReturn.mockReturnValueOnce({ error: null });
 
     const fd = buildFormData({
       title: "子ども支援イベント",
       description: "学習支援を行います",
-      trait_extraversion: "70",
-      trait_openness: "80",
+      requiredQualifications: "普通自動車免許",
+      minAge: "18",
     });
+    fd.append("activityStyleTags", "empathy-support");
+    fd.append("activityStyleTags", "creative-ideas");
 
     await createOpportunity(fd);
 
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "子ども支援イベント",
-        requirement_traits: { extraversion: 70, openness: 80 },
+        activity_style_tags: ["empathy-support", "creative-ideas"],
+        required_qualifications: ["普通自動車免許"],
+        min_age: 18,
+        max_age: null,
         status: "published",
       })
     );
   });
 
-  it("不正な特性スコア（範囲外）は無視される", async () => {
+  it("不正な活動スタイルタグはエラーになる", async () => {
     const mockUser = { id: "org-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({
       data: { user: mockUser },
       error: null,
     });
-    
-    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
-    mockInsertReturn.mockReturnValueOnce({ error: null });
 
     const fd = buildFormData({
       title: "テスト案件",
       description: "テスト説明",
-      trait_extraversion: "150",
-      trait_openness: "-10",
-      trait_agreeableness: "abc",
-      trait_conscientiousness: "60",
+    });
+    fd.append("activityStyleTags", "unknown-tag");
+
+    const result: CreateOpportunityResult = await createOpportunity(fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("活動スタイルタグの値が正しくありません");
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("活動スタイルタグは4つ以上選べない", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
     });
 
-    await createOpportunity(fd);
+    const fd = buildFormData({
+      title: "テスト案件",
+      description: "テスト説明",
+    });
+    for (const tag of [
+      "empathy-support",
+      "creative-ideas",
+      "talk-with-new-people",
+      "solo-focused-work",
+    ]) {
+      fd.append("activityStyleTags", tag);
+    }
 
-    // 不正な値は除外され、有効な値のみ含まれる
-    expect(mockInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requirement_traits: { conscientiousness: 60 },
-      })
-    );
+    const result: CreateOpportunityResult = await createOpportunity(fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("活動スタイルタグは3つまで選択できます");
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("年齢要件が不正な場合はエラーになる", async () => {
+    const mockUser = { id: "org-123", email: "org@example.com" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+
+    const fd = buildFormData({
+      title: "テスト案件",
+      description: "テスト説明",
+      minAge: "abc",
+    });
+
+    const result: CreateOpportunityResult = await createOpportunity(fd);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("年齢要件は0〜120の整数で入力してください");
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("DB エラー時にエラーメッセージを返す", async () => {

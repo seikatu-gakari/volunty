@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Brain, Zap, ArrowRight, Heart, Sparkles } from "lucide-react";
+import { Brain, ArrowRight, Heart, Sparkles } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthenticatedHomeProps {
@@ -29,78 +29,45 @@ export function AuthenticatedHome({ user }: AuthenticatedHomeProps) {
           </h1>
         </div>
         <p className="max-w-md text-center text-base leading-7 text-text-body">
-          性格診断を通じて、あなたに最適なボランティア活動を見つけましょう
+          あなたの興味や傾向に合ったボランティア活動を見つけましょう
         </p>
       </section>
 
       {/* 診断カードセクション */}
       <section className="flex flex-col gap-6 py-6">
-        <h2 className="text-base font-medium text-text-dark">性格診断を始める</h2>
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* 簡易診断 */}
-          <Link
-            href="/diagnosis?mode=brief"
-            className="group flex flex-col gap-4 rounded-[10px] border border-primary/30 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <div className="flex items-center gap-3">
-              <Zap className="size-8 text-primary" />
-              <div>
-                <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                  16問 簡易診断
-                </h3>
-                <p className="text-sm text-text-body">約2分で完了</p>
-              </div>
+        <h2 className="text-base font-medium text-text-dark">性格傾向チェックを始める</h2>
+        <Link
+          href="/diagnosis"
+          className="group flex flex-col gap-4 rounded-[10px] border border-primary/30 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+        >
+          <div className="flex items-center gap-3">
+            <Brain className="size-8 text-primary" />
+            <div>
+              <h3 className="text-xl font-bold tracking-tight text-text-dark">
+                性格傾向チェック
+              </h3>
+              <p className="text-sm text-text-body">
+                簡易診断（15問・約2分）/ 全50問（約5〜8分）から選べます
+              </p>
             </div>
-            <ul className="flex flex-col gap-2">
-              {[
-                "サクッとボランティアタイプを診断",
-                "基本的な特性と傾向を分析",
-                "初めての方におすすめ",
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-2">
-                  <span className="size-2 shrink-0 rounded-full bg-primary" />
-                  <span className="text-sm text-text-dark">{item}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-auto flex items-center gap-1 text-sm font-medium text-primary group-hover:underline">
-              診断を始める
-              <ArrowRight className="size-4" />
-            </div>
-          </Link>
-
-          {/* 詳細診断 */}
-          <Link
-            href="/diagnosis?mode=full"
-            className="group flex flex-col gap-4 rounded-[10px] border border-primary-dark/30 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <div className="flex items-center gap-3">
-              <Brain className="size-8 text-primary-dark" />
-              <div>
-                <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                  60問 詳細診断
-                </h3>
-                <p className="text-sm text-text-body">約8〜10分で完了</p>
-              </div>
-            </div>
-            <ul className="flex flex-col gap-2">
-              {[
-                "より精密な性格分析",
-                "5つの特性を多角的に分析",
-                "より適切なマッチングを実現",
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-2">
-                  <span className="size-2 shrink-0 rounded-full bg-primary-dark" />
-                  <span className="text-sm text-text-dark">{item}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-auto flex items-center gap-1 text-sm font-medium text-primary-dark group-hover:underline">
-              診断を始める
-              <ArrowRight className="size-4" />
-            </div>
-          </Link>
-        </div>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {[
+              "世界中で使われている性格研究をもとに設計",
+              "5つの性格特性の傾向を確認",
+              "おすすめ案件の並び順の参考になります",
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-2">
+                <span className="size-2 shrink-0 rounded-full bg-primary" />
+                <span className="text-sm text-text-dark">{item}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-auto flex items-center gap-1 text-sm font-medium text-primary group-hover:underline">
+            診断を始める
+            <ArrowRight className="size-4" />
+          </div>
+        </Link>
       </section>
 
       {/* 利用の流れ */}
@@ -111,16 +78,16 @@ export function AuthenticatedHome({ user }: AuthenticatedHomeProps) {
             {
               step: 1,
               color: "bg-primary",
-              title: "ボランティア診断",
+              title: "性格傾向チェック",
               description:
-                "16問の簡易診断または60問の詳細診断で、あなたのボランティアタイプを診断します",
+                "簡易診断（15問）または全50問の質問で、5つの性格特性の傾向を確認します",
             },
             {
               step: 2,
               color: "bg-primary-dark",
               title: "マッチング",
               description:
-                "診断結果に基づいて、あなたに最適なボランティア活動を提案します",
+                "興味分野・地域・日程などをもとに、性格の傾向も参考にしておすすめを表示します",
             },
             {
               step: 3,

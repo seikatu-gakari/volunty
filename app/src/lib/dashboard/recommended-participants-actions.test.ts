@@ -37,11 +37,11 @@ const { fetchRecommendedParticipantDetail, fetchRecommendedParticipants } =
   await import("./actions");
 
 const completeScores = {
+  extraversion: 50,
   agreeableness: 50,
   conscientiousness: 50,
-  extraversion: 50,
-  neuroticism: 50,
-  openness: 50,
+  emotionalStability: 50,
+  intellect: 50,
 };
 
 const approvedOrganization = {
@@ -58,7 +58,7 @@ describe("fetchRecommendedParticipants", () => {
       {
         id: "opp-1",
         title: "イベントリーダー",
-        requirementTraits: { extraversion: 80 },
+        activityStyleTags: ["talk-with-new-people"],
       },
     ]);
     mockFindParticipants.mockResolvedValue([
@@ -72,9 +72,10 @@ describe("fetchRecommendedParticipants", () => {
         availability: null,
         preferredLocation: null,
         publicProfile: true,
-        diagnosisType: "innovator-leader",
-        diagnosisMode: "brief",
-        diagnosisScores: { ...completeScores, extraversion: 80 },
+        latestDiagnosisResult: {
+          styleTypeId: "innovator-leader",
+          scaledScores: { ...completeScores, extraversion: 80 },
+        },
       },
     ]);
   });
@@ -112,7 +113,7 @@ describe("fetchRecommendedParticipants", () => {
     expect(result.emptyReason).toBe("no_published_opportunities");
   });
 
-  it("公開済み・診断済み参加者を相性スコア順で返す", async () => {
+  it("公開済み参加者を活動スタイル適合付きで返す（生スコアは含めない）", async () => {
     const result: RecommendedParticipantsResult =
       await fetchRecommendedParticipants();
 
@@ -122,21 +123,24 @@ describe("fetchRecommendedParticipants", () => {
     });
     expect(mockFindOpportunities).toHaveBeenCalledWith({
       where: { organizationId: "org-profile-1", status: "published" },
-      select: { id: true, requirementTraits: true, title: true },
+      select: { id: true, activityStyleTags: true, title: true },
     });
     expect(mockFindParticipants).toHaveBeenCalledWith({
       where: { publicProfile: true },
       select: expect.objectContaining({
-        diagnosisScores: true,
         publicProfile: true,
+        latestDiagnosisResult: {
+          select: { styleTypeId: true, scaledScores: true },
+        },
       }),
     });
     expect(result.participants).toHaveLength(1);
     expect(result.participants[0]).toMatchObject({
       id: "profile-1",
-      matchScore: 100,
       bestOpportunityTitle: "イベントリーダー",
+      styleTypeLabel: "イノベーター・リーダータイプ",
     });
+    expect(result.participants[0]).not.toHaveProperty("diagnosisScores");
   });
 });
 
@@ -149,7 +153,7 @@ describe("fetchRecommendedParticipantDetail", () => {
       {
         id: "opp-1",
         title: "イベントリーダー",
-        requirementTraits: { extraversion: 80 },
+        activityStyleTags: ["talk-with-new-people"],
       },
     ]);
     mockFindParticipant.mockResolvedValue({
@@ -162,31 +166,33 @@ describe("fetchRecommendedParticipantDetail", () => {
       availability: null,
       preferredLocation: null,
       publicProfile: true,
-      diagnosisType: "innovator-leader",
-      diagnosisMode: "brief",
-      diagnosisScores: { ...completeScores, extraversion: 80 },
+      latestDiagnosisResult: {
+        styleTypeId: "innovator-leader",
+        scaledScores: { ...completeScores, extraversion: 80 },
+      },
     });
   });
 
-  it("指定参加者が公開済み・診断済みの場合は詳細を返す", async () => {
+  it("指定参加者が公開済みの場合は詳細を返す", async () => {
     const result: RecommendedParticipantDetailResult =
       await fetchRecommendedParticipantDetail("profile-1");
 
     expect(mockFindParticipant).toHaveBeenCalledWith({
       where: { id: "profile-1" },
       select: expect.objectContaining({
-        diagnosisScores: true,
         publicProfile: true,
+        latestDiagnosisResult: {
+          select: { styleTypeId: true, scaledScores: true },
+        },
       }),
     });
     expect(result.participant).toMatchObject({
       id: "profile-1",
-      matchScore: 100,
       bestOpportunityId: "opp-1",
     });
   });
 
-  it("非公開または診断未実施の参加者は詳細を返さない", async () => {
+  it("非公開の参加者は詳細を返さない", async () => {
     mockFindParticipant.mockResolvedValue({
       id: "profile-1",
       userId: "participant-1",
@@ -197,9 +203,7 @@ describe("fetchRecommendedParticipantDetail", () => {
       availability: null,
       preferredLocation: null,
       publicProfile: false,
-      diagnosisType: null,
-      diagnosisMode: null,
-      diagnosisScores: completeScores,
+      latestDiagnosisResult: null,
     });
 
     const result: RecommendedParticipantDetailResult =

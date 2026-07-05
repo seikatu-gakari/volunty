@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { DiagnosisMode } from "@/lib/personality/types";
-import { getQuestionsForMode } from "@/lib/personality/constants";
+import {
+  IPIP_BFM_50_JA,
+  IPIP_BFM_50_JA_BRIEF15,
+  SCORING_ALGORITHM_VERSION,
+} from "@/lib/diagnosis-scale/scale";
+import { STYLE_TYPE_VERSION } from "@/lib/diagnosis-scale/style-types";
+import { QUALITY_RULE_VERSION } from "@/lib/diagnosis-scale/quality";
+import type { DiagnosisAnswer } from "@/lib/diagnosis-scale/types";
 
 // Supabase クライアントのモック（認証のみ）
 const mockGetUser = vi.fn();
@@ -16,19 +22,19 @@ vi.mock("@/lib/supabase/server", () => ({
 // Prisma のモック
 const mockPrismaParticipantFindUnique = vi.fn();
 const mockPrismaParticipantUpdate = vi.fn();
-const mockPrismaPersonalityTypeFindUnique = vi.fn();
 const mockPrismaDiagnosisResultCreate = vi.fn();
+const mockPrismaDiagnosisResponseCreateMany = vi.fn();
 const mockPrismaTransaction = vi.fn();
 
 const mockTransactionClient = {
   participantProfile: {
     update: (...args: unknown[]) => mockPrismaParticipantUpdate(...args),
   },
-  personalityType: {
-    findUnique: (...args: unknown[]) => mockPrismaPersonalityTypeFindUnique(...args),
-  },
   diagnosisResult: {
     create: (...args: unknown[]) => mockPrismaDiagnosisResultCreate(...args),
+  },
+  diagnosisResponse: {
+    createMany: (...args: unknown[]) => mockPrismaDiagnosisResponseCreateMany(...args),
   },
 };
 
@@ -39,9 +45,6 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: (...args: unknown[]) => mockPrismaParticipantFindUnique(...args),
       update: (...args: unknown[]) => mockPrismaParticipantUpdate(...args),
     },
-    personalityType: {
-      findUnique: (...args: unknown[]) => mockPrismaPersonalityTypeFindUnique(...args),
-    },
     diagnosisResult: {
       create: (...args: unknown[]) => mockPrismaDiagnosisResultCreate(...args),
     },
@@ -50,6 +53,30 @@ vi.mock("@/lib/prisma", () => ({
 
 // "use server" ディレクティブを含むモジュールの動的インポート
 const { fetchDiagnosisResult, submitDiagnosis } = await import("./actions");
+
+const SCALED = {
+  extraversion: 70,
+  agreeableness: 90,
+  conscientiousness: 50,
+  emotionalStability: 70,
+  intellect: 50,
+};
+const RAW = {
+  extraversion: 38,
+  agreeableness: 46,
+  conscientiousness: 30,
+  emotionalStability: 38,
+  intellect: 30,
+};
+
+function createMockAnswers(value = 3): DiagnosisAnswer[] {
+  return IPIP_BFM_50_JA.items.map((item) => ({
+    itemCode: item.itemCode,
+    value,
+    elapsedMs: 2000,
+    changedCount: 0,
+  }));
+}
 
 describe("fetchDiagnosisResult", () => {
   beforeEach(() => {
@@ -79,14 +106,13 @@ describe("fetchDiagnosisResult", () => {
     expect(result).toBeNull();
   });
 
-  it("diagnosis_scores が不正な場合、null を返す", async () => {
+  it("最新診断結果がない場合、null を返す", async () => {
     mockGetUser.mockReturnValue({
       data: { user: { id: "user-123" } },
       error: null,
     });
     mockPrismaParticipantFindUnique.mockResolvedValue({
-      diagnosisType: "innovator-leader",
-      diagnosisScores: { extraversion: 80 }, // 不完全（5特性揃っていない）
+      latestDiagnosisResult: null,
     });
 
     const result = await fetchDiagnosisResult();
@@ -94,33 +120,79 @@ describe("fetchDiagnosisResult", () => {
     expect(result).toBeNull();
   });
 
-  it("完全一致する人物タイプがある場合、isExactMatch: true を返す", async () => {
+  it("スコアが不正な場合、null を返す", async () => {
     mockGetUser.mockReturnValue({
       data: { user: { id: "user-123" } },
       error: null,
     });
     mockPrismaParticipantFindUnique.mockResolvedValue({
-      diagnosisType: "innovator-leader",
-      diagnosisScores: {
-        extraversion: 85,
-        agreeableness: 70,
-        conscientiousness: 80,
-        neuroticism: 40,
-        openness: 90,
+      latestDiagnosisResult: {
+        scaleCode: "ipip-bfm-50-ja",
+        scaleVersion: "1.0.0",
+        rawScores: RAW,
+        scaledScores: { extraversion: 70 }, // 不完全
+        styleTypeId: "supporter-care",
+        qualityFlags: [],
+        answeredAt: new Date("2026-07-04T00:00:00Z"),
+      },
+    });
+
+    const result = await fetchDiagnosisResult();
+
+    expect(result).toBeNull();
+  });
+
+  it("正常な結果を尺度情報・実施日・品質フラグ付きで返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockPrismaParticipantFindUnique.mockResolvedValue({
+      latestDiagnosisResult: {
+        scaleCode: "ipip-bfm-50-ja",
+        scaleVersion: "1.0.0",
+        rawScores: RAW,
+        scaledScores: SCALED,
+        styleTypeId: "supporter-care",
+        qualityFlags: ["too_fast"],
+        answeredAt: new Date("2026-07-04T00:00:00Z"),
       },
     });
 
     const result = await fetchDiagnosisResult();
 
     expect(result).not.toBeNull();
-    expect(result!.isExactMatch).toBe(true);
-    expect(result!.personalityType.id).toBe("innovator-leader");
-    expect(result!.personalityType.name).toBe("イノベーター・リーダータイプ");
-    expect(result!.personalityType.nameEn).toBe("Innovator Leader");
-    expect(result!.personalityType.description).toBeTruthy();
-    expect(result!.personalityType.strengths.length).toBeGreaterThan(0);
-    expect(result!.personalityType.suitableActivities.length).toBeGreaterThan(0);
-    expect(result!.scores.extraversion).toBe(85);
+    expect(result!.scaledScores).toEqual(SCALED);
+    expect(result!.rawScores).toEqual(RAW);
+    expect(result!.scaleCode).toBe("ipip-bfm-50-ja");
+    expect(result!.scaleVersion).toBe("1.0.0");
+    expect(result!.answeredAt).toBe("2026-07-04T00:00:00.000Z");
+    expect(result!.qualityFlags).toEqual(["too_fast"]);
+    expect(result!.styleType?.id).toBe("supporter-care");
+    expect(result!.styleType?.name).toBe("サポーター・ケアタイプ");
+  });
+
+  it("styleTypeId が不明な場合、styleType は null になる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockPrismaParticipantFindUnique.mockResolvedValue({
+      latestDiagnosisResult: {
+        scaleCode: "ipip-bfm-50-ja",
+        scaleVersion: "1.0.0",
+        rawScores: RAW,
+        scaledScores: SCALED,
+        styleTypeId: "unknown-type",
+        qualityFlags: [],
+        answeredAt: new Date("2026-07-04T00:00:00Z"),
+      },
+    });
+
+    const result = await fetchDiagnosisResult();
+
+    expect(result).not.toBeNull();
+    expect(result!.styleType).toBeNull();
   });
 
   it("DB クエリ中に例外が発生した場合、null を返す", async () => {
@@ -136,73 +208,7 @@ describe("fetchDiagnosisResult", () => {
 
     expect(result).toBeNull();
   });
-
-  it("diagnosis_type が不明な場合、近似一致のタイプを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    mockPrismaParticipantFindUnique.mockResolvedValue({
-      diagnosisType: "unknown-type",
-      diagnosisScores: {
-        extraversion: 50,
-        agreeableness: 50,
-        conscientiousness: 50,
-        neuroticism: 50,
-        openness: 50,
-      },
-    });
-
-    const result = await fetchDiagnosisResult();
-
-    expect(result).not.toBeNull();
-    expect(result!.isExactMatch).toBe(false);
-    expect(result!.personalityType).toBeDefined();
-    expect(result!.scores.extraversion).toBe(50);
-  });
-
-  it("diagnosis_type が null の場合、近似一致のタイプを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    mockPrismaParticipantFindUnique.mockResolvedValue({
-      diagnosisType: null,
-      diagnosisScores: {
-        extraversion: 80,
-        agreeableness: 60,
-        conscientiousness: 75,
-        neuroticism: 30,
-        openness: 85,
-      },
-    });
-
-    const result = await fetchDiagnosisResult();
-
-    expect(result).not.toBeNull();
-    expect(result!.isExactMatch).toBe(false);
-    expect(result!.personalityType).toBeDefined();
-  });
-
-  it("Supabase 接続エラー時にクラッシュせず null を返す", async () => {
-    mockGetUser.mockImplementation(() => {
-      throw new Error("Connection refused");
-    });
-
-    const result = await fetchDiagnosisResult();
-
-    expect(result).toBeNull();
-  });
 });
-
-// submitDiagnosis テスト用のダミー回答データ
-function createMockAnswers(mode: DiagnosisMode = "brief") {
-  return getQuestionsForMode(mode).map((question) => ({
-    questionId: question.id,
-    value: 3,
-    timestamp: new Date().toISOString(),
-  }));
-}
 
 describe("submitDiagnosis", () => {
   beforeEach(() => {
@@ -210,11 +216,9 @@ describe("submitDiagnosis", () => {
     mockPrismaTransaction.mockImplementation(async (callback) =>
       callback(mockTransactionClient)
     );
-    mockPrismaPersonalityTypeFindUnique.mockResolvedValue({
-      id: "personality-type-uuid",
-    });
     mockPrismaParticipantUpdate.mockResolvedValue({});
-    mockPrismaDiagnosisResultCreate.mockResolvedValue({});
+    mockPrismaDiagnosisResultCreate.mockResolvedValue({ id: "result-id" });
+    mockPrismaDiagnosisResponseCreateMany.mockResolvedValue({ count: 50 });
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -223,7 +227,9 @@ describe("submitDiagnosis", () => {
       error: { message: "Not authenticated" },
     });
 
-    const result = await submitDiagnosis(createMockAnswers(), "brief");
+    const result = await submitDiagnosis({
+      answers: createMockAnswers(),
+    });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("ログインが必要です");
@@ -236,186 +242,108 @@ describe("submitDiagnosis", () => {
     });
     mockPrismaParticipantFindUnique.mockResolvedValue(null);
 
-    const result = await submitDiagnosis(createMockAnswers(), "brief");
+    const result = await submitDiagnosis({
+      answers: createMockAnswers(),
+    });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("参加者登録が必要です");
   });
 
-  it("正常に診断結果を保存できる場合、success: true を返す", async () => {
+  it("正常保存: バージョン・品質フラグ・参考タイプ付きで保存し、最新参照を更新する", async () => {
     mockGetUser.mockReturnValue({
       data: { user: { id: "user-123" } },
       error: null,
     });
-    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "user-123" });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "profile-id" });
 
-    const result = await submitDiagnosis(createMockAnswers(), "brief");
-
-    expect(result.success).toBe(true);
-    expect(result.error).toBeUndefined();
-    expect(mockPrismaTransaction).toHaveBeenCalledTimes(1);
-    expect(mockPrismaPersonalityTypeFindUnique).toHaveBeenCalledWith({
-      where: { typeId: "supporter-care" },
-      select: { id: true },
+    const result = await submitDiagnosis({
+      answers: createMockAnswers(3),
+      totalDurationMs: 200_000,
+      resumedCount: 1,
     });
-    expect(mockPrismaParticipantUpdate).toHaveBeenCalledWith({
-      where: { userId: "user-123" },
-      data: {
-        diagnosisType: "supporter-care",
-        diagnosisScores: {
-          extraversion: 50,
-          agreeableness: 50,
-          conscientiousness: 50,
-          neuroticism: 50,
-          openness: 50,
-        },
-        diagnosisMode: "brief",
-      },
-    });
-    expect(mockPrismaDiagnosisResultCreate).toHaveBeenCalledWith({
-      data: {
-        userId: "user-123",
-        personalityTypeId: "personality-type-uuid",
-        big5Scores: {
-          extraversion: 50,
-          agreeableness: 50,
-          conscientiousness: 50,
-          neuroticism: 50,
-          openness: 50,
-        },
-        diagnosisMode: "brief",
-        closestTypeDistance: expect.any(Number),
-      },
-    });
-  });
 
-  it("詳細診断を正常に保存できる場合、diagnosisMode: full を保存する", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "user-123" });
-
-    const result = await submitDiagnosis(createMockAnswers("full"), "full");
-
-    expect(result.success).toBe(true);
-    expect(mockPrismaParticipantUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ diagnosisMode: "full" }),
-      })
-    );
-    expect(mockPrismaDiagnosisResultCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ diagnosisMode: "full" }),
-      })
-    );
-  });
-
-  it("人物タイプマスタに対応レコードがない場合、personalityTypeId: null で保存する", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "user-123" });
-    mockPrismaPersonalityTypeFindUnique.mockResolvedValue(null);
-
-    const result = await submitDiagnosis(createMockAnswers(), "brief");
-
-    expect(result.success).toBe(true);
+    expect(result).toEqual({ success: true });
     expect(mockPrismaDiagnosisResultCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          personalityTypeId: null,
+          userId: "user-123",
+          scaleCode: "ipip-bfm-50-ja",
+          scaleVersion: IPIP_BFM_50_JA.scaleVersion,
+          scoringAlgorithmVersion: SCORING_ALGORITHM_VERSION,
+          normsVersion: null,
+          styleTypeVersion: STYLE_TYPE_VERSION,
+          qualityRuleVersion: QUALITY_RULE_VERSION,
+          // 全問3: 全ドメイン raw 30 / scaled 50
+          rawScores: {
+            extraversion: 30,
+            agreeableness: 30,
+            conscientiousness: 30,
+            emotionalStability: 30,
+            intellect: 30,
+          },
+          // 全問同一選択肢のため straight_lining が付く
+          qualityFlags: expect.arrayContaining(["straight_lining"]),
+          totalDurationMs: 200_000,
+          resumedCount: 1,
+          styleTypeId: expect.any(String),
         }),
+      })
+    );
+    expect(mockPrismaDiagnosisResponseCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            diagnosisResultId: "result-id",
+            itemCode: IPIP_BFM_50_JA.items[0].itemCode,
+            value: 3,
+          }),
+        ]),
+      })
+    );
+    expect(mockPrismaParticipantUpdate).toHaveBeenCalledWith({
+      where: { userId: "user-123" },
+      data: { latestDiagnosisResultId: "result-id" },
+    });
+  });
+
+  it("生回答は常に t_diagnosis_response へ保存する", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "profile-id" });
+
+    const result = await submitDiagnosis({
+      answers: createMockAnswers(),
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockPrismaDiagnosisResultCreate).toHaveBeenCalledTimes(1);
+    expect(mockPrismaDiagnosisResponseCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            diagnosisResultId: "result-id",
+            itemCode: IPIP_BFM_50_JA.items[0].itemCode,
+          }),
+        ]),
       })
     );
   });
 
-  it("DB トランザクション中に更新エラーが発生した場合、エラーを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "user-123" });
-    mockPrismaParticipantUpdate.mockRejectedValue(new Error("Update failed"));
-
-    const result = await submitDiagnosis(createMockAnswers(), "brief");
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("予期しないエラーが発生しました");
-  });
-
-  it("診断履歴の作成に失敗した場合、エラーを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "user-123" });
-    mockPrismaDiagnosisResultCreate.mockRejectedValue(new Error("Create failed"));
-
-    const result = await submitDiagnosis(createMockAnswers(), "brief");
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("予期しないエラーが発生しました");
-  });
-
-  it("回答数が不足している場合、保存せずエラーを返す", async () => {
+  it("回答数が不足している場合、保存せず日本語エラーを返す", async () => {
     mockGetUser.mockReturnValue({
       data: { user: { id: "user-123" } },
       error: null,
     });
 
-    const result = await submitDiagnosis(createMockAnswers().slice(0, 15), "brief");
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("すべての質問に回答してください");
-    expect(mockPrismaParticipantFindUnique).not.toHaveBeenCalled();
-    expect(mockPrismaTransaction).not.toHaveBeenCalled();
-  });
-
-  it("詳細診断の回答数が不足している場合、保存せずエラーを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
+    const result = await submitDiagnosis({
+      answers: createMockAnswers().slice(0, 49),
     });
 
-    const result = await submitDiagnosis(createMockAnswers("full").slice(0, 59), "full");
-
     expect(result.success).toBe(false);
-    expect(result.error).toBe("すべての質問に回答してください");
-    expect(mockPrismaParticipantFindUnique).not.toHaveBeenCalled();
-    expect(mockPrismaTransaction).not.toHaveBeenCalled();
-  });
-
-  it("別モードの質問IDが混在している場合、保存せずエラーを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    const answers = createMockAnswers();
-    answers[0] = { ...answers[0], questionId: getQuestionsForMode("full")[0].id };
-
-    const result = await submitDiagnosis(answers, "brief");
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("回答データが不正です");
-    expect(mockPrismaParticipantFindUnique).not.toHaveBeenCalled();
-    expect(mockPrismaTransaction).not.toHaveBeenCalled();
-  });
-
-  it("重複した質問IDがある場合、保存せずエラーを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: { id: "user-123" } },
-      error: null,
-    });
-    const answers = createMockAnswers();
-    answers[1] = { ...answers[1], questionId: answers[0].questionId };
-
-    const result = await submitDiagnosis(answers, "brief");
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("回答データが不正です");
-    expect(mockPrismaParticipantFindUnique).not.toHaveBeenCalled();
+    expect(result.error).toMatch(/未回答/);
     expect(mockPrismaTransaction).not.toHaveBeenCalled();
   });
 
@@ -425,13 +353,14 @@ describe("submitDiagnosis", () => {
       error: null,
     });
     const answers = createMockAnswers();
-    answers[0] = { ...answers[0], questionId: "unknown" };
+    answers[0] = { ...answers[0], itemCode: "unknown" };
 
-    const result = await submitDiagnosis(answers, "brief");
+    const result = await submitDiagnosis({
+      answers,
+    });
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe("回答データが不正です");
-    expect(mockPrismaParticipantFindUnique).not.toHaveBeenCalled();
+    expect(result.error).toMatch(/質問が見つかりません/);
     expect(mockPrismaTransaction).not.toHaveBeenCalled();
   });
 
@@ -443,12 +372,46 @@ describe("submitDiagnosis", () => {
     const answers = createMockAnswers();
     answers[0] = { ...answers[0], value: 6 };
 
-    const result = await submitDiagnosis(answers, "brief");
+    const result = await submitDiagnosis({
+      answers,
+    });
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe("回答データが不正です");
-    expect(mockPrismaParticipantFindUnique).not.toHaveBeenCalled();
+    expect(result.error).toMatch(/回答値が不正/);
     expect(mockPrismaTransaction).not.toHaveBeenCalled();
+  });
+
+  it("重複回答がある場合、保存せずエラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    const answers = createMockAnswers();
+    answers[1] = { ...answers[0] };
+
+    const result = await submitDiagnosis({
+      answers,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/重複/);
+    expect(mockPrismaTransaction).not.toHaveBeenCalled();
+  });
+
+  it("DB トランザクション中にエラーが発生した場合、エラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "profile-id" });
+    mockPrismaDiagnosisResultCreate.mockRejectedValue(new Error("Create failed"));
+
+    const result = await submitDiagnosis({
+      answers: createMockAnswers(),
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("予期しないエラーが発生しました");
   });
 
   it("予期しない例外が発生した場合、エラーを返す", async () => {
@@ -456,9 +419,60 @@ describe("submitDiagnosis", () => {
       throw new Error("Connection refused");
     });
 
-    const result = await submitDiagnosis(createMockAnswers(), "brief");
+    const result = await submitDiagnosis({
+      answers: createMockAnswers(),
+    });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("予期しないエラーが発生しました");
+  });
+
+  it("mode: 'brief' の場合、簡易版15項目で採点し scaleCode が簡易版になる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "profile-id" });
+
+    const briefAnswers: DiagnosisAnswer[] = IPIP_BFM_50_JA_BRIEF15.items.map((item) => ({
+      itemCode: item.itemCode,
+      value: 3,
+    }));
+
+    const result = await submitDiagnosis({
+      answers: briefAnswers,
+      mode: "brief",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockPrismaDiagnosisResultCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scaleCode: "ipip-bfm-50-ja-brief15",
+          scaleVersion: IPIP_BFM_50_JA_BRIEF15.scaleVersion,
+          rawScores: {
+            extraversion: 9,
+            agreeableness: 9,
+            conscientiousness: 9,
+            emotionalStability: 9,
+            intellect: 9,
+          },
+        }),
+      })
+    );
+  });
+
+  it("mode: 'brief' で50項目分の回答を渡すと不明な質問としてエラーになる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "user-123" } },
+      error: null,
+    });
+
+    const result = await submitDiagnosis({
+      answers: createMockAnswers(),
+      mode: "brief",
+    });
+
+    expect(result.success).toBe(false);
   });
 });

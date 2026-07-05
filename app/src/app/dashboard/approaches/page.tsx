@@ -146,9 +146,6 @@ export default async function DashboardApproachesPage() {
                           )}
                         </span>
                       )}
-                      {approach.matchScore !== null && (
-                        <span>相性スコア: {Math.round(approach.matchScore)}%</span>
-                      )}
                     </div>
                   </CardContent>
                 </Card>

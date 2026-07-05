@@ -3,8 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import type { BIG5Scores } from "@/lib/personality/types";
-import { calculateMatchScore } from "@/lib/recommendations/matching";
 import {
   buildRecommendedParticipants,
   type RecommendedParticipantCandidate,
@@ -27,7 +25,8 @@ import type {
   RecommendedParticipantDetailResult,
   RecommendedParticipantsResult,
 } from "./types";
-import { PERSONALITY_TYPES } from "@/lib/personality/constants";
+import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import { toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
 import {
   isValidCategory,
   isValidParticipationMode,
@@ -133,7 +132,7 @@ async function fetchPublishedOpportunityRequirements(
 ): Promise<RecommendedParticipantOpportunity[]> {
   return prisma.opportunity.findMany({
     where: { organizationId, status: "published" },
-    select: { id: true, requirementTraits: true, title: true },
+    select: { id: true, activityStyleTags: true, title: true },
   });
 }
 
@@ -152,9 +151,7 @@ async function fetchPublicParticipantCandidates(): Promise<
       availability: true,
       preferredLocation: true,
       publicProfile: true,
-      diagnosisType: true,
-      diagnosisMode: true,
-      diagnosisScores: true,
+      latestDiagnosisResult: { select: { styleTypeId: true, scaledScores: true } },
     },
   });
 }
@@ -174,9 +171,7 @@ async function fetchRecommendedParticipantCandidate(
       availability: true,
       preferredLocation: true,
       publicProfile: true,
-      diagnosisType: true,
-      diagnosisMode: true,
-      diagnosisScores: true,
+      latestDiagnosisResult: { select: { styleTypeId: true, scaledScores: true } },
     },
   });
 }
@@ -231,8 +226,8 @@ export async function fetchRecommendedParticipants(): Promise<RecommendedPartici
 /**
  * 団体向けおすすめ参加者の詳細を取得する。
  *
- * 非公開プロフィール、診断未実施プロフィール、存在しないプロフィールは
- * 参加者なしとして扱う。
+ * 非公開プロフィール・存在しないプロフィールは参加者なしとして扱う。
+ * 診断未実施の参加者も表示する（性格だけで機会を奪わない）。
  */
 export async function fetchRecommendedParticipantDetail(
   participantProfileId: string
@@ -284,15 +279,6 @@ export async function fetchRecommendedParticipantDetail(
     return { participant: null, error: "予期しないエラーが発生しました" };
   }
 }
-
-/** BIG5 特性キーの一覧 */
-const BIG5_TRAIT_KEYS = [
-  "extraversion",
-  "agreeableness",
-  "conscientiousness",
-  "neuroticism",
-  "openness",
-] as const;
 
 /** DATE カラムの値を YYYY-MM-DD に正規化する（ISO タイムスタンプにも対応） */
 function normalizeDateOnly(value: string | null): string | null {
@@ -421,16 +407,10 @@ export async function createOpportunity(
     return { success: false, error: "説明は必須です" };
   }
 
-  // required_traits の構築（BIG5各特性のスコア）
-  const requiredTraits: Record<string, number> = {};
-  for (const trait of BIG5_TRAIT_KEYS) {
-    const value = formData.get(`trait_${trait}`);
-    if (value !== null && value !== "") {
-      const numValue = Number(value);
-      if (!Number.isNaN(numValue) && numValue >= 0 && numValue <= 100) {
-        requiredTraits[trait] = numValue;
-      }
-    }
+  // 活動スタイルタグ・参加要件の取得と検証
+  const matching = parseOpportunityMatchingFields(formData);
+  if ("error" in matching) {
+    return { success: false, error: matching.error };
   }
 
   // 追加項目（場所・日程・定員・カテゴリ・参加形態）の取得と検証
@@ -459,8 +439,7 @@ export async function createOpportunity(
         organization_id: (orgProfile as unknown as { id: string }).id,
         title,
         description,
-        requirement_traits:
-          Object.keys(requiredTraits).length > 0 ? requiredTraits : null,
+        ...matching.data,
         status: "published",
         published_at: now,
         created_at: now,
@@ -480,26 +459,75 @@ export async function createOpportunity(
 }
 
 /**
- * 未知の値が BIG5Scores 型かどうかを実行時に検証するタイプガード
+ * 活動スタイルタグ・参加要件（資格・年齢）のパース結果
  */
-function isBIG5Scores(value: unknown): value is BIG5Scores {
-  if (!value || typeof value !== "object") return false;
-  const obj = value as Record<string, unknown>;
-  return BIG5_TRAIT_KEYS.every((t) => typeof obj[t] === "number");
+interface OpportunityMatchingFields {
+  activity_style_tags: string[] | null;
+  required_qualifications: string[] | null;
+  min_age: number | null;
+  max_age: number | null;
 }
 
 /**
- * データベースの JSONB 値から有効な BIG5 特性キーのみを抽出する。
+ * FormData から活動スタイルタグと参加要件を取得・検証する。
+ * 旧「求める性格特性（BIG5数値）」の入力は廃止した。
  */
-function toPartialBIG5Scores(
-  value: Record<string, unknown>
-): Partial<BIG5Scores> {
-  const result: Partial<BIG5Scores> = {};
-  for (const trait of BIG5_TRAIT_KEYS) {
-    const v = value[trait];
-    if (typeof v === "number") result[trait] = v;
+function parseOpportunityMatchingFields(
+  formData: FormData
+): { data: OpportunityMatchingFields } | { error: string } {
+  const rawTags = formData
+    .getAll("activityStyleTags")
+    .filter((tag): tag is string => typeof tag === "string");
+  const activityStyleTags = toActivityStyleTagIds(rawTags);
+  if (rawTags.length !== activityStyleTags.length) {
+    return { error: "活動スタイルタグの値が正しくありません" };
   }
-  return result;
+  if (activityStyleTags.length > 3) {
+    return { error: "活動スタイルタグは3つまで選択できます" };
+  }
+
+  const rawQualifications = formData.get("requiredQualifications");
+  const requiredQualifications =
+    typeof rawQualifications === "string"
+      ? rawQualifications
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0)
+      : [];
+
+  const parseAge = (key: string): { value: number | null } | { error: string } => {
+    const raw = formData.get(key);
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (!trimmed) return { value: null };
+    const num = Number(trimmed);
+    if (!Number.isInteger(num) || num < 0 || num > 120) {
+      return { error: "年齢要件は0〜120の整数で入力してください" };
+    }
+    return { value: num };
+  };
+
+  const minAge = parseAge("minAge");
+  if ("error" in minAge) return { error: minAge.error };
+  const maxAge = parseAge("maxAge");
+  if ("error" in maxAge) return { error: maxAge.error };
+  if (
+    minAge.value !== null &&
+    maxAge.value !== null &&
+    maxAge.value < minAge.value
+  ) {
+    return { error: "対象年齢の上限は下限以上にしてください" };
+  }
+
+  return {
+    data: {
+      activity_style_tags:
+        activityStyleTags.length > 0 ? activityStyleTags : null,
+      required_qualifications:
+        requiredQualifications.length > 0 ? requiredQualifications : null,
+      min_age: minAge.value,
+      max_age: maxAge.value,
+    },
+  };
 }
 
 /**
@@ -538,7 +566,7 @@ export async function fetchOpportunityForEdit(
     const { data, error: fetchError } = await supabase
       .from("m_opportunity")
       .select(
-        "id, title, description, requirement_traits, status, location, start_date, end_date, capacity, category, participation_mode"
+        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, location, start_date, end_date, capacity, category, participation_mode"
       )
       .eq("id", id)
       .eq("organization_id", (orgProfile as unknown as { id: string }).id)
@@ -552,7 +580,10 @@ export async function fetchOpportunityForEdit(
       id: string;
       title: string;
       description: string | null;
-      requirement_traits: Record<string, number> | null;
+      activity_style_tags: unknown;
+      required_qualifications: unknown;
+      min_age: number | null;
+      max_age: number | null;
       status: OpportunityStatus;
       location: string | null;
       start_date: string | null;
@@ -566,7 +597,14 @@ export async function fetchOpportunityForEdit(
       id: row.id,
       title: row.title,
       description: row.description ?? "",
-      required_traits: row.requirement_traits ?? null,
+      activity_style_tags: toActivityStyleTagIds(row.activity_style_tags),
+      required_qualifications: Array.isArray(row.required_qualifications)
+        ? row.required_qualifications.filter(
+            (item): item is string => typeof item === "string"
+          )
+        : [],
+      min_age: row.min_age ?? null,
+      max_age: row.max_age ?? null,
       status: row.status,
       location: row.location ?? null,
       // DATE カラムは YYYY-MM-DD 形式に正規化（<input type="date"> 用）
@@ -627,16 +665,10 @@ export async function updateOpportunity(
       ? rawStatus
       : undefined;
 
-  // required_traits の構築（BIG5各特性のスコア）
-  const requiredTraits: Record<string, number> = {};
-  for (const trait of BIG5_TRAIT_KEYS) {
-    const value = formData.get(`trait_${trait}`);
-    if (value !== null && value !== "") {
-      const numValue = Number(value);
-      if (!Number.isNaN(numValue) && numValue >= 0 && numValue <= 100) {
-        requiredTraits[trait] = numValue;
-      }
-    }
+  // 活動スタイルタグ・参加要件の取得と検証
+  const matching = parseOpportunityMatchingFields(formData);
+  if ("error" in matching) {
+    return { success: false, error: matching.error };
   }
 
   // 追加項目（場所・日程・定員・カテゴリ・参加形態）の取得と検証
@@ -660,8 +692,7 @@ export async function updateOpportunity(
     const updateData: Record<string, unknown> = {
       title,
       description,
-      requirement_traits:
-        Object.keys(requiredTraits).length > 0 ? requiredTraits : null,
+      ...matching.data,
       ...extra.data,
     };
     if (status) {
@@ -722,7 +753,7 @@ export async function fetchApplicantsForOpportunity(
     // 案件データを取得（自団体の案件であることを確認）
     const { data: oppData, error: oppError } = await supabase
       .from("m_opportunity")
-      .select("id, title, description, status, requirement_traits, created_at")
+      .select("id, title, description, status, created_at")
       .eq("id", opportunityId)
       .eq("organization_id", (orgProfile as unknown as { id: string }).id)
       .single();
@@ -735,10 +766,9 @@ export async function fetchApplicantsForOpportunity(
     const { data: matchingData } = await supabase
       .from("t_matching_candidate")
       .select(
-        "id, status, message, match_score, applied_at, status_changed_at, participant_id"
+        "id, status, message, applied_at, status_changed_at, participant_id"
       )
       .eq("opportunity_id", opportunityId)
-      .order("match_score", { ascending: false, nullsFirst: false })
       .order("applied_at", { ascending: false });
 
     // 参加者プロフィールを別クエリで取得（split-fetch パターン）
@@ -747,47 +777,47 @@ export async function fetchApplicantsForOpportunity(
     );
     const profileMap: Record<
       string,
-      {
-        name: string;
-        diagnosis_type: string | null;
-        diagnosis_scores: Record<string, number> | null;
-      }
+      { name: string; styleTypeLabel: string | null }
     > = {};
 
     if (participantIds.length > 0) {
       const { data: profiles } = await supabase
         .from("m_participant_profile")
-        .select("user_id, name, diagnosis_type, diagnosis_scores")
+        .select("user_id, name, latest_diagnosis_result_id")
         .in("user_id", participantIds);
 
+      // 最新診断の参考タイプIDのみ取得する（生スコアは団体へ開示しない）
+      const diagnosisIds = (profiles ?? [])
+        .map((p) => p.latest_diagnosis_result_id as string | null)
+        .filter((id): id is string => Boolean(id));
+      const styleTypeIdByDiagnosisId: Record<string, string | null> = {};
+      if (diagnosisIds.length > 0) {
+        const { data: diagnoses } = await supabase
+          .from("t_diagnosis_result")
+          .select("id, style_type_id")
+          .in("id", diagnosisIds);
+        for (const d of diagnoses ?? []) {
+          styleTypeIdByDiagnosisId[d.id as string] =
+            (d.style_type_id as string | null) ?? null;
+        }
+      }
+
       for (const p of profiles ?? []) {
+        const diagnosisId = p.latest_diagnosis_result_id as string | null;
+        const styleTypeId = diagnosisId
+          ? (styleTypeIdByDiagnosisId[diagnosisId] ?? null)
+          : null;
         profileMap[p.user_id as string] = {
           name: p.name as string,
-          diagnosis_type: (p.diagnosis_type as string) ?? null,
-          diagnosis_scores:
-            (p.diagnosis_scores as Record<string, number>) ?? null,
+          styleTypeLabel: styleTypeId
+            ? (findStyleTypeById(styleTypeId)?.name ?? null)
+            : null,
         };
       }
     }
 
-    const requiredTraits = (
-      oppData as unknown as {
-        requirement_traits: Record<string, number> | null;
-      }
-    ).requirement_traits;
-
     const applicants: Applicant[] = (matchingData ?? []).map((m) => {
       const profile = profileMap[m.participant_id as string];
-
-      // マッチングスコアを計算（DBの match_score を優先使用）
-      let matchScore: number | null = (m.match_score as number) ?? null;
-      const rawScores = profile?.diagnosis_scores;
-      if (matchScore === null && isBIG5Scores(rawScores) && requiredTraits) {
-        matchScore = calculateMatchScore(
-          rawScores,
-          toPartialBIG5Scores(requiredTraits)
-        );
-      }
 
       return {
         id: m.id as string,
@@ -797,20 +827,11 @@ export async function fetchApplicantsForOpportunity(
         completed_at:
           m.status === "completed" ? (m.status_changed_at as string) : null,
         participant_name: profile?.name ?? "不明",
-        diagnosis_type: profile?.diagnosis_type ?? null,
-        diagnosis_scores: profile?.diagnosis_scores ?? null,
-        match_score: matchScore,
+        style_type_label: profile?.styleTypeLabel ?? null,
       };
     });
 
     applicants.sort((a, b) => {
-      const scoreA = a.match_score ?? Number.NEGATIVE_INFINITY;
-      const scoreB = b.match_score ?? Number.NEGATIVE_INFINITY;
-
-      if (scoreA !== scoreB) {
-        return scoreB - scoreA;
-      }
-
       const appliedAtA = Date.parse(a.created_at);
       const appliedAtB = Date.parse(b.created_at);
       const timeA = Number.isNaN(appliedAtA) ? 0 : appliedAtA;
@@ -829,7 +850,6 @@ export async function fetchApplicantsForOpportunity(
         title: oppData.title as string,
         description: (oppData.description as string) ?? null,
         status: oppData.status as "draft" | "published" | "closed",
-        required_traits: requiredTraits,
         created_at: oppData.created_at as string,
         applicants,
       },
@@ -915,7 +935,6 @@ export async function fetchMatchingHistory(): Promise<MatchingHistoryResult> {
         status: true,
         appliedAt: true,
         statusChangedAt: true,
-        matchScore: true,
         participant: {
           select: {
             name: true,
@@ -949,7 +968,6 @@ export async function fetchMatchingHistory(): Promise<MatchingHistoryResult> {
           opportunity_title: record.opportunity.title,
           applied_at: toNullableIsoString(record.appliedAt),
           status_changed_at: toIsoString(record.statusChangedAt),
-          match_score: record.matchScore,
         },
       ];
     });
@@ -1077,7 +1095,7 @@ export async function fetchApplicantDetail(
     const { data: appData, error: appError } = await supabase
       .from("t_matching_candidate")
       .select(
-        "id, status, message, match_score, applied_at, status_changed_at, opportunity_id, participant_id"
+        "id, status, message, applied_at, status_changed_at, opportunity_id, participant_id"
       )
       .eq("id", applicationId)
       .single();
@@ -1100,7 +1118,7 @@ export async function fetchApplicantDetail(
     // 案件データを取得（自団体の案件であることを確認）
     const { data: oppData, error: oppError } = await supabase
       .from("m_opportunity")
-      .select("id, title, requirement_traits")
+      .select("id, title")
       .eq("id", appData.opportunity_id)
       .eq("organization_id", (orgProfile as unknown as { id: string }).id)
       .single();
@@ -1109,45 +1127,26 @@ export async function fetchApplicantDetail(
       return { data: null, error: "この操作を行う権限がありません" };
     }
 
-    // 参加者プロフィールを個別取得
+    // 参加者プロフィールを個別取得（生スコアは団体へ開示しない）
     const { data: profileData } = await supabase
       .from("m_participant_profile")
-      .select("name, diagnosis_type, diagnosis_scores")
+      .select("name, latest_diagnosis_result_id")
       .eq("user_id", appData.participant_id)
       .single();
 
-    const participant = profileData
-      ? {
-          name: profileData.name as string,
-          diagnosis_type: (profileData.diagnosis_type as string) ?? null,
-          diagnosis_scores:
-            (profileData.diagnosis_scores as Record<string, number>) ?? null,
-        }
-      : null;
-
-    // マッチングスコアを計算
-    const requiredTraits = (
-      oppData as unknown as {
-        requirement_traits: Record<string, number> | null;
-      }
-    ).requirement_traits;
-    let matchScore: number | null = (appData.match_score as number) ?? null;
-    const rawScores = participant?.diagnosis_scores;
-    if (matchScore === null && isBIG5Scores(rawScores) && requiredTraits) {
-      matchScore = calculateMatchScore(
-        rawScores,
-        toPartialBIG5Scores(requiredTraits)
-      );
+    let styleTypeId: string | null = null;
+    const latestDiagnosisId =
+      (profileData?.latest_diagnosis_result_id as string | null) ?? null;
+    if (latestDiagnosisId) {
+      const { data: diagnosisData } = await supabase
+        .from("t_diagnosis_result")
+        .select("style_type_id")
+        .eq("id", latestDiagnosisId)
+        .maybeSingle();
+      styleTypeId = (diagnosisData?.style_type_id as string | null) ?? null;
     }
 
-    // PERSONALITY_TYPES から詳細を引き当て（id 保存を優先し、既存の name 保存にも対応）
-    const diagnosisType = participant?.diagnosis_type ?? null;
-    const typeDetail = diagnosisType
-      ? PERSONALITY_TYPES.find((t) => t.id === diagnosisType) ??
-        PERSONALITY_TYPES.find((t) => t.name === diagnosisType) ??
-        null
-      : null;
-    const diagnosisTypeLabel = typeDetail?.name ?? diagnosisType;
+    const styleType = styleTypeId ? (findStyleTypeById(styleTypeId) ?? null) : null;
 
     return {
       data: {
@@ -1159,19 +1158,17 @@ export async function fetchApplicantDetail(
           appData.status === "completed"
             ? (appData.status_changed_at as string)
             : null,
-        participant_name: participant?.name ?? "不明",
-        diagnosis_type: diagnosisTypeLabel,
-        diagnosis_scores: participant?.diagnosis_scores ?? null,
-        match_score: matchScore,
+        participant_name: (profileData?.name as string) ?? "不明",
+        style_type_label: styleType?.name ?? null,
         opportunity_id: oppData.id as string,
         opportunity_title: oppData.title as string,
-        personality_type_detail: typeDetail
+        style_type_detail: styleType
           ? {
-              name: typeDetail.name,
-              nameEn: typeDetail.nameEn,
-              description: typeDetail.description,
-              strengths: typeDetail.strengths,
-              suitableActivities: typeDetail.suitableActivities,
+              name: styleType.name,
+              nameEn: styleType.nameEn,
+              description: styleType.description,
+              tendencies: styleType.tendencies,
+              activityExamples: styleType.activityExamples,
             }
           : null,
       },
