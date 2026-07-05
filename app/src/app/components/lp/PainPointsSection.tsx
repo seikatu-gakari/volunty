@@ -9,7 +9,7 @@ const PAIN_POINTS = [
   },
   {
     problem: "参加方法などの情報が得られなかった",
-    solution: "相性スコア順に、応募方法までまとめて表示",
+    solution: "あなたに合う順に、応募方法までまとめて表示",
     problemIcon: Info,
     solutionIcon: CheckCircle,
   },

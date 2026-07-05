@@ -1,206 +1,123 @@
 import { describe, expect, it } from "vitest";
 import { buildRecommendedParticipants } from "./recommended-participants";
 
-const completeScores = {
+const neutralScores = {
+  extraversion: 50,
   agreeableness: 50,
   conscientiousness: 50,
-  extraversion: 50,
-  neuroticism: 50,
-  openness: 50,
+  emotionalStability: 50,
+  intellect: 50,
 };
 
+function participant(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "profile-1",
+    userId: "user-1",
+    name: "山田 花子",
+    region: "東京都",
+    interests: ["環境保全"],
+    availability: null,
+    preferredLocation: null,
+    publicProfile: true,
+    latestDiagnosisResult: {
+      styleTypeId: "supporter-care",
+      scaledScores: neutralScores,
+    },
+    ...overrides,
+  };
+}
+
 describe("buildRecommendedParticipants", () => {
-  it("公開済み・診断済み参加者を最高相性の募集案件スコア順で返す", () => {
-    const participants = [
-      {
-        id: "profile-1",
-        userId: "user-1",
-        name: "山田 花子",
-        region: "東京都",
-        interests: ["環境保全"],
-        availability: null,
-        preferredLocation: null,
-        publicProfile: true,
-        diagnosisType: "innovator-leader",
-        diagnosisMode: "brief",
-        diagnosisScores: { ...completeScores, extraversion: 80 },
+  it("活動スタイルタグに適合する参加者が上位になる", () => {
+    const social = participant({
+      id: "profile-social",
+      userId: "user-social",
+      name: "外向 太郎",
+      latestDiagnosisResult: {
+        styleTypeId: "charisma-entertainer",
+        scaledScores: { ...neutralScores, extraversion: 80 },
       },
-      {
-        id: "profile-2",
-        userId: "user-2",
-        name: "佐藤 太郎",
-        region: "神奈川県",
-        interests: ["教育"],
-        availability: null,
-        preferredLocation: null,
-        publicProfile: true,
-        diagnosisType: null,
-        diagnosisMode: null,
-        diagnosisScores: { ...completeScores, extraversion: 70 },
-      },
-    ];
+    });
+    const neutral = participant({
+      id: "profile-neutral",
+      userId: "user-neutral",
+      name: "中間 花子",
+    });
 
     const opportunities = [
       {
         id: "opp-1",
-        title: "落ち着いた事務サポート",
-        requirementTraits: { extraversion: 30 },
-      },
-      {
-        id: "opp-2",
-        title: "イベントリーダー",
-        requirementTraits: { extraversion: 80 },
+        title: "イベント運営スタッフ",
+        activityStyleTags: ["talk-with-new-people"],
       },
     ];
 
-    const result = buildRecommendedParticipants(participants, opportunities);
+    const result = buildRecommendedParticipants([neutral, social], opportunities);
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({
-      id: "profile-1",
-      name: "山田 花子",
-      matchScore: 100,
-      bestOpportunityId: "opp-2",
-      bestOpportunityTitle: "イベントリーダー",
-      interests: ["環境保全"],
-    });
-    expect(result[1]).toMatchObject({
-      id: "profile-2",
-      matchScore: 90,
-      bestOpportunityId: "opp-2",
-    });
+    expect(result[0].id).toBe("profile-social");
+    expect(result[0].bestOpportunityTitle).toBe("イベント運営スタッフ");
+    expect(result[0].matchReasons[0]).toContain("初対面の人と多く話す");
+    expect(result[0].styleTypeLabel).toBe("カリスマ・エンターテイナータイプ");
   });
 
-  it("非公開プロフィールと診断スコア不正の参加者を除外する", () => {
-    const participants = [
-      {
-        id: "profile-public",
-        userId: "user-public",
-        name: "公開 参加者",
-        region: "東京都",
-        interests: [],
-        availability: null,
-        preferredLocation: null,
-        publicProfile: true,
-        diagnosisType: null,
-        diagnosisMode: null,
-        diagnosisScores: completeScores,
-      },
-      {
-        id: "profile-private",
-        userId: "user-private",
-        name: "非公開 参加者",
-        region: "東京都",
-        interests: [],
-        availability: null,
-        preferredLocation: null,
-        publicProfile: false,
-        diagnosisType: null,
-        diagnosisMode: null,
-        diagnosisScores: completeScores,
-      },
-      {
-        id: "profile-invalid",
-        userId: "user-invalid",
-        name: "未診断 参加者",
-        region: "東京都",
-        interests: [],
-        availability: null,
-        preferredLocation: null,
-        publicProfile: true,
-        diagnosisType: null,
-        diagnosisMode: null,
-        diagnosisScores: { extraversion: 70 },
-      },
-    ];
-
-    const result = buildRecommendedParticipants(participants, [
-      {
-        id: "opp-1",
-        title: "環境イベント",
-        requirementTraits: { extraversion: 50 },
-      },
-    ]);
-
-    expect(result.map((participant) => participant.id)).toEqual([
-      "profile-public",
-    ]);
-  });
-
-  it("同点の場合は表示名、プロフィールIDの順で安定ソートする", () => {
-    const participants = [
-      {
-        id: "profile-b",
-        userId: "user-b",
-        name: "Bさん",
-        region: "東京都",
-        interests: [],
-        availability: null,
-        preferredLocation: null,
-        publicProfile: true,
-        diagnosisType: null,
-        diagnosisMode: null,
-        diagnosisScores: completeScores,
-      },
-      {
-        id: "profile-a",
-        userId: "user-a",
-        name: "Aさん",
-        region: "東京都",
-        interests: [],
-        availability: null,
-        preferredLocation: null,
-        publicProfile: true,
-        diagnosisType: null,
-        diagnosisMode: null,
-        diagnosisScores: completeScores,
-      },
-    ];
-
-    const result = buildRecommendedParticipants(participants, [
-      {
-        id: "opp-1",
-        title: "地域イベント",
-        requirementTraits: completeScores,
-      },
-    ]);
-
-    expect(result.map((participant) => participant.id)).toEqual([
-      "profile-a",
-      "profile-b",
-    ]);
-  });
-
-  it("募集案件の要件特性が未指定の場合は既存仕様どおり50点にする", () => {
+  it("生の診断スコアを出力に含めない（団体へ開示しない）", () => {
     const result = buildRecommendedParticipants(
-      [
-        {
-          id: "profile-1",
-          userId: "user-1",
-          name: "山田 花子",
-          region: "東京都",
-          interests: [],
-          availability: null,
-          preferredLocation: null,
-          publicProfile: true,
-          diagnosisType: null,
-          diagnosisMode: null,
-          diagnosisScores: completeScores,
-        },
-      ],
-      [
-        {
-          id: "opp-1",
-          title: "要件未指定の募集",
-          requirementTraits: null,
-        },
-      ]
+      [participant()],
+      [{ id: "opp-1", title: "案件", activityStyleTags: ["empathy-support"] }]
     );
 
-    expect(result[0]).toMatchObject({
-      matchScore: 50,
-      bestOpportunityId: "opp-1",
-      bestOpportunityTitle: "要件未指定の募集",
+    expect(result).toHaveLength(1);
+    expect(result[0]).not.toHaveProperty("diagnosisScores");
+    expect(result[0]).not.toHaveProperty("matchScore");
+  });
+
+  it("未診断の参加者も除外されない（性格で機会を奪わない）", () => {
+    const undiagnosed = participant({
+      id: "profile-undiagnosed",
+      userId: "user-undiagnosed",
+      name: "未診断 次郎",
+      latestDiagnosisResult: null,
     });
+
+    const result = buildRecommendedParticipants(
+      [undiagnosed],
+      [{ id: "opp-1", title: "案件", activityStyleTags: ["empathy-support"] }]
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].styleTypeLabel).toBeNull();
+    expect(result[0].matchReasons[0]).toContain("公開中募集案件");
+  });
+
+  it("非公開プロフィールの参加者は含めない", () => {
+    const hidden = participant({ publicProfile: false });
+
+    const result = buildRecommendedParticipants(
+      [hidden],
+      [{ id: "opp-1", title: "案件", activityStyleTags: [] }]
+    );
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("公開中の募集案件がない場合は空を返す", () => {
+    const result = buildRecommendedParticipants([participant()], []);
+    expect(result).toEqual([]);
+  });
+
+  it("同率の場合は名前 → ID の順で決定的にソートされる", () => {
+    const a = participant({ id: "profile-a", userId: "user-a", name: "あおい" });
+    const b = participant({ id: "profile-b", userId: "user-b", name: "いろは" });
+
+    const opportunities = [
+      { id: "opp-1", title: "案件", activityStyleTags: [] },
+    ];
+
+    const first = buildRecommendedParticipants([b, a], opportunities);
+    const second = buildRecommendedParticipants([b, a], opportunities);
+
+    expect(first.map((p) => p.id)).toEqual(["profile-a", "profile-b"]);
+    expect(first).toEqual(second);
   });
 });

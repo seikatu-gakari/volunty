@@ -57,10 +57,12 @@ describe("LPHeroSection", () => {
     render(<LPHeroSection />);
 
     expect(
-      screen.getByRole("link", { name: /16問でサクッと診断/ }).getAttribute("href"),
-    ).toBe("/diagnosis?mode=brief");
+      screen
+        .getByRole("link", { name: /性格傾向チェックを始める/ })
+        .getAttribute("href"),
+    ).toBe("/diagnosis");
     expect(
-      screen.getByRole("link", { name: /60問の詳細診断/ }).getAttribute("href"),
-    ).toBe("/diagnosis?mode=full");
+      screen.getByRole("link", { name: /募集中の活動を見る/ }).getAttribute("href"),
+    ).toBe("/opportunities");
   });
 });

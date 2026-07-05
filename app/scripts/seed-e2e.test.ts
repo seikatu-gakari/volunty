@@ -23,8 +23,8 @@ const mocks = vi.hoisted(() => ({
   userUpsert: vi.fn(),
   userUpdate: vi.fn(),
   participantProfileUpsert: vi.fn(),
+  participantProfileUpdate: vi.fn(),
   participantProfileDeleteMany: vi.fn(),
-  personalityTypeFindUnique: vi.fn(),
   diagnosisResultFindFirst: vi.fn(),
   diagnosisResultCreate: vi.fn(),
   diagnosisResultDeleteMany: vi.fn(),
@@ -45,9 +45,9 @@ vi.mock("@/lib/prisma", () => ({
     user: { upsert: mocks.userUpsert, update: mocks.userUpdate },
     participantProfile: {
       upsert: mocks.participantProfileUpsert,
+      update: mocks.participantProfileUpdate,
       deleteMany: mocks.participantProfileDeleteMany,
     },
-    personalityType: { findUnique: mocks.personalityTypeFindUnique },
     diagnosisResult: {
       findFirst: mocks.diagnosisResultFindFirst,
       create: mocks.diagnosisResultCreate,
@@ -159,8 +159,8 @@ describe("seedE2eUsers", () => {
     mocks.userUpsert.mockResolvedValue({});
     mocks.userUpdate.mockResolvedValue({});
     mocks.participantProfileUpsert.mockResolvedValue({});
+    mocks.participantProfileUpdate.mockResolvedValue({});
     mocks.participantProfileDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.personalityTypeFindUnique.mockResolvedValue({ id: "ptype-id" });
     mocks.diagnosisResultFindFirst.mockResolvedValue({ id: "diagnosis-id" });
     mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
     mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
@@ -285,8 +285,8 @@ describe("seedE2eUsers", () => {
     });
     mocks.updateUserById.mockResolvedValue({ error: null });
     mocks.userUpsert.mockResolvedValue({});
-    mocks.personalityTypeFindUnique.mockResolvedValue({ id: "ptype-id" });
     mocks.participantProfileUpsert.mockResolvedValue({ id: "participant-profile-id" });
+    mocks.participantProfileUpdate.mockResolvedValue({});
     mocks.diagnosisResultFindFirst.mockResolvedValue(null);
     mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
     mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
@@ -341,8 +341,16 @@ describe("seedE2eUsers", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           userId: "participant-onboarded-id",
-          personalityTypeId: "ptype-id",
+          scaleCode: "ipip-bfm-50-ja",
+          styleTypeId: "supporter-care",
         }),
+      })
+    );
+    // 最新診断結果への参照がプロフィールに設定される
+    expect(mocks.participantProfileUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "participant-onboarded-id" },
+        data: { latestDiagnosisResultId: "diagnosis-id" },
       })
     );
     expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(2);
@@ -364,6 +372,14 @@ describe("seedE2eUsers", () => {
         update: expect.objectContaining({ status: "applied" }),
       })
     );
+    // 旧マッチングスコアは保存しない
+    const candidateCalls = mocks.matchingCandidateUpsert.mock.calls as Array<
+      [{ update: Record<string, unknown>; create: Record<string, unknown> }]
+    >;
+    for (const [args] of candidateCalls) {
+      expect(args.update).not.toHaveProperty("matchScore");
+      expect(args.create).not.toHaveProperty("matchScore");
+    }
     expect(mocks.userUpdate).toHaveBeenCalledWith({
       where: { id: "participant-suspendable-id" },
       data: {

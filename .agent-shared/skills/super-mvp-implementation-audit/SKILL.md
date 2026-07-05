@@ -67,7 +67,7 @@ Volunty の [docs/design/super-mvp-design.md](../../../docs/design/super-mvp-des
 | DB / Prisma | `app/prisma/schema.prisma`, `app/prisma/migrations/**`, `supabase/migrations/**` | テーブル、Enum、リレーション、制約、RLS相当 |
 | Supabase Auth | `app/src/lib/supabase/**`, `app/src/proxy.ts`, `app/src/app/auth/**` | OAuth callback、ユーザー取得、Cookie処理、保護ルート |
 | UIコンポーネント | `app/src/app/**`, `app/src/app/components/**` | フォーム、ボタン、フィルタ、結果表示、応募・承認操作 |
-| ドメインロジック | `app/src/lib/personality/**`, `app/src/lib/recommendations/**` | BIG5計算、タイプ判定、マッチングスコア |
+| ドメインロジック | `app/src/lib/diagnosis-scale/**`, `app/src/lib/diagnosis/**`, `app/src/lib/recommendations/**` | 採点、参考タイプ、ルールベースマッチング |
 | テスト | `app/src/**/*.test.ts`, `app/src/**/*.test.tsx` | 主要ロジック・Actionsのテスト有無 |
 
 ### 3. Super MVP チェックリストで照合する

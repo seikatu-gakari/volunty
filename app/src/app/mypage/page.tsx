@@ -20,7 +20,6 @@ import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
 import { fetchMyPageData } from "@/lib/mypage/actions";
 import type { ApplicationStatus } from "@/lib/mypage/types";
-import { PERSONALITY_TYPES } from "@/lib/personality/constants";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 
 /** ステータスに応じたラベル・アイコン・カラー */
@@ -73,10 +72,10 @@ export default async function MyPage() {
     ? "/mypage/profile/edit"
     : "/onboarding/participant";
   const profileActionLabel = profile ? "編集" : "登録";
-  const diagnosisActionHref = profile?.diagnosis_scores
+  const diagnosisActionHref = profile?.diagnosis_completed
     ? "/diagnosis/result"
     : "/diagnosis";
-  const diagnosisActionLabel = profile?.diagnosis_scores
+  const diagnosisActionLabel = profile?.diagnosis_completed
     ? "診断結果を見る"
     : "性格診断を受ける";
 
@@ -139,11 +138,11 @@ export default async function MyPage() {
                   <span className="shrink-0 text-sm text-text-body">診断結果</span>
                   <div className="ml-auto text-right">
                     <span className="text-sm font-medium text-text-dark">
-                      {profile.diagnosis_type
-                        ? (PERSONALITY_TYPES.find((t) => t.id === profile.diagnosis_type)?.name ?? profile.diagnosis_type)
+                      {profile.diagnosis_completed
+                        ? (profile.diagnosis_style_type_label ?? "診断済み")
                         : "未受診"}
                     </span>
-                    {profile.diagnosis_type && profile.diagnosis_updated_at && (
+                    {profile.diagnosis_completed && profile.diagnosis_answered_at && (
                       <p className="mt-0.5 text-xs text-text-body">
                         {new Intl.DateTimeFormat("sv-SE", {
                           timeZone: "Asia/Tokyo",
@@ -153,7 +152,7 @@ export default async function MyPage() {
                           hour: "2-digit",
                           minute: "2-digit",
                         })
-                          .format(new Date(profile.diagnosis_updated_at))
+                          .format(new Date(profile.diagnosis_answered_at))
                           .replace("T", " ")}
                       </p>
                     )}

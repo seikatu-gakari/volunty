@@ -20,7 +20,6 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchOpportunityDetail } from "@/lib/opportunities/actions";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
-import { TraitVisualization } from "./components/TraitVisualization";
 import { ApplyForm } from "./components/ApplyForm";
 
 /** 応募ステータスに応じたラベル・アイコン・カラー */
@@ -55,10 +54,15 @@ function statusDisplay(status: ApplicationStatus) {
 
 export default async function OpportunityDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ from?: string; rlog?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
+  const viewSource = query?.from === "rec" ? "recommendation" : "direct";
+  const recommendationLogId = query?.rlog ?? null;
 
   // 認証チェック
   let isAuthenticated = false;
@@ -74,8 +78,8 @@ export default async function OpportunityDetailPage({
     redirect("/login");
   }
 
-  const { opportunity, matchScore, existingApplication, isParticipant } =
-    await fetchOpportunityDetail(id);
+  const { opportunity, existingApplication, isParticipant } =
+    await fetchOpportunityDetail(id, viewSource);
 
   // 案件が存在しない場合は 404
   if (!opportunity) {
@@ -118,42 +122,6 @@ export default async function OpportunityDetailPage({
             {new Date(opportunity.created_at).toLocaleDateString("ja-JP")}
           </p>
         </div>
-
-        {/* マッチングスコア（参加者かつ診断済みの場合） */}
-        {matchScore !== null && (
-          <Card className="mb-6">
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <Sparkles className="size-6 text-primary" />
-                <div className="flex flex-1 flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-text-dark">
-                      あなたとの相性
-                    </span>
-                    <span className="text-2xl font-bold text-text-dark">
-                      {matchScore}
-                      <span className="text-sm font-normal text-text-body">
-                        %
-                      </span>
-                    </span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        matchScore >= 80
-                          ? "bg-primary"
-                          : matchScore >= 60
-                            ? "bg-primary-dark"
-                            : "bg-text-body"
-                      }`}
-                      style={{ width: `${matchScore}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* 案件説明 */}
         {opportunity.description && (
@@ -268,27 +236,67 @@ export default async function OpportunityDetailPage({
           </CardContent>
         </Card>
 
-        {/* 求める性格特性 */}
-        {opportunity.required_traits &&
-          Object.keys(opportunity.required_traits).length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
-                    <Brain className="size-5 text-primary" />
-                  </div>
-                  <h2 className="text-lg font-bold text-text-dark">
-                    求める性格特性
-                  </h2>
+        {/* 活動スタイル */}
+        {opportunity.activity_style_labels.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+                  <Brain className="size-5 text-primary" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <TraitVisualization
-                  requiredTraits={opportunity.required_traits}
-                />
-              </CardContent>
-            </Card>
-          )}
+                <h2 className="text-lg font-bold text-text-dark">
+                  この活動のスタイル
+                </h2>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {opportunity.activity_style_labels.map((label) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                  >
+                    <Sparkles className="size-3" />
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-text-body">
+                ※ 活動の進め方の目安です。性格を理由に応募が制限されることはありません。
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 参加要件（必須資格・年齢） */}
+        {(opportunity.required_qualifications.length > 0 ||
+          opportunity.min_age !== null ||
+          opportunity.max_age !== null) && (
+          <Card className="mb-6">
+            <CardHeader>
+              <h2 className="text-lg font-bold text-text-dark">参加要件</h2>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-sm text-text-body">
+                {opportunity.required_qualifications.map((qualification) => (
+                  <li key={qualification} className="flex items-center">
+                    <span className="mr-2 text-primary">•</span>
+                    {qualification}
+                  </li>
+                ))}
+                {(opportunity.min_age !== null || opportunity.max_age !== null) && (
+                  <li className="flex items-center">
+                    <span className="mr-2 text-primary">•</span>
+                    対象年齢:{" "}
+                    {opportunity.min_age !== null ? `${opportunity.min_age}歳` : ""}
+                    〜
+                    {opportunity.max_age !== null ? `${opportunity.max_age}歳` : ""}
+                  </li>
+                )}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
         {/* 応募ステータス表示（応募済みの場合） */}
         {existingApplication && (
@@ -353,7 +361,10 @@ export default async function OpportunityDetailPage({
               </h2>
             </CardHeader>
             <CardContent>
-              <ApplyForm opportunityId={opportunity.id} />
+              <ApplyForm
+                opportunityId={opportunity.id}
+                recommendationLogId={recommendationLogId}
+              />
             </CardContent>
           </Card>
         )}

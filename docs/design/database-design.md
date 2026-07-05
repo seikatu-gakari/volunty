@@ -1,5 +1,12 @@
 # データベース設計書
 
+> **注意（2026-07-05）**: 診断・マッチング関連の記述は再設計により旧仕様です。
+> 現行の正は `app/prisma/schema.prisma` と [personality-matching-redesign.md](./personality-matching-redesign.md) です。
+> 主な変更: `m_personality_type`・`m_diagnosis_question`・`t_diagnosis_answer`・`requirement_traits`・`match_score` は廃止。
+> 新設: `t_diagnosis_result`（バージョン列付き再定義）・`t_diagnosis_response`（同意ベース生回答）・
+> `t_recommendation_log`・`t_engagement_event`・`t_participation_feedback`・`m_opportunity.activity_style_tags` ほか。
+
+
 ## 1. 概要
 
 ### 1.1 目的

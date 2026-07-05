@@ -20,8 +20,14 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toHaveCount(0);
   });
 
-  test("P-6: 案件詳細から団体詳細と公開案件を確認できる", async ({ page }) => {
+  test("P-6: 推薦理由が表示され、案件詳細から団体詳細と公開案件を確認できる", async ({ page }) => {
     await page.goto("/recommendations");
+
+    // 推薦理由チップ（興味分野一致）が日本語で表示される
+    await expect(
+      page.getByText("興味分野「地域活性化」と一致しています").first()
+    ).toBeVisible();
+
     await page
       .getByRole("link", { name: new RegExp(APPLICATION_OPPORTUNITY_TITLE) })
       .click();

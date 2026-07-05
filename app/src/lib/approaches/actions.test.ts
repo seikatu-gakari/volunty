@@ -87,14 +87,7 @@ const publicParticipant = {
   interests: ["環境保全"],
   preferredLocation: "東京都",
   publicProfile: true,
-  diagnosisType: "innovator-leader",
-  diagnosisScores: {
-    extraversion: 80,
-    agreeableness: 60,
-    conscientiousness: 70,
-    neuroticism: 30,
-    openness: 90,
-  },
+  latestDiagnosisResult: { styleTypeId: "innovator-leader" },
 };
 
 const publishedOpportunity = {
@@ -144,7 +137,8 @@ describe("sendApproach", () => {
         status: "published",
       },
       select: expect.objectContaining({
-        requirementTraits: true,
+        id: true,
+        title: true,
       }),
     });
     expect(mockCreateApproach).toHaveBeenCalledWith({
@@ -153,11 +147,15 @@ describe("sendApproach", () => {
         participantProfileId: "participant-profile-1",
         opportunityId: "opportunity-1",
         message: "ぜひ一緒に活動しませんか。",
-        matchScore: 100,
         expiresAt: new Date("2026-06-30T00:00:00.000Z"),
       }),
       select: { id: true },
     });
+    // 旧マッチングスコアは保存しない
+    const createArgs = mockCreateApproach.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(createArgs.data).not.toHaveProperty("matchScore");
   });
 
   it("未承認団体はアプローチを送信できない", async () => {

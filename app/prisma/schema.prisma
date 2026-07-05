@@ -1,5 +1,6 @@
 // Volunty — Prisma スキーマ定義
-// database-design.md に準拠。テーブル命名規則: マスタ系 m_xxx / トランザクション系 t_xxx
+// docs/design/personality-matching-redesign.md に準拠。
+// テーブル命名規則: マスタ系 m_xxx / トランザクション系 t_xxx
 
 generator client {
   provider = "prisma-client"
@@ -48,18 +49,9 @@ enum MatchingStatus {
   accepted // 承認済み
   declined // 辞退・不採用
   completed // 完了
+  cancelled // 参加キャンセル
 
   @@map("matching_status")
-}
-
-/// マッチング手法
-enum MatchingMethod {
-  rule_based    @map("rule-based") // ルールベース
-  collaborative // 協調フィルタリング
-  ai_enhanced   @map("ai-enhanced") // AI強化
-  hybrid // ハイブリッド
-
-  @@map("matching_method")
 }
 
 /// 団体審査ステータス
@@ -89,6 +81,31 @@ enum CertificateStatus {
   @@map("certificate_status")
 }
 
+/// エンゲージメントイベント種別
+enum EngagementEventType {
+  view // 募集詳細の閲覧
+  favorite // お気に入り登録
+
+  @@map("engagement_event_type")
+}
+
+/// エンゲージメントの流入元
+enum EngagementSource {
+  recommendation // 推薦一覧から
+  search // 検索・一覧から
+  direct // 直接アクセス
+
+  @@map("engagement_source")
+}
+
+/// 参加評価の評価者ロール
+enum FeedbackRaterRole {
+  participant // 参加者による団体・活動への評価
+  organization // 団体による参加者への評価
+
+  @@map("feedback_rater_role")
+}
+
 // ============================================
 // マスタテーブル（m_ プレフィックス）
 // ============================================
@@ -115,6 +132,8 @@ model User {
   diagnosisResults    DiagnosisResult[]
   matchingCandidates  MatchingCandidate[]
   certificates        Certificate[]
+  recommendationLogs  RecommendationLog[]
+  engagementEvents    EngagementEvent[]
 
   @@index([email])
   @@index([role])
@@ -122,27 +141,27 @@ model User {
 }
 
 /// 参加者プロフィール — ボランティア参加希望者の詳細情報
+/// 診断結果は t_diagnosis_result に保存し、最新結果への参照のみ持つ
 model ParticipantProfile {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String   @unique @map("user_id") @db.Uuid
-  name              String   @db.VarChar(100)
-  birthday          DateTime @db.Date
-  gender            String?  @db.VarChar(20)
-  bio               String?  @db.Text
-  region            String   @db.VarChar(100) // 居住都道府県（必須）
-  interests         Json? // 興味分野 ["環境保全", "子ども支援"]
-  diagnosisType     String?  @map("diagnosis_type") @db.VarChar(100) // 診断後に自動保存
-  diagnosisScores   Json?    @map("diagnosis_scores") // 診断後に自動保存
-  diagnosisMode     String?  @map("diagnosis_mode") @db.VarChar(20) // brief / full
-  availability      Json? // {"weekdays": ["土", "日"], "time": "午前"}
-  preferredLocation String?  @map("preferred_location") @db.VarChar(100)
-  publicProfile     Boolean  @default(true) @map("public_profile")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String   @unique @map("user_id") @db.Uuid
+  name                    String   @db.VarChar(100)
+  birthday                DateTime @db.Date
+  gender                  String?  @db.VarChar(20)
+  bio                     String?  @db.Text
+  region                  String   @db.VarChar(100) // 居住都道府県（必須）
+  interests               Json? // 興味分野 ["環境保全", "子ども支援"]
+  latestDiagnosisResultId String?  @unique @map("latest_diagnosis_result_id") @db.Uuid
+  availability            Json? // {"weekdays": ["土", "日"], "time": "午前"}
+  preferredLocation       String?  @map("preferred_location") @db.VarChar(100)
+  publicProfile           Boolean  @default(true) @map("public_profile")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
 
   // リレーション
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  approaches Approach[]
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  latestDiagnosisResult DiagnosisResult? @relation("LatestDiagnosis", fields: [latestDiagnosisResultId], references: [id], onDelete: SetNull)
+  approaches            Approach[]
 
   @@index([preferredLocation])
   @@map("m_participant_profile")
@@ -183,51 +202,37 @@ model OrganizationProfile {
   @@map("m_organization_profile")
 }
 
-/// 人物タイプマスタ — BIG5 から判定される10人物タイプの定義
-model PersonalityType {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  typeId             String   @unique @map("type_id") @db.VarChar(50)
-  nameJa             String   @map("name_ja") @db.VarChar(100)
-  nameEn             String   @map("name_en") @db.VarChar(100)
-  description        String?  @db.Text
-  criteria           Json // {"extraversion": {"min": 75}, ...}
-  priority           Int
-  strengths          Json? // ["プロジェクトリーダー", "企画立案"]
-  suitableActivities Json?    @map("suitable_activities") // ["イベント統括", ...]
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  // リレーション
-  diagnosisResults DiagnosisResult[]
-
-  @@index([priority])
-  @@map("m_personality_type")
-}
-
 /// 募集案件 — 団体が投稿するボランティア募集情報
+/// 旧 requirement_traits（求める性格特性の数値）は廃止し、
+/// 活動スタイルタグ（加点のみ）とハード条件（資格・年齢）に分離した
 model Opportunity {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId    String            @map("organization_id") @db.Uuid
-  title             String            @db.VarChar(255)
-  description       String?           @db.Text
-  requirementTraits Json?             @map("requirement_traits") // 求める性格特性
-  location          String?           @db.VarChar(255)
-  startDate         DateTime?         @map("start_date") @db.Date
-  endDate           DateTime?         @map("end_date") @db.Date
-  capacity          Int?
-  category          String?           @db.VarChar(50) // カテゴリ
-  participationMode ParticipationMode? @map("participation_mode") // 参加形態
-  currentApplicants Int               @default(0) @map("current_applicants")
-  status            OpportunityStatus @default(draft)
-  publishedAt       DateTime?         @map("published_at")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String             @map("organization_id") @db.Uuid
+  title                  String             @db.VarChar(255)
+  description            String?            @db.Text
+  activityStyleTags      Json?              @map("activity_style_tags") // 活動スタイルタグID配列（最大3・加点のみ）
+  requiredQualifications Json?              @map("required_qualifications") // 必須資格（表示用。応募判断は団体が行う）
+  minAge                 Int?               @map("min_age") // 法的・安全上必要な場合のみ設定
+  maxAge                 Int?               @map("max_age") // 法的・安全上必要な場合のみ設定
+  location               String?            @db.VarChar(255)
+  startDate              DateTime?          @map("start_date") @db.Date
+  endDate                DateTime?          @map("end_date") @db.Date
+  capacity               Int?
+  category               String?            @db.VarChar(50) // カテゴリ
+  participationMode      ParticipationMode? @map("participation_mode") // 参加形態
+  currentApplicants      Int                @default(0) @map("current_applicants")
+  status                 OpportunityStatus  @default(draft)
+  publishedAt            DateTime?          @map("published_at")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
 
   // リレーション
   organization       OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   matchingCandidates MatchingCandidate[]
   approaches         Approach[]
   certificates       Certificate[]
+  recommendationLogs RecommendationLog[]
+  engagementEvents   EngagementEvent[]
 
   @@index([status])
   @@index([publishedAt])
@@ -239,57 +244,144 @@ model Opportunity {
 // トランザクションテーブル（t_ プレフィックス）
 // ============================================
 
-/// 診断結果 — 参加者の BIG5 診断結果と判定された人物タイプ
+/// 診断結果 — BIG5 の連続スコアを主結果として保存する
+/// 尺度・採点・標準化・参考タイプの各バージョンを必ず保存し、
+/// 同じ回答と同じバージョンから常に同じ結果を再計算できるようにする
 model DiagnosisResult {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId              String   @map("user_id") @db.Uuid
-  personalityTypeId   String?  @map("personality_type_id") @db.Uuid
-  big5Scores          Json     @map("big5_scores") // {"extraversion": 85, "agreeableness": 70, ...}
-  diagnosisMode       String   @default("brief") @map("diagnosis_mode") @db.VarChar(20)
-  closestTypeDistance Float?   @map("closest_type_distance")
-  concludedAt         DateTime @default(now()) @map("concluded_at")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String   @map("user_id") @db.Uuid
+  scaleCode               String   @map("scale_code") @db.VarChar(50) // 例: ipip-bfm-50-ja
+  scaleVersion            String   @map("scale_version") @db.VarChar(20)
+  scoringAlgorithmVersion String   @map("scoring_algorithm_version") @db.VarChar(20)
+  normsVersion            String?  @map("norms_version") @db.VarChar(20) // 日本人標準化データがないため当面 null
+  styleTypeVersion        String   @map("style_type_version") @db.VarChar(20)
+  qualityRuleVersion      String   @map("quality_rule_version") @db.VarChar(20)
+  rawScores               Json     @map("raw_scores") // {"extraversion": 34, ...} ドメイン合計（整数）
+  scaledScores            Json     @map("scaled_scores") // {"extraversion": 60.0, ...} 表示用 0-100
+  styleTypeId             String?  @map("style_type_id") @db.VarChar(50) // 参考タイプID（コード定数のキー）
+  qualityFlags            Json     @map("quality_flags") // ["too_fast", ...] 空配列可
+  totalDurationMs         Int?     @map("total_duration_ms")
+  resumedCount            Int      @default(0) @map("resumed_count")
+  answeredAt              DateTime @default(now()) @map("answered_at")
+  createdAt               DateTime @default(now()) @map("created_at")
 
   // リレーション
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  personalityType    PersonalityType?    @relation(fields: [personalityTypeId], references: [id], onDelete: SetNull)
-  matchingCandidates MatchingCandidate[]
+  responses          DiagnosisResponse[]
+  latestForProfile   ParticipantProfile? @relation("LatestDiagnosis")
+  recommendationLogs RecommendationLog[]
 
   @@index([userId])
-  @@index([personalityTypeId])
-  @@index([concludedAt])
+  @@index([answeredAt])
   @@map("t_diagnosis_result")
 }
 
-/// マッチング候補 — 参加者と募集案件のマッチング・応募状態を管理
-model MatchingCandidate {
-  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  participantId     String         @map("participant_id") @db.Uuid
-  opportunityId     String         @map("opportunity_id") @db.Uuid
-  diagnosisResultId String?        @map("diagnosis_result_id") @db.Uuid
-  matchScore        Float          @map("match_score")
-  scoreBreakdown    Json?          @map("score_breakdown") // {"ruleBasedScore": 75, ...}
-  status            MatchingStatus @default(queued)
-  method            MatchingMethod @default(rule_based)
-  message           String?        @db.Text // 応募メッセージ
-  appliedAt         DateTime?      @map("applied_at")
-  statusChangedAt   DateTime       @default(now()) @map("status_changed_at")
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
+/// 診断の生回答 — 同意がある場合のみ保存する
+/// 保存目的: 回答品質の検証と、日本語版尺度の信頼性・因子構造の自社検証
+/// アカウント削除・診断結果削除で連鎖削除される
+model DiagnosisResponse {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  diagnosisResultId String   @map("diagnosis_result_id") @db.Uuid
+  itemCode          String   @map("item_code") @db.VarChar(50)
+  value             Int // 1-5
+  elapsedMs         Int?     @map("elapsed_ms")
+  changedCount      Int?     @map("changed_count")
+  createdAt         DateTime @default(now()) @map("created_at")
 
   // リレーション
-  participant     User             @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  opportunity     Opportunity      @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  diagnosisResult DiagnosisResult? @relation(fields: [diagnosisResultId], references: [id], onDelete: SetNull)
-  certificate     Certificate?
+  diagnosisResult DiagnosisResult @relation(fields: [diagnosisResultId], references: [id], onDelete: Cascade)
+
+  @@unique([diagnosisResultId, itemCode])
+  @@index([diagnosisResultId])
+  @@map("t_diagnosis_response")
+}
+
+/// 推薦ログ — 推薦の生成・表示を記録し、マッチング精度を将来評価可能にする
+model RecommendationLog {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  opportunityId       String   @map("opportunity_id") @db.Uuid
+  rank                Int // 表示順位（1始まり）
+  totalScore          Float    @map("total_score") // 0-1
+  ruleContributions   Json     @map("rule_contributions") // ルール別寄与
+  reasons             Json // 表示した推薦理由
+  matchingRuleVersion String   @map("matching_rule_version") @db.VarChar(20)
+  diagnosisResultId   String?  @map("diagnosis_result_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  // リレーション
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity        Opportunity         @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  diagnosisResult    DiagnosisResult?    @relation(fields: [diagnosisResultId], references: [id], onDelete: SetNull)
+  matchingCandidates MatchingCandidate[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([opportunityId])
+  @@map("t_recommendation_log")
+}
+
+/// エンゲージメントイベント — 閲覧・お気に入りを流入元とともに記録する
+model EngagementEvent {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String              @map("user_id") @db.Uuid
+  opportunityId String              @map("opportunity_id") @db.Uuid
+  event         EngagementEventType
+  source        EngagementSource
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  // リレーション
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([opportunityId, event])
+  @@map("t_engagement_event")
+}
+
+/// マッチング候補 — 参加者と募集案件の応募状態を管理
+/// 旧 match_score / score_breakdown / method は廃止。
+/// どの推薦から応募に至ったかは recommendation_log_id で追跡する
+model MatchingCandidate {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  participantId       String         @map("participant_id") @db.Uuid
+  opportunityId       String         @map("opportunity_id") @db.Uuid
+  recommendationLogId String?        @map("recommendation_log_id") @db.Uuid
+  status              MatchingStatus @default(queued)
+  message             String?        @db.Text // 応募メッセージ
+  appliedAt           DateTime?      @map("applied_at")
+  statusChangedAt     DateTime       @default(now()) @map("status_changed_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  // リレーション
+  participant       User               @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  opportunity       Opportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  recommendationLog RecommendationLog? @relation(fields: [recommendationLogId], references: [id], onDelete: SetNull)
+  certificate       Certificate?
+  feedbacks         ParticipationFeedback[]
 
   @@unique([participantId, opportunityId])
   @@index([status])
   @@index([participantId])
   @@index([opportunityId])
-  @@index([matchScore(sort: Desc)])
   @@map("t_matching_candidate")
+}
+
+/// 参加評価 — 参加完了後の相互評価（参加者→活動 / 団体→参加者）
+model ParticipationFeedback {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String            @map("application_id") @db.Uuid
+  raterRole     FeedbackRaterRole @map("rater_role")
+  rating        Int // 1-5
+  comment       String?           @db.Text
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  // リレーション
+  application MatchingCandidate @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, raterRole])
+  @@index([applicationId])
+  @@map("t_participation_feedback")
 }
 
 /// アプローチ — 団体から参加者へのアプローチ文と回答状態を管理
@@ -299,7 +391,6 @@ model Approach {
   participantProfileId String         @map("participant_profile_id") @db.Uuid
   opportunityId        String         @map("opportunity_id") @db.Uuid
   message              String         @db.Text
-  matchScore           Float?         @map("match_score")
   status               ApproachStatus @default(sent)
   expiresAt            DateTime       @map("expires_at")
   respondedAt          DateTime?      @map("responded_at")
@@ -339,10 +430,10 @@ model Certificate {
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
   // リレーション
-  application  MatchingCandidate  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  participant  User               @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  application  MatchingCandidate   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  participant  User                @relation(fields: [participantId], references: [id], onDelete: Cascade)
   organization OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  opportunity  Opportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunity  Opportunity         @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([participantId])

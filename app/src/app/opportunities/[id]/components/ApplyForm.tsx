@@ -6,6 +6,8 @@ import { applyToOpportunity } from "@/lib/opportunities/actions";
 
 interface ApplyFormProps {
   opportunityId: string;
+  /** どの推薦から応募に至ったかの追跡用（推薦一覧経由の場合のみ） */
+  recommendationLogId?: string | null;
 }
 
 /**
@@ -15,7 +17,7 @@ interface ApplyFormProps {
  * - 「応募する」ボタンで応募を送信
  * - 送信中・送信完了・エラーの状態を管理
  */
-export function ApplyForm({ opportunityId }: ApplyFormProps) {
+export function ApplyForm({ opportunityId, recommendationLogId }: ApplyFormProps) {
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{
@@ -27,7 +29,11 @@ export function ApplyForm({ opportunityId }: ApplyFormProps) {
     e.preventDefault();
 
     startTransition(async () => {
-      const res = await applyToOpportunity(opportunityId, message);
+      const res = await applyToOpportunity(
+        opportunityId,
+        message,
+        recommendationLogId ?? null
+      );
       setResult(res);
     });
   }

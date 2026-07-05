@@ -5,8 +5,14 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  IPIP_BFM_50_JA,
+  NORMS_VERSION,
+  SCORING_ALGORITHM_VERSION,
+} from "@/lib/diagnosis-scale/scale";
+import { QUALITY_RULE_VERSION } from "@/lib/diagnosis-scale/quality";
+import { STYLE_TYPE_VERSION } from "@/lib/diagnosis-scale/style-types";
 import {
   PERSONAS,
   type Persona,
@@ -15,13 +21,22 @@ import {
 
 config({ path: resolve(process.cwd(), ".env.local"), quiet: true });
 
-const BIG5_SCORES = {
-  extraversion: 65,
-  agreeableness: 82,
-  conscientiousness: 60,
-  neuroticism: 35,
-  openness: 55,
+// supporter-care タイプの代表プロファイルに近い診断スコア（scaled 0-100 / raw 10-50）
+const SCALED_SCORES = {
+  extraversion: 70,
+  agreeableness: 90,
+  conscientiousness: 50,
+  emotionalStability: 70,
+  intellect: 50,
 };
+const RAW_SCORES = {
+  extraversion: 38,
+  agreeableness: 46,
+  conscientiousness: 30,
+  emotionalStability: 38,
+  intellect: 30,
+};
+const STYLE_TYPE_ID = "supporter-care";
 
 const ORGANIZATION_FLOW_OPPORTUNITY_TITLE = "E2E 団体フロー案件";
 const PARTICIPANT_APPLICATION_OPPORTUNITY_TITLE = "E2E 応募対象案件";
@@ -41,6 +56,7 @@ interface OpportunitySeedOptions {
   category?: string;
   participationMode?: "online" | "offline" | "hybrid";
   currentApplicants?: number;
+  activityStyleTags?: string[];
 }
 
 function buildUserMetadata(
@@ -83,7 +99,7 @@ async function upsertPublishedOpportunity(
     organizationId,
     title,
     description,
-    requirementTraits: BIG5_SCORES,
+    activityStyleTags: options.activityStyleTags ?? ["empathy-support"],
     location: options.location ?? "東京都",
     capacity: 20,
     category: options.category ?? "地域活性化",
@@ -109,6 +125,41 @@ async function upsertPublishedOpportunity(
   return created.id;
 }
 
+/**
+ * 診断済み persona 用の診断結果を確保し、プロフィールの最新参照を設定する。
+ * 生回答（t_diagnosis_response）はE2E前提データでは保存しない。
+ */
+async function ensureDiagnosisResult(userId: string): Promise<string> {
+  let diagnosisResult = await prisma.diagnosisResult.findFirst({
+    where: { userId },
+    orderBy: { answeredAt: "desc" },
+    select: { id: true },
+  });
+  if (!diagnosisResult) {
+    diagnosisResult = await prisma.diagnosisResult.create({
+      data: {
+        userId,
+        scaleCode: IPIP_BFM_50_JA.scaleCode,
+        scaleVersion: IPIP_BFM_50_JA.scaleVersion,
+        scoringAlgorithmVersion: SCORING_ALGORITHM_VERSION,
+        normsVersion: NORMS_VERSION,
+        styleTypeVersion: STYLE_TYPE_VERSION,
+        qualityRuleVersion: QUALITY_RULE_VERSION,
+        rawScores: RAW_SCORES,
+        scaledScores: SCALED_SCORES,
+        styleTypeId: STYLE_TYPE_ID,
+        qualityFlags: [],
+      },
+      select: { id: true },
+    });
+  }
+  await prisma.participantProfile.update({
+    where: { userId },
+    data: { latestDiagnosisResultId: diagnosisResult.id },
+  });
+  return diagnosisResult.id;
+}
+
 async function upsertMatchingCandidate({
   participantId,
   opportunityId,
@@ -126,7 +177,6 @@ async function upsertMatchingCandidate({
       participantId_opportunityId: { participantId, opportunityId },
     },
     update: {
-      matchScore: 80,
       status,
       appliedAt: now,
       statusChangedAt: now,
@@ -135,7 +185,6 @@ async function upsertMatchingCandidate({
     create: {
       participantId,
       opportunityId,
-      matchScore: 80,
       status,
       appliedAt: now,
       statusChangedAt: now,
@@ -238,22 +287,19 @@ export async function seedE2eUsers(): Promise<void> {
       name: "E2E 参加者(診断済)",
       birthday: new Date("1995-04-01"),
       region: "東京都",
+      interests: ["地域活性化"],
       publicProfile: true,
-      diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
-      diagnosisMode: "brief",
     },
     create: {
       userId: onboardedId,
       name: "E2E 参加者(診断済)",
       birthday: new Date("1995-04-01"),
       region: "東京都",
+      interests: ["地域活性化"],
       publicProfile: true,
-      diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
-      diagnosisMode: "brief",
     },
   });
+  await ensureDiagnosisResult(onboardedId);
 
   await prisma.participantProfile.upsert({
     where: { userId: diagnosisId },
@@ -262,9 +308,6 @@ export async function seedE2eUsers(): Promise<void> {
       birthday: new Date("1996-05-02"),
       region: "東京都",
       publicProfile: true,
-      diagnosisType: null,
-      diagnosisScores: Prisma.JsonNull,
-      diagnosisMode: null,
     },
     create: {
       userId: diagnosisId,
@@ -274,6 +317,7 @@ export async function seedE2eUsers(): Promise<void> {
       publicProfile: true,
     },
   });
+  // 診断専用 persona は毎回未診断状態から開始する（削除により最新参照も自動で null になる）
   await prisma.diagnosisResult.deleteMany({ where: { userId: diagnosisId } });
 
   const lifecycleProfile = await prisma.participantProfile.upsert({
@@ -283,9 +327,6 @@ export async function seedE2eUsers(): Promise<void> {
       birthday: new Date("1994-06-03"),
       region: "東京都",
       publicProfile: true,
-      diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
-      diagnosisMode: "brief",
     },
     create: {
       userId: lifecycleId,
@@ -293,11 +334,9 @@ export async function seedE2eUsers(): Promise<void> {
       birthday: new Date("1994-06-03"),
       region: "東京都",
       publicProfile: true,
-      diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
-      diagnosisMode: "brief",
     },
   });
+  await ensureDiagnosisResult(lifecycleId);
 
   await prisma.participantProfile.upsert({
     where: { userId: deleteId },
@@ -315,27 +354,8 @@ export async function seedE2eUsers(): Promise<void> {
       publicProfile: false,
     },
   });
-
-  const personalityType = await prisma.personalityType.findUnique({
-    where: { typeId: "supporter-care" },
-    select: { id: true },
-  });
-  let diagnosisResult = await prisma.diagnosisResult.findFirst({
-    where: { userId: onboardedId },
-    orderBy: { concludedAt: "desc" },
-    select: { id: true },
-  });
-  if (!diagnosisResult) {
-    diagnosisResult = await prisma.diagnosisResult.create({
-      data: {
-        userId: onboardedId,
-        personalityTypeId: personalityType?.id ?? null,
-        big5Scores: BIG5_SCORES,
-        diagnosisMode: "brief",
-      },
-      select: { id: true },
-    });
-  }
+  // アカウント削除E2Eで診断データの連鎖削除を検証するため、診断結果を付与する
+  await ensureDiagnosisResult(deleteId);
 
   const approvedOrganization = await prisma.organizationProfile.upsert({
     where: { userId: orgApprovedId },
@@ -422,8 +442,6 @@ export async function seedE2eUsers(): Promise<void> {
       },
     },
     update: {
-      diagnosisResultId: diagnosisResult.id,
-      matchScore: 80,
       status: "applied",
       appliedAt: new Date(),
       statusChangedAt: new Date(),
@@ -432,8 +450,6 @@ export async function seedE2eUsers(): Promise<void> {
     create: {
       participantId: onboardedId,
       opportunityId: organizationFlowOpportunityId,
-      diagnosisResultId: diagnosisResult.id,
-      matchScore: 80,
       status: "applied",
       appliedAt: new Date(),
       message: "E2E 応募メッセージ",
@@ -496,7 +512,6 @@ export async function seedE2eUsers(): Promise<void> {
       },
       update: {
         message: `${title}のE2Eアプローチ文です。`,
-        matchScore: 80,
         status: "sent",
         expiresAt,
         respondedAt: null,
@@ -506,7 +521,6 @@ export async function seedE2eUsers(): Promise<void> {
         participantProfileId: lifecycleProfile.id,
         opportunityId,
         message: `${title}のE2Eアプローチ文です。`,
-        matchScore: 80,
         status: "sent",
         expiresAt,
       },

@@ -1,5 +1,10 @@
 # E2E スモークスイート（@playwright/test）+ `make e2e` 自動実行 — 実装仕様
 
+> **注意（2026-07-05）**: 本書は導入時の実装計画であり、コード例の一部（`diagnosisType`/`diagnosisScores`/`personalityType`/16問モード等）は
+> 診断・マッチング再設計により旧仕様です。現行の正は `app/scripts/seed-e2e.ts` と `app/e2e/*.spec.ts` を参照してください
+> （現行: IPIP-BFM-50 全50問・単一モード・`latest_diagnosis_result_id` 参照）。
+
+
 > **位置づけ**: 本仕様は [`e2e-auth-bypass.md`](./e2e-auth-bypass.md) の「将来拡張」（`@playwright/test` 導入 + `globalSetup` + `storageState` + プロフィール seed）を実装するもの。
 > **目的**: 現在の主要機能をフロー単位でカバーする E2E スモークスイートを構築し、`make e2e` 一発で `Supabase 起動 → seed → dev サーバー自動起動 → テスト実行 → HTML レポート` まで無人実行できるようにする。
 > **対象環境**: ローカル Supabase のみ（本番・Vercel Preview への影響ゼロを維持する）。

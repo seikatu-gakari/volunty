@@ -76,40 +76,37 @@ export default async function RecommendationsPage({
         <div className="mb-8 flex flex-col gap-2">
           <h1 className="text-3xl font-bold text-text-dark">おすすめ案件</h1>
           <p className="text-sm text-text-body">
-            あなたの性格特性に合ったボランティア活動をご提案します
+            興味分野・地域・日程などをもとに、性格の傾向も一部参考にして並べています。
+            性格だけでおすすめを決めることはありません。
           </p>
         </div>
 
-        {hasCompletedDiagnosis && (
-          <RecommendationFiltersForm filters={filters} />
-        )}
+        <RecommendationFiltersForm filters={filters} />
 
-        {/* 診断未実施の場合 */}
+        {/* 診断未実施の場合の案内（未診断でもおすすめは表示される） */}
         {!hasCompletedDiagnosis && (
-          <div className="flex flex-col items-center gap-6 rounded-[10px] border border-card-border bg-white px-8 py-12 text-center shadow-sm">
-            <Brain className="size-16 text-primary" />
-            <div className="flex flex-col gap-2">
-              <h2 className="text-xl font-bold text-text-dark">
-                まずは性格診断を受けましょう
-              </h2>
-              <p className="text-sm leading-6 text-text-body">
-                あなたに合ったボランティア活動を提案するために、
-                <br />
-                BIG5 性格診断を実施してください。
+          <div className="mb-6 flex items-center gap-4 rounded-[10px] border border-card-border bg-white px-6 py-4 shadow-sm">
+            <Brain className="size-8 shrink-0 text-primary" />
+            <div className="flex flex-1 flex-col gap-1">
+              <p className="text-sm font-medium text-text-dark">
+                性格診断を受けると、あなたの傾向もおすすめの参考に加わります
+              </p>
+              <p className="text-xs text-text-body">
+                診断を受けなくても案件の閲覧・応募はできます。
               </p>
             </div>
             <Link
               href="/diagnosis"
-              className="flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-medium text-white hover:bg-primary-dark"
+              className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-primary px-4 text-xs font-medium text-white hover:bg-primary-dark"
             >
-              <Sparkles className="size-5" />
+              <Sparkles className="size-4" />
               診断を始める
             </Link>
           </div>
         )}
 
-        {/* 診断済みだが案件がない場合 */}
-        {hasCompletedDiagnosis && recommendations.length === 0 && (
+        {/* 案件がない場合 */}
+        {recommendations.length === 0 && (
           <div className="flex flex-col items-center gap-4 rounded-[10px] border border-card-border bg-white px-8 py-12 text-center shadow-sm">
             <p className="text-base text-text-body">
               {hasActiveFilters
@@ -120,7 +117,7 @@ export default async function RecommendationsPage({
         )}
 
         {/* おすすめ案件一覧 */}
-        {hasCompletedDiagnosis && recommendations.length > 0 && (
+        {recommendations.length > 0 && (
           <div className="flex flex-col gap-4">
             {recommendations.map((recommendation) => (
               <OpportunityCard

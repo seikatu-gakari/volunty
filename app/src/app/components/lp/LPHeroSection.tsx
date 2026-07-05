@@ -20,7 +20,7 @@ const TRUST_ITEMS = [
 
 const MATCH_POINTS = [
   "BIG5の強みを可視化",
-  "相性スコア順に活動を提案",
+  "あなたに合う順に活動を提案",
   "参加前の不安を減らす導線",
 ] as const;
 
@@ -31,18 +31,18 @@ export function LPHeroSection() {
         <div className="relative z-10 max-w-2xl lg:col-start-1 lg:row-start-1">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-bold text-primary-dark shadow-sm ring-1 ring-card-border">
             <Brain className="size-4" />
-            AI × 性格診断 × ボランティア
+            性格傾向 × ボランティアマッチング
           </div>
 
           <div className="mb-6 flex flex-wrap gap-3">
             <span className="inline-flex animate-[float_6s_ease-in-out_infinite] items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-primary-dark ring-1 ring-card-border">
-              <Brain className="size-4" /> 本格性格診断
+              <Brain className="size-4" /> 性格傾向チェック
             </span>
             <span className="inline-flex animate-[float_6s_ease-in-out_1s_infinite] items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-primary-dark ring-1 ring-card-border">
-              <Target className="size-4" /> 相性スコア
+              <Target className="size-4" /> おすすめ理由の見える化
             </span>
             <span className="inline-flex animate-[float_6s_ease-in-out_2s_infinite] items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-primary-dark ring-1 ring-card-border">
-              <Sparkles className="size-4" /> AI分析
+              <Sparkles className="size-4" /> 興味×傾向マッチング
             </span>
           </div>
 
@@ -54,7 +54,7 @@ export function LPHeroSection() {
             </span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-8 text-text-body">
-            「何から始めればいい？」をAIが解決。約2分の性格診断で、あなたの強みと活動の相性を見える化します。
+            「何から始めればいい？」に寄り添うボランティアマッチング。約5〜8分の性格傾向チェックと興味分野で、あなたに合う活動を探しやすくします。
           </p>
         </div>
 
@@ -87,20 +87,19 @@ export function LPHeroSection() {
 
         <div className="relative z-10 mt-4 flex flex-col gap-4 sm:flex-row sm:gap-5 lg:col-start-1 lg:row-start-3">
           <Link
-            href="/diagnosis?mode=brief"
+            href="/diagnosis"
             className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 text-base font-bold text-white shadow-md transition-all hover:bg-primary-dark hover:shadow-lg sm:w-auto"
           >
             <Zap className="size-5" />
-            <span className="whitespace-nowrap">16問でサクッと診断</span>
-            <span className="ml-1 hidden text-xs font-normal opacity-75 2xl:inline">約2分・無料</span>
+            <span className="whitespace-nowrap">性格傾向チェックを始める</span>
+            <span className="ml-1 hidden text-xs font-normal opacity-75 2xl:inline">全50問・約5〜8分・無料</span>
             <ArrowRight className="ml-1 size-5" />
           </Link>
           <Link
-            href="/diagnosis?mode=full"
+            href="/opportunities"
             className="flex h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-white/75 px-8 text-base font-bold text-text-dark transition-all hover:bg-white sm:w-auto"
           >
-            <span className="whitespace-nowrap">60問の詳細診断</span>
-            <span className="ml-1 hidden text-xs font-normal opacity-75 2xl:inline">約8〜10分</span>
+            <span className="whitespace-nowrap">募集中の活動を見る</span>
           </Link>
         </div>
 

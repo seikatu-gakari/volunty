@@ -14,10 +14,12 @@ export interface ParticipantProfile {
   id: string;
   name: string;
   region: string;
-  diagnosis_type: string | null;
-  diagnosis_scores: Record<string, number> | null;
-  /** 診断実施日時（ISO 8601 文字列）。未受診または取得不可の場合は null */
-  diagnosis_updated_at: string | null;
+  /** 診断済みかどうか */
+  diagnosis_completed: boolean;
+  /** 活動スタイルの参考タイプ名（未診断または不明の場合は null） */
+  diagnosis_style_type_label: string | null;
+  /** 診断実施日時（ISO 8601 文字列）。未受診の場合は null */
+  diagnosis_answered_at: string | null;
 }
 
 /** 応募に紐づく募集案件情報（opportunities テーブル） */

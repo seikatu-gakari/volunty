@@ -1,4 +1,5 @@
-// Prisma シードスクリプト — 人物タイプマスタデータ + テスト用案件データの投入
+// Prisma シードスクリプト — テスト用団体・募集案件データの投入
+// 旧「人物タイプマスタ」は廃止（参考タイプはコード定数 src/lib/diagnosis-scale/style-types.ts で管理）
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -8,197 +9,8 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
-// 10類型の人物タイプマスタデータ（constants.ts と同期）
-const personalityTypes = [
-  {
-    typeId: "innovator-leader",
-    nameJa: "イノベーター・リーダータイプ",
-    nameEn: "Innovator Leader",
-    description: "新しいアイデアを積極的に提案し、チームを牽引する",
-    criteria: {
-      extraversion: { min: 75 },
-      openness: { min: 80 },
-      conscientiousness: { min: 70 },
-    },
-    priority: 1,
-    strengths: ["プロジェクトリーダー", "企画立案", "新規事業開発"],
-    suitableActivities: [
-      "イベント統括",
-      "社会課題の新規アプローチ開発",
-    ],
-  },
-  {
-    typeId: "supporter-care",
-    nameJa: "サポーター・ケアタイプ",
-    nameEn: "Supporter Care",
-    description: "他人の感情に敏感で、献身的にサポート",
-    criteria: {
-      agreeableness: { min: 80 },
-      extraversion: { min: 60 },
-      neuroticism: { max: 40 },
-    },
-    priority: 2,
-    strengths: ["高齢者支援", "障がい者サポート", "傾聴ボランティア"],
-    suitableActivities: ["個別相談", "継続的な見守り活動"],
-  },
-  {
-    typeId: "creative-solo",
-    nameJa: "クリエイティブ・ソロタイプ",
-    nameEn: "Creative Solo",
-    description: "独創的なアイデアを一人で深く追求",
-    criteria: {
-      openness: { min: 95 },
-      extraversion: { max: 20 },
-      conscientiousness: { min: 60 },
-    },
-    priority: 3,
-    strengths: ["デザイン制作", "ライティング", "動画編集"],
-    suitableActivities: [
-      "広報物作成",
-      "アート制作",
-      "静かな環境での作業",
-    ],
-  },
-  {
-    typeId: "perfectionist-analyst",
-    nameJa: "パーフェクショニスト・アナリストタイプ",
-    nameEn: "Perfectionist Analyst",
-    description: "細部まで完璧を追求し、高い品質基準を持つ",
-    criteria: {
-      conscientiousness: { min: 95 },
-      neuroticism: { min: 70 },
-      openness: { min: 50 },
-    },
-    priority: 4,
-    strengths: ["データ入力", "会計管理", "記録作成"],
-    suitableActivities: [
-      "精密な作業",
-      "品質チェック",
-      "ドキュメント整備",
-    ],
-  },
-  {
-    typeId: "charisma-entertainer",
-    nameJa: "カリスマ・エンターテイナータイプ",
-    nameEn: "Charisma Entertainer",
-    description: "人を惹きつけ、楽しい雰囲気を作り出す",
-    criteria: {
-      extraversion: { min: 95 },
-      agreeableness: { min: 80 },
-      openness: { min: 85 },
-    },
-    priority: 5,
-    strengths: ["子どもイベント", "募金活動", "PR 活動"],
-    suitableActivities: ["ステージ進行", "来場者対応", "SNS 発信"],
-  },
-  {
-    typeId: "strategist-planner",
-    nameJa: "ストラテジスト・プランナータイプ",
-    nameEn: "Strategist Planner",
-    description: "長期的視点で戦略を立て、確実に実行",
-    criteria: {
-      conscientiousness: { min: 90 },
-      openness: { min: 75 },
-      neuroticism: { max: 40 },
-    },
-    priority: 6,
-    strengths: [
-      "プロジェクトマネジメント",
-      "予算管理",
-      "進捗管理",
-    ],
-    suitableActivities: ["企画全体の設計", "リスク管理", "成果測定"],
-  },
-  {
-    typeId: "harmony-mediator",
-    nameJa: "ハーモニー・メディエータータイプ",
-    nameEn: "Harmony Mediator",
-    description: "対立を避け、チーム内の調和を重視",
-    criteria: {
-      agreeableness: { min: 95 },
-      neuroticism: { max: 35 },
-      extraversion: { min: 60 },
-    },
-    priority: 7,
-    strengths: ["チーム調整", "意見とりまとめ", "紛争解決"],
-    suitableActivities: [
-      "ファシリテーション",
-      "多様な参加者の橋渡し",
-    ],
-  },
-  {
-    typeId: "adventure-explorer",
-    nameJa: "アドベンチャー・エクスプローラータイプ",
-    nameEn: "Adventure Explorer",
-    description: "新しい経験や冒険を求め、リスクを恐れない",
-    criteria: {
-      openness: { min: 90 },
-      extraversion: { min: 85 },
-      neuroticism: { max: 25 },
-    },
-    priority: 8,
-    strengths: ["屋外活動", "被災地支援", "海外ボランティア"],
-    suitableActivities: [
-      "身体を使う活動",
-      "未知の環境への対応",
-    ],
-  },
-  {
-    typeId: "conservative-guardian",
-    nameJa: "コンサバティブ・ガーディアンタイプ",
-    nameEn: "Conservative Guardian",
-    description: "伝統や規則を重視し、安定を求める",
-    criteria: {
-      conscientiousness: { min: 85 },
-      agreeableness: { min: 75 },
-      openness: { max: 30 },
-    },
-    priority: 9,
-    strengths: ["定例活動", "ルール遵守", "安全管理"],
-    suitableActivities: [
-      "継続的な地域清掃",
-      "伝統行事の運営補助",
-    ],
-  },
-  {
-    typeId: "sensitive-artist",
-    nameJa: "センシティブ・アーティストタイプ",
-    nameEn: "Sensitive Artist",
-    description: "感受性が豊かで、繊細な表現を得意とする",
-    criteria: {
-      openness: { min: 90 },
-      neuroticism: { min: 75 },
-      extraversion: { max: 35 },
-    },
-    priority: 10,
-    strengths: ["音楽演奏", "詩の朗読", "アート療法"],
-    suitableActivities: [
-      "少人数の穏やかな環境での創作活動",
-    ],
-  },
-];
-
 async function main() {
   console.log("🌱 シードデータの投入を開始...");
-
-  // 人物タイプマスタの upsert
-  for (const type of personalityTypes) {
-    await prisma.personalityType.upsert({
-      where: { typeId: type.typeId },
-      update: {
-        nameJa: type.nameJa,
-        nameEn: type.nameEn,
-        description: type.description,
-        criteria: type.criteria,
-        priority: type.priority,
-        strengths: type.strengths,
-        suitableActivities: type.suitableActivities,
-      },
-      create: type,
-    });
-  }
-
-  console.log(`✅ 人物タイプマスタ: ${personalityTypes.length}件を投入しました`);
 
   // ============================================
   // テスト用団体ユーザー・団体プロフィール・募集案件の投入
@@ -321,16 +133,25 @@ async function main() {
     orgProfiles.map((p: { userId: string; id: string }) => [p.userId, p.id])
   );
 
-  // テスト用募集案件（多様な性格特性を要求）
+  const today = new Date();
+  const inDays = (days: number) =>
+    new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
+
+  // テスト用募集案件
+  // activityStyleTags は src/lib/recommendations/activity-style-tags.ts のタグID（最大3・加点のみ）
   const testOpportunities = [
     {
       organizationId: orgIdByUser["00000000-0000-0000-0000-000000000001"],
       title: "渋谷区の公園植樹ボランティア",
       description:
         "渋谷区内の公園で樹木の植え替え作業を行います。屋外での体力作業が中心です。チームで協力しながら進めるため、コミュニケーション力が活かせます。初心者歓迎！",
-      requirementTraits: { extraversion: 65, conscientiousness: 70, openness: 60 },
+      activityStyleTags: ["talk-with-new-people", "routine-steady-work"],
       location: "東京都渋谷区 代々木公園",
+      startDate: inDays(14),
+      endDate: inDays(14),
       capacity: 20,
+      category: "環境保全",
+      participationMode: "offline" as const,
       status: "published" as const,
       publishedAt: new Date(),
     },
@@ -339,9 +160,13 @@ async function main() {
       title: "環境教育ワークショップ企画・運営スタッフ",
       description:
         "小学生向けの環境教育プログラムを企画・運営していただきます。子どもたちに自然の大切さを伝えるクリエイティブなアイデアを歓迎します。",
-      requirementTraits: { openness: 80, extraversion: 70, agreeableness: 75 },
+      activityStyleTags: ["creative-ideas", "talk-with-new-people"],
       location: "東京都世田谷区 エコプラザ",
+      startDate: inDays(7),
+      endDate: inDays(60),
       capacity: 5,
+      category: "環境保全",
+      participationMode: "offline" as const,
       status: "published" as const,
       publishedAt: new Date(),
     },
@@ -350,9 +175,13 @@ async function main() {
       title: "放課後学習サポート（小学生向け）",
       description:
         "小学3〜6年生を対象にした放課後の学習支援です。算数や国語の宿題を一緒に見ながら、子どもたちの『わかった！』を引き出すお手伝いをしてください。",
-      requirementTraits: { agreeableness: 80, conscientiousness: 65 },
+      activityStyleTags: ["empathy-support", "precise-scheduled-work"],
       location: "東京都新宿区 こどもみらい学習室",
+      startDate: inDays(3),
+      endDate: inDays(90),
       capacity: 8,
+      category: "子ども支援",
+      participationMode: "offline" as const,
       status: "published" as const,
       publishedAt: new Date(),
     },
@@ -360,15 +189,19 @@ async function main() {
       organizationId: orgIdByUser["00000000-0000-0000-0000-000000000002"],
       title: "夏休み子どもキャンプリーダー",
       description:
-        "小学生対象の2泊3日キャンプのリーダーを募集します。アウトドア活動やレクリエーションの企画・進行を担当。責任感とチームワークが求められます。",
-      requirementTraits: {
-        extraversion: 80,
-        agreeableness: 70,
-        conscientiousness: 75,
-        neuroticism: 30,
-      },
+        "小学生対象の2泊3日キャンプのリーダーを募集します。アウトドア活動やレクリエーションの企画・進行を担当。18歳以上の方が対象です。",
+      activityStyleTags: [
+        "talk-with-new-people",
+        "calm-under-change",
+        "precise-scheduled-work",
+      ],
+      minAge: 18,
       location: "東京都奥多摩町",
+      startDate: inDays(30),
+      endDate: inDays(32),
       capacity: 10,
+      category: "子ども支援",
+      participationMode: "offline" as const,
       status: "published" as const,
       publishedAt: new Date(),
     },
@@ -377,9 +210,13 @@ async function main() {
       title: "高齢者向け傾聴ボランティア",
       description:
         "一人暮らしの高齢者のご自宅を訪問し、お話し相手になっていただきます。特別なスキルは不要です。相手に寄り添い、ゆっくりお話を聞いてくださる方を求めています。",
-      requirementTraits: { agreeableness: 85, neuroticism: 25, extraversion: 55 },
+      activityStyleTags: ["empathy-support", "calm-under-change"],
       location: "東京都文京区内（訪問先による）",
+      startDate: inDays(7),
+      endDate: inDays(180),
       capacity: 15,
+      category: "高齢者支援",
+      participationMode: "offline" as const,
       status: "published" as const,
       publishedAt: new Date(),
     },
@@ -388,14 +225,13 @@ async function main() {
       title: "多世代交流フェスティバル運営スタッフ",
       description:
         "地域の子どもからお年寄りまで楽しめるフェスティバルの運営を手伝ってくれる方を募集します。会場設営、受付、ステージ進行などチームで活動します。",
-      requirementTraits: {
-        extraversion: 75,
-        agreeableness: 70,
-        openness: 65,
-        conscientiousness: 60,
-      },
+      activityStyleTags: ["talk-with-new-people", "calm-under-change"],
       location: "東京都台東区 台東区民会館",
+      startDate: inDays(21),
+      endDate: inDays(21),
       capacity: 30,
+      category: "地域活性化",
+      participationMode: "offline" as const,
       status: "published" as const,
       publishedAt: new Date(),
     },
@@ -404,9 +240,13 @@ async function main() {
       title: "外国人住民向け日本語教室アシスタント",
       description:
         "地域に住む外国人の方への日本語教室のアシスタントです。日本語を教えた経験がなくても大丈夫。異文化コミュニケーションに興味がある方を歓迎します。",
-      requirementTraits: { openness: 85, agreeableness: 75, extraversion: 60 },
+      activityStyleTags: ["empathy-support", "creative-ideas"],
       location: "東京都港区 国際交流センター",
+      startDate: inDays(7),
+      endDate: inDays(120),
       capacity: 6,
+      category: "国際交流",
+      participationMode: "hybrid" as const,
       status: "published" as const,
       publishedAt: new Date(),
     },
@@ -415,9 +255,13 @@ async function main() {
       title: "多文化イベント広報・SNS運営",
       description:
         "異文化交流イベントのSNS広報やフライヤーデザインを担当していただきます。クリエイティブな発信でイベントを盛り上げてくれる方を募集中！",
-      requirementTraits: { openness: 90, conscientiousness: 70 },
+      activityStyleTags: ["creative-ideas", "solo-focused-work"],
       location: "リモート可",
+      startDate: inDays(1),
+      endDate: inDays(90),
       capacity: 3,
+      category: "国際交流",
+      participationMode: "online" as const,
       status: "published" as const,
       publishedAt: new Date(),
     },
@@ -433,6 +277,11 @@ async function main() {
     });
     if (!existing) {
       await prisma.opportunity.create({
+        data: { ...opp, updatedAt: new Date() },
+      });
+    } else {
+      await prisma.opportunity.update({
+        where: { id: existing.id },
         data: { ...opp, updatedAt: new Date() },
       });
     }

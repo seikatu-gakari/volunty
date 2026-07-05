@@ -4,22 +4,22 @@ const STEPS = [
   {
     num: "01",
     icon: Brain,
-    title: "性格診断",
-    desc: "16問の簡易診断または60問の詳細診断で、あなたの価値観・適性・強みを数値で可視化します。",
+    title: "性格傾向チェック",
+    desc: "国際的に公開されている性格研究用の質問項目（IPIP・全50問）で、5つの性格特性の傾向を確認します。",
     color: "bg-orange-100 text-orange-600",
   },
   {
     num: "02",
     icon: Sparkles,
-    title: "AI分析",
-    desc: "診断結果と活動特性をAIが分析し、相性の良い活動を自動で推薦します。",
+    title: "マッチング",
+    desc: "興味分野・地域・日程などを主に、性格の傾向も一部参考にしておすすめ順を決めます。",
     color: "bg-purple-100 text-purple-600",
   },
   {
     num: "03",
     icon: Target,
-    title: "相性スコア",
-    desc: "「どれくらい合うか」を一目で。続けられる活動から無理なく始められます。",
+    title: "おすすめ理由",
+    desc: "「なぜおすすめなのか」を理由付きで表示。納得して選べるから、無理なく始められます。",
     color: "bg-green-100 text-green-600",
   },
 ];
@@ -33,10 +33,10 @@ export function HowItWorksSection() {
       <div className="mb-10 text-center">
         <p className="mb-3 text-sm font-medium text-primary">✦ Voluntyの仕組み ✦</p>
         <h2 className="text-3xl font-bold tracking-tight text-text-dark sm:text-[32px]">
-          性格を知ることが、<br className="sm:hidden" />ぴったりの活動への近道。
+          自分の傾向を知ることが、<br className="sm:hidden" />合う活動への近道。
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-text-body">
-          3つのステップで「あなたに合う」を見つけます。診断 → AI分析 → 相性スコア。
+          3つのステップで「あなたに合う」を見つけます。傾向チェック → マッチング → おすすめ理由。
         </p>
       </div>
 
