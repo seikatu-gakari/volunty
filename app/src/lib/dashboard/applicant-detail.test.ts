@@ -1,551 +1,266 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ApplicantDetailResult } from "./types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Supabase クライアントのモック
 const mockGetUser = vi.fn();
-const mockFrom = vi.fn();
-const mockSelect = vi.fn();
-const mockEq = vi.fn();
-const mockSingle = vi.fn();
+const mockFindOrganizationProfile = vi.fn();
+const mockFindApplication = vi.fn();
+const mockFindOwnedApplication = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: {
       getUser: () => mockGetUser(),
     },
-    from: (table: string) => {
-      mockFrom(table);
-      return {
-        select: (...args: unknown[]) => {
-          mockSelect(...args);
-          return {
-            eq: (...eqArgs: unknown[]) => {
-              mockEq(...eqArgs);
-              return {
-                eq: (...eq2Args: unknown[]) => {
-                  mockEq(...eq2Args);
-                  return {
-                    single: () => mockSingle(),
-                  };
-                },
-                single: () => mockSingle(),
-              };
-            },
-          };
-        },
-      };
-    },
   }),
 }));
 
-// redirect のモック
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    organizationProfile: {
+      findUnique: (...args: unknown[]) => mockFindOrganizationProfile(...args),
+    },
+    matchingCandidate: {
+      findUnique: (...args: unknown[]) => mockFindApplication(...args),
+      findFirst: (...args: unknown[]) => mockFindOwnedApplication(...args),
+    },
+  },
+}));
+
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
-// matching のモック
 vi.mock("@/lib/recommendations/matching", () => ({
   calculateMatchScore: vi.fn().mockReturnValue(75),
 }));
 
-// "use server" ディレクティブを含むモジュールの動的インポート
 const { fetchApplicantDetail } = await import("./actions");
 
+const organizationProfile = { id: "organization-profile-1" };
+const diagnosisScores = {
+  extraversion: 65,
+  agreeableness: 85,
+  conscientiousness: 70,
+  neuroticism: 35,
+  openness: 60,
+};
+
+const ownedApplication = {
+  id: "application-1",
+  status: "applied",
+  message: "応募メッセージです",
+  matchScore: null,
+  appliedAt: new Date("2026-01-20T00:00:00.000Z"),
+  statusChangedAt: new Date("2026-01-20T00:00:00.000Z"),
+  participant: {
+    name: "ユーザー名",
+    participantProfile: {
+      name: "プロフィール名",
+      diagnosisType: "innovator-leader",
+      diagnosisScores: {
+        extraversion: 10,
+        agreeableness: 20,
+        conscientiousness: 30,
+        neuroticism: 40,
+        openness: 50,
+      },
+    },
+  },
+  opportunity: {
+    id: "opportunity-1",
+    title: "環境保全ボランティア",
+    requirementTraits: { agreeableness: 80 },
+  },
+  diagnosisResult: {
+    big5Scores: diagnosisScores,
+    personalityType: { typeId: "supporter-care" },
+  },
+};
+
 describe("fetchApplicantDetail", () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "organization-user-1" } },
+      error: null,
+    });
+    mockFindOrganizationProfile.mockResolvedValue(organizationProfile);
+    mockFindApplication.mockResolvedValue({ id: "application-1" });
+    mockFindOwnedApplication.mockResolvedValue(ownedApplication);
   });
 
-  it("未認証の場合、エラーを返す", async () => {
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("未認証の場合はエラーを返す", async () => {
     mockGetUser.mockReturnValue({
       data: { user: null },
       error: { message: "Not authenticated" },
     });
 
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
+    const result = await fetchApplicantDetail("application-1");
 
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("ログインが必要です");
+    expect(result).toEqual({ data: null, error: "ログインが必要です" });
+    expect(mockFindOrganizationProfile).not.toHaveBeenCalled();
   });
 
-  it("応募が見つからない場合、エラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-    mockSingle.mockReturnValue({
+  it("団体プロフィールがない場合はエラーを返す", async () => {
+    mockFindOrganizationProfile.mockResolvedValue(null);
+
+    const result = await fetchApplicantDetail("application-1");
+
+    expect(result).toEqual({
       data: null,
-      error: { message: "Not found" },
+      error: "団体プロフィールが見つかりません",
     });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-999");
-
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("応募が見つかりません");
+    expect(mockFindApplication).not.toHaveBeenCalled();
   });
 
-  it("団体プロフィール未設定の場合、エラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+  it("応募が存在しない場合はエラーを返す", async () => {
+    mockFindApplication.mockResolvedValue(null);
 
-    mockSingle
-      .mockReturnValueOnce({
-        data: {
-          id: "app-1",
-          status: "applied",
-          message: "テストメッセージ",
-          applied_at: "2026-01-20T00:00:00Z",
-          opportunity_id: "opp-1",
-          participant_id: "user-participant-1",
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({ data: null, error: { message: "Not found" } });
+    const result = await fetchApplicantDetail("missing-application");
 
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
-
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("団体プロフィールが見つかりません");
+    expect(result).toEqual({ data: null, error: "応募が見つかりません" });
+    expect(mockFindOwnedApplication).not.toHaveBeenCalled();
   });
 
-  it("自団体の案件でない場合、権限エラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+  it("他団体案件の応募は所有権条件で拒否する", async () => {
+    mockFindOwnedApplication.mockResolvedValue(null);
 
-    mockSingle
-      .mockReturnValueOnce({
-        data: {
-          id: "app-1",
-          status: "applied",
-          message: "テストメッセージ",
-          applied_at: "2026-01-20T00:00:00Z",
-          opportunity_id: "opp-1",
-          participant_id: "user-participant-1",
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({ data: null, error: { message: "Not found" } });
+    const result = await fetchApplicantDetail("application-1");
 
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
-
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("この操作を行う権限がありません");
-  });
-
-  it("正常に応募者詳細を返す（診断タイプあり）", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
-    mockSingle
-      .mockReturnValueOnce({
-        data: {
-          id: "app-1",
-          status: "applied",
-          message: "応募メッセージです",
-          applied_at: "2026-01-20T00:00:00Z",
-          opportunity_id: "opp-1",
-          participant_id: "user-participant-1",
-          match_score: 82.5,
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "環境保全ボランティア",
-          requirement_traits: { extraversion: 70 },
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({
-        data: {
-          name: "テスト太郎",
-          diagnosis_type: "イノベーター・リーダータイプ",
-          diagnosis_scores: {
-            extraversion: 80,
-            agreeableness: 60,
-            conscientiousness: 70,
-            neuroticism: 30,
-            openness: 90,
-          },
-        },
-        error: null,
-      });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
-
-    expect(result.data).not.toBeNull();
-    expect(result.data!.id).toBe("app-1");
-    expect(result.data!.participant_name).toBe("テスト太郎");
-    expect(result.data!.diagnosis_type).toBe("イノベーター・リーダータイプ");
-    expect(result.data!.status).toBe("pending"); // DB: applied → UI: pending
-    expect(result.data!.message).toBe("応募メッセージです");
-    expect(result.data!.created_at).toBe("2026-01-20T00:00:00Z");
-    expect(result.data!.opportunity_id).toBe("opp-1");
-    expect(result.data!.opportunity_title).toBe("環境保全ボランティア");
-    expect(result.data!.match_score).toBe(82.5);
-
-    // PERSONALITY_TYPES からの詳細が引き当てられている
-    expect(result.data!.personality_type_detail).not.toBeNull();
-    expect(result.data!.personality_type_detail!.name).toBe(
-      "イノベーター・リーダータイプ"
-    );
-  });
-
-  it("診断未実施の応募者でも正常に返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
-    mockSingle
-      .mockReturnValueOnce({
-        data: {
-          id: "app-2",
-          status: "applied",
-          message: null,
-          applied_at: "2026-01-20T00:00:00Z",
-          opportunity_id: "opp-1",
-          participant_id: "user-participant-1",
-          match_score: null,
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "テスト案件",
-          requirement_traits: null,
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({
-        data: {
-          name: "未診断ユーザー",
-          diagnosis_type: null,
-          diagnosis_scores: null,
-        },
-        error: null,
-      });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-2");
-
-    expect(result.data).not.toBeNull();
-    expect(result.data!.participant_name).toBe("未診断ユーザー");
-    expect(result.data!.diagnosis_type).toBeNull();
-    expect(result.data!.diagnosis_scores).toBeNull();
-    expect(result.data!.match_score).toBeNull();
-    expect(result.data!.personality_type_detail).toBeNull();
-  });
-
-  it("DB エラー時もクラッシュせずエラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-    mockSingle.mockImplementation(() => {
-      throw new Error("DB connection error");
-    });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
-
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("予期しないエラーが発生しました");
-  });
-});
-
-
-describe("fetchApplicantDetail", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("未認証の場合、エラーを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: null },
-      error: { message: "Not authenticated" },
-    });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
-
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("ログインが必要です");
-  });
-
-  it("応募が見つからない場合、エラーを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-    mockSingle.mockReturnValue({
+    expect(result).toEqual({
       data: null,
-      error: { message: "Not found" },
+      error: "この操作を行う権限がありません",
     });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-999");
-
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("応募が見つかりません");
+    expect(mockFindOwnedApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "application-1",
+          opportunity: { organizationId: "organization-profile-1" },
+        },
+      })
+    );
   });
 
-  it("自団体の案件でない場合、権限エラーを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
+  it("応募に関連付いた診断結果から参加者名・人物タイプ・BIG5を返す", async () => {
+    const result = await fetchApplicantDetail("application-1");
 
-    // 1回目: 応募データの取得 → 成功
-    // 2回目: 団体プロフィールの取得 → 成功
-    // 3回目: 案件の認可チェック → 失敗
-    mockSingle
-      .mockReturnValueOnce({
-        data: {
-          id: "app-1",
-          status: "applied",
-          message: "テストメッセージ",
-          applied_at: "2026-01-20T00:00:00Z",
-          opportunity_id: "opp-1",
-          participant_id: "user-participant-1",
-          match_score: 85,
-        },
-        error: null,
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        id: "application-1",
+        status: "pending",
+        message: "応募メッセージです",
+        created_at: "2026-01-20T00:00:00.000Z",
+        completed_at: null,
+        participant_name: "プロフィール名",
+        diagnosis_type: "サポーター・ケアタイプ",
+        diagnosis_scores: diagnosisScores,
+        match_score: 75,
+        opportunity_id: "opportunity-1",
+        opportunity_title: "環境保全ボランティア",
       })
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: null,
-        error: { message: "Not found" },
-      });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
-
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("この操作を行う権限がありません");
-  });
-
-  it("正常に応募者詳細を返す（診断タイプあり）", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-
-    // 1回目: t_matching_candidate データ（応募）
-    mockSingle
-      .mockReturnValueOnce({
-        data: {
-          id: "app-1",
-          status: "applied",
-          message: "応募メッセージです",
-          applied_at: "2026-01-20T00:00:00Z",
-          opportunity_id: "opp-1",
-          participant_id: "user-participant-1",
-          match_score: null, // null にすることで calculateMatchScore が呼ばれる
-        },
-        error: null,
-      })
-      // 2回目: m_organization_profile（認可チェック）
-      .mockReturnValueOnce({
-        data: { id: "profile-123" },
-        error: null,
-      })
-      // 3回目: m_opportunity（認可チェック）
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "環境保全ボランティア",
-          requirement_traits: { extraversion: 70 },
-        },
-        error: null,
-      })
-      // 4回目: m_participant_profile（参加者情報）
-      .mockReturnValueOnce({
-        data: {
-          name: "テスト太郎",
-          diagnosis_type: "イノベーター・リーダータイプ",
-          diagnosis_scores: {
-            extraversion: 80,
-            agreeableness: 60,
-            conscientiousness: 70,
-            neuroticism: 30,
-            openness: 90,
-          },
-        },
-        error: null,
-      });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
-
-    expect(result.data).not.toBeNull();
-    expect(result.data!.id).toBe("app-1");
-    expect(result.data!.participant_name).toBe("テスト太郎");
-    expect(result.data!.diagnosis_type).toBe("イノベーター・リーダータイプ");
-    expect(result.data!.message).toBe("応募メッセージです");
-    expect(result.data!.opportunity_id).toBe("opp-1");
-    expect(result.data!.opportunity_title).toBe("環境保全ボランティア");
-    expect(result.data!.match_score).toBe(75); // モックの戻り値
-
-    // PERSONALITY_TYPES からの詳細が引き当てられている
-    expect(result.data!.personality_type_detail).not.toBeNull();
-    expect(result.data!.personality_type_detail!.name).toBe(
-      "イノベーター・リーダータイプ"
     );
-    expect(result.data!.personality_type_detail!.description).toBe(
-      "新しいアイデアを積極的に提案し、チームを牽引する"
-    );
-    expect(result.data!.personality_type_detail!.strengths).toContain(
-      "プロジェクトリーダー"
-    );
-    expect(
-      result.data!.personality_type_detail!.suitableActivities
-    ).toContain("イベント統括");
-  });
-
-  it("診断タイプが id で保存されている場合も詳細を引き当てる", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-
-    mockSingle
-      .mockReturnValueOnce({
-        data: {
-          id: "app-1",
-          status: "applied",
-          message: "応募メッセージです",
-          applied_at: "2026-01-20T00:00:00Z",
-          opportunity_id: "opp-1",
-          participant_id: "user-participant-1",
-          match_score: 91,
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({
-        data: { id: "profile-123" },
-        error: null,
-      })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "子ども支援ボランティア",
-          requirement_traits: { agreeableness: 80 },
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({
-        data: {
-          name: "テスト花子",
-          diagnosis_type: "supporter-care",
-          diagnosis_scores: {
-            extraversion: 65,
-            agreeableness: 85,
-            conscientiousness: 70,
-            neuroticism: 35,
-            openness: 60,
-          },
-        },
-        error: null,
-      });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
-
-    expect(result.data).not.toBeNull();
-    expect(result.data!.participant_name).toBe("テスト花子");
-    expect(result.data!.diagnosis_type).toBe("サポーター・ケアタイプ");
-    expect(result.data!.diagnosis_scores).toEqual({
-      extraversion: 65,
-      agreeableness: 85,
-      conscientiousness: 70,
-      neuroticism: 35,
-      openness: 60,
-    });
-    expect(result.data!.match_score).toBe(91);
-    expect(result.data!.personality_type_detail).not.toBeNull();
-    expect(result.data!.personality_type_detail!.name).toBe(
+    expect(result.data?.personality_type_detail?.name).toBe(
       "サポーター・ケアタイプ"
     );
-    expect(result.data!.personality_type_detail!.description).toBe(
-      "他人の感情に敏感で、献身的にサポート"
+    expect(mockFindOrganizationProfile).toHaveBeenCalledWith({
+      where: { userId: "organization-user-1" },
+      select: { id: true },
+    });
+    expect(mockFindOwnedApplication).toHaveBeenCalledWith({
+      where: {
+        id: "application-1",
+        opportunity: { organizationId: "organization-profile-1" },
+      },
+      select: {
+        id: true,
+        status: true,
+        message: true,
+        matchScore: true,
+        appliedAt: true,
+        statusChangedAt: true,
+        participant: {
+          select: {
+            name: true,
+            participantProfile: {
+              select: {
+                name: true,
+                diagnosisType: true,
+                diagnosisScores: true,
+              },
+            },
+          },
+        },
+        opportunity: {
+          select: { id: true, title: true, requirementTraits: true },
+        },
+        diagnosisResult: {
+          select: {
+            big5Scores: true,
+            personalityType: { select: { typeId: true } },
+          },
+        },
+      },
+    });
+  });
+
+  it("関連診断がない既存応募は参加者プロフィールの診断へフォールバックする", async () => {
+    mockFindOwnedApplication.mockResolvedValue({
+      ...ownedApplication,
+      matchScore: 82.5,
+      diagnosisResult: null,
+    });
+
+    const result = await fetchApplicantDetail("application-1");
+
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        participant_name: "プロフィール名",
+        diagnosis_type: "イノベーター・リーダータイプ",
+        diagnosis_scores:
+          ownedApplication.participant.participantProfile.diagnosisScores,
+        match_score: 82.5,
+      })
     );
   });
 
-  it("診断未実施の応募者でも正常に返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
+  it("診断未実施でもユーザー名へフォールバックして詳細を返す", async () => {
+    mockFindOwnedApplication.mockResolvedValue({
+      ...ownedApplication,
+      participant: {
+        name: "未診断ユーザー",
+        participantProfile: null,
+      },
+      diagnosisResult: null,
     });
 
-    mockSingle
-      .mockReturnValueOnce({
-        data: {
-          id: "app-2",
-          status: "applied",
-          message: null,
-          applied_at: "2026-01-20T00:00:00Z",
-          opportunity_id: "opp-1",
-          participant_id: "user-participant-2",
-          match_score: null,
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({
-        data: { id: "profile-123" },
-        error: null,
-      })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "テスト案件",
-          requirement_traits: null,
-        },
-        error: null,
-      })
-      .mockReturnValueOnce({
-        data: {
-          name: "未診断ユーザー",
-          diagnosis_type: null,
-          diagnosis_scores: null,
-        },
-        error: null,
-      });
+    const result = await fetchApplicantDetail("application-1");
 
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-2");
-
-    expect(result.data).not.toBeNull();
-    expect(result.data!.participant_name).toBe("未診断ユーザー");
-    expect(result.data!.diagnosis_type).toBeNull();
-    expect(result.data!.diagnosis_scores).toBeNull();
-    expect(result.data!.match_score).toBeNull();
-    expect(result.data!.personality_type_detail).toBeNull();
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        participant_name: "未診断ユーザー",
+        diagnosis_type: null,
+        diagnosis_scores: null,
+        match_score: null,
+        personality_type_detail: null,
+      })
+    );
   });
 
-  it("DB エラー時もクラッシュせずエラーを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-    mockSingle.mockImplementation(() => {
-      throw new Error("DB connection error");
-    });
+  it("Prisma例外時は予期しないエラーを返す", async () => {
+    mockFindOwnedApplication.mockRejectedValue(new Error("DB error"));
 
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("app-1");
+    const result = await fetchApplicantDetail("application-1");
 
-    expect(result.data).toBeNull();
-    expect(result.error).toBe("予期しないエラーが発生しました");
+    expect(result).toEqual({
+      data: null,
+      error: "予期しないエラーが発生しました",
+    });
   });
 });

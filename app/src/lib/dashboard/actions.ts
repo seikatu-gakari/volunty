@@ -1054,8 +1054,8 @@ export async function updateApplicationStatus(
 /**
  * 応募者詳細を取得する（団体ダッシュボード用）
  *
- * - applications + participants を JOIN して取得
- * - opportunities テーブルで自団体の案件であることを検証（認可チェック）
+ * - Prisma で応募・参加者・診断結果を取得
+ * - 応募IDと案件の団体IDを同じクエリ条件で検証（認可チェック）
  * - PERSONALITY_TYPES から診断タイプの詳細情報を引き当て
  * - マッチングスコアを計算
  */
@@ -1074,75 +1074,102 @@ export async function fetchApplicantDetail(
       return { data: null, error: "ログインが必要です" };
     }
 
-    // 応募データを取得
-    const { data: appData, error: appError } = await supabase
-      .from("t_matching_candidate")
-      .select(
-        "id, status, message, match_score, applied_at, status_changed_at, opportunity_id, participant_id"
-      )
-      .eq("id", applicationId)
-      .single();
+    const organizationProfile = await prisma.organizationProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
 
-    if (appError || !appData) {
-      return { data: null, error: "応募が見つかりません" };
-    }
-
-    // 団体プロフィールIDを取得（認可チェック用）
-    const { data: orgProfile, error: profileError } = await supabase
-      .from("m_organization_profile")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (profileError || !orgProfile) {
+    if (!organizationProfile) {
       return { data: null, error: "団体プロフィールが見つかりません" };
     }
 
-    // 案件データを取得（自団体の案件であることを確認）
-    const { data: oppData, error: oppError } = await supabase
-      .from("m_opportunity")
-      .select("id, title, requirement_traits")
-      .eq("id", appData.opportunity_id)
-      .eq("organization_id", (orgProfile as unknown as { id: string }).id)
-      .single();
+    const existingApplication = await prisma.matchingCandidate.findUnique({
+      where: { id: applicationId },
+      select: { id: true },
+    });
 
-    if (oppError || !oppData) {
+    if (!existingApplication) {
+      return { data: null, error: "応募が見つかりません" };
+    }
+
+    const application = await prisma.matchingCandidate.findFirst({
+      where: {
+        id: applicationId,
+        opportunity: { organizationId: organizationProfile.id },
+      },
+      select: {
+        id: true,
+        status: true,
+        message: true,
+        matchScore: true,
+        appliedAt: true,
+        statusChangedAt: true,
+        participant: {
+          select: {
+            name: true,
+            participantProfile: {
+              select: {
+                name: true,
+                diagnosisType: true,
+                diagnosisScores: true,
+              },
+            },
+          },
+        },
+        opportunity: {
+          select: { id: true, title: true, requirementTraits: true },
+        },
+        diagnosisResult: {
+          select: {
+            big5Scores: true,
+            personalityType: { select: { typeId: true } },
+          },
+        },
+      },
+    });
+
+    if (!application) {
       return { data: null, error: "この操作を行う権限がありません" };
     }
 
-    // 参加者プロフィールを個別取得
-    const { data: profileData } = await supabase
-      .from("m_participant_profile")
-      .select("name, diagnosis_type, diagnosis_scores")
-      .eq("user_id", appData.participant_id)
-      .single();
-
-    const participant = profileData
-      ? {
-          name: profileData.name as string,
-          diagnosis_type: (profileData.diagnosis_type as string) ?? null,
-          diagnosis_scores:
-            (profileData.diagnosis_scores as Record<string, number>) ?? null,
-        }
+    const participantProfile = application.participant.participantProfile;
+    const rawDiagnosisScores =
+      application.diagnosisResult?.big5Scores ??
+      participantProfile?.diagnosisScores ??
+      null;
+    const validatedDiagnosisScores = isBIG5Scores(rawDiagnosisScores)
+      ? rawDiagnosisScores
       : null;
+    const diagnosisScores: Record<string, number> | null =
+      validatedDiagnosisScores
+      ? Object.fromEntries(
+          BIG5_TRAIT_KEYS.map((trait) => [
+            trait,
+            validatedDiagnosisScores[trait],
+          ])
+        )
+      : null;
+    const diagnosisType = application.diagnosisResult
+      ? application.diagnosisResult.personalityType?.typeId ?? null
+      : participantProfile?.diagnosisType ?? null;
 
     // マッチングスコアを計算
-    const requiredTraits = (
-      oppData as unknown as {
-        requirement_traits: Record<string, number> | null;
-      }
-    ).requirement_traits;
-    let matchScore: number | null = (appData.match_score as number) ?? null;
-    const rawScores = participant?.diagnosis_scores;
-    if (matchScore === null && isBIG5Scores(rawScores) && requiredTraits) {
+    const requiredTraits = application.opportunity.requirementTraits;
+    let matchScore: number | null = application.matchScore ?? null;
+    if (
+      matchScore === null &&
+      validatedDiagnosisScores &&
+      requiredTraits &&
+      typeof requiredTraits === "object" &&
+      !Array.isArray(requiredTraits)
+    ) {
       matchScore = calculateMatchScore(
-        rawScores,
+        validatedDiagnosisScores,
         toPartialBIG5Scores(requiredTraits)
       );
     }
 
     // PERSONALITY_TYPES から詳細を引き当て（id 保存を優先し、既存の name 保存にも対応）
-    const diagnosisType = participant?.diagnosis_type ?? null;
     const typeDetail = diagnosisType
       ? PERSONALITY_TYPES.find((t) => t.id === diagnosisType) ??
         PERSONALITY_TYPES.find((t) => t.name === diagnosisType) ??
@@ -1152,20 +1179,21 @@ export async function fetchApplicantDetail(
 
     return {
       data: {
-        id: appData.id as string,
-        status: mapApplicationStatus(appData.status as string),
-        message: (appData.message as string) ?? null,
-        created_at: (appData.applied_at as string) ?? "",
+        id: application.id,
+        status: mapApplicationStatus(application.status),
+        message: application.message,
+        created_at: toNullableIsoString(application.appliedAt) ?? "",
         completed_at:
-          appData.status === "completed"
-            ? (appData.status_changed_at as string)
+          application.status === "completed"
+            ? toIsoString(application.statusChangedAt)
             : null,
-        participant_name: participant?.name ?? "不明",
+        participant_name:
+          participantProfile?.name ?? application.participant.name ?? "不明",
         diagnosis_type: diagnosisTypeLabel,
-        diagnosis_scores: participant?.diagnosis_scores ?? null,
+        diagnosis_scores: diagnosisScores,
         match_score: matchScore,
-        opportunity_id: oppData.id as string,
-        opportunity_title: oppData.title as string,
+        opportunity_id: application.opportunity.id,
+        opportunity_title: application.opportunity.title,
         personality_type_detail: typeDetail
           ? {
               name: typeDetail.name,
