@@ -346,7 +346,14 @@ describe("seedE2eUsers", () => {
       })
     );
     mocks.diagnosisResultFindFirst.mockResolvedValue(null);
-    mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
+    mocks.diagnosisResultCreate.mockImplementation(
+      async ({ data }: { data: { userId: string } }) => ({
+        id:
+          data.userId === "participant-lifecycle-id"
+            ? "lifecycle-diagnosis-id"
+            : "diagnosis-id",
+      })
+    );
     mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
     mocks.organizationProfileUpsert.mockImplementation(
       async ({ where }: { where: { userId: string } }) => ({
@@ -419,6 +426,21 @@ describe("seedE2eUsers", () => {
         data: expect.objectContaining({
           userId: "participant-onboarded-id",
           personalityTypeId: "ptype-id",
+        }),
+      })
+    );
+    expect(mocks.diagnosisResultCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "participant-lifecycle-id",
+          personalityTypeId: "ptype-id",
+          big5Scores: {
+            extraversion: 20,
+            agreeableness: 25,
+            conscientiousness: 30,
+            neuroticism: 75,
+            openness: 25,
+          },
         }),
       })
     );
@@ -501,6 +523,22 @@ describe("seedE2eUsers", () => {
     expect(mocks.matchingCandidateUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({ status: "declined" }),
+      })
+    );
+    expect(mocks.matchingCandidateUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          participantId_opportunityId: {
+            participantId: "participant-lifecycle-id",
+            opportunityId: "created-E2E 団体応募辞退案件",
+          },
+        },
+        update: expect.objectContaining({
+          diagnosisResultId: "lifecycle-diagnosis-id",
+        }),
+        create: expect.objectContaining({
+          diagnosisResultId: "lifecycle-diagnosis-id",
+        }),
       })
     );
     expect(mocks.certificateUpsert).toHaveBeenCalledWith(

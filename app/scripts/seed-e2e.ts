@@ -140,11 +140,13 @@ async function upsertPublishedOpportunity(
 async function upsertMatchingCandidate({
   participantId,
   opportunityId,
+  diagnosisResultId = null,
   status,
   message,
 }: {
   participantId: string;
   opportunityId: string;
+  diagnosisResultId?: string | null;
   status: "applied" | "accepted" | "declined" | "completed";
   message: string;
 }): Promise<string> {
@@ -154,6 +156,7 @@ async function upsertMatchingCandidate({
       participantId_opportunityId: { participantId, opportunityId },
     },
     update: {
+      diagnosisResultId,
       matchScore: 80,
       status,
       appliedAt: now,
@@ -163,6 +166,7 @@ async function upsertMatchingCandidate({
     create: {
       participantId,
       opportunityId,
+      diagnosisResultId,
       matchScore: 80,
       status,
       appliedAt: now,
@@ -371,6 +375,22 @@ export async function seedE2eUsers(): Promise<void> {
         userId: onboardedId,
         personalityTypeId: personalityType?.id ?? null,
         big5Scores: BIG5_SCORES,
+        diagnosisMode: "brief",
+      },
+      select: { id: true },
+    });
+  }
+  let lifecycleDiagnosisResult = await prisma.diagnosisResult.findFirst({
+    where: { userId: lifecycleId },
+    orderBy: { concludedAt: "desc" },
+    select: { id: true },
+  });
+  if (!lifecycleDiagnosisResult) {
+    lifecycleDiagnosisResult = await prisma.diagnosisResult.create({
+      data: {
+        userId: lifecycleId,
+        personalityTypeId: personalityType?.id ?? null,
+        big5Scores: LOW_BIG5_SCORES,
         diagnosisMode: "brief",
       },
       select: { id: true },
@@ -724,6 +744,10 @@ export async function seedE2eUsers(): Promise<void> {
       await upsertMatchingCandidate({
         participantId: lifecycleId,
         opportunityId: organizationLifecycleOpportunityIds.get(title)!,
+        diagnosisResultId:
+          title === lifecycleTitles.applicantDecline
+            ? lifecycleDiagnosisResult.id
+            : null,
         status,
         message: `${title}へのE2E応募メッセージです。`,
       }),
