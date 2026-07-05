@@ -189,7 +189,6 @@ export async function proxy(request: NextRequest) {
     url.pathname = "/onboarding/role";
     return redirectWithCookies(url, response);
   }
-  const metadataRole = rawRole;
 
   // 認可には自己更新可能な metadata ではなく DB のロールだけを使う
   if (!isAppRole(databaseRole)) {
@@ -207,10 +206,10 @@ export async function proxy(request: NextRequest) {
   }
 
   // オンボーディング未完了 → /onboarding/{role}
-  if (metadataRole !== "admin" && !metadata.onboarding_completed) {
+  if (role !== "admin" && !metadata.onboarding_completed) {
     const url = request.nextUrl.clone();
     url.pathname =
-      metadataRole === "organization"
+      role === "organization"
         ? "/onboarding/organization"
         : "/onboarding/participant";
     return redirectWithCookies(url, response);

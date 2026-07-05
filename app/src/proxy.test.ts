@@ -166,11 +166,27 @@ describe("proxy", () => {
     expect(response.headers.get("location")).toBeNull();
   });
 
-  it("オンボーディング先は認可用DB roleではなくmetadataの選択状態で決める", async () => {
+  it("DB が participant なら metadata が admin でも未完了時は participant オンボーディングへ送る", async () => {
     const request = createRequest("/mypage");
-    mockAuthenticatedSession(request, "organization-1", "organization", false);
+    mockAuthenticatedSession(request, "participant-1", "admin", false);
     mocks.maybeSingle.mockResolvedValueOnce({
       data: { is_active: true, role: "participant" },
+    });
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url
+    );
+
+    expect(location.pathname).toBe("/onboarding/participant");
+  });
+
+  it("DB が organization なら metadata が participant でも organization オンボーディングへ送る", async () => {
+    const request = createRequest("/dashboard");
+    mockAuthenticatedSession(request, "organization-1", "participant", false);
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: true, role: "organization" },
     });
 
     const response = await proxy(request);
