@@ -10,6 +10,15 @@
 > を最新仕様とする。従来の `participant.spec.ts` は機能領域別の5ファイルへ分割され、
 > P-2〜P-14とアカウント削除を検証する。以下は初期スモーク導入時の設計記録として残す。
 
+> **2026-07-05 団体E2E拡張**: 団体シナリオ O-E1〜O-E10 は
+> [`docs/superpowers/specs/2026-07-05-organization-e2e-design.md`](../docs/superpowers/specs/2026-07-05-organization-e2e-design.md)
+> を最新仕様とする。既存 O1〜O3 を維持し、オンボーディング系と業務ライフサイクル系へ拡張した。
+
+| ID | Playwright spec |
+| --- | --- |
+| O-E1〜O-E3 | `app/e2e/organization-onboarding.spec.ts` |
+| O-E4〜O-E10 | `app/e2e/organization-lifecycle.spec.ts` |
+
 ---
 
 ## 1. 前提と既存資産
