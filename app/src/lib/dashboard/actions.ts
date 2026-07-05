@@ -868,6 +868,11 @@ function toNullableIsoString(value: Date | string | null): string | null {
   return value ? toIsoString(value) : null;
 }
 
+/** 応募者詳細の既存日時形式に合わせ、0ミリ秒の表記を省略する */
+function toApplicantDetailIsoString(value: Date | string): string {
+  return toIsoString(value).replace(/\.000Z$/, "Z");
+}
+
 /**
  * 団体向けマッチング履歴を取得する。
  *
@@ -1182,10 +1187,12 @@ export async function fetchApplicantDetail(
         id: application.id,
         status: mapApplicationStatus(application.status),
         message: application.message,
-        created_at: toNullableIsoString(application.appliedAt) ?? "",
+        created_at: application.appliedAt
+          ? toApplicantDetailIsoString(application.appliedAt)
+          : "",
         completed_at:
           application.status === "completed"
-            ? toIsoString(application.statusChangedAt)
+            ? toApplicantDetailIsoString(application.statusChangedAt)
             : null,
         participant_name:
           participantProfile?.name ?? application.participant.name ?? "不明",

@@ -48,14 +48,14 @@ const ownedApplication = {
   id: "application-1",
   status: "applied",
   message: "応募メッセージです",
-  matchScore: null,
+  matchScore: 82.5,
   appliedAt: new Date("2026-01-20T00:00:00.000Z"),
   statusChangedAt: new Date("2026-01-20T00:00:00.000Z"),
   participant: {
     name: "ユーザー名",
     participantProfile: {
       name: "プロフィール名",
-      diagnosisType: "innovator-leader",
+      diagnosisType: "イノベーター・リーダータイプ",
       diagnosisScores: {
         extraversion: 10,
         agreeableness: 20,
@@ -156,12 +156,12 @@ describe("fetchApplicantDetail", () => {
         id: "application-1",
         status: "pending",
         message: "応募メッセージです",
-        created_at: "2026-01-20T00:00:00.000Z",
+        created_at: "2026-01-20T00:00:00Z",
         completed_at: null,
         participant_name: "プロフィール名",
         diagnosis_type: "サポーター・ケアタイプ",
         diagnosis_scores: diagnosisScores,
-        match_score: 75,
+        match_score: 82.5,
         opportunity_id: "opportunity-1",
         opportunity_title: "環境保全ボランティア",
       })
@@ -213,7 +213,6 @@ describe("fetchApplicantDetail", () => {
   it("関連診断がない既存応募は参加者プロフィールの診断へフォールバックする", async () => {
     mockFindOwnedApplication.mockResolvedValue({
       ...ownedApplication,
-      matchScore: 82.5,
       diagnosisResult: null,
     });
 
@@ -226,6 +225,32 @@ describe("fetchApplicantDetail", () => {
         diagnosis_scores:
           ownedApplication.participant.participantProfile.diagnosisScores,
         match_score: 82.5,
+      })
+    );
+    expect(result.data?.personality_type_detail).toEqual({
+      name: "イノベーター・リーダータイプ",
+      nameEn: "Innovator Leader",
+      description: "新しいアイデアを積極的に提案し、チームを牽引する",
+      strengths: expect.arrayContaining(["プロジェクトリーダー"]),
+      suitableActivities: expect.arrayContaining(["イベント統括"]),
+    });
+  });
+
+  it("完了済み応募の日付をミリ秒なしの既存形式で返す", async () => {
+    mockFindOwnedApplication.mockResolvedValue({
+      ...ownedApplication,
+      status: "completed",
+      appliedAt: new Date("2026-01-20T00:00:00.000Z"),
+      statusChangedAt: new Date("2026-02-10T12:30:00.000Z"),
+    });
+
+    const result = await fetchApplicantDetail("application-1");
+
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        status: "completed",
+        created_at: "2026-01-20T00:00:00Z",
+        completed_at: "2026-02-10T12:30:00Z",
       })
     );
   });
@@ -247,10 +272,25 @@ describe("fetchApplicantDetail", () => {
         participant_name: "未診断ユーザー",
         diagnosis_type: null,
         diagnosis_scores: null,
-        match_score: null,
+        match_score: 82.5,
         personality_type_detail: null,
       })
     );
+  });
+
+  it("プロフィール名とユーザー名がない場合は不明を返す", async () => {
+    mockFindOwnedApplication.mockResolvedValue({
+      ...ownedApplication,
+      participant: {
+        name: null,
+        participantProfile: null,
+      },
+      diagnosisResult: null,
+    });
+
+    const result = await fetchApplicantDetail("application-1");
+
+    expect(result.data?.participant_name).toBe("不明");
   });
 
   it("Prisma例外時は予期しないエラーを返す", async () => {
