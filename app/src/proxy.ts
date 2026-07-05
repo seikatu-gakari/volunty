@@ -135,7 +135,8 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(url, response);
   }
 
-  // --- 凍結チェック: is_active=false なら強制サインアウト ---
+  // --- 凍結チェック + 認可用ロール取得 ---
+  let databaseRole: unknown;
   {
     const supabaseUrl = getSupabaseServerUrl();
     const supabaseAnonKey = getSupabaseAnonKey();
@@ -156,9 +157,10 @@ export async function proxy(request: NextRequest) {
         });
         const { data: account } = await supabase
           .from("m_user")
-          .select("is_active")
+          .select("is_active,role")
           .eq("id", user.id)
           .maybeSingle();
+        databaseRole = account?.role;
         if (account && account.is_active === false) {
           const url = request.nextUrl.clone();
           url.pathname = "/auth/signout";
@@ -187,7 +189,15 @@ export async function proxy(request: NextRequest) {
     url.pathname = "/onboarding/role";
     return redirectWithCookies(url, response);
   }
-  const role = rawRole;
+  const metadataRole = rawRole;
+
+  // 認可には自己更新可能な metadata ではなく DB のロールだけを使う
+  if (!isAppRole(databaseRole)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/forbidden";
+    return redirectWithCookies(url, response);
+  }
+  const role = databaseRole;
 
   // 管理者: トップアクセス時は管理ダッシュボードへ
   if (role === "admin" && pathname === "/") {
@@ -197,10 +207,10 @@ export async function proxy(request: NextRequest) {
   }
 
   // オンボーディング未完了 → /onboarding/{role}
-  if (role !== "admin" && !metadata.onboarding_completed) {
+  if (metadataRole !== "admin" && !metadata.onboarding_completed) {
     const url = request.nextUrl.clone();
     url.pathname =
-      role === "organization"
+      metadataRole === "organization"
         ? "/onboarding/organization"
         : "/onboarding/participant";
     return redirectWithCookies(url, response);

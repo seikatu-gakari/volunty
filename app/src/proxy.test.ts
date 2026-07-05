@@ -42,7 +42,8 @@ function mockGuestSession(request: NextRequest) {
 function mockAuthenticatedSession(
   request: NextRequest,
   userId: string,
-  role: "participant" | "organization" | "admin" = "participant"
+  role: "participant" | "organization" | "admin" = "participant",
+  onboardingCompleted = true
 ) {
   mocks.updateSession.mockResolvedValue({
     response: NextResponse.next({ request }),
@@ -50,7 +51,7 @@ function mockAuthenticatedSession(
       id: userId,
       user_metadata: {
         role,
-        onboarding_completed: true,
+        onboarding_completed: onboardingCompleted,
       },
     },
   });
@@ -68,7 +69,9 @@ describe("proxy", () => {
     mocks.getSupabaseAnonKey.mockReset();
     mocks.getSupabaseServerUrl.mockReturnValue("https://supabase.example.com");
     mocks.getSupabaseAnonKey.mockReturnValue("anon-key");
-    mocks.maybeSingle.mockResolvedValue({ data: { is_active: true } });
+    mocks.maybeSingle.mockResolvedValue({
+      data: { is_active: true, role: "participant" },
+    });
     mocks.eq.mockReturnValue({ maybeSingle: mocks.maybeSingle });
     mocks.select.mockReturnValue({ eq: mocks.eq });
     mocks.from.mockReturnValue({ select: mocks.select });
@@ -103,21 +106,25 @@ describe("proxy", () => {
   it("有効な認証済みユーザーは保護ルートを通過する", async () => {
     const request = createRequest("/mypage");
     mockAuthenticatedSession(request, "active-1");
-    mocks.maybeSingle.mockResolvedValueOnce({ data: { is_active: true } });
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: true, role: "participant" },
+    });
 
     const response = await proxy(request);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
     expect(mocks.from).toHaveBeenCalledWith("m_user");
-    expect(mocks.select).toHaveBeenCalledWith("is_active");
+    expect(mocks.select).toHaveBeenCalledWith("is_active,role");
     expect(mocks.eq).toHaveBeenCalledWith("id", "active-1");
   });
 
   it("凍結ユーザーは保護ルートで強制サインアウトされる", async () => {
     const request = createRequest("/mypage");
     mockAuthenticatedSession(request, "suspended-1");
-    mocks.maybeSingle.mockResolvedValueOnce({ data: { is_active: false } });
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: false, role: "participant" },
+    });
 
     const response = await proxy(request);
     const location = new URL(
@@ -130,6 +137,68 @@ describe("proxy", () => {
     expect(location.searchParams.get("reason")).toBe("suspended");
   });
 
+  it("metadata が admin でも DB が participant なら /admin への越境を拒否する", async () => {
+    const request = createRequest("/admin");
+    mockAuthenticatedSession(request, "participant-1", "admin");
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: true, role: "participant" },
+    });
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url
+    );
+
+    expect(location.pathname).toBe("/forbidden");
+  });
+
+  it("metadata が participant でも DB が admin なら /admin を許可する", async () => {
+    const request = createRequest("/admin");
+    mockAuthenticatedSession(request, "admin-1", "participant");
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: true, role: "admin" },
+    });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("オンボーディング先は認可用DB roleではなくmetadataの選択状態で決める", async () => {
+    const request = createRequest("/mypage");
+    mockAuthenticatedSession(request, "organization-1", "organization", false);
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: true, role: "participant" },
+    });
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url
+    );
+
+    expect(location.pathname).toBe("/onboarding/organization");
+  });
+
+  it.each([
+    ["取得不能", null],
+    ["不正値", { is_active: true, role: "owner" }],
+  ])("DB role が%sなら /admin の権限を付与しない", async (_label, account) => {
+    const request = createRequest("/admin");
+    mockAuthenticatedSession(request, "admin-1", "admin");
+    mocks.maybeSingle.mockResolvedValueOnce({ data: account });
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url
+    );
+
+    expect(location.pathname).toBe("/forbidden");
+  });
+
   it.each([
     ["participant", "/dashboard"],
     ["participant", "/admin"],
@@ -140,7 +209,9 @@ describe("proxy", () => {
   ] as const)("%s は %s へ越境できない", async (role, pathname) => {
     const request = createRequest(pathname);
     mockAuthenticatedSession(request, `${role}-1`, role);
-    mocks.maybeSingle.mockResolvedValueOnce({ data: { is_active: true } });
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: true, role },
+    });
 
     const response = await proxy(request);
     const location = new URL(
