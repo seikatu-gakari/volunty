@@ -24,7 +24,7 @@ describe('DiagnosisWizard', () => {
 
   it('開始画面に非臨床の説明と、簡易/全50問の2モードが表示される', () => {
     render(<DiagnosisWizard />)
-    expect(screen.getByText('性格傾向チェック（BIG5）')).toBeDefined()
+    expect(screen.getByText('性格傾向チェック')).toBeDefined()
     expect(
       screen.getByRole('button', { name: /簡易診断を始める（15問）/ })
     ).toBeDefined()

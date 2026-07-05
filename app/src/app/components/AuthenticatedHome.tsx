@@ -53,7 +53,7 @@ export function AuthenticatedHome({ user }: AuthenticatedHomeProps) {
           </div>
           <ul className="flex flex-col gap-2">
             {[
-              "国際的に公開されている性格研究用の質問項目（IPIP）を使用",
+              "世界中で使われている性格研究をもとに設計",
               "5つの性格特性の傾向を確認",
               "おすすめ案件の並び順の参考になります",
             ].map((item) => (

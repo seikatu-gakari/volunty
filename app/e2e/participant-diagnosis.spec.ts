@@ -27,7 +27,7 @@ test.describe("参加者性格診断", () => {
 
     // 開始画面: 非臨床の説明が表示される
     await expect(
-      page.getByRole("heading", { name: "性格傾向チェック（BIG5）" })
+      page.getByRole("heading", { name: "性格傾向チェック" })
     ).toBeVisible();
     await expect(
       page.getByText(/医療・心理臨床の診断ではありません/)
@@ -50,7 +50,7 @@ test.describe("参加者性格診断", () => {
       page.getByText("あなたに近い活動スタイル（参考）")
     ).toBeVisible();
     await expect(
-      page.getByText(/IPIP Big-Five Factor Markers 日本語版（50問）/)
+      page.getByText(/性格傾向チェック（全50問）による診断/)
     ).toBeVisible();
     // 全問同一選択肢のため回答品質の注記が表示される（性格の評価ではない旨も明示）
     await expect(page.getByText("回答について")).toBeVisible();
@@ -61,7 +61,7 @@ test.describe("参加者性格診断", () => {
     // 再診断導線
     await page.getByRole("link", { name: "再診断する" }).click();
     await expect(
-      page.getByRole("heading", { name: "性格傾向チェック（BIG5）" })
+      page.getByRole("heading", { name: "性格傾向チェック" })
     ).toBeVisible();
   });
 
@@ -104,7 +104,7 @@ test.describe("参加者性格診断", () => {
 
     await expect(page).toHaveURL(/\/diagnosis\/result$/);
     await expect(
-      page.getByText(/IPIP Big-Five Factor Markers 日本語版（簡易版・15問）/)
+      page.getByText(/性格傾向チェック（簡易15問）による診断/)
     ).toBeVisible();
     await expect(page.getByText("簡易診断について")).toBeVisible();
   });

@@ -69,7 +69,7 @@ describe("診断設問数コピー", () => {
 
     expect(
       screen.getByText(
-        /国際的に公開されている性格研究用の質問項目（IPIP）で、5つの性格特性の傾向を確認します。簡易診断（15問）と全50問から選べます。/,
+        /世界中で使われている性格研究をもとに、5つの性格特性の傾向を確認します。簡易診断（15問）と全50問から選べます。/,
       ),
     ).toBeDefined();
     expect(screen.queryByText(oldQuestionCopyPattern)).toBeNull();

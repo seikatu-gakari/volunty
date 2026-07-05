@@ -21,7 +21,7 @@ test.describe("参加者オンボーディング", () => {
 
     await expect(page).toHaveURL(/\/diagnosis$/);
     await expect(
-      page.getByRole("heading", { name: "性格傾向チェック（BIG5）" })
+      page.getByRole("heading", { name: "性格傾向チェック" })
     ).toBeVisible();
   });
 });

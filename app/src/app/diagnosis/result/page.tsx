@@ -22,9 +22,9 @@ const DOMAIN_COLORS: Record<Big5Domain, string> = {
 
 /** scaleCode ごとの表示名・注記（新しい尺度を追加する場合はここに登録する） */
 const SCALE_DISPLAY_INFO: Record<string, { label: string; briefNotice?: string }> = {
-  "ipip-bfm-50-ja": { label: "IPIP Big-Five Factor Markers 日本語版（50問）による診断" },
+  "ipip-bfm-50-ja": { label: "性格傾向チェック（全50問）による診断" },
   "ipip-bfm-50-ja-brief15": {
-    label: "IPIP Big-Five Factor Markers 日本語版（簡易版・15問）による診断",
+    label: "性格傾向チェック（簡易15問）による診断",
     briefNotice:
       "簡易診断（15問）は全50問版から項目を抜粋したものです。項目数が少ないぶん結果の安定性は下がるため、より参考になる結果を得たい場合は全50問診断もお試しください。",
   },
@@ -273,7 +273,7 @@ export default async function DiagnosisResultPage() {
               <li>・この診断は自己報告に基づく性格の傾向を確認するもので、医療・心理臨床の診断ではありません。</li>
               <li>・おすすめ案件の並び順は、興味分野・地域・日程などを主に、性格の傾向も一部参考にして決まります。性格を理由に応募できなくなることはありません。</li>
               <li>・回答はその時の状態で変わることがあります。再診断すると最新の結果がマッチングに使われます。</li>
-              <li>・日本語版の質問項目は公開されている研究用項目（IPIP）にもとづいており、測定の精度は現在も検証を続けています。</li>
+              <li>・質問項目は国際的に公開されている性格研究にもとづいており、測定の精度は現在も検証を続けています。</li>
             </ul>
           </CardContent>
         </Card>

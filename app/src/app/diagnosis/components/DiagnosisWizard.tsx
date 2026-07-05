@@ -199,9 +199,9 @@ export function DiagnosisWizard() {
         <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
           <Sparkles className="size-16 text-primary" />
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-bold text-text-dark">性格傾向チェック（BIG5）</h1>
+            <h1 className="text-3xl font-bold text-text-dark">性格傾向チェック</h1>
             <p className="text-sm leading-6 text-text-body">
-              国際的に公開されている性格研究用の質問項目（IPIP）をもとに、
+              世界中で使われている性格研究をもとに、
               5つの性格特性の傾向を確認します。
               <br />
               途中で中断しても続きから再開できます。

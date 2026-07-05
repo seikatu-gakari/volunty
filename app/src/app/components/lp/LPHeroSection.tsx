@@ -19,7 +19,7 @@ const TRUST_ITEMS = [
 ] as const;
 
 const MATCH_POINTS = [
-  "BIG5の強みを可視化",
+  "あなたの強みを見える化",
   "あなたに合う順に活動を提案",
   "参加前の不安を減らす導線",
 ] as const;
