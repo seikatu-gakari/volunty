@@ -9,6 +9,11 @@ export type PersonaKey =
   | "participant-suspendable"
   | "organization-approved"
   | "organization-pending"
+  | "organization-fresh"
+  | "organization-reapply"
+  | "organization-profile-review"
+  | "organization-lifecycle"
+  | "organization-foreign"
   | "admin";
 
 export interface Persona {
@@ -67,6 +72,36 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-org-pending@example.com",
     role: "organization",
     description: "審査待ち団体（毎回 reviewStatus=pending に戻す）",
+  },
+  "organization-fresh": {
+    key: "organization-fresh",
+    email: "e2e-org-fresh@example.com",
+    role: "organization",
+    description: "団体オンボーディング専用（seedで未登録へ戻す）",
+  },
+  "organization-reapply": {
+    key: "organization-reapply",
+    email: "e2e-org-reapply@example.com",
+    role: "organization",
+    description: "否認理由確認と再申請専用（seedでrejectedへ戻す）",
+  },
+  "organization-profile-review": {
+    key: "organization-profile-review",
+    email: "e2e-org-profile-review@example.com",
+    role: "organization",
+    description: "承認済みプロフィール編集後の再審査専用",
+  },
+  "organization-lifecycle": {
+    key: "organization-lifecycle",
+    email: "e2e-org-lifecycle@example.com",
+    role: "organization",
+    description: "案件・応募・アプローチ・証明書の変更専用",
+  },
+  "organization-foreign": {
+    key: "organization-foreign",
+    email: "e2e-org-foreign@example.com",
+    role: "organization",
+    description: "所有権境界用の別団体",
   },
   admin: {
     key: "admin",
