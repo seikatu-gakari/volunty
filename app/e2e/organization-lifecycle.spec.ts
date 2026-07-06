@@ -25,17 +25,11 @@ async function scoreFromParticipantCard(card: Locator): Promise<number> {
 }
 
 function approachStatusCard(page: Page, title: string) {
-  return page
-    .getByText(title, { exact: true })
-    .locator("xpath=ancestor::div[descendant::h2 and descendant::span][1]");
+  return page.getByRole("article", { name: `${title}のアプローチ履歴` });
 }
 
 function matchingHistoryCard(page: Page, title: string) {
-  return page
-    .getByText(title, { exact: true })
-    .locator(
-      "xpath=ancestor::div[descendant::a[normalize-space()='応募詳細を見る']][1]",
-    );
+  return page.getByRole("article", { name: `${title}のマッチング履歴` });
 }
 
 test.describe("団体業務ライフサイクル", () => {

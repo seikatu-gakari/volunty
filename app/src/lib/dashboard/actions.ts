@@ -1088,15 +1088,6 @@ export async function fetchApplicantDetail(
       return { data: null, error: "団体プロフィールが見つかりません" };
     }
 
-    const existingApplication = await prisma.matchingCandidate.findUnique({
-      where: { id: applicationId },
-      select: { id: true },
-    });
-
-    if (!existingApplication) {
-      return { data: null, error: "応募が見つかりません" };
-    }
-
     const application = await prisma.matchingCandidate.findFirst({
       where: {
         id: applicationId,

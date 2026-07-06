@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetUser = vi.fn();
 const mockFindOrganizationProfile = vi.fn();
-const mockFindApplication = vi.fn();
 const mockFindOwnedApplication = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -19,7 +18,6 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: (...args: unknown[]) => mockFindOrganizationProfile(...args),
     },
     matchingCandidate: {
-      findUnique: (...args: unknown[]) => mockFindApplication(...args),
       findFirst: (...args: unknown[]) => mockFindOwnedApplication(...args),
     },
   },
@@ -87,7 +85,6 @@ describe("fetchApplicantDetail", () => {
       error: null,
     });
     mockFindOrganizationProfile.mockResolvedValue(organizationProfile);
-    mockFindApplication.mockResolvedValue({ id: "application-1" });
     mockFindOwnedApplication.mockResolvedValue(ownedApplication);
   });
 
@@ -116,36 +113,34 @@ describe("fetchApplicantDetail", () => {
       data: null,
       error: "団体プロフィールが見つかりません",
     });
-    expect(mockFindApplication).not.toHaveBeenCalled();
-  });
-
-  it("応募が存在しない場合はエラーを返す", async () => {
-    mockFindApplication.mockResolvedValue(null);
-
-    const result = await fetchApplicantDetail("missing-application");
-
-    expect(result).toEqual({ data: null, error: "応募が見つかりません" });
     expect(mockFindOwnedApplication).not.toHaveBeenCalled();
   });
 
-  it("他団体案件の応募は所有権条件で拒否する", async () => {
-    mockFindOwnedApplication.mockResolvedValue(null);
+  it.each([
+    ["存在しない応募ID", "missing-application"],
+    ["他団体所有の応募ID", "foreign-application"],
+  ])(
+    "%sは所有権付き検索1回で同じ権限エラーを返す",
+    async (_caseName, applicationId) => {
+      mockFindOwnedApplication.mockResolvedValue(null);
 
-    const result = await fetchApplicantDetail("application-1");
+      const result = await fetchApplicantDetail(applicationId);
 
-    expect(result).toEqual({
-      data: null,
-      error: "この操作を行う権限がありません",
-    });
-    expect(mockFindOwnedApplication).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          id: "application-1",
-          opportunity: { organizationId: "organization-profile-1" },
-        },
-      })
-    );
-  });
+      expect(result).toEqual({
+        data: null,
+        error: "この操作を行う権限がありません",
+      });
+      expect(mockFindOwnedApplication).toHaveBeenCalledTimes(1);
+      expect(mockFindOwnedApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: applicationId,
+            opportunity: { organizationId: "organization-profile-1" },
+          },
+        })
+      );
+    }
+  );
 
   it("応募に関連付いた診断結果から参加者名・人物タイプ・BIG5を返す", async () => {
     const result = await fetchApplicantDetail("application-1");
