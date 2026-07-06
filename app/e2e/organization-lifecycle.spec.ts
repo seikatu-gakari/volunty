@@ -12,7 +12,7 @@ const TITLES = {
   certificateReject: "E2E 団体証明書却下案件",
 } as const;
 
-const APPROACH_PARTICIPANT_NAME = "E2E 参加者(診断済)";
+const APPROACH_PARTICIPANT_NAME = "E2E 団体操作専用参加者";
 
 async function scoreFromParticipantCard(card: Locator): Promise<number> {
   const text = await card.getByText(/^\d+%$/).textContent();

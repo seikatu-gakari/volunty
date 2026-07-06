@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const ORGANIZATION_FIXTURE_PARTICIPANT_ID =
+  "00000000-0000-4000-8000-000000000167";
+const ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID =
+  "00000000-0000-4000-8000-000000000168";
+const ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID =
+  "00000000-0000-4000-8000-000000000169";
+
 const mocks = vi.hoisted(() => ({
   personas: {
     admin: {
@@ -27,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   personalityTypeFindUnique: vi.fn(),
   diagnosisResultFindFirst: vi.fn(),
   diagnosisResultCreate: vi.fn(),
+  diagnosisResultUpsert: vi.fn(),
   diagnosisResultUpdate: vi.fn(),
   diagnosisResultDeleteMany: vi.fn(),
   organizationProfileDeleteMany: vi.fn(),
@@ -55,6 +63,7 @@ vi.mock("@/lib/prisma", () => ({
     diagnosisResult: {
       findFirst: mocks.diagnosisResultFindFirst,
       create: mocks.diagnosisResultCreate,
+      upsert: mocks.diagnosisResultUpsert,
       update: mocks.diagnosisResultUpdate,
       deleteMany: mocks.diagnosisResultDeleteMany,
     },
@@ -201,14 +210,23 @@ describe("seedE2eUsers", () => {
     mocks.userUpsert.mockResolvedValue({});
     mocks.userUpdate.mockResolvedValue({});
     mocks.participantProfileUpsert.mockImplementation(
-      async ({ where }: { where: { userId: string } }) => ({
-        id: `${where.userId}-profile-id`,
+      async ({
+        where,
+        create,
+      }: {
+        where: { userId: string };
+        create: { id?: string };
+      }) => ({
+        id: create.id ?? `${where.userId}-profile-id`,
       })
     );
     mocks.participantProfileDeleteMany.mockResolvedValue({ count: 0 });
     mocks.personalityTypeFindUnique.mockResolvedValue({ id: "ptype-id" });
     mocks.diagnosisResultFindFirst.mockResolvedValue({ id: "diagnosis-id" });
     mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
+    mocks.diagnosisResultUpsert.mockResolvedValue({
+      id: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID,
+    });
     mocks.diagnosisResultUpdate.mockResolvedValue({ id: "diagnosis-id" });
     mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
     mocks.organizationProfileDeleteMany.mockResolvedValue({ count: 0 });
@@ -331,7 +349,7 @@ describe("seedE2eUsers", () => {
     expect(mocks.createUser).not.toHaveBeenCalled();
   });
 
-  it("既存のlifecycle診断結果を固定値へ戻してO-E8応募に再利用する", async () => {
+  it("既存のlifecycle診断結果を固定値へ戻す", async () => {
     const authUsers = Object.values(mocks.personas).map((persona) => ({
       id: `${persona.key}-id`,
       email: persona.email,
@@ -366,22 +384,160 @@ describe("seedE2eUsers", () => {
         diagnosisMode: "brief",
       },
     });
+  });
+
+  it("団体変更系fixtureをAuthペルソナから分離する", async () => {
+    const authUsers = Object.values(mocks.personas).map((persona) => ({
+      id: `${persona.key}-id`,
+      email: persona.email,
+    }));
+    mocks.listUsers.mockResolvedValue({
+      data: { users: authUsers },
+      error: null,
+    });
+    mocks.updateUserById.mockResolvedValue({ error: null });
+
+    await seedE2eUsers();
+
+    expect(mocks.userUpsert).toHaveBeenCalledWith({
+      where: { id: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
+      update: {
+        email: "e2e-organization-fixture-participant@example.com",
+        name: "E2E 団体操作専用参加者",
+        role: "participant",
+      },
+      create: {
+        id: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
+        email: "e2e-organization-fixture-participant@example.com",
+        name: "E2E 団体操作専用参加者",
+        role: "participant",
+      },
+    });
+    expect(mocks.participantProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
+        create: expect.objectContaining({
+          id: ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID,
+          userId: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
+          name: "E2E 団体操作専用参加者",
+        }),
+      })
+    );
+    expect(mocks.diagnosisResultUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID },
+        create: expect.objectContaining({
+          id: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID,
+          userId: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
+        }),
+      })
+    );
+
+    for (const title of [
+      "E2E 団体応募辞退案件",
+      "E2E 団体履歴承認案件",
+      "E2E 団体履歴辞退案件",
+      "E2E 団体活動完了案件",
+      "E2E 団体証明書承認案件",
+      "E2E 団体証明書却下案件",
+    ]) {
+      expect(mocks.matchingCandidateUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            participantId_opportunityId: {
+              participantId: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
+              opportunityId: `existing-${title}`,
+            },
+          },
+        })
+      );
+    }
+    expect(mocks.matchingCandidateDeleteMany).toHaveBeenCalledWith({
+      where: {
+        participantId: { not: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
+        opportunityId: {
+          in: [
+            "existing-E2E 団体応募辞退案件",
+            "existing-E2E 団体履歴承認案件",
+            "existing-E2E 団体履歴辞退案件",
+            "existing-E2E 団体活動完了案件",
+            "existing-E2E 団体証明書承認案件",
+            "existing-E2E 団体証明書却下案件",
+          ],
+        },
+      },
+    });
     expect(mocks.matchingCandidateUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           participantId_opportunityId: {
-            participantId: "participant-lifecycle-id",
+            participantId: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
             opportunityId: "existing-E2E 団体応募辞退案件",
           },
         },
         update: expect.objectContaining({
-          diagnosisResultId: "existing-lifecycle-diagnosis-id",
+          diagnosisResultId: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID,
         }),
         create: expect.objectContaining({
-          diagnosisResultId: "existing-lifecycle-diagnosis-id",
+          diagnosisResultId: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID,
         }),
       })
     );
+    expect(mocks.approachDeleteMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: "lifecycle-org-id",
+        participantProfileId: ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID,
+        opportunityId: "existing-E2E 団体アプローチ送信案件",
+      },
+    });
+    expect(mocks.approachDeleteMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: "lifecycle-org-id",
+        participantProfileId: {
+          not: ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID,
+        },
+        opportunityId: {
+          in: [
+            "existing-E2E 団体アプローチ送信案件",
+            "existing-E2E 団体アプローチ未回答案件",
+            "existing-E2E 団体アプローチ承諾済み案件",
+            "existing-E2E 団体アプローチ辞退済み案件",
+            "existing-E2E 団体アプローチ期限切れ案件",
+          ],
+        },
+      },
+    });
+    for (const title of [
+      "E2E 団体アプローチ未回答案件",
+      "E2E 団体アプローチ承諾済み案件",
+      "E2E 団体アプローチ辞退済み案件",
+      "E2E 団体アプローチ期限切れ案件",
+    ]) {
+      expect(mocks.approachUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            organizationId_participantProfileId_opportunityId: {
+              organizationId: "lifecycle-org-id",
+              participantProfileId: ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID,
+              opportunityId: `existing-${title}`,
+            },
+          },
+        })
+      );
+    }
+    for (const title of [
+      "E2E 団体証明書承認案件",
+      "E2E 団体証明書却下案件",
+    ]) {
+      expect(mocks.certificateUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            participantId: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
+            opportunityId: `existing-${title}`,
+          }),
+        })
+      );
+    }
   });
 
   it("スモークに必要な状態データを作成し、副作用を初期状態へ戻す", async () => {
@@ -397,8 +553,14 @@ describe("seedE2eUsers", () => {
     mocks.userUpsert.mockResolvedValue({});
     mocks.personalityTypeFindUnique.mockResolvedValue({ id: "ptype-id" });
     mocks.participantProfileUpsert.mockImplementation(
-      async ({ where }: { where: { userId: string } }) => ({
-        id: `${where.userId}-profile-id`,
+      async ({
+        where,
+        create,
+      }: {
+        where: { userId: string };
+        create: { id?: string };
+      }) => ({
+        id: create.id ?? `${where.userId}-profile-id`,
       })
     );
     mocks.diagnosisResultFindFirst.mockResolvedValue(null);
@@ -561,7 +723,7 @@ describe("seedE2eUsers", () => {
     expect(mocks.approachDeleteMany).toHaveBeenCalledWith({
       where: {
         organizationId: "lifecycle-org-id",
-        participantProfileId: "participant-onboarded-id-profile-id",
+        participantProfileId: ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID,
         opportunityId: "created-E2E 団体アプローチ送信案件",
       },
     });
@@ -585,15 +747,15 @@ describe("seedE2eUsers", () => {
       expect.objectContaining({
         where: {
           participantId_opportunityId: {
-            participantId: "participant-lifecycle-id",
+            participantId: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
             opportunityId: "created-E2E 団体応募辞退案件",
           },
         },
         update: expect.objectContaining({
-          diagnosisResultId: "lifecycle-diagnosis-id",
+          diagnosisResultId: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID,
         }),
         create: expect.objectContaining({
-          diagnosisResultId: "lifecycle-diagnosis-id",
+          diagnosisResultId: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID,
         }),
       })
     );
