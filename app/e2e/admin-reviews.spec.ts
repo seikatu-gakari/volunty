@@ -8,6 +8,15 @@ function historyCard(page: Page, name: string) {
   return page.getByRole("article", { name: new RegExp(name) });
 }
 
+async function openReviewDetail(page: Page, name: string) {
+  const card = organizationCard(page, name);
+  await expect(card).toHaveCount(1);
+  await card.getByRole("link", { name: "詳細画面を開く" }).click();
+  await expect(
+    page.getByRole("heading", { name: "団体審査詳細" })
+  ).toBeVisible();
+}
+
 test.use({ storageState: "playwright/.auth/admin-review.json" });
 
 test("A-E2/A-E5: 審査詳細で団体情報を確認して承認し履歴に反映する", async ({
@@ -15,13 +24,8 @@ test("A-E2/A-E5: 審査詳細で団体情報を確認して承認し履歴に反
 }) => {
   await page.goto("/admin/reviews");
 
-  const card = organizationCard(page, "E2E詳細承認団体");
-  await expect(card).toHaveCount(1);
-  await card.getByRole("link", { name: "詳細画面を開く" }).click();
+  await openReviewDetail(page, "E2E詳細承認団体");
 
-  await expect(
-    page.getByRole("heading", { name: "団体審査詳細" })
-  ).toBeVisible();
   await expect(page.getByText("E2E承認代表")).toBeVisible();
   await expect(
     page.getByText("e2e-review-approve-contact@example.com")
@@ -51,9 +55,7 @@ test("A-E3/A-E5: 空理由を検証してから審査詳細で否認し履歴に
 }) => {
   await page.goto("/admin/reviews");
 
-  const card = organizationCard(page, "E2E詳細否認団体");
-  await expect(card).toHaveCount(1);
-  await card.getByRole("link", { name: "詳細画面を開く" }).click();
+  await openReviewDetail(page, "E2E詳細否認団体");
 
   await expect(page.getByRole("button", { name: "否認する" })).toBeDisabled();
   await page.getByLabel("却下理由").fill("A-E3 否認理由");
