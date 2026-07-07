@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { LPSectionHeading } from "./LPSectionHeading";
 
 const FAQ_ITEMS = [
   {
@@ -35,12 +36,10 @@ export function FAQSection() {
 
   return (
     <section id="faq" className="relative z-10 mt-20 sm:mt-28">
-      <div className="mb-12 text-center">
-        <p className="mb-3 text-sm font-medium text-primary">✦ よくある質問 ✦</p>
-        <h2 className="text-3xl font-bold tracking-tight text-text-dark sm:text-[32px]">
-          はじめる前の、ちいさな不安に。
-        </h2>
-      </div>
+      <LPSectionHeading
+        eyebrow="よくある質問"
+        title="はじめる前の、ちいさな不安に。"
+      />
 
       <div className="mx-auto max-w-2xl divide-y divide-card-border rounded-2xl border border-card-border bg-white shadow-sm">
         {FAQ_ITEMS.map((item, i) => (

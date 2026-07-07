@@ -3,8 +3,7 @@ import type { ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { AuthenticatedHome } from "./AuthenticatedHome";
-import { HowItWorksSection } from "./lp/HowItWorksSection";
-import { HowToUseSection } from "./lp/HowToUseSection";
+import { UsageSection } from "./lp/UsageSection";
 import { vi } from "vitest";
 
 vi.mock("next/link", () => ({
@@ -56,20 +55,11 @@ describe("診断設問数コピー", () => {
   });
 
   it("LPの診断説明で簡易15問・全50問の2モード診断仕様を表示する", () => {
-    const { rerender } = render(<HowToUseSection />);
+    render(<UsageSection />);
 
     expect(
       screen.getByText(
-        /性格傾向チェック（簡易15問・約2分\/全50問・約5〜8分から選べます）で、あなたの特性の傾向を確認。登録は無料です。/,
-      ),
-    ).toBeDefined();
-    expect(screen.queryByText(oldQuestionCopyPattern)).toBeNull();
-
-    rerender(<HowItWorksSection />);
-
-    expect(
-      screen.getByText(
-        /世界中で使われている性格研究をもとに、5つの性格特性の傾向を確認します。簡易診断（15問）と全50問から選べます。/,
+        /世界中で使われている性格研究をもとに、5つの性格特性の傾向を確認。簡易15問（約2分）と全50問（約5〜8分）から選べて、登録は無料です。/,
       ),
     ).toBeDefined();
     expect(screen.queryByText(oldQuestionCopyPattern)).toBeNull();
