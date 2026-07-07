@@ -7,6 +7,7 @@ import { DiagnosisTypesGrid } from "./components/lp/DiagnosisTypesGrid";
 import { PainPointsSection } from "./components/lp/PainPointsSection";
 import { UsageSection } from "./components/lp/UsageSection";
 import { BenefitsSection } from "./components/lp/BenefitsSection";
+import { VoicesSection } from "./components/lp/VoicesSection";
 import { FeaturesSection } from "./components/lp/FeaturesSection";
 import { FAQSection } from "./components/lp/FAQSection";
 import { LPBottomCTA } from "./components/lp/LPBottomCTA";
@@ -65,6 +66,11 @@ export default async function Home() {
           {/* 参加メリット */}
           <Reveal>
             <BenefitsSection />
+          </Reveal>
+
+          {/* 利用イメージ（声） */}
+          <Reveal>
+            <VoicesSection />
           </Reveal>
 
           {/* 主な機能 */}
