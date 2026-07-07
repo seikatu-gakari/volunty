@@ -2,13 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Header } from "@/app/components/Header";
 import { DiagnosisWizard } from "./components/DiagnosisWizard";
-import { DEFAULT_DIAGNOSIS_MODE, isDiagnosisMode } from "@/lib/personality/constants";
-
-type DiagnosisPageProps = {
-  searchParams?: Promise<{
-    mode?: string | string[];
-  }>;
-};
 
 /**
  * 診断ページ（/diagnosis）
@@ -17,11 +10,8 @@ type DiagnosisPageProps = {
  * - ログイン済み（未ログイン → /login へリダイレクト）
  * - ロール = participant のみ（参加者レコードが存在すること）
  */
-export default async function DiagnosisPage({ searchParams }: DiagnosisPageProps) {
+export default async function DiagnosisPage() {
   let user = null;
-  const params = await searchParams;
-  const modeParam = Array.isArray(params?.mode) ? params.mode[0] : params?.mode;
-  const initialMode = isDiagnosisMode(modeParam) ? modeParam : DEFAULT_DIAGNOSIS_MODE;
 
   try {
     const supabase = await createClient();
@@ -46,7 +36,7 @@ export default async function DiagnosisPage({ searchParams }: DiagnosisPageProps
     <div className="min-h-screen bg-background font-sans">
       <Header />
       <main className="mx-auto max-w-3xl px-6 py-10">
-        <DiagnosisWizard initialMode={initialMode} />
+        <DiagnosisWizard />
       </main>
     </div>
   );

@@ -68,15 +68,6 @@ function collectUrlToasts(searchParams: URLSearchParams): UrlToastResult {
     consumedParams.push("error");
   }
 
-  if (searchParams.get("error") === "suspended") {
-    toasts.push({
-      type: "error",
-      title: "アカウントが凍結されています",
-      description: "ご利用できません。お問い合わせください。",
-    });
-    consumedParams.push("error");
-  }
-
   if (searchParams.get("accountDeleted") === "1") {
     toasts.push({
       type: "success",

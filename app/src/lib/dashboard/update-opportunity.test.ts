@@ -12,7 +12,10 @@ const mockSelectEq = vi.fn();
 const mockSingle = vi.fn();
 const mockUpdate = vi.fn();
 const mockUpdateEq = vi.fn();
-const mockUpdateEq2 = vi.fn((..._args: unknown[]) => mockUpdateResult);
+const mockUpdateEq2 = vi.fn((...args: unknown[]) => {
+  void args;
+  return mockUpdateResult;
+});
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -176,29 +179,30 @@ describe("updateOpportunity", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/dashboard/opportunities/opp-1");
   });
 
-  it("特性スコア付きで案件を更新できる", async () => {
+  it("活動スタイルタグ・参加要件付きで案件を更新できる", async () => {
     const mockUser = { id: "org-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({
       data: { user: mockUser },
       error: null,
     });
-    
+
     mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
     mockUpdateResult = { error: null };
 
     const fd = buildFormData({
       title: "子ども支援イベント",
       description: "学習支援を行います",
-      trait_extraversion: "70",
-      trait_openness: "80",
+      maxAge: "65",
     });
+    fd.append("activityStyleTags", "empathy-support");
 
     await updateOpportunity("opp-1", fd);
 
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "子ども支援イベント",
-        requirement_traits: { extraversion: 70, openness: 80 },
+        activity_style_tags: ["empathy-support"],
+        max_age: 65,
       })
     );
   });

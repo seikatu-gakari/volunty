@@ -104,54 +104,56 @@ export default async function DashboardApproachesPage() {
                 approach.isExpired
               );
               return (
-                <Card key={approach.id}>
-                  <CardContent>
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h2 className="text-base font-bold text-text-dark">
-                          {approach.participantName}
-                        </h2>
-                        <p className="mt-1 text-sm text-text-body">
-                          {approach.opportunityTitle}
-                        </p>
+                <article
+                  key={approach.id}
+                  aria-label={`${approach.opportunityTitle}のアプローチ履歴`}
+                >
+                  <Card>
+                    <CardContent>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h2 className="text-base font-bold text-text-dark">
+                            {approach.participantName}
+                          </h2>
+                          <p className="mt-1 text-sm text-text-body">
+                            {approach.opportunityTitle}
+                          </p>
+                        </div>
+                        <span
+                          className={`inline-flex w-fit items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${display.color}`}
+                        >
+                          {display.icon}
+                          {display.label}
+                        </span>
                       </div>
-                      <span
-                        className={`inline-flex w-fit items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${display.color}`}
-                      >
-                        {display.icon}
-                        {display.label}
-                      </span>
-                    </div>
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-text-body">
-                      {approach.message}
-                    </p>
-                    <div className="flex flex-wrap gap-4 text-xs text-text-body">
-                      <span>
-                        送信日:{" "}
-                        {new Date(approach.createdAt).toLocaleDateString(
-                          "ja-JP"
-                        )}
-                      </span>
-                      <span>
-                        回答期限:{" "}
-                        {new Date(approach.expiresAt).toLocaleDateString(
-                          "ja-JP"
-                        )}
-                      </span>
-                      {approach.respondedAt && (
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-text-body">
+                        {approach.message}
+                      </p>
+                      <div className="flex flex-wrap gap-4 text-xs text-text-body">
                         <span>
-                          回答日:{" "}
-                          {new Date(approach.respondedAt).toLocaleDateString(
+                          送信日:{" "}
+                          {new Date(approach.createdAt).toLocaleDateString(
                             "ja-JP"
                           )}
                         </span>
-                      )}
-                      {approach.matchScore !== null && (
-                        <span>相性スコア: {Math.round(approach.matchScore)}%</span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                        <span>
+                          回答期限:{" "}
+                          {new Date(approach.expiresAt).toLocaleDateString(
+                            "ja-JP"
+                          )}
+                        </span>
+                        {approach.respondedAt && (
+                          <span>
+                            回答日:{" "}
+                            {new Date(approach.respondedAt).toLocaleDateString(
+                              "ja-JP"
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </article>
               );
             })}
           </div>

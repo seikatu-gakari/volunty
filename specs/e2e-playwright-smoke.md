@@ -1,5 +1,11 @@
 # E2E スモークスイート（@playwright/test）+ `make e2e` 自動実行 — 実装仕様
 
+> **注意（2026-07-06 更新）**: 本書は導入時の実装計画であり、コード例の一部（`diagnosisType`/`diagnosisScores`/`personalityType`/
+> 旧・独自16問モード等）は診断・マッチング再設計により旧仕様です。現行の正は `app/scripts/seed-e2e.ts` と
+> `app/e2e/*.spec.ts` を参照してください
+> （現行: IPIP-BFM-50 簡易15問/全50問の2モード・`latest_diagnosis_result_id` 参照）。
+
+
 > **位置づけ**: 本仕様は [`e2e-auth-bypass.md`](./e2e-auth-bypass.md) の「将来拡張」（`@playwright/test` 導入 + `globalSetup` + `storageState` + プロフィール seed）を実装するもの。
 > **目的**: 現在の主要機能をフロー単位でカバーする E2E スモークスイートを構築し、`make e2e` 一発で `Supabase 起動 → seed → dev サーバー自動起動 → テスト実行 → HTML レポート` まで無人実行できるようにする。
 > **対象環境**: ローカル Supabase のみ（本番・Vercel Preview への影響ゼロを維持する）。
@@ -9,6 +15,15 @@
 > [`docs/superpowers/specs/2026-07-01-participant-e2e-design.md`](../docs/superpowers/specs/2026-07-01-participant-e2e-design.md)
 > を最新仕様とする。従来の `participant.spec.ts` は機能領域別の5ファイルへ分割され、
 > P-2〜P-14とアカウント削除を検証する。以下は初期スモーク導入時の設計記録として残す。
+
+> **2026-07-05 団体E2E拡張**: 団体シナリオ O-E1〜O-E10 は
+> [`docs/superpowers/specs/2026-07-05-organization-e2e-design.md`](../docs/superpowers/specs/2026-07-05-organization-e2e-design.md)
+> を最新仕様とする。既存 O1〜O3 を維持し、オンボーディング系と業務ライフサイクル系へ拡張した。
+
+| ID | Playwright spec |
+| --- | --- |
+| O-E1〜O-E3 | `app/e2e/organization-onboarding.spec.ts` |
+| O-E4〜O-E10 | `app/e2e/organization-lifecycle.spec.ts` |
 
 ---
 

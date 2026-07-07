@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   User,
   MessageSquare,
-  Sparkles,
   Clock,
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
@@ -13,82 +12,6 @@ import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
 import { fetchApplicantDetail } from "@/lib/dashboard/actions";
 import { StatusActions } from "../../components/StatusActions";
-
-/** BIG5 スコアバー */
-function ScoreBar({
-  label,
-  score,
-  color,
-}: {
-  label: string;
-  score: number;
-  color: string;
-}) {
-  return (
-    <div>
-      <div className="mb-1 flex justify-between">
-        <span className="text-sm font-medium text-text-body">{label}</span>
-        <span className="text-sm font-bold text-text-dark">{score}%</span>
-      </div>
-      <div className="h-2.5 w-full rounded-full bg-primary/20">
-        <div
-          className={`h-2.5 rounded-full ${color}`}
-          style={{ width: `${score}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/** BIG5 スコア一覧セクション */
-function ScoresSection({
-  scores,
-}: {
-  scores: Record<string, number>;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <h3 className="text-lg font-bold text-text-dark">BIG5 スコア詳細</h3>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-5">
-          <ScoreBar
-            label="外向性"
-            score={scores.extraversion ?? 0}
-            color="bg-red-500"
-          />
-          <ScoreBar
-            label="協調性"
-            score={scores.agreeableness ?? 0}
-            color="bg-green-500"
-          />
-          <ScoreBar
-            label="誠実性"
-            score={scores.conscientiousness ?? 0}
-            color="bg-blue-500"
-          />
-          <ScoreBar
-            label="神経症傾向"
-            score={scores.neuroticism ?? 0}
-            color="bg-yellow-500"
-          />
-          <ScoreBar
-            label="開放性"
-            score={scores.openness ?? 0}
-            color="bg-purple-500"
-          />
-        </div>
-        <div className="mt-6 rounded-lg bg-background p-4 text-xs text-text-body">
-          <p>※ スコアは0-100で表示されています。</p>
-          <p>
-            ※ 神経症傾向は数値が高いほど「敏感・繊細」であることを示します。
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default async function ApplicantDetailPage({
   params,
@@ -120,7 +43,7 @@ export default async function ApplicantDetailPage({
     notFound();
   }
 
-  const typeDetail = data.personality_type_detail;
+  const typeDetail = data.style_type_detail;
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -148,9 +71,9 @@ export default async function ApplicantDetailPage({
                   <h1 className="text-xl font-bold text-text-dark">
                     {data.participant_name}
                   </h1>
-                  {data.diagnosis_type && (
+                  {data.style_type_label && (
                     <span className="text-sm text-text-body">
-                      {data.diagnosis_type}
+                      {data.style_type_label}（参考タイプ）
                     </span>
                   )}
                 </div>
@@ -182,35 +105,6 @@ export default async function ApplicantDetailPage({
           </CardContent>
         </Card>
 
-        {/* マッチングスコア */}
-        {data.match_score !== null && (
-          <Card className="mb-6">
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <Sparkles className="size-5 text-primary" />
-                <span className="text-sm font-medium text-text-body">
-                  マッチングスコア
-                </span>
-                <span className="text-2xl font-bold text-text-dark">
-                  {data.match_score}%
-                </span>
-              </div>
-              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
-                <div
-                  className={`h-full rounded-full ${
-                    data.match_score >= 80
-                      ? "bg-primary"
-                      : data.match_score >= 60
-                        ? "bg-primary-dark"
-                        : "bg-text-body"
-                  }`}
-                  style={{ width: `${data.match_score}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* 応募メッセージ */}
         {data.message && (
           <Card className="mb-6">
@@ -230,78 +124,68 @@ export default async function ApplicantDetailPage({
           </Card>
         )}
 
-        {/* 診断タイプ詳細 + BIG5 スコア */}
+        {/* 活動スタイルの参考タイプ（生の診断スコアは開示しない） */}
         {typeDetail ? (
-          <div className="mb-6 grid gap-6 md:grid-cols-2">
-            {/* 左カラム: タイプ詳細 */}
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <h3 className="text-lg font-bold text-text-dark">
-                    診断タイプ
-                  </h3>
-                </CardHeader>
-                <CardContent>
-                  <div className="mb-3">
-                    <h4 className="text-base font-bold text-primary">
-                      {typeDetail.name}
-                    </h4>
-                    <p className="text-xs text-text-body">
-                      {typeDetail.nameEn}
-                    </p>
-                  </div>
-                  <p className="leading-relaxed text-text-body">
-                    {typeDetail.description}
+          <div className="mb-6 space-y-6">
+            <Card>
+              <CardHeader>
+                <h3 className="text-lg font-bold text-text-dark">
+                  活動スタイル（参考タイプ）
+                </h3>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-3">
+                  <h4 className="text-base font-bold text-primary">
+                    {typeDetail.name}
+                  </h4>
+                  <p className="text-xs text-text-body">
+                    {typeDetail.nameEn}
                   </p>
-                </CardContent>
-              </Card>
+                </div>
+                <p className="leading-relaxed text-text-body">
+                  {typeDetail.description}
+                </p>
+                <p className="mt-3 text-xs leading-5 text-text-body">
+                  ※ 参加者の回答傾向にもとづく参考情報です。選考の合否判定に用いるものではありません。
+                </p>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader>
-                  <h3 className="text-lg font-bold text-text-dark">
-                    ボランティアでの強み
-                  </h3>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {typeDetail.strengths.map((strength, i) => (
-                      <li key={i} className="flex items-center text-text-body">
-                        <span className="mr-2 text-primary">•</span>
-                        {strength}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
+            <Card>
+              <CardHeader>
+                <h3 className="text-lg font-bold text-text-dark">
+                  発揮しやすい傾向の例
+                </h3>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {typeDetail.tendencies.map((tendency, i) => (
+                    <li key={i} className="flex items-center text-text-body">
+                      <span className="mr-2 text-primary">•</span>
+                      {tendency}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader>
-                  <h3 className="text-lg font-bold text-text-dark">
-                    適した活動
-                  </h3>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {typeDetail.suitableActivities.map((activity, i) => (
-                      <li key={i} className="flex items-center text-text-body">
-                        <span className="mr-2 text-primary">•</span>
-                        {activity}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* 右カラム: BIG5 スコア */}
-            {data.diagnosis_scores && (
-              <ScoresSection scores={data.diagnosis_scores} />
-            )}
-          </div>
-        ) : data.diagnosis_scores ? (
-          /* 診断タイプが不明だがスコアがある場合 */
-          <div className="mb-6">
-            <ScoresSection scores={data.diagnosis_scores} />
+            <Card>
+              <CardHeader>
+                <h3 className="text-lg font-bold text-text-dark">
+                  力を発揮しやすい活動の例
+                </h3>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {typeDetail.activityExamples.map((activity, i) => (
+                    <li key={i} className="flex items-center text-text-body">
+                      <span className="mr-2 text-primary">•</span>
+                      {activity}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
           </div>
         ) : (
           /* 診断未実施 */

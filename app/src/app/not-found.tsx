@@ -35,7 +35,7 @@ export default function NotFound() {
             トップへ戻る
           </Link>
           <Link
-            href="/diagnosis?mode=brief"
+            href="/diagnosis"
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white transition-colors hover:bg-primary-dark"
           >
             <Sparkles className="size-4" aria-hidden />

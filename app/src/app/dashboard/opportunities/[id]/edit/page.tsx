@@ -44,7 +44,10 @@ export default async function EditOpportunityPage({
           initialData={{
             title: opportunity.title,
             description: opportunity.description,
-            required_traits: opportunity.required_traits,
+            activity_style_tags: opportunity.activity_style_tags,
+            required_qualifications: opportunity.required_qualifications,
+            min_age: opportunity.min_age,
+            max_age: opportunity.max_age,
             status: opportunity.status,
             location: opportunity.location,
             start_date: opportunity.start_date,

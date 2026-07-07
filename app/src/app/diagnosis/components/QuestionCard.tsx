@@ -1,10 +1,11 @@
 import React from 'react'
-import { Question } from '@/lib/personality/types'
 import { ArrowLeft } from 'lucide-react'
 import { Card } from '@/app/components/ui/Card'
+import { LIKERT_OPTIONS } from '@/lib/diagnosis-scale/scale'
+import type { ScaleItem } from '@/lib/diagnosis-scale/types'
 
 interface QuestionCardProps {
-  question: Question
+  item: ScaleItem
   onAnswer: (value: number) => void
   onBack: () => void
   canGoBack: boolean
@@ -13,7 +14,7 @@ interface QuestionCardProps {
 }
 
 export function QuestionCard({
-  question,
+  item,
   onAnswer,
   onBack,
   canGoBack,
@@ -40,12 +41,12 @@ export function QuestionCard({
 
       {/* 質問テキスト */}
       <h2 className="mb-8 flex min-h-[80px] items-center justify-center text-center text-xl font-bold text-text-dark">
-        {question.text}
+        {item.textJa}
       </h2>
 
       {/* 選択肢 */}
       <div className="space-y-3">
-        {question.options.map((option) => (
+        {LIKERT_OPTIONS.map((option) => (
           <button
             key={option.value}
             onClick={() => onAnswer(option.value)}

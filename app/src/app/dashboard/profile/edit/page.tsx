@@ -61,7 +61,7 @@ export default async function OrganizationProfileEditPage() {
     <div className="min-h-screen bg-background font-sans">
       <Header />
       <main className="mx-auto max-w-3xl px-6 py-8">
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mb-6 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-sm text-warning">
           承認済みプロフィールを修正すると、確認のため再審査になります。保存後は審査完了まで審査待ち画面へ移動します。
         </div>
         <OrganizationProfileForm

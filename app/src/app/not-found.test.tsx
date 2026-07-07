@@ -42,7 +42,7 @@ describe("NotFound", () => {
     ).toBe("/");
     expect(
       screen.getByRole("link", { name: /診断を始める/ }).getAttribute("href"),
-    ).toBe("/diagnosis?mode=brief");
+    ).toBe("/diagnosis");
   });
 
   it("CTAをモバイルでは縦積み、広い画面では横並びにする", () => {

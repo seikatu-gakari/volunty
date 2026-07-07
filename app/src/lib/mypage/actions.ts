@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchParticipantProfileByUserIdWithDebug } from "@/lib/participant-profile/server";
+import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
 import type {
   MyPageData,
   ApplicationWithDetails,
@@ -68,13 +69,16 @@ export async function fetchMyPageData(): Promise<MyPageData> {
       await fetchParticipantProfileByUserIdWithDebug(user.id);
 
     if (profileData) {
+      const latestDiagnosis = profileData.latestDiagnosis;
       profile = {
         id: profileData.id,
         name: profileData.name,
         region: profileData.region,
-        diagnosis_type: profileData.diagnosisType,
-        diagnosis_scores: profileData.diagnosisScores,
-        diagnosis_updated_at: profileData.updatedAt?.toISOString() ?? null,
+        diagnosis_completed: latestDiagnosis !== null,
+        diagnosis_style_type_label: latestDiagnosis?.styleTypeId
+          ? (findStyleTypeById(latestDiagnosis.styleTypeId)?.name ?? null)
+          : null,
+        diagnosis_answered_at: latestDiagnosis?.answeredAt.toISOString() ?? null,
       };
     }
 

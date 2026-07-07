@@ -6,11 +6,21 @@ export type PersonaKey =
   | "participant-diagnosis"
   | "participant-lifecycle"
   | "participant-delete"
+  | "participant-logout"
   | "user-suspendable"
+  | "participant-suspended"
   | "organization-approved"
   | "organization-pending"
   | "organization-review-approve"
   | "organization-review-reject"
+  | "organization-fresh"
+  | "organization-reapply"
+  | "organization-profile-review"
+  | "organization-lifecycle"
+  | "organization-foreign"
+  | "organization-pending-readonly"
+  | "organization-rejected"
+  | "organization-secondary"
   | "admin"
   | "admin-review";
 
@@ -53,11 +63,23 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     role: "participant",
     description: "アカウント物理削除フロー専用（seedで毎回再作成）",
   },
+  "participant-logout": {
+    key: "participant-logout",
+    email: "e2e-participant-logout@example.com",
+    role: "participant",
+    description: "ログアウトによるセッション失効確認専用",
+  },
   "user-suspendable": {
     key: "user-suspendable",
     email: "e2e-user-suspendable@example.com",
     role: "participant",
     description: "admin-review の凍結/解除フロー専用（毎回 isActive=true に戻す）",
+  },
+  "participant-suspended": {
+    key: "participant-suspended",
+    email: "e2e-participant-suspended@example.com",
+    role: "participant",
+    description: "凍結済みユーザーの強制退出確認専用",
   },
   "organization-approved": {
     key: "organization-approved",
@@ -82,6 +104,54 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-org-review-reject@example.com",
     role: "organization",
     description: "管理者の審査詳細否認E2E専用（毎回 reviewStatus=pending に戻す）",
+  },
+  "organization-fresh": {
+    key: "organization-fresh",
+    email: "e2e-org-fresh@example.com",
+    role: "organization",
+    description: "団体オンボーディング専用（seedで未登録へ戻す）",
+  },
+  "organization-reapply": {
+    key: "organization-reapply",
+    email: "e2e-org-reapply@example.com",
+    role: "organization",
+    description: "否認理由確認と再申請専用（seedでrejectedへ戻す）",
+  },
+  "organization-profile-review": {
+    key: "organization-profile-review",
+    email: "e2e-org-profile-review@example.com",
+    role: "organization",
+    description: "承認済みプロフィール編集後の再審査専用",
+  },
+  "organization-lifecycle": {
+    key: "organization-lifecycle",
+    email: "e2e-org-lifecycle@example.com",
+    role: "organization",
+    description: "案件・応募・アプローチ・証明書の変更専用",
+  },
+  "organization-foreign": {
+    key: "organization-foreign",
+    email: "e2e-org-foreign@example.com",
+    role: "organization",
+    description: "所有権境界用の別団体",
+  },
+  "organization-pending-readonly": {
+    key: "organization-pending-readonly",
+    email: "e2e-org-pending-readonly@example.com",
+    role: "organization",
+    description: "審査待ち境界の読み取り確認専用",
+  },
+  "organization-rejected": {
+    key: "organization-rejected",
+    email: "e2e-org-rejected@example.com",
+    role: "organization",
+    description: "否認済み団体",
+  },
+  "organization-secondary": {
+    key: "organization-secondary",
+    email: "e2e-org-secondary@example.com",
+    role: "organization",
+    description: "他団体所有データへのアクセス境界確認専用",
   },
   admin: {
     key: "admin",

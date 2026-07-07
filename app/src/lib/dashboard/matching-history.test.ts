@@ -97,14 +97,27 @@ describe("fetchMatchingHistory", () => {
     expect(mockFindMatchingCandidates).not.toHaveBeenCalled();
   });
 
-  it("自団体の承認・辞退済み応募を処理日時順で返す", async () => {
+  it("自団体の承認・辞退・活動完了済み応募を処理日時順で返す", async () => {
     mockFindMatchingCandidates.mockResolvedValue([
+      {
+        id: "application-completed",
+        status: "completed",
+        appliedAt: new Date("2026-06-01T08:00:00.000Z"),
+        statusChangedAt: new Date("2026-06-11T09:00:00.000Z"),
+        participant: {
+          name: "完了 参加者",
+          participantProfile: { name: "完了 花子" },
+        },
+        opportunity: {
+          id: "opportunity-3",
+          title: "活動完了案件",
+        },
+      },
       {
         id: "application-accepted",
         status: "accepted",
         appliedAt: new Date("2026-06-01T09:00:00.000Z"),
         statusChangedAt: new Date("2026-06-10T12:30:00.000Z"),
-        matchScore: 87.4,
         participant: {
           name: "ユーザー名フォールバック",
           participantProfile: { name: "山田 花子" },
@@ -119,7 +132,6 @@ describe("fetchMatchingHistory", () => {
         status: "declined",
         appliedAt: null,
         statusChangedAt: new Date("2026-06-09T08:15:00.000Z"),
-        matchScore: null,
         participant: {
           name: "佐藤 太郎",
           participantProfile: null,
@@ -136,6 +148,15 @@ describe("fetchMatchingHistory", () => {
     expect(result.error).toBeUndefined();
     expect(result.history).toEqual([
       {
+        id: "application-completed",
+        status: "completed",
+        participant_name: "完了 花子",
+        opportunity_id: "opportunity-3",
+        opportunity_title: "活動完了案件",
+        applied_at: "2026-06-01T08:00:00.000Z",
+        status_changed_at: "2026-06-11T09:00:00.000Z",
+      },
+      {
         id: "application-accepted",
         status: "approved",
         participant_name: "山田 花子",
@@ -143,7 +164,6 @@ describe("fetchMatchingHistory", () => {
         opportunity_title: "地域清掃ボランティア",
         applied_at: "2026-06-01T09:00:00.000Z",
         status_changed_at: "2026-06-10T12:30:00.000Z",
-        match_score: 87.4,
       },
       {
         id: "application-declined",
@@ -153,7 +173,6 @@ describe("fetchMatchingHistory", () => {
         opportunity_title: "学習支援スタッフ",
         applied_at: null,
         status_changed_at: "2026-06-09T08:15:00.000Z",
-        match_score: null,
       },
     ]);
     expect(mockFindOrganizationProfile).toHaveBeenCalledWith({
@@ -166,7 +185,7 @@ describe("fetchMatchingHistory", () => {
     });
     expect(mockFindMatchingCandidates).toHaveBeenCalledWith({
       where: {
-        status: { in: ["accepted", "declined"] },
+        status: { in: ["accepted", "declined", "completed"] },
         opportunity: { organizationId: "org-profile-1" },
       },
       select: expect.objectContaining({

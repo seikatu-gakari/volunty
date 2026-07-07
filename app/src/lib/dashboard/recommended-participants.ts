@@ -1,22 +1,11 @@
-import type { BIG5Scores } from "@/lib/personality/types";
-import { PERSONALITY_TYPES } from "@/lib/personality/constants";
-import { calculateMatchScore } from "@/lib/recommendations/matching";
+import type { DomainScores } from "@/lib/diagnosis-scale/types";
+import { isDomainScores } from "@/lib/diagnosis-scale/scoring";
+import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import { findActivityStyleTag, toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
 
-const BIG5_TRAIT_KEYS = [
-  "extraversion",
-  "agreeableness",
-  "conscientiousness",
-  "neuroticism",
-  "openness",
-] as const;
-
-const BIG5_TRAIT_LABELS: Record<keyof BIG5Scores, string> = {
-  agreeableness: "協調性",
-  conscientiousness: "誠実性",
-  extraversion: "外向性",
-  neuroticism: "神経症傾向",
-  openness: "開放性",
-};
+/** 性格適合の方向判定閾値（推薦エンジンと同じ値） */
+const PERSONALITY_HIGH_THRESHOLD = 60;
+const PERSONALITY_LOW_THRESHOLD = 40;
 
 export interface RecommendedParticipantCandidate {
   id: string;
@@ -27,18 +16,23 @@ export interface RecommendedParticipantCandidate {
   availability: unknown;
   preferredLocation: string | null;
   publicProfile: boolean;
-  diagnosisType: string | null;
-  diagnosisMode: string | null;
-  diagnosisScores: unknown;
+  latestDiagnosisResult: {
+    styleTypeId: string | null;
+    scaledScores: unknown;
+  } | null;
   bio?: string | null;
 }
 
 export interface RecommendedParticipantOpportunity {
   id: string;
   title: string;
-  requirementTraits: unknown;
+  activityStyleTags: unknown;
 }
 
+/**
+ * 団体向けのおすすめ参加者。
+ * 生の診断スコアは含めない（団体には参考タイプと適合説明のみ開示する）。
+ */
 export interface RecommendedParticipant {
   id: string;
   userId: string;
@@ -48,35 +42,11 @@ export interface RecommendedParticipant {
   interests: string[];
   availabilitySummary: string[];
   preferredLocation: string | null;
-  diagnosisType: string | null;
-  diagnosisTypeLabel: string | null;
-  diagnosisMode: string | null;
-  diagnosisScores: BIG5Scores;
-  matchScore: number;
+  /** 活動スタイルの参考タイプ名（未診断は null） */
+  styleTypeLabel: string | null;
   bestOpportunityId: string;
   bestOpportunityTitle: string;
   matchReasons: string[];
-}
-
-function isBIG5Scores(value: unknown): value is BIG5Scores {
-  if (!value || typeof value !== "object") return false;
-  const obj = value as Record<string, unknown>;
-  return BIG5_TRAIT_KEYS.every((trait) => typeof obj[trait] === "number");
-}
-
-function toPartialBIG5Scores(value: unknown): Partial<BIG5Scores> {
-  if (!value || typeof value !== "object") return {};
-  const obj = value as Record<string, unknown>;
-  const result: Partial<BIG5Scores> = {};
-
-  for (const trait of BIG5_TRAIT_KEYS) {
-    const score = obj[trait];
-    if (typeof score === "number") {
-      result[trait] = score;
-    }
-  }
-
-  return result;
 }
 
 function toStringArray(value: unknown): string[] {
@@ -97,62 +67,64 @@ function summarizeAvailability(value: unknown): string[] {
   ];
 }
 
-function resolveDiagnosisTypeLabel(diagnosisType: string | null): string | null {
-  if (!diagnosisType) return null;
-  return (
-    PERSONALITY_TYPES.find((type) => type.id === diagnosisType)?.name ??
-    PERSONALITY_TYPES.find((type) => type.name === diagnosisType)?.name ??
-    diagnosisType
+/**
+ * 案件の活動スタイルタグと参加者の診断スコアの適合数を返す。
+ * 加点のみ（逆方向でも減点しない）。
+ */
+function countMatchedTags(
+  scores: DomainScores,
+  tagIds: string[]
+): { matched: number; total: number; reasons: string[] } {
+  const tags = tagIds
+    .map((id) => findActivityStyleTag(id))
+    .filter((tag): tag is NonNullable<typeof tag> => tag !== undefined);
+  const matchedTags = tags.filter((tag) =>
+    tag.direction === "high"
+      ? scores[tag.domain] >= PERSONALITY_HIGH_THRESHOLD
+      : scores[tag.domain] <= PERSONALITY_LOW_THRESHOLD
   );
+  return {
+    matched: matchedTags.length,
+    total: tags.length,
+    reasons: matchedTags.map(
+      (tag) => `「${tag.label}」の活動スタイルに合う傾向があります`
+    ),
+  };
 }
 
-function buildMatchReasons(
-  scores: BIG5Scores,
-  requirementTraits: Partial<BIG5Scores>
-): string[] {
-  const reasons = BIG5_TRAIT_KEYS.flatMap((trait) => {
-    const required = requirementTraits[trait];
-    if (required === undefined) return [];
-
-    const diff = Math.abs(scores[trait] - required);
-    if (diff <= 10) {
-      return [`${BIG5_TRAIT_LABELS[trait]}が募集条件に近い`];
-    }
-    return [];
-  });
-
-  return reasons.length > 0
-    ? reasons
-    : ["公開中募集案件の求める特性に基づいて算出しています"];
-}
-
-function selectBestMatch(
-  scores: BIG5Scores,
-  opportunities: RecommendedParticipantOpportunity[]
-): {
+interface BestMatch {
   bestOpportunityId: string;
   bestOpportunityTitle: string;
   matchReasons: string[];
-  matchScore: number;
-} | null {
-  let best:
-    | {
-        bestOpportunityId: string;
-        bestOpportunityTitle: string;
-        matchReasons: string[];
-        matchScore: number;
-      }
-    | null = null;
+  fitRatio: number;
+}
+
+function selectBestMatch(
+  scores: DomainScores | null,
+  opportunities: RecommendedParticipantOpportunity[]
+): BestMatch | null {
+  let best: BestMatch | null = null;
 
   for (const opportunity of opportunities) {
-    const requirementTraits = toPartialBIG5Scores(opportunity.requirementTraits);
-    const matchScore = calculateMatchScore(scores, requirementTraits);
-    if (!best || matchScore > best.matchScore) {
+    const tagIds = toActivityStyleTagIds(opportunity.activityStyleTags);
+    let fitRatio = 0;
+    let reasons: string[] = [];
+
+    if (scores && tagIds.length > 0) {
+      const result = countMatchedTags(scores, tagIds);
+      fitRatio = result.total > 0 ? result.matched / result.total : 0;
+      reasons = result.reasons;
+    }
+
+    if (!best || fitRatio > best.fitRatio) {
       best = {
         bestOpportunityId: opportunity.id,
         bestOpportunityTitle: opportunity.title,
-        matchReasons: buildMatchReasons(scores, requirementTraits),
-        matchScore,
+        matchReasons:
+          reasons.length > 0
+            ? reasons
+            : ["公開中募集案件の活動スタイルをもとに表示しています"],
+        fitRatio,
       };
     }
   }
@@ -160,6 +132,12 @@ function selectBestMatch(
   return best;
 }
 
+/**
+ * 団体向けのおすすめ参加者一覧を構築する（純粋関数）。
+ *
+ * - 未診断の参加者も除外しない（性格だけで機会を奪わない）
+ * - 並び順は活動スタイル適合率の降順 → 名前 → ID（決定的）
+ */
 export function buildRecommendedParticipants(
   participants: RecommendedParticipantCandidate[],
   opportunities: RecommendedParticipantOpportunity[]
@@ -169,42 +147,48 @@ export function buildRecommendedParticipants(
   return participants
     .flatMap((participant) => {
       if (!participant.publicProfile) return [];
-      if (!isBIG5Scores(participant.diagnosisScores)) return [];
 
-      const bestMatch = selectBestMatch(
-        participant.diagnosisScores,
-        opportunities
-      );
+      const scaledScores =
+        participant.latestDiagnosisResult &&
+        isDomainScores(participant.latestDiagnosisResult.scaledScores)
+          ? participant.latestDiagnosisResult.scaledScores
+          : null;
+
+      const bestMatch = selectBestMatch(scaledScores, opportunities);
       if (!bestMatch) return [];
+
+      const styleTypeId = participant.latestDiagnosisResult?.styleTypeId ?? null;
+      const { fitRatio, ...rest } = bestMatch;
 
       return [
         {
-          id: participant.id,
-          userId: participant.userId,
-          name: participant.name,
-          region: participant.region,
-          bio: participant.bio ?? null,
-          interests: toStringArray(participant.interests),
-          availabilitySummary: summarizeAvailability(participant.availability),
-          preferredLocation: participant.preferredLocation,
-          diagnosisType: participant.diagnosisType,
-          diagnosisTypeLabel: resolveDiagnosisTypeLabel(
-            participant.diagnosisType
-          ),
-          diagnosisMode: participant.diagnosisMode,
-          diagnosisScores: participant.diagnosisScores,
-          ...bestMatch,
+          participant: {
+            id: participant.id,
+            userId: participant.userId,
+            name: participant.name,
+            region: participant.region,
+            bio: participant.bio ?? null,
+            interests: toStringArray(participant.interests),
+            availabilitySummary: summarizeAvailability(participant.availability),
+            preferredLocation: participant.preferredLocation,
+            styleTypeLabel: styleTypeId
+              ? (findStyleTypeById(styleTypeId)?.name ?? null)
+              : null,
+            ...rest,
+          },
+          fitRatio,
         },
       ];
     })
     .sort((a, b) => {
-      if (a.matchScore !== b.matchScore) {
-        return b.matchScore - a.matchScore;
+      if (a.fitRatio !== b.fitRatio) {
+        return b.fitRatio - a.fitRatio;
       }
 
-      const nameOrder = a.name.localeCompare(b.name, "ja");
+      const nameOrder = a.participant.name.localeCompare(b.participant.name, "ja");
       if (nameOrder !== 0) return nameOrder;
 
-      return a.id.localeCompare(b.id);
-    });
+      return a.participant.id.localeCompare(b.participant.id);
+    })
+    .map((entry) => entry.participant);
 }

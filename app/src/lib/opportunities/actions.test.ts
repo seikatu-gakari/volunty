@@ -48,8 +48,18 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-vi.mock("@/lib/recommendations/matching", () => ({
-  calculateMatchScore: vi.fn().mockReturnValue(75),
+// Prisma のモック（閲覧イベント記録・推薦ログ検証用）
+const mockEngagementCreate = vi.fn().mockResolvedValue({});
+const mockRecommendationLogFindFirst = vi.fn().mockResolvedValue(null);
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    engagementEvent: {
+      create: (...args: unknown[]) => mockEngagementCreate(...args),
+    },
+    recommendationLog: {
+      findFirst: (...args: unknown[]) => mockRecommendationLogFindFirst(...args),
+    },
+  },
 }));
 
 // "use server" ディレクティブを含むモジュールの動的インポート
@@ -72,7 +82,6 @@ describe("fetchOpportunityDetail", () => {
       await fetchOpportunityDetail("opp-1");
 
     expect(result.opportunity).toBeNull();
-    expect(result.matchScore).toBeNull();
     expect(result.existingApplication).toBeNull();
     expect(result.isParticipant).toBe(false);
   });
@@ -106,7 +115,10 @@ describe("fetchOpportunityDetail", () => {
       id: "opp-1",
       title: "環境保全ボランティア",
       description: "森林保全活動です",
-      requirement_traits: { extraversion: 70, agreeableness: 80 },
+      activity_style_tags: ["talk-with-new-people"],
+      required_qualifications: ["普通自動車免許"],
+      min_age: 18,
+      max_age: null,
       status: "published",
       created_at: "2026-01-01T00:00:00Z",
       location: "渋谷区",
@@ -120,15 +132,7 @@ describe("fetchOpportunityDetail", () => {
     };
 
     // 参加者データ
-    const mockParticipant = {
-      diagnosis_scores: {
-        extraversion: 75,
-        agreeableness: 80,
-        conscientiousness: 60,
-        neuroticism: 40,
-        openness: 70,
-      },
-    };
+    const mockParticipant = { id: "participant-1" };
 
     let callCount = 0;
     mockSingle.mockImplementation(() => {
@@ -154,9 +158,26 @@ describe("fetchOpportunityDetail", () => {
     expect(result.opportunity?.current_applicants).toBe(3);
     expect(result.opportunity?.category).toBe("環境保全");
     expect(result.opportunity?.participation_mode).toBe("offline");
+    // 活動スタイルタグはラベルへ変換される
+    expect(result.opportunity?.activity_style_labels).toEqual([
+      "初対面の人と多く話す",
+    ]);
+    expect(result.opportunity?.required_qualifications).toEqual([
+      "普通自動車免許",
+    ]);
+    expect(result.opportunity?.min_age).toBe(18);
     expect(result.isParticipant).toBe(true);
-    expect(result.matchScore).toBe(75); // モックされた calculateMatchScore の戻り値
     expect(result.existingApplication).toBeNull();
+    // 参加者の閲覧はエンゲージメントイベントとして記録される
+    expect(mockEngagementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "user-123",
+          opportunityId: "opp-1",
+          event: "view",
+        }),
+      })
+    );
   });
 
   it("応募済みの場合、existingApplication を含める", async () => {
@@ -170,7 +191,10 @@ describe("fetchOpportunityDetail", () => {
       id: "opp-1",
       title: "子ども支援活動",
       description: null,
-      requirement_traits: null,
+      activity_style_tags: null,
+      required_qualifications: null,
+      min_age: null,
+      max_age: null,
       status: "published",
       created_at: "2026-01-01T00:00:00Z",
       m_organization_profile: { id: "org-2", organization_name: "支援団体A", description: null },
@@ -213,7 +237,10 @@ describe("fetchOpportunityDetail", () => {
       id: "opp-1",
       title: "子ども支援活動",
       description: null,
-      requirement_traits: null,
+      activity_style_tags: null,
+      required_qualifications: null,
+      min_age: null,
+      max_age: null,
       status: "published",
       created_at: "2026-01-01T00:00:00Z",
       m_organization_profile: {
@@ -257,7 +284,6 @@ describe("fetchOpportunityDetail", () => {
       await fetchOpportunityDetail("opp-1");
 
     expect(result.opportunity).toBeNull();
-    expect(result.matchScore).toBeNull();
     expect(result.existingApplication).toBeNull();
     expect(result.isParticipant).toBe(false);
   });
@@ -312,7 +338,7 @@ describe("applyToOpportunity", () => {
     let callCount = 0;
     mockSingle.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return { data: { id: "user-123", diagnosis_scores: null }, error: null }; // m_participant_profile
+      if (callCount === 1) return { data: { id: "user-123" }, error: null }; // m_participant_profile
       return { data: null, error: null }; // m_opportunity (なし)
     });
 
@@ -335,8 +361,8 @@ describe("applyToOpportunity", () => {
     let callCount = 0;
     mockSingle.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return { data: { id: "user-123", diagnosis_scores: null }, error: null }; // m_participant_profile
-      return { data: { id: "opp-1", status: "closed", requirement_traits: null }, error: null }; // m_opportunity
+      if (callCount === 1) return { data: { id: "user-123" }, error: null }; // m_participant_profile
+      return { data: { id: "opp-1", status: "closed" }, error: null }; // m_opportunity
     });
 
     const result: ApplyResult = await applyToOpportunity(
@@ -358,9 +384,9 @@ describe("applyToOpportunity", () => {
     let callCount = 0;
     mockSingle.mockImplementation(() => {
       callCount++;
-      if (callCount === 1) return { data: { id: "user-123", diagnosis_scores: null }, error: null }; // m_participant_profile
+      if (callCount === 1) return { data: { id: "user-123" }, error: null }; // m_participant_profile
       if (callCount === 2)
-        return { data: { id: "opp-1", status: "published", requirement_traits: null }, error: null }; // m_opportunity
+        return { data: { id: "opp-1", status: "published" }, error: null }; // m_opportunity
       return { data: { id: "app-existing" }, error: null }; // t_matching_candidate (既存)
     });
 
@@ -398,31 +424,12 @@ describe("applyToOpportunity", () => {
     mockSingle.mockImplementation(() => {
       callCount++;
       if (callCount === 1) {
-        // m_participant_profile（診断スコアあり）
-        return {
-          data: {
-            id: "participant-1",
-            diagnosis_scores: {
-              extraversion: 75,
-              agreeableness: 80,
-              conscientiousness: 60,
-              neuroticism: 40,
-              openness: 70,
-            },
-          },
-          error: null,
-        };
+        // m_participant_profile
+        return { data: { id: "participant-1" }, error: null };
       }
       if (callCount === 2) {
         // m_opportunity（公開中）
-        return {
-          data: {
-            id: "opp-1",
-            status: "published",
-            requirement_traits: { extraversion: 70 },
-          },
-          error: null,
-        };
+        return { data: { id: "opp-1", status: "published" }, error: null };
       }
       // t_matching_candidate 重複チェック（応募なし）
       return { data: null, error: null };
@@ -440,7 +447,7 @@ describe("applyToOpportunity", () => {
         opportunity_id: "opp-1",
         participant_id: "user-123",
         status: "applied",
-        match_score: 75, // calculateMatchScore のモック戻り値
+        recommendation_log_id: null,
         message: "参加したいです",
         applied_at: expect.any(String),
         status_changed_at: expect.any(String),
@@ -461,13 +468,10 @@ describe("applyToOpportunity", () => {
     mockSingle.mockImplementation(() => {
       callCount++;
       if (callCount === 1) {
-        return { data: { id: "participant-1", diagnosis_scores: null }, error: null };
+        return { data: { id: "participant-1" }, error: null };
       }
       if (callCount === 2) {
-        return {
-          data: { id: "opp-1", status: "published", requirement_traits: null },
-          error: null,
-        };
+        return { data: { id: "opp-1", status: "published" }, error: null };
       }
       return { data: null, error: null };
     });

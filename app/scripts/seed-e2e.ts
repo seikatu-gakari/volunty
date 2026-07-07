@@ -5,8 +5,14 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  IPIP_BFM_50_JA,
+  NORMS_VERSION,
+  SCORING_ALGORITHM_VERSION,
+} from "@/lib/diagnosis-scale/scale";
+import { QUALITY_RULE_VERSION } from "@/lib/diagnosis-scale/quality";
+import { STYLE_TYPE_VERSION } from "@/lib/diagnosis-scale/style-types";
 import {
   PERSONAS,
   type Persona,
@@ -15,13 +21,44 @@ import {
 
 config({ path: resolve(process.cwd(), ".env.local"), quiet: true });
 
-const BIG5_SCORES = {
-  extraversion: 65,
-  agreeableness: 82,
-  conscientiousness: 60,
-  neuroticism: 35,
-  openness: 55,
+// supporter-care タイプの代表プロファイルに近い診断スコア（scaled 0-100 / raw 10-50）
+const SCALED_SCORES = {
+  extraversion: 70,
+  agreeableness: 90,
+  conscientiousness: 50,
+  emotionalStability: 70,
+  intellect: 50,
 };
+const RAW_SCORES = {
+  extraversion: 38,
+  agreeableness: 46,
+  conscientiousness: 30,
+  emotionalStability: 38,
+  intellect: 30,
+};
+const LOW_SCALED_SCORES = {
+  extraversion: 20,
+  agreeableness: 25,
+  conscientiousness: 30,
+  emotionalStability: 25,
+  intellect: 25,
+};
+const LOW_RAW_SCORES = {
+  extraversion: 18,
+  agreeableness: 20,
+  conscientiousness: 24,
+  emotionalStability: 20,
+  intellect: 20,
+};
+const STYLE_TYPE_ID = "supporter-care";
+
+const ORGANIZATION_FIXTURE_PARTICIPANT = {
+  id: "00000000-0000-4000-8000-000000000167",
+  profileId: "00000000-0000-4000-8000-000000000168",
+  diagnosisResultId: "00000000-0000-4000-8000-000000000169",
+  email: "e2e-organization-fixture-participant@example.com",
+  name: "E2E 団体操作専用参加者",
+} as const;
 
 const ORGANIZATION_FLOW_OPPORTUNITY_TITLE = "E2E 団体フロー案件";
 const PARTICIPANT_APPLICATION_OPPORTUNITY_TITLE = "E2E 応募対象案件";
@@ -36,11 +73,34 @@ const APPROACH_ACCEPT_TITLE = "E2E 承諾対象アプローチ案件";
 const APPROACH_DECLINE_TITLE = "E2E 辞退対象アプローチ案件";
 const APPROACH_EXPIRED_TITLE = "E2E 期限切れアプローチ案件";
 
+const lifecycleTitles = {
+  recommendationHigh: "E2E 団体おすすめ高相性案件",
+  recommendationLow: "E2E 団体おすすめ低相性案件",
+  approachSend: "E2E 団体アプローチ送信案件",
+  approachSent: "E2E 団体アプローチ未回答案件",
+  approachAccepted: "E2E 団体アプローチ承諾済み案件",
+  approachDeclined: "E2E 団体アプローチ辞退済み案件",
+  approachExpired: "E2E 団体アプローチ期限切れ案件",
+  applicantDecline: "E2E 団体応募辞退案件",
+  historyAccepted: "E2E 団体履歴承認案件",
+  historyDeclined: "E2E 団体履歴辞退案件",
+  historyComplete: "E2E 団体活動完了案件",
+  certificateApprove: "E2E 団体証明書承認案件",
+  certificateReject: "E2E 団体証明書却下案件",
+} as const;
+
 interface OpportunitySeedOptions {
   location?: string;
   category?: string;
   participationMode?: "online" | "offline" | "hybrid";
   currentApplicants?: number;
+  activityStyleTags?: string[];
+}
+
+interface DiagnosisSeedOptions {
+  id?: string;
+  rawScores?: typeof RAW_SCORES;
+  scaledScores?: typeof SCALED_SCORES;
 }
 
 interface OrganizationProfileSeedOptions {
@@ -67,7 +127,11 @@ function buildUserMetadata(
     full_name: `E2E ${persona.key}`,
   };
 
-  if (persona.key === "participant-fresh") {
+  const isFresh =
+    persona.key === "participant-fresh" ||
+    persona.key === "organization-fresh";
+
+  if (isFresh) {
     // updateUserById は metadata をマージするため、前回E2Eの値を明示的に消す。
     metadata.role = null;
     metadata.onboarding_completed = false;
@@ -100,7 +164,7 @@ async function upsertPublishedOpportunity(
     organizationId,
     title,
     description,
-    requirementTraits: BIG5_SCORES,
+    activityStyleTags: options.activityStyleTags ?? ["empathy-support"],
     location: options.location ?? "東京都",
     capacity: 20,
     category: options.category ?? "地域活性化",
@@ -126,6 +190,62 @@ async function upsertPublishedOpportunity(
   return created.id;
 }
 
+/**
+ * 診断済み persona 用の診断結果を確保し、プロフィールの最新参照を設定する。
+ * 生回答（t_diagnosis_response）はE2E前提データでは保存しない。
+ */
+async function ensureDiagnosisResult(
+  userId: string,
+  options: DiagnosisSeedOptions = {}
+): Promise<string> {
+  const rawScores = options.rawScores ?? RAW_SCORES;
+  const scaledScores = options.scaledScores ?? SCALED_SCORES;
+  const data = {
+    userId,
+    scaleCode: IPIP_BFM_50_JA.scaleCode,
+    scaleVersion: IPIP_BFM_50_JA.scaleVersion,
+    scoringAlgorithmVersion: SCORING_ALGORITHM_VERSION,
+    normsVersion: NORMS_VERSION,
+    styleTypeVersion: STYLE_TYPE_VERSION,
+    qualityRuleVersion: QUALITY_RULE_VERSION,
+    rawScores,
+    scaledScores,
+    styleTypeId: STYLE_TYPE_ID,
+    qualityFlags: [],
+  };
+
+  let diagnosisResult = options.id
+    ? await prisma.diagnosisResult.upsert({
+        where: { id: options.id },
+        update: data,
+        create: { id: options.id, ...data },
+        select: { id: true },
+      })
+    : await prisma.diagnosisResult.findFirst({
+        where: { userId },
+        orderBy: { answeredAt: "desc" },
+        select: { id: true },
+      });
+
+  if (!diagnosisResult) {
+    diagnosisResult = await prisma.diagnosisResult.create({
+      data,
+      select: { id: true },
+    });
+  } else if (!options.id) {
+    await prisma.diagnosisResult.update({
+      where: { id: diagnosisResult.id },
+      data,
+    });
+  }
+
+  await prisma.participantProfile.update({
+    where: { userId },
+    data: { latestDiagnosisResultId: diagnosisResult.id },
+  });
+  return diagnosisResult.id;
+}
+
 async function upsertMatchingCandidate({
   participantId,
   opportunityId,
@@ -134,7 +254,7 @@ async function upsertMatchingCandidate({
 }: {
   participantId: string;
   opportunityId: string;
-  status: "applied" | "accepted" | "completed";
+  status: "applied" | "accepted" | "declined" | "completed";
   message: string;
 }): Promise<string> {
   const now = new Date();
@@ -143,7 +263,6 @@ async function upsertMatchingCandidate({
       participantId_opportunityId: { participantId, opportunityId },
     },
     update: {
-      matchScore: 80,
       status,
       appliedAt: now,
       statusChangedAt: now,
@@ -152,7 +271,6 @@ async function upsertMatchingCandidate({
     create: {
       participantId,
       opportunityId,
-      matchScore: 80,
       status,
       appliedAt: now,
       statusChangedAt: now,
@@ -272,6 +390,7 @@ export async function seedE2eUsers(): Promise<void> {
   const lifecycleId = requirePersonaId(idByEmail, "participant-lifecycle");
   const deleteId = requirePersonaId(idByEmail, "participant-delete");
   const suspendableId = requirePersonaId(idByEmail, "user-suspendable");
+  const suspendedId = requirePersonaId(idByEmail, "participant-suspended");
   const orgApprovedId = requirePersonaId(idByEmail, "organization-approved");
   const orgPendingId = requirePersonaId(idByEmail, "organization-pending");
   const adminReviewId = requirePersonaId(idByEmail, "admin-review");
@@ -283,10 +402,43 @@ export async function seedE2eUsers(): Promise<void> {
     idByEmail,
     "organization-review-reject"
   );
+  const orgFreshId = requirePersonaId(idByEmail, "organization-fresh");
+  const orgReapplyId = requirePersonaId(idByEmail, "organization-reapply");
+  const orgProfileReviewId = requirePersonaId(
+    idByEmail,
+    "organization-profile-review"
+  );
+  const orgLifecycleId = requirePersonaId(
+    idByEmail,
+    "organization-lifecycle"
+  );
+  const orgForeignId = requirePersonaId(idByEmail, "organization-foreign");
+  const orgPendingReadonlyId = requirePersonaId(
+    idByEmail,
+    "organization-pending-readonly"
+  );
+  const orgRejectedId = requirePersonaId(idByEmail, "organization-rejected");
+  const orgSecondaryId = requirePersonaId(idByEmail, "organization-secondary");
+
+  await prisma.user.upsert({
+    where: { id: ORGANIZATION_FIXTURE_PARTICIPANT.id },
+    update: {
+      email: ORGANIZATION_FIXTURE_PARTICIPANT.email,
+      name: ORGANIZATION_FIXTURE_PARTICIPANT.name,
+      role: "participant",
+    },
+    create: {
+      id: ORGANIZATION_FIXTURE_PARTICIPANT.id,
+      email: ORGANIZATION_FIXTURE_PARTICIPANT.email,
+      name: ORGANIZATION_FIXTURE_PARTICIPANT.name,
+      role: "participant",
+    },
+  });
 
   // オンボーディングE2Eが作成した状態をseedごとに初期化する。
   await prisma.diagnosisResult.deleteMany({ where: { userId: freshId } });
   await prisma.participantProfile.deleteMany({ where: { userId: freshId } });
+  await prisma.organizationProfile.deleteMany({ where: { userId: orgFreshId } });
 
   await prisma.participantProfile.upsert({
     where: { userId: onboardedId },
@@ -295,9 +447,6 @@ export async function seedE2eUsers(): Promise<void> {
       birthday: new Date("1995-04-01"),
       region: "東京都",
       publicProfile: true,
-      diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
-      diagnosisMode: "brief",
     },
     create: {
       userId: onboardedId,
@@ -305,11 +454,9 @@ export async function seedE2eUsers(): Promise<void> {
       birthday: new Date("1995-04-01"),
       region: "東京都",
       publicProfile: true,
-      diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
-      diagnosisMode: "brief",
     },
   });
+  await ensureDiagnosisResult(onboardedId);
 
   await prisma.participantProfile.upsert({
     where: { userId: diagnosisId },
@@ -318,9 +465,6 @@ export async function seedE2eUsers(): Promise<void> {
       birthday: new Date("1996-05-02"),
       region: "東京都",
       publicProfile: true,
-      diagnosisType: null,
-      diagnosisScores: Prisma.JsonNull,
-      diagnosisMode: null,
     },
     create: {
       userId: diagnosisId,
@@ -330,6 +474,7 @@ export async function seedE2eUsers(): Promise<void> {
       publicProfile: true,
     },
   });
+  // 診断専用 persona は毎回未診断状態から開始する（削除により最新参照も自動で null になる）
   await prisma.diagnosisResult.deleteMany({ where: { userId: diagnosisId } });
 
   const lifecycleProfile = await prisma.participantProfile.upsert({
@@ -339,9 +484,6 @@ export async function seedE2eUsers(): Promise<void> {
       birthday: new Date("1994-06-03"),
       region: "東京都",
       publicProfile: true,
-      diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
-      diagnosisMode: "brief",
     },
     create: {
       userId: lifecycleId,
@@ -349,10 +491,33 @@ export async function seedE2eUsers(): Promise<void> {
       birthday: new Date("1994-06-03"),
       region: "東京都",
       publicProfile: true,
-      diagnosisType: "supporter-care",
-      diagnosisScores: BIG5_SCORES,
-      diagnosisMode: "brief",
     },
+  });
+  await ensureDiagnosisResult(lifecycleId, {
+    rawScores: LOW_RAW_SCORES,
+    scaledScores: LOW_SCALED_SCORES,
+  });
+
+  const organizationFixtureParticipantProfile =
+    await prisma.participantProfile.upsert({
+      where: { userId: ORGANIZATION_FIXTURE_PARTICIPANT.id },
+      update: {
+        name: ORGANIZATION_FIXTURE_PARTICIPANT.name,
+        birthday: new Date("1992-08-05"),
+        region: "東京都",
+        publicProfile: true,
+      },
+      create: {
+        id: ORGANIZATION_FIXTURE_PARTICIPANT.profileId,
+        userId: ORGANIZATION_FIXTURE_PARTICIPANT.id,
+        name: ORGANIZATION_FIXTURE_PARTICIPANT.name,
+        birthday: new Date("1992-08-05"),
+        region: "東京都",
+        publicProfile: true,
+      },
+    });
+  await ensureDiagnosisResult(ORGANIZATION_FIXTURE_PARTICIPANT.id, {
+    id: ORGANIZATION_FIXTURE_PARTICIPANT.diagnosisResultId,
   });
 
   await prisma.participantProfile.upsert({
@@ -371,27 +536,76 @@ export async function seedE2eUsers(): Promise<void> {
       publicProfile: false,
     },
   });
+  // アカウント削除E2Eで診断データの連鎖削除を検証するため、診断結果を付与する
+  await ensureDiagnosisResult(deleteId);
 
-  const personalityType = await prisma.personalityType.findUnique({
-    where: { typeId: "supporter-care" },
-    select: { id: true },
+  const organizationProfileDetails = {
+    representativeName: "E2E 代表者",
+    activityAreas: ["東京都"],
+    description: "団体向けE2Eの固定プロフィールです。",
+    activityCategories: ["地域活性化"],
+    websiteUrl: "https://example.com/volunty-e2e",
+    logoUrl: "https://example.com/volunty-e2e.png",
+    contactLineId: "@volunty-e2e",
+    contactLineUrl: "https://line.me/R/ti/p/@volunty-e2e",
+    profileCompleteness: 100,
+  };
+
+  const reapplyOrganizationData = {
+    ...organizationProfileDetails,
+    organizationName: "E2E再申請団体",
+    contactEmail: PERSONAS["organization-reapply"].email,
+    reviewStatus: "rejected" as const,
+    verified: false,
+    reviewComment: "E2E 再申請前の否認理由",
+  };
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgReapplyId },
+    update: reapplyOrganizationData,
+    create: { userId: orgReapplyId, ...reapplyOrganizationData },
   });
-  let diagnosisResult = await prisma.diagnosisResult.findFirst({
-    where: { userId: onboardedId },
-    orderBy: { concludedAt: "desc" },
-    select: { id: true },
+
+  const profileReviewOrganizationData = {
+    ...organizationProfileDetails,
+    organizationName: "E2Eプロフィール再審査団体",
+    contactEmail: PERSONAS["organization-profile-review"].email,
+    reviewStatus: "approved" as const,
+    verified: true,
+    reviewComment: null,
+  };
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgProfileReviewId },
+    update: profileReviewOrganizationData,
+    create: { userId: orgProfileReviewId, ...profileReviewOrganizationData },
   });
-  if (!diagnosisResult) {
-    diagnosisResult = await prisma.diagnosisResult.create({
-      data: {
-        userId: onboardedId,
-        personalityTypeId: personalityType?.id ?? null,
-        big5Scores: BIG5_SCORES,
-        diagnosisMode: "brief",
-      },
-      select: { id: true },
-    });
-  }
+
+  const lifecycleOrganizationData = {
+    ...organizationProfileDetails,
+    organizationName: "E2Eライフサイクル団体",
+    contactEmail: PERSONAS["organization-lifecycle"].email,
+    reviewStatus: "approved" as const,
+    verified: true,
+    reviewComment: null,
+  };
+  const lifecycleOrganization = await prisma.organizationProfile.upsert({
+    where: { userId: orgLifecycleId },
+    update: lifecycleOrganizationData,
+    create: { userId: orgLifecycleId, ...lifecycleOrganizationData },
+  });
+
+  const foreignOrganizationData = {
+    ...organizationProfileDetails,
+    organizationName: "E2E別団体",
+    contactEmail: PERSONAS["organization-foreign"].email,
+    reviewStatus: "approved" as const,
+    verified: true,
+    reviewComment: null,
+  };
+  const foreignOrganization = await prisma.organizationProfile.upsert({
+    where: { userId: orgForeignId },
+    update: foreignOrganizationData,
+    create: { userId: orgForeignId, ...foreignOrganizationData },
+  });
 
   const approvedOrganization = await prisma.organizationProfile.upsert({
     where: { userId: orgApprovedId },
@@ -419,6 +633,32 @@ export async function seedE2eUsers(): Promise<void> {
       contactLineUrl: "https://line.me/R/ti/p/@volunty-e2e",
     },
   });
+
+  await prisma.opportunity.deleteMany({
+    where: {
+      organizationId: lifecycleOrganization.id,
+      title: { startsWith: "E2E 団体案件管理" },
+    },
+  });
+
+  const organizationLifecycleOpportunityEntries = await Promise.all(
+    Object.values(lifecycleTitles).map(async (title) => [
+      title,
+      await upsertPublishedOpportunity(
+        lifecycleOrganization.id,
+        title,
+        `${title}の状態を確認する団体向けE2E固定案件です。`
+      ),
+    ] as const)
+  );
+  const organizationLifecycleOpportunityIds = new Map(
+    organizationLifecycleOpportunityEntries
+  );
+  await upsertPublishedOpportunity(
+    foreignOrganization.id,
+    "E2E 別団体所有案件",
+    "所有権境界を確認する別団体のE2E固定案件です。"
+  );
 
   const organizationFlowOpportunityId = await upsertPublishedOpportunity(
     approvedOrganization.id,
@@ -478,8 +718,6 @@ export async function seedE2eUsers(): Promise<void> {
       },
     },
     update: {
-      diagnosisResultId: diagnosisResult.id,
-      matchScore: 80,
       status: "applied",
       appliedAt: new Date(),
       statusChangedAt: new Date(),
@@ -488,8 +726,6 @@ export async function seedE2eUsers(): Promise<void> {
     create: {
       participantId: onboardedId,
       opportunityId: organizationFlowOpportunityId,
-      diagnosisResultId: diagnosisResult.id,
-      matchScore: 80,
       status: "applied",
       appliedAt: new Date(),
       message: "E2E 応募メッセージ",
@@ -552,7 +788,6 @@ export async function seedE2eUsers(): Promise<void> {
       },
       update: {
         message: `${title}のE2Eアプローチ文です。`,
-        matchScore: 80,
         status: "sent",
         expiresAt,
         respondedAt: null,
@@ -562,7 +797,6 @@ export async function seedE2eUsers(): Promise<void> {
         participantProfileId: lifecycleProfile.id,
         opportunityId,
         message: `${title}のE2Eアプローチ文です。`,
-        matchScore: 80,
         status: "sent",
         expiresAt,
       },
@@ -633,6 +867,129 @@ export async function seedE2eUsers(): Promise<void> {
     },
   });
 
+  const organizationApplicationStates = [
+    [lifecycleTitles.applicantDecline, "applied"],
+    [lifecycleTitles.historyAccepted, "accepted"],
+    [lifecycleTitles.historyDeclined, "declined"],
+    [lifecycleTitles.historyComplete, "accepted"],
+    [lifecycleTitles.certificateApprove, "completed"],
+    [lifecycleTitles.certificateReject, "completed"],
+  ] as const;
+  const organizationApplicationOpportunityIds =
+    organizationApplicationStates.map(
+      ([title]) => organizationLifecycleOpportunityIds.get(title)!
+    );
+  await prisma.matchingCandidate.deleteMany({
+    where: {
+      participantId: { not: ORGANIZATION_FIXTURE_PARTICIPANT.id },
+      opportunityId: { in: organizationApplicationOpportunityIds },
+    },
+  });
+  const organizationApplicationEntries = await Promise.all(
+    organizationApplicationStates.map(async ([title, status]) => [
+      title,
+      await upsertMatchingCandidate({
+        participantId: ORGANIZATION_FIXTURE_PARTICIPANT.id,
+        opportunityId: organizationLifecycleOpportunityIds.get(title)!,
+        status,
+        message: `${title}へのE2E応募メッセージです。`,
+      }),
+    ] as const)
+  );
+  const organizationApplicationIds = new Map(organizationApplicationEntries);
+
+  const organizationApproachOpportunityIds = [
+    lifecycleTitles.approachSend,
+    lifecycleTitles.approachSent,
+    lifecycleTitles.approachAccepted,
+    lifecycleTitles.approachDeclined,
+    lifecycleTitles.approachExpired,
+  ].map((title) => organizationLifecycleOpportunityIds.get(title)!);
+  await prisma.approach.deleteMany({
+    where: {
+      organizationId: lifecycleOrganization.id,
+      participantProfileId: {
+        not: organizationFixtureParticipantProfile.id,
+      },
+      opportunityId: { in: organizationApproachOpportunityIds },
+    },
+  });
+
+  await prisma.approach.deleteMany({
+    where: {
+      organizationId: lifecycleOrganization.id,
+      participantProfileId: organizationFixtureParticipantProfile.id,
+      opportunityId: organizationLifecycleOpportunityIds.get(
+        lifecycleTitles.approachSend
+      )!,
+    },
+  });
+
+  const approachStates = [
+    [lifecycleTitles.approachSent, "sent", future, null],
+    [lifecycleTitles.approachAccepted, "accepted", future, now],
+    [lifecycleTitles.approachDeclined, "declined", future, now],
+    [lifecycleTitles.approachExpired, "sent", past, null],
+  ] as const;
+  for (const [title, status, expiresAt, respondedAt] of approachStates) {
+    const opportunityId = organizationLifecycleOpportunityIds.get(title)!;
+    await prisma.approach.upsert({
+      where: {
+        organizationId_participantProfileId_opportunityId: {
+          organizationId: lifecycleOrganization.id,
+          participantProfileId: organizationFixtureParticipantProfile.id,
+          opportunityId,
+        },
+      },
+      update: {
+        message: `${title}のE2Eアプローチ文です。`,
+        status,
+        expiresAt,
+        respondedAt,
+      },
+      create: {
+        organizationId: lifecycleOrganization.id,
+        participantProfileId: organizationFixtureParticipantProfile.id,
+        opportunityId,
+        message: `${title}のE2Eアプローチ文です。`,
+        status,
+        expiresAt,
+        respondedAt,
+      },
+    });
+  }
+
+  for (const title of [
+    lifecycleTitles.certificateApprove,
+    lifecycleTitles.certificateReject,
+  ] as const) {
+    const applicationId = organizationApplicationIds.get(title)!;
+    const opportunityId = organizationLifecycleOpportunityIds.get(title)!;
+    await prisma.certificate.upsert({
+      where: { applicationId },
+      update: {
+        status: "pending",
+        certificateNumber: null,
+        approvedAt: null,
+        issuedAt: null,
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+      create: {
+        applicationId,
+        participantId: ORGANIZATION_FIXTURE_PARTICIPANT.id,
+        organizationId: lifecycleOrganization.id,
+        opportunityId,
+        status: "pending",
+        certificateNumber: null,
+        approvedAt: null,
+        issuedAt: null,
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+    });
+  }
+
   void pendingApplicationId;
   void acceptedApplicationId;
   void certificateRequestApplicationId;
@@ -655,6 +1012,9 @@ export async function seedE2eUsers(): Promise<void> {
       organizationName: "E2E一覧承認団体",
       reviewStatus: "pending",
       verified: false,
+      reviewComment: null,
+      reviewedAt: null,
+      reviewedBy: null,
       profileCompleteness: 80,
       activityAreas: ["神奈川県"],
       activityCategories: ["子ども支援"],
@@ -695,69 +1055,136 @@ export async function seedE2eUsers(): Promise<void> {
     profileCompleteness: 85,
   });
 
-  const filterOrganizationUsers = [
+  const reviewFilterUsers = [
     {
-      id: "00000000-0000-4000-8000-000000000168",
+      id: "00000000-0000-4000-8000-000000000171",
       email: "e2e-org-review-filter-pending@example.com",
-      name: "E2Eフィルター審査待ち団体",
+      name: "E2Eフィルター審査待ち団体ユーザー",
+      organizationName: "E2Eフィルター審査待ち団体",
+      reviewStatus: "pending" as const,
+      verified: false,
+      reviewComment: null,
+      reviewedAt: null,
+      reviewedBy: null,
     },
     {
-      id: "00000000-0000-4000-8000-000000000169",
+      id: "00000000-0000-4000-8000-000000000172",
       email: "e2e-org-review-filter-approved@example.com",
-      name: "E2Eフィルター承認済み団体",
+      name: "E2Eフィルター承認済み団体ユーザー",
+      organizationName: "E2Eフィルター承認済み団体",
+      reviewStatus: "approved" as const,
+      verified: true,
+      reviewComment: null,
+      reviewedAt: new Date("2026-01-01T00:00:00.000Z"),
+      reviewedBy: adminReviewId,
     },
     {
-      id: "00000000-0000-4000-8000-000000000170",
+      id: "00000000-0000-4000-8000-000000000173",
       email: "e2e-org-review-filter-rejected@example.com",
-      name: "E2Eフィルター否認済み団体",
+      name: "E2Eフィルター否認済み団体ユーザー",
+      organizationName: "E2Eフィルター否認済み団体",
+      reviewStatus: "rejected" as const,
+      verified: false,
+      reviewComment: "E2Eフィルター否認理由",
+      reviewedAt: new Date("2026-01-02T00:00:00.000Z"),
+      reviewedBy: adminReviewId,
     },
-  ] as const;
+  ];
 
-  for (const user of filterOrganizationUsers) {
+  for (const filterUser of reviewFilterUsers) {
     await prisma.user.upsert({
-      where: { id: user.id },
+      where: { id: filterUser.id },
       update: {
         role: "organization",
-        email: user.email,
-        name: user.name,
+        email: filterUser.email,
+        name: filterUser.name,
       },
       create: {
-        id: user.id,
+        id: filterUser.id,
         role: "organization",
-        email: user.email,
-        name: user.name,
+        email: filterUser.email,
+        name: filterUser.name,
       },
+    });
+
+    await upsertOrganizationProfileFixture({
+      userId: filterUser.id,
+      organizationName: filterUser.organizationName,
+      reviewStatus: filterUser.reviewStatus,
+      verified: filterUser.verified,
+      reviewComment: filterUser.reviewComment,
+      reviewedAt: filterUser.reviewedAt,
+      reviewedBy: filterUser.reviewedBy,
+      profileCompleteness: 80,
     });
   }
 
-  await upsertOrganizationProfileFixture({
-    userId: "00000000-0000-4000-8000-000000000168",
-    organizationName: "E2Eフィルター審査待ち団体",
-    reviewStatus: "pending",
-    verified: false,
-    reviewComment: null,
-    reviewedAt: null,
-    reviewedBy: null,
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgPendingReadonlyId },
+    update: {
+      organizationName: "E2E読取専用審査待ち団体",
+      reviewStatus: "pending",
+      verified: false,
+      reviewComment: null,
+      reviewedAt: null,
+      reviewedBy: null,
+      profileCompleteness: 80,
+      activityAreas: ["神奈川県"],
+      activityCategories: ["子ども支援"],
+    },
+    create: {
+      userId: orgPendingReadonlyId,
+      organizationName: "E2E読取専用審査待ち団体",
+      reviewStatus: "pending",
+      verified: false,
+      profileCompleteness: 80,
+      activityAreas: ["神奈川県"],
+      activityCategories: ["子ども支援"],
+    },
   });
 
-  await upsertOrganizationProfileFixture({
-    userId: "00000000-0000-4000-8000-000000000169",
-    organizationName: "E2Eフィルター承認済み団体",
-    reviewStatus: "approved",
-    verified: true,
-    reviewComment: null,
-    reviewedAt: new Date("2026-01-01T00:00:00.000Z"),
-    reviewedBy: adminReviewId,
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgRejectedId },
+    update: {
+      organizationName: "E2E否認済み団体",
+      reviewStatus: "rejected",
+      verified: false,
+      reviewComment: "E2E否認理由",
+      profileCompleteness: 80,
+      activityAreas: ["埼玉県"],
+      activityCategories: ["福祉"],
+    },
+    create: {
+      userId: orgRejectedId,
+      organizationName: "E2E否認済み団体",
+      reviewStatus: "rejected",
+      verified: false,
+      reviewComment: "E2E否認理由",
+      profileCompleteness: 80,
+      activityAreas: ["埼玉県"],
+      activityCategories: ["福祉"],
+    },
   });
 
-  await upsertOrganizationProfileFixture({
-    userId: "00000000-0000-4000-8000-000000000170",
-    organizationName: "E2Eフィルター否認済み団体",
-    reviewStatus: "rejected",
-    verified: false,
-    reviewComment: "E2Eフィルター否認理由",
-    reviewedAt: new Date("2026-01-02T00:00:00.000Z"),
-    reviewedBy: adminReviewId,
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgSecondaryId },
+    update: {
+      organizationName: "E2E別所有者団体",
+      reviewStatus: "approved",
+      verified: true,
+      profileCompleteness: 100,
+      activityAreas: ["千葉県"],
+      activityCategories: ["教育"],
+    },
+    create: {
+      userId: orgSecondaryId,
+      organizationName: "E2E別所有者団体",
+      reviewStatus: "approved",
+      verified: true,
+      profileCompleteness: 100,
+      activityAreas: ["千葉県"],
+      activityCategories: ["教育"],
+    },
   });
 
   await prisma.user.update({
@@ -766,6 +1193,16 @@ export async function seedE2eUsers(): Promise<void> {
       isActive: true,
       suspendedAt: null,
       suspendReason: null,
+      suspendedBy: null,
+    },
+  });
+
+  await prisma.user.update({
+    where: { id: suspendedId },
+    data: {
+      isActive: false,
+      suspendedAt: new Date(),
+      suspendReason: "E2E凍結ユーザー",
       suspendedBy: null,
     },
   });
