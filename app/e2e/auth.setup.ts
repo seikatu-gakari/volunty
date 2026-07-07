@@ -8,9 +8,11 @@ const personas = [
   { key: "participant-lifecycle", file: "participant-lifecycle" },
   { key: "participant-delete", file: "participant-delete" },
   { key: "participant-logout", file: "participant-logout" },
-  { key: "participant-suspendable", file: "participant-suspendable" },
+  { key: "user-suspendable", file: "user-suspendable" },
   { key: "organization-approved", file: "organization" },
   { key: "organization-pending", file: "organization-pending" },
+  { key: "organization-review-approve", file: "organization-review-approve" },
+  { key: "organization-review-reject", file: "organization-review-reject" },
   { key: "organization-fresh", file: "organization-fresh" },
   { key: "organization-reapply", file: "organization-reapply" },
   { key: "organization-profile-review", file: "organization-profile-review" },
@@ -23,6 +25,7 @@ const personas = [
   { key: "organization-rejected", file: "organization-rejected" },
   { key: "organization-secondary", file: "organization-secondary" },
   { key: "admin", file: "admin" },
+  { key: "admin-review", file: "admin-review" },
 ] as const;
 
 for (const persona of personas) {

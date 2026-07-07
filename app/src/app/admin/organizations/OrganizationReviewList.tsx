@@ -189,7 +189,11 @@ export function OrganizationReviewList({ organizations: initial }: Props) {
             const statusView = getStatusView(org.reviewStatus);
             const StatusIcon = statusView.icon;
             return (
-              <Card key={org.id}>
+              <Card
+                key={org.id}
+                role="article"
+                aria-label={`${org.organizationName}（${statusView.label}）`}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">

@@ -7,10 +7,12 @@ export type PersonaKey =
   | "participant-lifecycle"
   | "participant-delete"
   | "participant-logout"
-  | "participant-suspendable"
+  | "user-suspendable"
   | "participant-suspended"
   | "organization-approved"
   | "organization-pending"
+  | "organization-review-approve"
+  | "organization-review-reject"
   | "organization-fresh"
   | "organization-reapply"
   | "organization-profile-review"
@@ -19,7 +21,8 @@ export type PersonaKey =
   | "organization-pending-readonly"
   | "organization-rejected"
   | "organization-secondary"
-  | "admin";
+  | "admin"
+  | "admin-review";
 
 export interface Persona {
   key: PersonaKey;
@@ -66,11 +69,11 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     role: "participant",
     description: "ログアウトによるセッション失効確認専用",
   },
-  "participant-suspendable": {
-    key: "participant-suspendable",
-    email: "e2e-participant-suspendable@example.com",
+  "user-suspendable": {
+    key: "user-suspendable",
+    email: "e2e-user-suspendable@example.com",
     role: "participant",
-    description: "admin の凍結/解除フロー専用（毎回 isActive=true に戻す）",
+    description: "admin-review の凍結/解除フロー専用（毎回 isActive=true に戻す）",
   },
   "participant-suspended": {
     key: "participant-suspended",
@@ -89,6 +92,18 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-org-pending@example.com",
     role: "organization",
     description: "審査待ち団体（毎回 reviewStatus=pending に戻す）",
+  },
+  "organization-review-approve": {
+    key: "organization-review-approve",
+    email: "e2e-org-review-approve@example.com",
+    role: "organization",
+    description: "管理者の審査詳細承認E2E専用（毎回 reviewStatus=pending に戻す）",
+  },
+  "organization-review-reject": {
+    key: "organization-review-reject",
+    email: "e2e-org-review-reject@example.com",
+    role: "organization",
+    description: "管理者の審査詳細否認E2E専用（毎回 reviewStatus=pending に戻す）",
   },
   "organization-fresh": {
     key: "organization-fresh",
@@ -143,6 +158,12 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-admin@example.com",
     role: "admin",
     description: "管理者ロール",
+  },
+  "admin-review": {
+    key: "admin-review",
+    email: "e2e-admin-review@example.com",
+    role: "admin",
+    description: "管理者の審査・凍結mutation E2E専用",
   },
 };
 

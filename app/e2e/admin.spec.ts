@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const PENDING_ORGANIZATION_NAME = "E2E審査待ち団体";
-const SUSPENDABLE_EMAIL = "e2e-participant-suspendable@example.com";
+const PENDING_ORGANIZATION_NAME = "E2E一覧承認団体";
+const SUSPENDABLE_EMAIL = "e2e-user-suspendable@example.com";
 
 test.describe("管理者", () => {
   test.use({ storageState: "playwright/.auth/admin.json" });
@@ -16,13 +16,17 @@ test.describe("管理者", () => {
     await expect(page.getByText("マッチング数")).toBeVisible();
     await expect(page.getByText("審査待ち件数")).toBeVisible();
   });
+});
+
+test.describe("管理者操作", () => {
+  test.use({ storageState: "playwright/.auth/admin-review.json" });
 
   test("A2: 審査待ち団体を承認して承認済み一覧へ反映する", async ({ page }) => {
     await page.goto("/admin/reviews");
 
-    const pendingCard = page
-      .locator("div.rounded-\\[10px\\]")
-      .filter({ hasText: PENDING_ORGANIZATION_NAME });
+    const pendingCard = page.getByRole("article", {
+      name: new RegExp(PENDING_ORGANIZATION_NAME),
+    });
     await expect(pendingCard).toHaveCount(1);
     await pendingCard.getByRole("button", { name: "承認する" }).click();
 
@@ -34,9 +38,9 @@ test.describe("管理者", () => {
     await page.goto("/admin/users");
     await page.getByLabel("検索").fill(SUSPENDABLE_EMAIL);
 
-    const userCard = page
-      .locator("div.rounded-\\[10px\\]")
-      .filter({ hasText: SUSPENDABLE_EMAIL });
+    const userCard = page.getByRole("article", {
+      name: new RegExp(SUSPENDABLE_EMAIL),
+    });
     await expect(userCard).toHaveCount(1);
     await userCard.getByRole("button", { name: "凍結する" }).click();
     await userCard

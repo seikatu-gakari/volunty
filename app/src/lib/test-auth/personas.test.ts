@@ -5,6 +5,38 @@ vi.mock("server-only", () => ({}));
 import { PERSONAS, resolvePersona } from "./personas";
 
 describe("resolvePersona", () => {
+  it("Issue #168 の管理者E2E専用 persona を提供する", () => {
+    expect(PERSONAS["user-suspendable"]).toMatchObject({
+      key: "user-suspendable",
+      email: "e2e-user-suspendable@example.com",
+      role: "participant",
+    });
+    expect(PERSONAS["admin-review"]).toMatchObject({
+      key: "admin-review",
+      email: "e2e-admin-review@example.com",
+      role: "admin",
+    });
+    expect(PERSONAS["organization-review-approve"]).toMatchObject({
+      key: "organization-review-approve",
+      email: "e2e-org-review-approve@example.com",
+      role: "organization",
+    });
+    expect(PERSONAS["organization-review-reject"]).toMatchObject({
+      key: "organization-review-reject",
+      email: "e2e-org-review-reject@example.com",
+      role: "organization",
+    });
+  });
+
+  it("古い participant-suspendable key は解決しない", () => {
+    expect(resolvePersona("participant-suspendable")).toBeNull();
+  });
+
+  it("E2E persona の email は重複しない", () => {
+    const emails = Object.values(PERSONAS).map((persona) => persona.email);
+    expect(new Set(emails).size).toBe(emails.length);
+  });
+
   it.each([
     "participant-diagnosis",
     "participant-lifecycle",
