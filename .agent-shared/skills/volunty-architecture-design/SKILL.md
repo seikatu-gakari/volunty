@@ -56,11 +56,21 @@ RESTORE    └┘（次の質問へ / BACK で戻る）
 `@theme inline` で Tailwind クラス化されている CSS 変数を使う。
 
 ```css
---background: #ffeee2;
+/* ベース（白系背景 + ウォームニュートラル） */
+--background: #faf9f7;
+--text-dark: #241c17;
+--text-body: #5d534c;
+
+/* ブランド */
 --primary: #fb5b01;
 --primary-dark: #c74700;
---text-dark: #6d2700;
---text-body: #8b4513;
+--primary-light: #fb8a3c;
+
+/* セカンダリー（オレンジの補色系ティールブルー）・セマンティック */
+--secondary: #0e7490;
+--success: #15803d;
+--warning: #b45309; /* 注意ボックスは --warning-bg / --warning-border と併用 */
+--error: #dc2626;
 ```
 
 ## 関連ファイル

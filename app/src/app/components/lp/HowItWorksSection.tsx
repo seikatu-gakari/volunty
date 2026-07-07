@@ -6,7 +6,7 @@ const STEPS = [
     icon: Brain,
     title: "性格傾向チェック",
     desc: "世界中で使われている性格研究をもとに、5つの性格特性の傾向を確認します。簡易診断（15問）と全50問から選べます。",
-    color: "bg-orange-100 text-orange-600",
+    color: "bg-primary/10 text-primary",
   },
   {
     num: "02",
@@ -28,7 +28,7 @@ export function HowItWorksSection() {
   return (
     <section id="shikumi" className="glass-card relative z-10 mt-20 overflow-hidden rounded-3xl p-8 ring-1 ring-white/60 sm:mt-28 sm:p-12">
       <div className="lp-blob -top-12 -right-12 size-72 bg-primary/20" aria-hidden />
-      <div className="lp-blob -bottom-16 -left-16 size-72 bg-[#fbb672]/30" aria-hidden />
+      <div className="lp-blob -bottom-16 -left-16 size-72 bg-primary-light/30" aria-hidden />
 
       <div className="mb-10 text-center">
         <p className="mb-3 text-sm font-medium text-primary">✦ Voluntyの仕組み ✦</p>

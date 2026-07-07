@@ -3,7 +3,7 @@ import { Zap, Brain } from "lucide-react";
 
 export function LPBottomCTA() {
   return (
-    <section className="relative z-10 mt-20 overflow-hidden rounded-3xl bg-linear-to-br from-[#fb8a3c] via-primary to-primary-dark p-8 text-center text-white shadow-xl sm:mt-28 sm:p-14">
+    <section className="relative z-10 mt-20 overflow-hidden rounded-3xl bg-linear-to-br from-primary-light via-primary to-primary-dark p-8 text-center text-white shadow-xl sm:mt-28 sm:p-14">
       <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full bg-white/15 blur-3xl" aria-hidden />
       <div className="pointer-events-none absolute -bottom-24 -left-16 size-80 rounded-full bg-white/10 blur-3xl" aria-hidden />
 
