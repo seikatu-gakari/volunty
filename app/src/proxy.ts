@@ -179,17 +179,10 @@ export async function proxy(request: NextRequest) {
   const metadata = user.user_metadata as Record<string, unknown>;
   const rawRole = metadata.role;
 
-  // ロール未選択 → /onboarding/role
-  if (!isAppRole(rawRole)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/onboarding/role";
-    return redirectWithCookies(url, response);
-  }
-
   // 認可には自己更新可能な metadata ではなく DB のロールだけを使う
   if (!isAppRole(databaseRole)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/forbidden";
+    url.pathname = isAppRole(rawRole) ? "/forbidden" : "/onboarding/role";
     return redirectWithCookies(url, response);
   }
   const role = databaseRole;

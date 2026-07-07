@@ -131,6 +131,27 @@ describe("proxy", () => {
     expect(mocks.eq).toHaveBeenCalledWith("id", "active-1");
   });
 
+  it("metadata role が無くても DB role があれば保護ルートを通過する", async () => {
+    const request = createRequest("/mypage");
+    mocks.updateSession.mockResolvedValue({
+      response: NextResponse.next({ request }),
+      user: {
+        id: "metadata-role-missing-1",
+        user_metadata: {
+          onboarding_completed: true,
+        },
+      },
+    });
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: true, role: "participant" },
+    });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
   it("凍結ユーザーは保護ルートで強制サインアウトされる", async () => {
     const request = createRequest("/mypage");
     mockAuthenticatedSession(request, "suspended-1");
