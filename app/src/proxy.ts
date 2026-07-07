@@ -113,17 +113,13 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // --- パブリック（/）: 未認証ならスルー、認証済みならロール/オンボーディングチェックを実施 ---
-  const isPublicPath = PUBLIC_PATHS.has(pathname);
-  if (isPublicPath) {
-    if (!user) {
-      return response;
-    }
-    // 認証済みユーザーは下のロール・オンボーディングチェックに進む
+  // --- パブリック（/）: 認証状態に関係なくスルー ---
+  if (PUBLIC_PATHS.has(pathname)) {
+    return response;
   }
 
   // --- 保護対象外の未知URLなどは Next.js の 404 判定へ通す ---
-  if (!isPublicPath && !isProtectedPath(pathname)) {
+  if (!isProtectedPath(pathname)) {
     return response;
   }
 
@@ -197,13 +193,6 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(url, response);
   }
   const role = databaseRole;
-
-  // 管理者: トップアクセス時は管理ダッシュボードへ
-  if (role === "admin" && pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/admin/organizations";
-    return redirectWithCookies(url, response);
-  }
 
   // オンボーディング未完了 → /onboarding/{role}
   if (role !== "admin" && !metadata.onboarding_completed) {

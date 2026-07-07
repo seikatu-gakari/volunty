@@ -88,6 +88,18 @@ describe("proxy", () => {
     expect(response.headers.get("location")).toBeNull();
   });
 
+  it("認証済みでもトップページは公開ページとして通過する", async () => {
+    const request = createRequest("/");
+    mockAuthenticatedSession(request, "missing-role-1");
+    mocks.maybeSingle.mockResolvedValueOnce({ data: null });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
   it("未認証の保護ルートはログインへリダイレクトする", async () => {
     const request = createRequest("/dashboard");
     mockGuestSession(request);

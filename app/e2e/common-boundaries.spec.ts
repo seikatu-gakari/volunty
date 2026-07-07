@@ -46,6 +46,11 @@ test("C-E2: ロール越境を認可マトリクスで拒否する", async ({ br
     const { context, page } = await openAuthenticatedPage(browser, storageState);
     await page.goto(path);
     await expectForbidden(page, hiddenText);
+    await page.getByRole("link", { name: "トップへ戻る" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.getByRole("heading", { name: "このページにはアクセスできません" })
+    ).toHaveCount(0);
     await context.close();
   }
 });
