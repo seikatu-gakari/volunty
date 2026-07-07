@@ -1,10 +1,11 @@
 import { Brain, Search, MessageCircle, Calendar } from "lucide-react";
+import { LPSectionHeading } from "./LPSectionHeading";
 
 const FEATURES = [
   {
     icon: Brain,
-    title: "性格診断・AI分析",
-    desc: "独自アルゴリズムで特性や強みを可視化し、ぴったりの活動を提案します。",
+    title: "性格傾向マッチング",
+    desc: "興味分野・地域・日程に性格の傾向も組み合わせて、あなたに合う順に活動を提案します。",
   },
   {
     icon: Search,
@@ -26,23 +27,19 @@ const FEATURES = [
 export function FeaturesSection() {
   return (
     <section id="features" className="relative z-10 mt-20 sm:mt-28">
-      <div className="mb-12 text-center">
-        <p className="mb-3 text-sm font-medium text-primary">✦ 主な機能 ✦</p>
-        <h2 className="text-3xl font-bold tracking-tight text-text-dark sm:text-[32px]">
-          続けやすさまで、まるごと設計。
-        </h2>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-text-body">
-          出会うだけで終わらない。安心して参加し、実績を積み上げられる機能がそろっています。
-        </p>
-      </div>
+      <LPSectionHeading
+        eyebrow="主な機能"
+        title="続けやすさまで、まるごと設計。"
+        description="出会うだけで終わらない。安心して参加し、実績を積み上げられる機能がそろっています。"
+      />
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {FEATURES.map((item, i) => (
           <div
             key={i}
-            className="flex flex-col items-center rounded-2xl border border-card-border bg-white p-6 text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+            className="flex flex-col items-center rounded-3xl border border-card-border bg-white p-6 text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10"
           >
-            <span className="mb-5 flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <span className="mb-5 flex size-16 items-center justify-center rounded-full bg-linear-to-br from-orange-50 to-amber-100 text-primary">
               <item.icon className="size-8" />
             </span>
             <h3 className="text-lg font-bold text-text-dark">{item.title}</h3>
