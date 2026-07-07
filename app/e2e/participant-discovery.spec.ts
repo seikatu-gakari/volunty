@@ -20,11 +20,23 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toHaveCount(0);
   });
 
-  test("P-6: 案件詳細から団体詳細と公開案件を確認できる", async ({ page }) => {
+  test("P-6: 推薦理由が表示され、案件詳細から団体詳細と公開案件を確認できる", async ({ page }) => {
     await page.goto("/recommendations");
-    await page
-      .getByRole("link", { name: new RegExp(APPLICATION_OPPORTUNITY_TITLE) })
-      .click();
+
+    const applicationCard = page.getByRole("link", {
+      name: new RegExp(APPLICATION_OPPORTUNITY_TITLE),
+    });
+
+    await expect(
+      applicationCard.getByText("活動地域があなたの地域（東京都）に対応しています")
+    ).toBeVisible();
+    await expect(
+      applicationCard.getByText(
+        "相手に寄り添う場面が多い活動で、あなたの協調的な傾向が活きやすい内容です"
+      )
+    ).toBeVisible();
+
+    await applicationCard.click();
 
     await expect(
       page.getByRole("heading", { name: APPLICATION_OPPORTUNITY_TITLE })

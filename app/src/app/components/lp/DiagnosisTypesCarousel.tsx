@@ -11,7 +11,7 @@ const TYPES: {
   gradient: string;
   accent: string;
 }[] = [
-  { name: "縁の下の力持ちタイプ", icon: Users,         iconBg: "bg-orange-100 text-orange-600", scores: { 外向性: 32, 協調性: 70, 誠実性: 90, 開放性: 52 }, activity: "資料整理・受付サポート",       match: 91, gradient: "from-orange-50 to-amber-50",   accent: "#fb5b01" },
+  { name: "縁の下の力持ちタイプ", icon: Users,         iconBg: "bg-primary/10 text-primary", scores: { 外向性: 32, 協調性: 70, 誠実性: 90, 開放性: 52 }, activity: "資料整理・受付サポート",       match: 91, gradient: "from-orange-50 to-amber-50",   accent: "#fb5b01" },
   { name: "リーダータイプ",       icon: Star,          iconBg: "bg-red-100 text-red-600",       scores: { 外向性: 88, 協調性: 66, 誠実性: 74, 開放性: 70 }, activity: "地域イベントの運営スタッフ", match: 93, gradient: "from-red-50 to-orange-50",     accent: "#ef4444" },
   { name: "アイデアマンタイプ",   icon: Lightbulb,     iconBg: "bg-purple-100 text-purple-600", scores: { 外向性: 78, 協調性: 86, 誠実性: 64, 開放性: 92 }, activity: "子ども向け工作ワークショップ", match: 94, gradient: "from-purple-50 to-violet-50", accent: "#8b5cf6" },
   { name: "実行力タイプ",         icon: Zap,           iconBg: "bg-green-100 text-green-600",   scores: { 外向性: 70, 協調性: 58, 誠実性: 82, 開放性: 60 }, activity: "河川敷の清掃・緑化活動",       match: 90, gradient: "from-green-50 to-emerald-50", accent: "#10b981" },

@@ -9,18 +9,23 @@ describe("resolvePersona", () => {
     "participant-diagnosis",
     "participant-lifecycle",
     "participant-delete",
+    "participant-logout",
+    "participant-suspended",
   ])("%s を参加者ペルソナとして解決できる", (key) => {
     expect(resolvePersona(key)?.role).toBe("participant");
   });
 
   it.each([
-    "organization-fresh",
-    "organization-reapply",
-    "organization-profile-review",
-    "organization-lifecycle",
-    "organization-foreign",
-  ])("%s を団体ペルソナとして解決できる", (key) => {
-    expect(resolvePersona(key)?.role).toBe("organization");
+    ["organization-fresh", "organization"],
+    ["organization-reapply", "organization"],
+    ["organization-profile-review", "organization"],
+    ["organization-lifecycle", "organization"],
+    ["organization-foreign", "organization"],
+    ["organization-rejected", "organization"],
+    ["organization-pending-readonly", "organization"],
+    ["organization-secondary", "organization"],
+  ] as const)("%s を %s ペルソナとして解決できる", (key, role) => {
+    expect(resolvePersona(key)?.role).toBe(role);
   });
 
   it("定義済みの persona キーを解決できる", () => {

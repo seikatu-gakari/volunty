@@ -13,65 +13,11 @@ import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { fetchApproachSendData } from "@/lib/approaches/actions";
 import { fetchRecommendedParticipantDetail } from "@/lib/dashboard/actions";
-import type { RecommendedParticipant } from "@/lib/dashboard/recommended-participants";
 
 export const dynamic = "force-dynamic";
 
-const BIG5_LABELS: Array<{
-  key: keyof RecommendedParticipant["diagnosisScores"];
-  label: string;
-}> = [
-  { key: "extraversion", label: "外向性" },
-  { key: "agreeableness", label: "協調性" },
-  { key: "conscientiousness", label: "誠実性" },
-  { key: "neuroticism", label: "神経症傾向" },
-  { key: "openness", label: "開放性" },
-];
-
 function formatList(values: string[], fallback: string): string {
   return values.length > 0 ? values.join("、") : fallback;
-}
-
-function ScoreBar({ score }: { score: number }) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-medium text-text-body">
-          相性スコア
-        </span>
-        <span className="text-2xl font-bold text-text-dark">{score}%</span>
-      </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-primary/15">
-        <div
-          className="h-full rounded-full bg-primary"
-          style={{ width: `${score}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function TraitBar({
-  label,
-  score,
-}: {
-  label: string;
-  score: number;
-}) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-sm font-medium text-text-body">{label}</span>
-        <span className="text-sm font-bold text-text-dark">{score}%</span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-primary/15">
-        <div
-          className="h-full rounded-full bg-primary"
-          style={{ width: `${score}%` }}
-        />
-      </div>
-    </div>
-  );
 }
 
 function EmptyPublishedOpportunityState() {
@@ -186,7 +132,9 @@ export default async function DashboardParticipantDetailPage({
                     {participant.name}
                   </h1>
                   <p className="mt-1 text-sm text-text-body">
-                    {participant.diagnosisTypeLabel ?? "診断タイプ未設定"}
+                    {participant.styleTypeLabel
+                      ? `${participant.styleTypeLabel}（参考タイプ）`
+                      : "診断未実施"}
                   </p>
                 </div>
               </div>
@@ -222,18 +170,17 @@ export default async function DashboardParticipantDetailPage({
           <CardHeader>
             <div className="flex items-center gap-2">
               <Sparkles className="size-5 text-primary" />
-              <h2 className="text-lg font-bold text-text-dark">相性概要</h2>
+              <h2 className="text-lg font-bold text-text-dark">活動スタイル適合</h2>
             </div>
           </CardHeader>
           <CardContent>
             <div className="mb-5 rounded-lg bg-background p-4">
-              <p className="mb-3 text-xs text-text-body">
-                最も相性が高い募集案件: {participant.bestOpportunityTitle}
+              <p className="text-xs text-text-body">
+                最も適合する募集案件: {participant.bestOpportunityTitle}
               </p>
-              <ScoreBar score={participant.matchScore} />
             </div>
 
-            <h3 className="mb-2 text-sm font-bold text-text-dark">相性理由</h3>
+            <h3 className="mb-2 text-sm font-bold text-text-dark">適合の説明</h3>
             <ul className="space-y-2">
               {participant.matchReasons.map((reason) => (
                 <li
@@ -244,6 +191,9 @@ export default async function DashboardParticipantDetailPage({
                 </li>
               ))}
             </ul>
+            <p className="mt-3 text-xs leading-5 text-text-body">
+              ※ 参加者の回答傾向にもとづく参考情報です。合否の判断に用いるものではありません。
+            </p>
           </CardContent>
         </Card>
 
@@ -292,19 +242,15 @@ export default async function DashboardParticipantDetailPage({
           <Card>
             <CardHeader>
               <h2 className="text-lg font-bold text-text-dark">
-                BIG5 スコア
+                活動スタイル（参考タイプ）
               </h2>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {BIG5_LABELS.map(({ key, label }) => (
-                  <TraitBar
-                    key={key}
-                    label={label}
-                    score={participant.diagnosisScores[key]}
-                  />
-                ))}
-              </div>
+              <p className="text-sm leading-6 text-text-body">
+                {participant.styleTypeLabel
+                  ? `${participant.styleTypeLabel}に近い傾向があります。参加者本人の回答にもとづく参考情報で、詳細な診断スコアは公開されません。`
+                  : "この参加者はまだ性格診断を実施していません。"}
+              </p>
             </CardContent>
           </Card>
         </div>

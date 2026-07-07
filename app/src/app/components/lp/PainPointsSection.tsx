@@ -1,4 +1,5 @@
 import { Search, Info, Users, MapPin, ArrowRight, CheckCircle } from "lucide-react";
+import { LPSectionHeading } from "./LPSectionHeading";
 
 const PAIN_POINTS = [
   {
@@ -9,7 +10,7 @@ const PAIN_POINTS = [
   },
   {
     problem: "参加方法などの情報が得られなかった",
-    solution: "相性スコア順に、応募方法までまとめて表示",
+    solution: "あなたに合う順に、応募方法までまとめて表示",
     problemIcon: Info,
     solutionIcon: CheckCircle,
   },
@@ -36,21 +37,17 @@ const PAIN_POINTS = [
 export function PainPointsSection() {
   return (
     <section id="kadai" className="relative z-10 mt-20 sm:mt-28">
-      <div className="mb-12 text-center">
-        <p className="mb-3 text-sm font-medium text-primary">✦ なぜ、はじめられない？ ✦</p>
-        <h2 className="text-3xl font-bold tracking-tight text-text-dark sm:text-[32px]">
-          「やってみたい」のに、一歩を踏み出せない。
-        </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-text-body">
-          ボランティアに関心はあっても、参加に至らない人は多数。その「つまずき」を、Voluntyはひとつずつ解消します。
-        </p>
-      </div>
+      <LPSectionHeading
+        eyebrow="なぜ、はじめられない？"
+        title="「やってみたい」のに、一歩を踏み出せない。"
+        description="ボランティアに関心はあっても、参加に至らない人は多数。その「つまずき」を、Voluntyはひとつずつ解消します。"
+      />
 
       <div className="space-y-4">
         {PAIN_POINTS.map((item, i) => (
           <div
             key={i}
-            className="flex flex-col items-stretch gap-3 rounded-2xl border border-card-border bg-white p-5 shadow-sm sm:flex-row sm:items-center"
+            className="flex flex-col items-stretch gap-3 rounded-3xl border border-card-border bg-white p-5 shadow-sm sm:flex-row sm:items-center"
           >
             <div className="flex flex-1 items-center gap-3 rounded-xl bg-red-50 px-4 py-3">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-500">

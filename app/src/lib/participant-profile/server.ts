@@ -10,9 +10,14 @@ interface RawParticipantProfile {
   region: string;
   bio: string | null;
   interests: unknown;
-  diagnosis_type: string | null;
-  diagnosis_scores: unknown;
+  latest_diagnosis_result_id: string | null;
   updated_at: string | null;
+}
+
+/** 最新診断のサマリ（マイページ表示用。生スコアは含めない） */
+export interface LatestDiagnosisSummary {
+  styleTypeId: string | null;
+  answeredAt: Date;
 }
 
 export interface ParticipantProfileRecord {
@@ -24,8 +29,7 @@ export interface ParticipantProfileRecord {
   region: string;
   bio: string | null;
   interests: string[];
-  diagnosisType: string | null;
-  diagnosisScores: Record<string, number> | null;
+  latestDiagnosis: LatestDiagnosisSummary | null;
   updatedAt: Date | null;
 }
 
@@ -40,43 +44,10 @@ export interface ParticipantProfileFetchResult {
   debug: ParticipantProfileFetchDebug;
 }
 
-function isScoreRecord(value: unknown): value is Record<string, number> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  return Object.values(value).every((item) => typeof item === "number");
-}
-
-function mapProfile(profile: RawParticipantProfile): ParticipantProfileRecord | null {
-  const birthday =
-    profile.birthday instanceof Date
-      ? profile.birthday
-      : new Date(profile.birthday);
-
-  if (Number.isNaN(birthday.getTime())) {
-    return null;
-  }
-
-  return {
-    id: profile.id,
-    userId: profile.user_id,
-    name: profile.name,
-    birthday,
-    gender: profile.gender,
-    region: profile.region,
-    bio: profile.bio,
-    interests: Array.isArray(profile.interests)
-      ? profile.interests.filter(
-          (interest): interest is string => typeof interest === "string"
-        )
-      : [],
-    diagnosisType: profile.diagnosis_type,
-    diagnosisScores: isScoreRecord(profile.diagnosis_scores)
-      ? profile.diagnosis_scores
-      : null,
-    updatedAt: profile.updated_at ? new Date(profile.updated_at) : null,
-  };
+function toInterests(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((interest): interest is string => typeof interest === "string")
+    : [];
 }
 
 function formatErrorDetail(error: unknown): string {
@@ -106,9 +77,10 @@ export async function fetchParticipantProfileByUserIdWithDebug(
         region: true,
         bio: true,
         interests: true,
-        diagnosisType: true,
-        diagnosisScores: true,
         updatedAt: true,
+        latestDiagnosisResult: {
+          select: { styleTypeId: true, answeredAt: true },
+        },
       },
     });
 
@@ -122,14 +94,12 @@ export async function fetchParticipantProfileByUserIdWithDebug(
           gender: profile.gender,
           region: profile.region,
           bio: profile.bio,
-          interests: Array.isArray(profile.interests)
-            ? profile.interests.filter(
-                (interest): interest is string => typeof interest === "string"
-              )
-            : [],
-          diagnosisType: profile.diagnosisType,
-          diagnosisScores: isScoreRecord(profile.diagnosisScores)
-            ? profile.diagnosisScores
+          interests: toInterests(profile.interests),
+          latestDiagnosis: profile.latestDiagnosisResult
+            ? {
+                styleTypeId: profile.latestDiagnosisResult.styleTypeId,
+                answeredAt: profile.latestDiagnosisResult.answeredAt,
+              }
             : null,
           updatedAt: profile.updatedAt,
         },
@@ -153,7 +123,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
     const { data, error } = await supabase
       .from("m_participant_profile")
       .select(
-        "id, user_id, name, birthday, gender, region, bio, interests, diagnosis_type, diagnosis_scores, updated_at"
+        "id, user_id, name, birthday, gender, region, bio, interests, latest_diagnosis_result_id, updated_at"
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -185,9 +155,49 @@ export async function fetchParticipantProfileByUserIdWithDebug(
       };
     }
 
-    const mapped = mapProfile(data as RawParticipantProfile);
+    const raw = data as RawParticipantProfile;
+    const birthday =
+      raw.birthday instanceof Date ? raw.birthday : new Date(raw.birthday);
+    if (Number.isNaN(birthday.getTime())) {
+      return {
+        profile: null,
+        debug: {
+          fallbackUsed: prismaErrorDetail !== null,
+          prismaErrorDetail,
+          supabaseErrorDetail: null,
+        },
+      };
+    }
+
+    // 最新診断のサマリも Supabase から取得する
+    let latestDiagnosis: LatestDiagnosisSummary | null = null;
+    if (raw.latest_diagnosis_result_id) {
+      const { data: diagnosisData } = await supabase
+        .from("t_diagnosis_result")
+        .select("style_type_id, answered_at")
+        .eq("id", raw.latest_diagnosis_result_id)
+        .maybeSingle();
+      if (diagnosisData) {
+        latestDiagnosis = {
+          styleTypeId: (diagnosisData.style_type_id as string | null) ?? null,
+          answeredAt: new Date(diagnosisData.answered_at as string),
+        };
+      }
+    }
+
     return {
-      profile: mapped,
+      profile: {
+        id: raw.id,
+        userId: raw.user_id,
+        name: raw.name,
+        birthday,
+        gender: raw.gender,
+        region: raw.region,
+        bio: raw.bio,
+        interests: toInterests(raw.interests),
+        latestDiagnosis,
+        updatedAt: raw.updated_at ? new Date(raw.updated_at) : null,
+      },
       debug: {
         fallbackUsed: prismaErrorDetail !== null,
         prismaErrorDetail,

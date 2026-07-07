@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { LPSectionHeading } from "./LPSectionHeading";
 
 const FAQ_ITEMS = [
   {
     q: "診断や登録は無料ですか？",
-    a: "はい。性格診断・会員登録ともに無料でご利用いただけます。費用がかかる活動は事前に明記されます。",
+    a: "はい。性格傾向チェック・会員登録ともに無料でご利用いただけます。費用がかかる活動は事前に明記されます。",
   },
   {
     q: "診断はどのくらい時間がかかりますか？",
-    a: "16問の簡易診断は約2分、60問の詳細診断は約8〜10分です。いつでも中断・再開が可能です。",
+    a: "簡易診断（15問・約2分）と全50問（約5〜8分）から選べます。いつでも中断・再開が可能です。",
   },
   {
     q: "ボランティアが初めてでも大丈夫ですか？",
@@ -22,7 +23,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "性格診断の結果はどう使われますか？",
-    a: "診断結果はボランティア活動とのマッチングにのみ使用されます。第三者への提供や広告目的での利用は行いません。",
+    a: "診断結果はおすすめ案件の並び順の参考の一つとしてのみ使用されます。性格を理由に応募が制限されることはなく、第三者への提供や広告目的での利用も行いません。",
   },
   {
     q: "個人情報の扱いが心配です。",
@@ -35,12 +36,10 @@ export function FAQSection() {
 
   return (
     <section id="faq" className="relative z-10 mt-20 sm:mt-28">
-      <div className="mb-12 text-center">
-        <p className="mb-3 text-sm font-medium text-primary">✦ よくある質問 ✦</p>
-        <h2 className="text-3xl font-bold tracking-tight text-text-dark sm:text-[32px]">
-          はじめる前の、ちいさな不安に。
-        </h2>
-      </div>
+      <LPSectionHeading
+        eyebrow="よくある質問"
+        title="はじめる前の、ちいさな不安に。"
+      />
 
       <div className="mx-auto max-w-2xl divide-y divide-card-border rounded-2xl border border-card-border bg-white shadow-sm">
         {FAQ_ITEMS.map((item, i) => (

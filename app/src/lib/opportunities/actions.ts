@@ -1,8 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { BIG5Scores } from "@/lib/personality/types";
-import { calculateMatchScore } from "@/lib/recommendations/matching";
+import { prisma } from "@/lib/prisma";
+import { findActivityStyleTag, toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
 import type {
   OpportunityDetailResult,
   OpportunityDetail,
@@ -10,46 +10,24 @@ import type {
   ApplyResult,
 } from "./types";
 
-const BIG5_TRAIT_KEYS = [
-  "extraversion",
-  "agreeableness",
-  "conscientiousness",
-  "neuroticism",
-  "openness",
-] as const;
-
-/**
- * 未知の値が BIG5Scores 型かどうかを実行時に検証するタイプガード
- */
-function isBIG5Scores(value: unknown): value is BIG5Scores {
-  if (!value || typeof value !== "object") return false;
-  const obj = value as Record<string, unknown>;
-  return BIG5_TRAIT_KEYS.every((t) => typeof obj[t] === "number");
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
 }
 
-/**
- * データベースの JSONB 値から有効な BIG5 特性キーのみを抽出する。
- */
-function toPartialBIG5Scores(
-  value: Record<string, unknown>
-): Partial<BIG5Scores> {
-  const result: Partial<BIG5Scores> = {};
-  for (const trait of BIG5_TRAIT_KEYS) {
-    const v = value[trait];
-    if (typeof v === "number") result[trait] = v;
-  }
-  return result;
-}
+/** 閲覧イベントの流入元 */
+export type OpportunityViewSource = "recommendation" | "search" | "direct";
 
 /**
  * 募集案件詳細データを取得する
  *
  * - opportunities + organizations を JOIN して案件情報を取得
- * - 参加者の場合、マッチングスコアを計算
  * - 既存の応募があれば応募情報を含める
+ * - 参加者の閲覧はエンゲージメントイベントとして記録する（マッチング精度の将来評価用）
  */
 export async function fetchOpportunityDetail(
-  opportunityId: string
+  opportunityId: string,
+  viewSource: OpportunityViewSource = "direct"
 ): Promise<OpportunityDetailResult> {
   try {
     const supabase = await createClient();
@@ -61,7 +39,6 @@ export async function fetchOpportunityDetail(
     if (!user) {
       return {
         opportunity: null,
-        matchScore: null,
         existingApplication: null,
         isParticipant: false,
       };
@@ -75,7 +52,10 @@ export async function fetchOpportunityDetail(
         id,
         title,
         description,
-        requirement_traits,
+        activity_style_tags,
+        required_qualifications,
+        min_age,
+        max_age,
         status,
         created_at,
         location,
@@ -98,7 +78,6 @@ export async function fetchOpportunityDetail(
     if (oppError || !oppData) {
       return {
         opportunity: null,
-        matchScore: null,
         existingApplication: null,
         isParticipant: false,
       };
@@ -111,12 +90,18 @@ export async function fetchOpportunityDetail(
       description: string | null;
     } | null;
 
+    const activityStyleLabels = toActivityStyleTagIds(oppData.activity_style_tags)
+      .map((tagId) => findActivityStyleTag(tagId)?.label)
+      .filter((label): label is string => Boolean(label));
+
     const opportunity: OpportunityDetail = {
       id: oppData.id as string,
       title: oppData.title as string,
       description: (oppData.description as string) ?? null,
-      required_traits:
-        (oppData.requirement_traits as Record<string, number>) ?? null,
+      activity_style_labels: activityStyleLabels,
+      required_qualifications: toStringArray(oppData.required_qualifications),
+      min_age: (oppData.min_age as number | null) ?? null,
+      max_age: (oppData.max_age as number | null) ?? null,
       status: oppData.status as OpportunityDetail["status"],
       organization: {
         id: org?.id ?? "",
@@ -137,26 +122,28 @@ export async function fetchOpportunityDetail(
         null,
     };
 
-    // 参加者プロフィールを取得（マッチングスコア計算用）
-    let matchScore: number | null = null;
-    let isParticipant = false;
-
+    // 参加者判定
     const { data: participant } = await supabase
       .from("m_participant_profile")
-      .select("diagnosis_scores")
+      .select("id")
       .eq("user_id", user.id)
       .single();
 
-    if (participant) {
-      isParticipant = true;
-      const rawScores = participant.diagnosis_scores;
-      if (isBIG5Scores(rawScores) && opportunity.required_traits) {
-        matchScore = calculateMatchScore(
-          rawScores,
-          toPartialBIG5Scores(
-            opportunity.required_traits as Record<string, unknown>
-          )
-        );
+    const isParticipant = Boolean(participant);
+
+    // 閲覧イベントを記録（失敗しても表示は継続する）
+    if (isParticipant) {
+      try {
+        await prisma.engagementEvent.create({
+          data: {
+            userId: user.id,
+            opportunityId,
+            event: "view",
+            source: viewSource,
+          },
+        });
+      } catch (err) {
+        console.error("[fetchOpportunityDetail] 閲覧イベントの記録に失敗:", err);
       }
     }
 
@@ -185,7 +172,6 @@ export async function fetchOpportunityDetail(
 
     return {
       opportunity,
-      matchScore,
       existingApplication,
       isParticipant,
     };
@@ -193,7 +179,6 @@ export async function fetchOpportunityDetail(
     console.error("[fetchOpportunityDetail] 予期しないエラー:", err);
     return {
       opportunity: null,
-      matchScore: null,
       existingApplication: null,
       isParticipant: false,
     };
@@ -207,7 +192,7 @@ function mapMatchingStatus(dbStatus: string): ExistingApplication["status"] {
   if (dbStatus === "applied" || dbStatus === "queued") return "pending";
   if (dbStatus === "accepted") return "approved";
   if (dbStatus === "completed") return "completed";
-  if (dbStatus === "declined") return "rejected";
+  if (dbStatus === "declined" || dbStatus === "cancelled") return "rejected";
   return "pending";
 }
 
@@ -216,10 +201,12 @@ function mapMatchingStatus(dbStatus: string): ExistingApplication["status"] {
  *
  * - t_matching_candidate テーブルに INSERT（status: 'applied'）
  * - 重複応募チェック: 同一 participant_id + opportunity_id の既存レコードがあればエラー
+ * - どの推薦から応募に至ったかを recommendation_log_id で追跡する（任意）
  */
 export async function applyToOpportunity(
   opportunityId: string,
-  message: string
+  message: string,
+  recommendationLogId?: string | null
 ): Promise<ApplyResult> {
   try {
     const supabase = await createClient();
@@ -232,10 +219,10 @@ export async function applyToOpportunity(
       return { success: false, error: "ログインが必要です" };
     }
 
-    // 参加者であることを確認（診断スコアも取得）
+    // 参加者であることを確認
     const { data: participant } = await supabase
       .from("m_participant_profile")
-      .select("id, diagnosis_scores")
+      .select("id")
       .eq("user_id", user.id)
       .single();
 
@@ -243,10 +230,10 @@ export async function applyToOpportunity(
       return { success: false, error: "参加者登録が必要です" };
     }
 
-    // 案件の存在とステータスを確認（requirement_traits も取得）
+    // 案件の存在とステータスを確認
     const { data: opportunity } = await supabase
       .from("m_opportunity")
-      .select("id, status, requirement_traits")
+      .select("id, status")
       .eq("id", opportunityId)
       .single();
 
@@ -270,12 +257,14 @@ export async function applyToOpportunity(
       return { success: false, error: "この案件にはすでに応募済みです" };
     }
 
-    // マッチングスコアを計算
-    const diagScores = participant.diagnosis_scores;
-    const reqTraits = opportunity.requirement_traits as Record<string, unknown> | null;
-    let matchScore = 50; // 診断スコアまたは要件特性がない場合のデフォルト
-    if (isBIG5Scores(diagScores) && reqTraits) {
-      matchScore = calculateMatchScore(diagScores, toPartialBIG5Scores(reqTraits));
+    // 応募元の推薦ログが本人のものであることを確認（他人のログIDは無視する）
+    let validatedLogId: string | null = null;
+    if (recommendationLogId) {
+      const log = await prisma.recommendationLog.findFirst({
+        where: { id: recommendationLogId, userId: user.id, opportunityId },
+        select: { id: true },
+      });
+      validatedLogId = log?.id ?? null;
     }
 
     // 応募を作成
@@ -289,7 +278,7 @@ export async function applyToOpportunity(
         participant_id: user.id,
         message: message || null,
         status: "applied",
-        match_score: matchScore,
+        recommendation_log_id: validatedLogId,
         applied_at: now,
         status_changed_at: now,
         created_at: now,

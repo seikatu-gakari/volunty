@@ -9,8 +9,8 @@
       "items": [
         { "id": "P-1", "name": "OAuthログイン", "status": "pass", "notes": "Google OAuthログインUI、callback route、m_user同期まで実装済み" },
         { "id": "P-2", "name": "プロフィール登録", "status": "pass", "notes": "registerParticipantで参加者プロフィールをDB upsertし、ロール検証とリダイレクトを実装済み" },
-        { "id": "P-3", "name": "性格診断（簡易16問・詳細60問）", "status": "pass", "notes": "BIG5ベース。XState制御。mode=brief|full対応。結果保存時に診断モードを保持" },
-        { "id": "P-4", "name": "診断結果表示", "status": "pass", "notes": "10類型+BIG5スコアチャート。DB保存済み結果の取得に対応" },
+        { "id": "P-3", "name": "性格傾向チェック（IPIP-BFM-50日本語版・簡易15問/全50問）", "status": "pass", "notes": "public domainのIPIP項目を使用。簡易15問（各ドメイン先頭3項目を抜粋・scaleCode分離）と全50問の2モードから選択。XState制御・中断再開・生回答保存（常時）・回答品質判定に対応。尺度/採点/標準化/タイプ定義のバージョンを保存" },
+        { "id": "P-4", "name": "診断結果表示", "status": "pass", "notes": "5ドメイン連続スコアが主結果。参考タイプ（活動スタイル）・尺度名/版/実施日・回答品質注記・非臨床/限界説明を表示。percentile表示なし" },
         { "id": "P-5", "name": "おすすめ案件一覧", "status": "pass", "notes": "/recommendations と fetchRecommendations でマッチングスコア順表示、カテゴリ・地域・参加形態フィルタに対応" },
         { "id": "P-6", "name": "団体詳細閲覧", "status": "pass", "notes": "/organizations/[id] と fetchOrganizationDetail で団体情報・公開案件一覧を表示" },
         { "id": "P-7", "name": "募集案件への応募", "status": "pass", "notes": "/opportunities/[id] と applyToOpportunity で応募メッセージ保存・重複応募防止に対応" },
@@ -20,7 +20,7 @@
         { "id": "P-11", "name": "マッチ成立後LINE表示", "status": "pass", "notes": "応募承認後およびアプローチ承諾後に団体連絡先のみ表示。LINE友だち追加URL/IDにも対応" },
         { "id": "P-12", "name": "参加証明書発行", "status": "pass", "notes": "活動完了済み応募から申請し、団体承認後に証明書番号付きPDFをダウンロード可能" },
         { "id": "P-13", "name": "参加証明書一覧", "status": "pass", "notes": "/mypage/certificates で申請中・発行済み・却下済み証明書を一覧/詳細表示" },
-        { "id": "P-14", "name": "診断やり直し", "status": "pass", "notes": "診断結果画面から再診断導線を提供し、submitDiagnosisで最新結果を更新・履歴作成" }
+        { "id": "P-14", "name": "診断やり直し", "status": "pass", "notes": "診断結果画面から再診断導線を提供し、submitDiagnosisで履歴を追加・latest_diagnosis_result_idを更新" }
       ]
     },
     "organization": {
@@ -31,10 +31,10 @@
         { "id": "O-2a", "name": "審査ステータス確認", "status": "pass", "notes": "/onboarding/pending と保護ルートで未承認団体の状態表示・アクセス制御に対応" },
         { "id": "O-3", "name": "募集案件の作成", "status": "pass", "notes": "/dashboard/opportunities/new と createOpportunity で案件作成、特性条件、カテゴリ、参加形態を保存" },
         { "id": "O-4", "name": "募集案件の編集・終了", "status": "pass", "notes": "/dashboard/opportunities/[id]/edit と updateOpportunity で自団体案件の編集・ステータス更新に対応" },
-        { "id": "O-5", "name": "おすすめ参加者一覧", "status": "pass", "notes": "/dashboard/participants と fetchRecommendedParticipants で公開・診断済み参加者を相性スコア順に表示" },
+        { "id": "O-5", "name": "おすすめ参加者一覧", "status": "pass", "notes": "/dashboard/participants で公開参加者を活動スタイル適合順に表示（未診断も除外しない・生スコア非開示）" },
         { "id": "O-6", "name": "参加者へのアプローチ送信", "status": "pass", "notes": "/dashboard/participants から公開参加者へ1000文字以内のアプローチ文を案件単位で送信可能。送信上限あり" },
         { "id": "O-7", "name": "アプローチ送信履歴", "status": "pass", "notes": "/dashboard/approaches で送信履歴・回答状態・回答期限を表示" },
-        { "id": "O-8", "name": "応募者詳細確認", "status": "pass", "notes": "/dashboard/opportunities/[id]/applicants/[applicationId] で診断タイプ、BIG5スコア、応募メッセージを表示" },
+        { "id": "O-8", "name": "応募者詳細確認", "status": "pass", "notes": "/dashboard/opportunities/[id]/applicants/[applicationId] で参考タイプと応募メッセージを表示（生の診断スコアは団体へ非開示）" },
         { "id": "O-9", "name": "応募の承認・辞退", "status": "pass", "notes": "updateApplicationStatusで自団体応募のみ承認・辞退でき、UI操作も実装済み" },
         { "id": "O-10", "name": "活動完了報告", "status": "pass", "notes": "承認済み応募をcompletedへ更新し、証明書申請可能状態へ接続" },
         { "id": "O-11", "name": "参加証明書発行承認", "status": "pass", "notes": "/dashboard/certificates で証明書申請一覧・詳細・承認/却下に対応" },

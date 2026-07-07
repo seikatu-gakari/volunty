@@ -11,8 +11,10 @@ export interface OpportunityRecommendation {
   description: string | null
   /** 団体名 */
   organizationName: string
-  /** マッチングスコア (0-100) */
-  matchScore: number
+  /** 日本語の推薦理由（最大2件） */
+  reasons: string[]
+  /** この表示を記録した推薦ログID（応募時のトラッキングに使用） */
+  recommendationLogId: string | null
 }
 
 export interface RecommendationFilters {
@@ -25,8 +27,8 @@ export interface RecommendationFilters {
 }
 
 export interface RecommendationResult {
-  /** マッチングスコア順の案件一覧 */
+  /** ルールベーススコア順の案件一覧 */
   recommendations: OpportunityRecommendation[]
-  /** 診断が完了しているか */
+  /** 診断が完了しているか（未診断でも推薦は返る。UIの案内表示用） */
   hasCompletedDiagnosis: boolean
 }

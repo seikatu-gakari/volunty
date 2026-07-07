@@ -132,8 +132,10 @@ describe("fetchMyPageData", () => {
         id: "user-123",
         name: "テストユーザー",
         region: "東京都",
-        diagnosisType: "イノベーター・リーダー",
-        diagnosisScores: { extraversion: 85, agreeableness: 70 },
+        latestDiagnosis: {
+          styleTypeId: "innovator-leader",
+          answeredAt: new Date("2026-07-01T00:00:00Z"),
+        },
       },
       debug: {
         fallbackUsed: false,
@@ -148,9 +150,9 @@ describe("fetchMyPageData", () => {
       id: "user-123",
       name: "テストユーザー",
       region: "東京都",
-      diagnosis_type: "イノベーター・リーダー",
-      diagnosis_scores: { extraversion: 85, agreeableness: 70 },
-      diagnosis_updated_at: null,
+      diagnosis_completed: true,
+      diagnosis_style_type_label: "イノベーター・リーダータイプ",
+      diagnosis_answered_at: "2026-07-01T00:00:00.000Z",
     });
     expect(result.alert).toBeNull();
   });

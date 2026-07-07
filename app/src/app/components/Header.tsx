@@ -99,9 +99,8 @@ export async function Header() {
           <nav className="hidden items-center gap-1 md:flex">
             {[
               { href: "#kadai", label: "課題" },
-              { href: "#shikumi", label: "仕組み" },
-              { href: "#types", label: "診断タイプ" },
               { href: "#usage", label: "使い方" },
+              { href: "#types", label: "診断タイプ" },
               { href: "#faq", label: "FAQ" },
             ].map((item) => (
               <a

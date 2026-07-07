@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ApplicantDetailResult } from "./types";
 
 const mockGetUser = vi.fn();
 const mockFindOrganizationProfile = vi.fn();
@@ -27,10 +28,6 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
-vi.mock("@/lib/recommendations/matching", () => ({
-  calculateMatchScore: vi.fn().mockReturnValue(75),
-}));
-
 const { fetchApplicantDetail } = await import("./actions");
 
 const organizationProfile = {
@@ -38,43 +35,23 @@ const organizationProfile = {
   reviewStatus: "approved",
   user: { role: "organization" },
 };
-const diagnosisScores = {
-  extraversion: 65,
-  agreeableness: 85,
-  conscientiousness: 70,
-  neuroticism: 35,
-  openness: 60,
-};
 
 const ownedApplication = {
   id: "application-1",
   status: "applied",
   message: "応募メッセージです",
-  matchScore: 82.5,
   appliedAt: new Date("2026-01-20T00:00:00.000Z"),
   statusChangedAt: new Date("2026-01-20T00:00:00.000Z"),
   participant: {
     name: "ユーザー名",
     participantProfile: {
       name: "プロフィール名",
-      diagnosisType: "イノベーター・リーダータイプ",
-      diagnosisScores: {
-        extraversion: 10,
-        agreeableness: 20,
-        conscientiousness: 30,
-        neuroticism: 40,
-        openness: 50,
-      },
+      latestDiagnosisResult: { styleTypeId: "supporter-care" },
     },
   },
   opportunity: {
     id: "opportunity-1",
     title: "環境保全ボランティア",
-    requirementTraits: { agreeableness: 80 },
-  },
-  diagnosisResult: {
-    big5Scores: diagnosisScores,
-    personalityType: { typeId: "supporter-care" },
   },
 };
 
@@ -102,7 +79,8 @@ describe("fetchApplicantDetail", () => {
       error: { message: "Not authenticated" },
     });
 
-    const result = await fetchApplicantDetail("application-1");
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result).toEqual({ data: null, error: "ログインが必要です" });
     expect(mockFindOrganizationProfile).not.toHaveBeenCalled();
@@ -111,7 +89,8 @@ describe("fetchApplicantDetail", () => {
   it("団体プロフィールがない場合はエラーを返す", async () => {
     mockFindOrganizationProfile.mockResolvedValue(null);
 
-    const result = await fetchApplicantDetail("application-1");
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result).toEqual({
       data: null,
@@ -126,7 +105,8 @@ describe("fetchApplicantDetail", () => {
       user: { role: "participant" },
     });
 
-    const result = await fetchApplicantDetail("application-1");
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result).toEqual({
       data: null,
@@ -141,7 +121,8 @@ describe("fetchApplicantDetail", () => {
       reviewStatus: "pending",
     });
 
-    const result = await fetchApplicantDetail("application-1");
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result).toEqual({
       data: null,
@@ -158,7 +139,8 @@ describe("fetchApplicantDetail", () => {
     async (_caseName, applicationId) => {
       mockFindOwnedApplication.mockResolvedValue(null);
 
-      const result = await fetchApplicantDetail(applicationId);
+      const result: ApplicantDetailResult =
+        await fetchApplicantDetail(applicationId);
 
       expect(result).toEqual({
         data: null,
@@ -176,8 +158,9 @@ describe("fetchApplicantDetail", () => {
     }
   );
 
-  it("応募に関連付いた診断結果から参加者名・人物タイプ・BIG5を返す", async () => {
-    const result = await fetchApplicantDetail("application-1");
+  it("応募者詳細は参考タイプだけを返し、生スコアと旧マッチングスコアを返さない", async () => {
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result.error).toBeUndefined();
     expect(result.data).toEqual(
@@ -188,16 +171,19 @@ describe("fetchApplicantDetail", () => {
         created_at: "2026-01-20T00:00:00Z",
         completed_at: null,
         participant_name: "プロフィール名",
-        diagnosis_type: "サポーター・ケアタイプ",
-        diagnosis_scores: diagnosisScores,
-        match_score: 82.5,
+        style_type_label: "サポーター・ケアタイプ",
         opportunity_id: "opportunity-1",
         opportunity_title: "環境保全ボランティア",
       })
     );
-    expect(result.data?.personality_type_detail?.name).toBe(
-      "サポーター・ケアタイプ"
+    expect(result.data?.style_type_detail).toEqual(
+      expect.objectContaining({
+        name: "サポーター・ケアタイプ",
+        nameEn: "Supporter Care",
+      })
     );
+    expect(result.data).not.toHaveProperty("diagnosis_scores");
+    expect(result.data).not.toHaveProperty("match_score");
     expect(mockFindOrganizationProfile).toHaveBeenCalledWith({
       where: { userId: "organization-user-1" },
       select: {
@@ -211,61 +197,21 @@ describe("fetchApplicantDetail", () => {
         id: "application-1",
         opportunity: { organizationId: "organization-profile-1" },
       },
-      select: {
+      select: expect.objectContaining({
         id: true,
         status: true,
-        message: true,
-        matchScore: true,
-        appliedAt: true,
-        statusChangedAt: true,
-        participant: {
-          select: {
-            name: true,
-            participantProfile: {
-              select: {
-                name: true,
-                diagnosisType: true,
-                diagnosisScores: true,
-              },
-            },
-          },
-        },
-        opportunity: {
-          select: { id: true, title: true, requirementTraits: true },
-        },
-        diagnosisResult: {
-          select: {
-            big5Scores: true,
-            personalityType: { select: { typeId: true } },
-          },
-        },
-      },
-    });
-  });
-
-  it("関連診断がない既存応募は参加者プロフィールの診断へフォールバックする", async () => {
-    mockFindOwnedApplication.mockResolvedValue({
-      ...ownedApplication,
-      diagnosisResult: null,
-    });
-
-    const result = await fetchApplicantDetail("application-1");
-
-    expect(result.data).toEqual(
-      expect.objectContaining({
-        participant_name: "プロフィール名",
-        diagnosis_type: "イノベーター・リーダータイプ",
-        diagnosis_scores:
-          ownedApplication.participant.participantProfile.diagnosisScores,
-        match_score: 82.5,
-      })
-    );
-    expect(result.data?.personality_type_detail).toEqual({
-      name: "イノベーター・リーダータイプ",
-      nameEn: "Innovator Leader",
-      description: "新しいアイデアを積極的に提案し、チームを牽引する",
-      strengths: expect.arrayContaining(["プロジェクトリーダー"]),
-      suitableActivities: expect.arrayContaining(["イベント統括"]),
+        participant: expect.objectContaining({
+          select: expect.objectContaining({
+            participantProfile: expect.objectContaining({
+              select: expect.objectContaining({
+                latestDiagnosisResult: {
+                  select: { styleTypeId: true },
+                },
+              }),
+            }),
+          }),
+        }),
+      }),
     });
   });
 
@@ -277,7 +223,8 @@ describe("fetchApplicantDetail", () => {
       statusChangedAt: new Date("2026-02-10T12:30:00.000Z"),
     });
 
-    const result = await fetchApplicantDetail("application-1");
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result.data).toEqual(
       expect.objectContaining({
@@ -295,18 +242,16 @@ describe("fetchApplicantDetail", () => {
         name: "未診断ユーザー",
         participantProfile: null,
       },
-      diagnosisResult: null,
     });
 
-    const result = await fetchApplicantDetail("application-1");
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result.data).toEqual(
       expect.objectContaining({
         participant_name: "未診断ユーザー",
-        diagnosis_type: null,
-        diagnosis_scores: null,
-        match_score: 82.5,
-        personality_type_detail: null,
+        style_type_label: null,
+        style_type_detail: null,
       })
     );
   });
@@ -318,10 +263,10 @@ describe("fetchApplicantDetail", () => {
         name: null,
         participantProfile: null,
       },
-      diagnosisResult: null,
     });
 
-    const result = await fetchApplicantDetail("application-1");
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result.data?.participant_name).toBe("不明");
   });
@@ -329,7 +274,8 @@ describe("fetchApplicantDetail", () => {
   it("Prisma例外時は予期しないエラーを返す", async () => {
     mockFindOwnedApplication.mockRejectedValue(new Error("DB error"));
 
-    const result = await fetchApplicantDetail("application-1");
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
 
     expect(result).toEqual({
       data: null,

@@ -39,7 +39,14 @@ export interface OpportunityEditData {
   id: string;
   title: string;
   description: string;
-  required_traits: Record<string, number> | null;
+  /** 活動スタイルタグID（最大3） */
+  activity_style_tags: string[];
+  /** 必須資格 */
+  required_qualifications: string[];
+  /** 対象年齢の下限（法的・安全上必要な場合のみ） */
+  min_age: number | null;
+  /** 対象年齢の上限（法的・安全上必要な場合のみ） */
+  max_age: number | null;
   status: OpportunityStatus;
   /** 活動場所 */
   location: string | null;
@@ -92,8 +99,6 @@ export interface MatchingHistoryItem {
   applied_at: string | null;
   /** 承認・辞退・活動完了の処理日時 */
   status_changed_at: string;
-  /** マッチングスコア (0-100) */
-  match_score: number | null;
 }
 
 /** fetchMatchingHistory の戻り値 */
@@ -118,12 +123,8 @@ export interface Applicant {
   completed_at: string | null;
   /** 参加者名 */
   participant_name: string;
-  /** 診断タイプ（10類型名） */
-  diagnosis_type: string | null;
-  /** BIG5 スコア（JSONB） */
-  diagnosis_scores: Record<string, number> | null;
-  /** マッチングスコア (0-100) */
-  match_score: number | null;
+  /** 活動スタイルの参考タイプ名（未診断は null。生スコアは開示しない） */
+  style_type_label: string | null;
 }
 
 /** 案件詳細 + 応募者一覧（団体ダッシュボード用） */
@@ -136,8 +137,6 @@ export interface OpportunityWithApplicants {
   description: string | null;
   /** 案件ステータス */
   status: OpportunityStatus;
-  /** 求める性格特性 */
-  required_traits: Record<string, number> | null;
   /** 作成日 */
   created_at: string;
   /** 応募者一覧 */
@@ -158,7 +157,7 @@ export interface UpdateApplicationStatusResult {
   error?: string;
 }
 
-/** 応募者詳細情報（applications + participants + personalityType JOIN） */
+/** 応募者詳細情報（生の診断スコアは団体へ開示しない） */
 export interface ApplicantDetail {
   /** 応募ID */
   id: string;
@@ -172,23 +171,19 @@ export interface ApplicantDetail {
   completed_at: string | null;
   /** 参加者名 */
   participant_name: string;
-  /** 診断タイプ名（10類型名） */
-  diagnosis_type: string | null;
-  /** BIG5 スコア（JSONB） */
-  diagnosis_scores: Record<string, number> | null;
-  /** マッチングスコア (0-100) */
-  match_score: number | null;
+  /** 活動スタイルの参考タイプ名（未診断は null） */
+  style_type_label: string | null;
   /** 案件ID */
   opportunity_id: string;
   /** 案件タイトル */
   opportunity_title: string;
-  /** 人物タイプ詳細（PERSONALITY_TYPES から引き当て） */
-  personality_type_detail: {
+  /** 参考タイプ詳細（補助的な説明情報） */
+  style_type_detail: {
     name: string;
     nameEn: string;
     description: string;
-    strengths: string[];
-    suitableActivities: string[];
+    tendencies: string[];
+    activityExamples: string[];
   } | null;
 }
 
@@ -207,7 +202,7 @@ export type RecommendedParticipantsEmptyReason =
 
 /** fetchRecommendedParticipants の戻り値 */
 export interface RecommendedParticipantsResult {
-  /** 相性スコア順の参加者候補 */
+  /** 活動スタイル適合の参加者候補 */
   participants: RecommendedParticipant[];
   /** 表示すべき空状態の理由 */
   emptyReason?: RecommendedParticipantsEmptyReason;

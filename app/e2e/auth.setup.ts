@@ -7,6 +7,7 @@ const personas = [
   { key: "participant-diagnosis", file: "participant-diagnosis" },
   { key: "participant-lifecycle", file: "participant-lifecycle" },
   { key: "participant-delete", file: "participant-delete" },
+  { key: "participant-logout", file: "participant-logout" },
   { key: "participant-suspendable", file: "participant-suspendable" },
   { key: "organization-approved", file: "organization" },
   { key: "organization-pending", file: "organization-pending" },
@@ -15,6 +16,12 @@ const personas = [
   { key: "organization-profile-review", file: "organization-profile-review" },
   { key: "organization-lifecycle", file: "organization-lifecycle" },
   { key: "organization-foreign", file: "organization-foreign" },
+  {
+    key: "organization-pending-readonly",
+    file: "organization-pending-readonly",
+  },
+  { key: "organization-rejected", file: "organization-rejected" },
+  { key: "organization-secondary", file: "organization-secondary" },
   { key: "admin", file: "admin" },
 ] as const;
 

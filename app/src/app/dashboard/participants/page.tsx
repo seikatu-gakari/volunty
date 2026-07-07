@@ -32,29 +32,15 @@ function emptyStateMessage(reason?: RecommendedParticipantsEmptyReason): {
     return {
       title: "公開中の募集案件がありません",
       description:
-        "おすすめ参加者を表示するには、求める特性を設定した募集案件を公開してください。",
+        "おすすめ参加者を表示するには、募集案件を公開してください。",
     };
   }
 
   return {
     title: "条件に合う参加者がまだいません",
     description:
-      "公開プロフィールかつ診断済みの参加者が見つかると、相性スコア順に表示されます。",
+      "公開プロフィールの参加者が見つかると、活動スタイル適合順に表示されます。",
   };
-}
-
-function ScoreBar({ score }: { score: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm font-bold text-text-dark">{score}%</span>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-primary/15">
-        <div
-          className="h-full rounded-full bg-primary"
-          style={{ width: `${score}%` }}
-        />
-      </div>
-    </div>
-  );
 }
 
 function ParticipantCard({
@@ -78,7 +64,9 @@ function ParticipantCard({
                 {participant.name}
               </h2>
               <p className="mt-1 text-xs text-text-body">
-                {participant.diagnosisTypeLabel ?? "診断タイプ未設定"}
+                {participant.styleTypeLabel
+                  ? `${participant.styleTypeLabel}（参考タイプ）`
+                  : "診断未実施"}
               </p>
             </div>
           </div>
@@ -86,14 +74,16 @@ function ParticipantCard({
         </div>
 
         <div className="rounded-lg bg-background px-3 py-3">
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-text-body">
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-text-body">
             <Sparkles className="size-4 text-primary" />
-            相性スコア
+            適合する募集案件
             <span className="ml-auto text-text-body">
               {participant.bestOpportunityTitle}
             </span>
           </div>
-          <ScoreBar score={participant.matchScore} />
+          <p className="text-xs leading-5 text-text-body">
+            {participant.matchReasons[0]}
+          </p>
         </div>
 
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
@@ -161,7 +151,7 @@ export default async function DashboardParticipantsPage() {
               おすすめ参加者
             </h1>
             <p className="mt-2 text-sm text-text-body">
-              自団体の公開中募集案件に対する最高相性スコア順で表示しています。詳細から参加者へアプローチできます。
+              自団体の公開中募集案件との活動スタイル適合をもとに表示しています。詳細から参加者へアプローチできます。
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

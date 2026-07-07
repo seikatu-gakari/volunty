@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test.use({ storageState: "playwright/.auth/organization-lifecycle.json" });
 
@@ -15,16 +15,6 @@ const TITLES = {
 const APPROACH_PARTICIPANT_NAME = "E2E 団体操作専用参加者";
 const RECOMMENDATION_HIGH_PARTICIPANT_NAME = "E2E 参加者(診断済)";
 const RECOMMENDATION_LOW_PARTICIPANT_NAME = "E2E ライフサイクル参加者";
-
-async function scoreFromParticipantCard(card: Locator): Promise<number> {
-  const text = await card.getByText(/^\d+%$/).textContent();
-  const match = text?.match(/^(\d+)%$/);
-  expect(
-    match,
-    "参加者カードに数値の相性スコアが表示されること",
-  ).not.toBeNull();
-  return Number(match?.[1]);
-}
 
 function approachStatusCard(page: Page, title: string) {
   return page.getByRole("article", { name: `${title}のアプローチ履歴` });
@@ -49,8 +39,7 @@ test.describe("団体業務ライフサイクル", () => {
     await page.getByLabel("定員（任意）").fill("12");
     await page.getByLabel("カテゴリ（任意）").selectOption("環境保全");
     await page.getByLabel("参加形態（任意）").selectOption("hybrid");
-    await page.getByLabel("外向性", { exact: true }).check();
-    await page.getByLabel("外向性のスコア").fill("80");
+    await page.getByLabel("相手に寄り添う支援が中心").check();
     await page.getByRole("button", { name: "作成する" }).click();
 
     await expect(page).toHaveURL(/\/dashboard$/);
@@ -74,7 +63,7 @@ test.describe("団体業務ライフサイクル", () => {
     await expect(page.getByText("募集終了", { exact: true })).toBeVisible();
   });
 
-  test("O-E5: おすすめ参加者を相性スコア順に確認できる", async ({ page }) => {
+  test("O-E5: おすすめ参加者を活動スタイル適合順に確認できる", async ({ page }) => {
     await page.goto("/dashboard/participants");
     await expect(
       page.getByRole("heading", { name: "おすすめ参加者" }),
@@ -99,8 +88,6 @@ test.describe("団体業務ライフサイクル", () => {
     await expect(highParticipant).toBeVisible();
     await expect(lowParticipant).toBeVisible();
 
-    const highScore = await scoreFromParticipantCard(highParticipant);
-    const lowScore = await scoreFromParticipantCard(lowParticipant);
     const participantCardTexts = await participantCards.allTextContents();
     const highParticipantIndex = participantCardTexts.findIndex((text) =>
       text.includes(RECOMMENDATION_HIGH_PARTICIPANT_NAME),
@@ -116,18 +103,27 @@ test.describe("団体業務ライフサイクル", () => {
       "先頭参加者の対象案件名が表示されること",
     ).not.toBeNull();
 
-    expect(highScore).toBeGreaterThan(lowScore);
     expect(highParticipantIndex).toBeGreaterThanOrEqual(0);
     expect(lowParticipantIndex).toBeGreaterThanOrEqual(0);
     expect(highParticipantIndex).toBeLessThan(lowParticipantIndex);
+    await expect(
+      highParticipant.getByText("サポーター・ケアタイプ（参考タイプ）"),
+    ).toBeVisible();
+    await expect(
+      highParticipant.getByText(
+        "「相手に寄り添う支援が中心」の活動スタイルに合う傾向があります",
+      ),
+    ).toBeVisible();
     await highParticipant.click();
 
-    await expect(page.getByRole("heading", { name: "相性概要" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "活動スタイル適合" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "プロフィール" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "BIG5 スコア" }),
+      page.getByRole("heading", { name: "活動スタイル（参考タイプ）" }),
     ).toBeVisible();
     await expect(
       page.getByText(opportunityTitle ?? "", { exact: true }),
@@ -211,11 +207,15 @@ test.describe("団体業務ライフサイクル", () => {
       page.getByText(`${TITLES.applicantDecline}へのE2E応募メッセージです。`),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "診断タイプ" }),
+      page.getByRole("heading", { name: "活動スタイル（参考タイプ）" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "BIG5 スコア詳細" }),
+      page.getByRole("heading", { name: "発揮しやすい傾向の例" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "力を発揮しやすい活動の例" }),
+    ).toBeVisible();
+    await expect(page.getByText("BIG5 スコア詳細")).toHaveCount(0);
 
     await page.getByRole("button", { name: "辞退する" }).click();
     await expect(page.getByText("辞退済み", { exact: true })).toBeVisible();

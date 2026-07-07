@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Sparkles } from "lucide-react"
 import type { OpportunityRecommendation } from "@/lib/recommendations/types"
 
 interface OpportunityCardProps {
@@ -9,48 +9,43 @@ interface OpportunityCardProps {
 /**
  * おすすめ案件一覧の各カード。
  * クリックすると /opportunities/:id の案件詳細ページへ遷移する。
+ * 旧「マッチ度◯%」の表示は廃止し、日本語の推薦理由チップで説明する。
  */
 export function OpportunityCard({ recommendation }: OpportunityCardProps) {
-  const { id, title, description, organizationName, matchScore } = recommendation
+  const { id, title, description, organizationName, reasons, recommendationLogId } =
+    recommendation
 
-  // マッチングスコアに応じてバーの色を切り替える
-  const scoreColor =
-    matchScore >= 80
-      ? "bg-primary"
-      : matchScore >= 60
-        ? "bg-primary-dark"
-        : "bg-text-body"
+  const detailHref = recommendationLogId
+    ? `/opportunities/${id}?from=rec&rlog=${recommendationLogId}`
+    : `/opportunities/${id}?from=rec`
 
   return (
     <Link
-      href={`/opportunities/${id}`}
+      href={detailHref}
       className="group flex flex-col gap-4 rounded-[10px] border border-card-border bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
     >
-      {/* ヘッダー行: タイトル + マッチングスコア */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-bold leading-tight text-text-dark group-hover:text-primary">
-            {title}
-          </h3>
-          <p className="text-sm text-text-body">{organizationName}</p>
-        </div>
-
-        {/* マッチングスコアバッジ */}
-        <div className="flex shrink-0 flex-col items-center">
-          <span className="text-2xl font-bold leading-none text-text-dark">
-            {matchScore}
-          </span>
-          <span className="text-xs text-text-body">%</span>
-        </div>
+      {/* ヘッダー行: タイトル・団体名 */}
+      <div className="flex flex-col gap-1">
+        <h3 className="text-lg font-bold leading-tight text-text-dark group-hover:text-primary">
+          {title}
+        </h3>
+        <p className="text-sm text-text-body">{organizationName}</p>
       </div>
 
-      {/* マッチングスコアプログレスバー */}
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-        <div
-          className={`h-full rounded-full ${scoreColor} transition-all`}
-          style={{ width: `${matchScore}%` }}
-        />
-      </div>
+      {/* 推薦理由チップ */}
+      {reasons.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {reasons.map((reason) => (
+            <span
+              key={reason}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+            >
+              <Sparkles className="size-3" />
+              {reason}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* 案件の簡易説明 */}
       {description && (
