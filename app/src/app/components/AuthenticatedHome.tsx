@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Brain, ArrowRight, Heart, Sparkles } from "lucide-react";
+import { Heart, Sparkles } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthenticatedHomeProps {
@@ -31,43 +30,6 @@ export function AuthenticatedHome({ user }: AuthenticatedHomeProps) {
         <p className="max-w-md text-center text-base leading-7 text-text-body">
           あなたの興味や傾向に合ったボランティア活動を見つけましょう
         </p>
-      </section>
-
-      {/* 診断カードセクション */}
-      <section className="flex flex-col gap-6 py-6">
-        <h2 className="text-base font-medium text-text-dark">性格傾向チェックを始める</h2>
-        <Link
-          href="/diagnosis"
-          className="group flex flex-col gap-4 rounded-[10px] border border-primary/30 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-        >
-          <div className="flex items-center gap-3">
-            <Brain className="size-8 text-primary" />
-            <div>
-              <h3 className="text-xl font-bold tracking-tight text-text-dark">
-                性格傾向チェック
-              </h3>
-              <p className="text-sm text-text-body">
-                簡易診断（15問・約2分）/ 全50問（約5〜8分）から選べます
-              </p>
-            </div>
-          </div>
-          <ul className="flex flex-col gap-2">
-            {[
-              "世界中で使われている性格研究をもとに設計",
-              "5つの性格特性の傾向を確認",
-              "おすすめ案件の並び順の参考になります",
-            ].map((item) => (
-              <li key={item} className="flex items-center gap-2">
-                <span className="size-2 shrink-0 rounded-full bg-primary" />
-                <span className="text-sm text-text-dark">{item}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-auto flex items-center gap-1 text-sm font-medium text-primary group-hover:underline">
-            診断を始める
-            <ArrowRight className="size-4" />
-          </div>
-        </Link>
       </section>
 
       {/* 利用の流れ */}

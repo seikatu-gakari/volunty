@@ -40,17 +40,11 @@ const oldQuestionCopyPattern = new RegExp(
 );
 
 describe("診断設問数コピー", () => {
-  it("ログイン後トップで簡易診断（15問）と全50問の2モード診断仕様を表示する", () => {
+  it("ログイン直後のトップでは診断開始カードを表示しない", () => {
     render(<AuthenticatedHome user={user} />);
 
-    expect(
-      screen.getByText(
-        /簡易診断（15問）または全50問の質問で、5つの性格特性の傾向を確認します/,
-      ),
-    ).toBeDefined();
-    expect(
-      screen.getByText("簡易診断（15問・約2分）/ 全50問（約5〜8分）から選べます"),
-    ).toBeDefined();
+    expect(screen.queryByText("性格傾向チェックを始める")).toBeNull();
+    expect(screen.queryByText("診断を始める")).toBeNull();
     expect(screen.queryByText(oldQuestionCopyPattern)).toBeNull();
   });
 
