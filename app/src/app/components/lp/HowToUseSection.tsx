@@ -7,7 +7,7 @@ const STEPS = [
     icon: ClipboardList,
     title: "診断・登録",
     desc: "性格傾向チェック（簡易15問・約2分/全50問・約5〜8分から選べます）で、あなたの特性の傾向を確認。登録は無料です。",
-    color: "bg-orange-100 text-orange-600",
+    color: "bg-primary/10 text-primary",
   },
   {
     num: "2",

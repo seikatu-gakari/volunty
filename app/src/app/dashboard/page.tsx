@@ -68,7 +68,7 @@ function reviewStatusDisplay(status: "pending" | "approved" | "rejected") {
       return {
         label: "審査中",
         icon: <CircleDashed className="size-4" />,
-        color: "border-amber-200 bg-amber-50 text-amber-800",
+        color: "border-warning-border bg-warning-bg text-warning",
         description: "審査完了まで一部機能は利用できません。",
       };
   }
@@ -201,7 +201,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mb-6 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-sm text-warning">
           団体プロフィールを更新すると、内容確認のため再審査になります。更新後は審査完了までダッシュボードを利用できません。
         </div>
 

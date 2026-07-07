@@ -21,7 +21,7 @@ const TYPE_DISPLAY: Record<string, { icon: typeof Users; color: string }> = {
   "charisma-entertainer": { icon: MessageCircle, color: "bg-yellow-100 text-yellow-600" },
   "strategist-planner": { icon: Zap, color: "bg-green-100 text-green-600" },
   "harmony-mediator": { icon: Handshake, color: "bg-blue-100 text-blue-600" },
-  "adventure-explorer": { icon: Compass, color: "bg-orange-100 text-orange-600" },
+  "adventure-explorer": { icon: Compass, color: "bg-primary/10 text-primary" },
   "conservative-guardian": { icon: Shield, color: "bg-teal-100 text-teal-600" },
   "sensitive-artist": { icon: Users, color: "bg-rose-100 text-rose-600" },
 };
@@ -44,7 +44,7 @@ export function DiagnosisTypesGrid() {
         {ACTIVITY_STYLE_TYPES.map((type) => {
           const display = TYPE_DISPLAY[type.id] ?? {
             icon: Users,
-            color: "bg-orange-100 text-orange-600",
+            color: "bg-primary/10 text-primary",
           };
           const Icon = display.icon;
           return (

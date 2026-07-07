@@ -34,8 +34,8 @@ export default async function Home() {
         <main className="relative mx-auto w-full max-w-7xl overflow-x-hidden px-4 pt-8 pb-20 sm:px-6 lg:px-8">
           {/* 背景 blob 装飾 */}
           <div className="lp-blob top-[120px] -left-32 size-[420px] bg-primary/25" aria-hidden />
-          <div className="lp-blob top-[640px] -right-32 size-[520px] bg-[#fbb672]/40" aria-hidden />
-          <div className="lp-blob top-[1400px] left-1/3 size-[480px] bg-[#3b82f6]/15" aria-hidden />
+          <div className="lp-blob top-[640px] -right-32 size-[520px] bg-primary-light/40" aria-hidden />
+          <div className="lp-blob top-[1400px] left-1/3 size-[480px] bg-secondary/15" aria-hidden />
           <div className="lp-blob top-[2200px] -left-24 size-[500px] bg-primary/15" aria-hidden />
 
           {/* ヒーロー */}
