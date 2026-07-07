@@ -410,6 +410,16 @@ describe("seedE2eUsers", () => {
     expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(7);
     expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: { userId: "organization-pending-id" },
+        update: expect.objectContaining({
+          organizationName: "E2E一覧承認団体",
+          reviewStatus: "pending",
+          verified: false,
+        }),
+      })
+    );
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
         where: { userId: "organization-review-approve-id" },
         update: expect.objectContaining({
           organizationName: "E2E詳細承認団体",

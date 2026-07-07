@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const PENDING_ORGANIZATION_NAME = "E2E審査待ち団体";
+const PENDING_ORGANIZATION_NAME = "E2E一覧承認団体";
 const SUSPENDABLE_EMAIL = "e2e-user-suspendable@example.com";
 
 test.describe("管理者", () => {

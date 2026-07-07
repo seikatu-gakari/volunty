@@ -640,7 +640,7 @@ export async function seedE2eUsers(): Promise<void> {
   await prisma.organizationProfile.upsert({
     where: { userId: orgPendingId },
     update: {
-      organizationName: "E2E審査待ち団体",
+      organizationName: "E2E一覧承認団体",
       reviewStatus: "pending",
       verified: false,
       reviewComment: null,
@@ -652,7 +652,7 @@ export async function seedE2eUsers(): Promise<void> {
     },
     create: {
       userId: orgPendingId,
-      organizationName: "E2E審査待ち団体",
+      organizationName: "E2E一覧承認団体",
       reviewStatus: "pending",
       verified: false,
       profileCompleteness: 80,
