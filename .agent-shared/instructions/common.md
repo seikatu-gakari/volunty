@@ -24,19 +24,16 @@
 
 | 必要な情報           | 読み込む skill                                              | 主な用途                                                    |
 | -------------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
-| プロジェクト概要     | `.agent-shared/skills/volunty-project-overview/SKILL.md`          | Volunty の目的、ロール、言語方針を確認する                  |
 | 技術スタック         | `.agent-shared/skills/volunty-tech-stack/SKILL.md`                | Next.js、React、Prisma、Supabase などの構成を確認する       |
 | ディレクトリ構造     | `.agent-shared/skills/volunty-directory-structure/SKILL.md`       | ファイル配置、パスエイリアス、探索先を確認する              |
 | 開発コマンド         | `.agent-shared/skills/volunty-dev-commands/SKILL.md`              | lint、test、build、Docker 操作を実行する                    |
 | アーキテクチャ・設計 | `.agent-shared/skills/volunty-architecture-design/SKILL.md`       | Server Components、XState、診断フロー、デザイン色を確認する |
-| コーディング規約     | `.agent-shared/skills/volunty-coding-conventions/SKILL.md`        | 型安全、インポート、スタイリング、テスト配置を確認する      |
+| コーディング規約     | `.agent-shared/skills/volunty-coding-conventions/SKILL.md`        | 型安全、インポート、スタイリング、テスト配置、設計書参照を確認する |
 | MCP 運用             | `.agent-shared/skills/volunty-mcp-operations/SKILL.md`            | `.mcp.json` や GitHub MCP 認証情報の扱いを確認する          |
 | ドメイン知識         | `.agent-shared/skills/volunty-domain-knowledge/SKILL.md`          | BIG5 特性、10 類型、主要ドメイン型を確認する                |
-| ブランチ運用         | `.agent-shared/skills/volunty-branch-workflow/SKILL.md`           | feature ブランチ、PR、preview/main への流れを確認する       |
+| commit / PR / ブランチ運用 | `.agent-shared/skills/git-finish-worktree-pr/SKILL.md`      | commit、push、PR 作成、feature/preview/main の流れを確認する |
 | ドキュメントマップ   | `.agent-shared/skills/volunty-document-map/SKILL.md`              | 関連設計書・仕様書の参照先を確認する                        |
-| AI 開発時の注意事項  | `.agent-shared/skills/volunty-ai-development-guidelines/SKILL.md` | 実装前の確認事項、Supabase・設計書参照ルールを確認する      |
 | テスト完了判定       | `.agent-shared/skills/volunty-test-completion-gate/SKILL.md`      | 実装完了前に UT/E2E の追加要否と結果を確認する              |
-| Super MVP 監査       | `.agent-shared/skills/super-mvp-implementation-audit/SKILL.md`    | Super MVP の実装状況、設計書との差分、未実装機能を確認する  |
 | RTK                  | `.agent-shared/skills/volunty-rtk-cli/SKILL.md`                   | ローカルコマンド出力を削減したい時に確認する                |
 
 ## 運用ルール

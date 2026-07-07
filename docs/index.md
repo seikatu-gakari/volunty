@@ -13,7 +13,8 @@ Volunty プロジェクトの全ドキュメントカタログ。
 
 | ファイル | 概要 | 最終検証 |
 |----------|------|----------|
-| [personality-diagnosis-big5.md](./design/personality-diagnosis-big5.md) | BIG5性格診断アルゴリズム設計 | 実装済み・テスト済み |
+| [personality-matching-redesign.md](./design/personality-matching-redesign.md) | 性格診断・マッチング基盤の現行設計（尺度・ライセンス・DB・評価計画） | 実装済み・テスト済み |
+| [personality-diagnosis-big5.md](./design/personality-diagnosis-big5.md) | 旧BIG5診断設計【廃止・参照のみ】 | 廃止済み |
 | [api-architecture-big5.md](./design/api-architecture-big5.md) | APIアーキテクチャ設計（BIG5対応） | 未実装 |
 | [database-design.md](./design/database-design.md) | データベース設計 | 未実装 |
 
