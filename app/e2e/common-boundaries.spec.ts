@@ -175,7 +175,12 @@ test("C-E7: モバイル表示で各ロールの主要導線を操作できる",
   await expect(
     participantPage.getByRole("heading", { name: "性格傾向チェックを始める" })
   ).toHaveCount(0);
-  await participantPage.getByRole("button", { name: "メニューを開く" }).click();
+  await expect(
+    participantPage.getByRole("link", { name: /おすすめ案件/ })
+  ).toBeVisible();
+  await expect(
+    participantPage.getByRole("link", { name: /性格傾向チェック/ })
+  ).toBeVisible();
   await participantPage.getByRole("link", { name: "マイページ" }).click();
   await expect(participantPage).toHaveURL(/\/mypage$/);
   await participantContext.close();
@@ -191,9 +196,6 @@ test("C-E7: モバイル表示で各ロールの主要導線を操作できる",
       name: "性格傾向チェックを始める",
     })
   ).toHaveCount(0);
-  await participantDiagnosisPage
-    .getByRole("button", { name: "メニューを開く" })
-    .click();
   await participantDiagnosisPage.getByRole("link", { name: "マイページ" }).click();
   await expect(participantDiagnosisPage).toHaveURL(/\/mypage$/);
   await expect(
@@ -212,7 +214,12 @@ test("C-E7: モバイル表示で各ロールの主要導線を操作できる",
   await expect(
     organizationPage.getByRole("heading", { name: "性格傾向チェックを始める" })
   ).toHaveCount(0);
-  await organizationPage.getByRole("button", { name: "メニューを開く" }).click();
+  await expect(
+    organizationPage.getByRole("link", { name: /新しい案件を作成/ })
+  ).toBeVisible();
+  await expect(
+    organizationPage.getByRole("link", { name: /おすすめ参加者/ })
+  ).toBeVisible();
   await organizationPage.getByRole("link", { name: "ダッシュボード" }).click();
   await expect(organizationPage).toHaveURL(/\/dashboard$/);
   await organizationContext.close();
@@ -226,7 +233,12 @@ test("C-E7: モバイル表示で各ロールの主要導線を操作できる",
   await expect(
     adminPage.getByRole("heading", { name: "性格傾向チェックを始める" })
   ).toHaveCount(0);
-  await adminPage.goto("/admin");
+  await expect(
+    adminPage.getByRole("link", { name: /管理ダッシュボード/ })
+  ).toBeVisible();
+  await expect(
+    adminPage.getByRole("link", { name: /ユーザー管理/ })
+  ).toBeVisible();
   await adminPage.getByRole("link", { name: "団体審査一覧" }).click();
   await expect(adminPage).toHaveURL(/\/admin\/organizations$/);
   await adminContext.close();

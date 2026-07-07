@@ -41,11 +41,81 @@ const oldQuestionCopyPattern = new RegExp(
 
 describe("診断設問数コピー", () => {
   it("ログイン直後のトップでは診断開始カードを表示しない", () => {
-    render(<AuthenticatedHome user={user} />);
+    render(
+      <AuthenticatedHome
+        user={user}
+        role="participant"
+        onboardingCompleted
+      />,
+    );
 
     expect(screen.queryByText("性格傾向チェックを始める")).toBeNull();
     expect(screen.queryByText("診断を始める")).toBeNull();
     expect(screen.queryByText(oldQuestionCopyPattern)).toBeNull();
+  });
+
+  it("応募者トップに利用できる機能導線を表示する", () => {
+    render(
+      <AuthenticatedHome
+        user={user}
+        role="participant"
+        onboardingCompleted
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /マイページ/ }).getAttribute("href")).toBe(
+      "/mypage",
+    );
+    expect(
+      screen.getByRole("link", { name: /おすすめ案件/ }).getAttribute("href"),
+    ).toBe("/recommendations");
+    expect(
+      screen.getByRole("link", { name: /性格傾向チェック/ }).getAttribute("href"),
+    ).toBe("/diagnosis");
+    expect(screen.queryByRole("link", { name: /管理ダッシュボード/ })).toBeNull();
+  });
+
+  it("募集団体トップに団体向け機能導線を表示する", () => {
+    render(
+      <AuthenticatedHome
+        user={user}
+        role="organization"
+        onboardingCompleted
+        organizationVerified
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: /ダッシュボード/ }).getAttribute("href"),
+    ).toBe("/dashboard");
+    expect(
+      screen.getByRole("link", { name: /新しい案件を作成/ }).getAttribute("href"),
+    ).toBe("/dashboard/opportunities/new");
+    expect(
+      screen.getByRole("link", { name: /おすすめ参加者/ }).getAttribute("href"),
+    ).toBe("/dashboard/participants");
+    expect(screen.queryByRole("link", { name: /マイページ/ })).toBeNull();
+  });
+
+  it("管理者トップに管理機能導線を表示する", () => {
+    render(
+      <AuthenticatedHome
+        user={user}
+        role="admin"
+        onboardingCompleted
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: /管理ダッシュボード/ }).getAttribute("href"),
+    ).toBe("/admin");
+    expect(
+      screen.getByRole("link", { name: /団体審査一覧/ }).getAttribute("href"),
+    ).toBe("/admin/organizations");
+    expect(
+      screen.getByRole("link", { name: /ユーザー管理/ }).getAttribute("href"),
+    ).toBe("/admin/users");
+    expect(screen.queryByRole("link", { name: /マイページ/ })).toBeNull();
   });
 
   it("LPの診断説明で簡易15問・全50問の2モード診断仕様を表示する", () => {
