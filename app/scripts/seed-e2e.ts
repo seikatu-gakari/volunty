@@ -43,6 +43,23 @@ interface OpportunitySeedOptions {
   currentApplicants?: number;
 }
 
+interface OrganizationProfileSeedOptions {
+  userId: string;
+  organizationName: string;
+  reviewStatus: "pending" | "approved" | "rejected";
+  verified: boolean;
+  reviewComment: string | null;
+  reviewedAt: Date | null;
+  reviewedBy: string | null;
+  representativeName?: string | null;
+  contactEmail?: string | null;
+  activityAreas?: string[];
+  activityCategories?: string[];
+  description?: string | null;
+  websiteUrl?: string | null;
+  profileCompleteness?: number;
+}
+
 function buildUserMetadata(
   persona: Persona
 ): Record<string, string | boolean | null> {
@@ -146,6 +163,35 @@ async function upsertMatchingCandidate({
   return candidate.id;
 }
 
+async function upsertOrganizationProfileFixture(
+  options: OrganizationProfileSeedOptions
+): Promise<void> {
+  const data = {
+    organizationName: options.organizationName,
+    representativeName: options.representativeName ?? null,
+    contactEmail: options.contactEmail ?? null,
+    activityAreas: options.activityAreas ?? ["東京都"],
+    activityCategories: options.activityCategories ?? ["地域活性化"],
+    description: options.description ?? null,
+    websiteUrl: options.websiteUrl ?? null,
+    reviewStatus: options.reviewStatus,
+    verified: options.verified,
+    reviewComment: options.reviewComment,
+    reviewedAt: options.reviewedAt,
+    reviewedBy: options.reviewedBy,
+    profileCompleteness: options.profileCompleteness ?? 80,
+  };
+
+  await prisma.organizationProfile.upsert({
+    where: { userId: options.userId },
+    update: data,
+    create: {
+      userId: options.userId,
+      ...data,
+    },
+  });
+}
+
 export async function seedE2eUsers(): Promise<void> {
   const password = process.env.E2E_TEST_USER_PASSWORD;
   if (!password) {
@@ -205,7 +251,11 @@ export async function seedE2eUsers(): Promise<void> {
 
     await prisma.user.upsert({
       where: { id: userId },
-      update: { role: persona.role, email: persona.email },
+      update: {
+        role: persona.role,
+        email: persona.email,
+        name: `E2E ${persona.key}`,
+      },
       create: {
         id: userId,
         email: persona.email,
@@ -221,12 +271,18 @@ export async function seedE2eUsers(): Promise<void> {
   const diagnosisId = requirePersonaId(idByEmail, "participant-diagnosis");
   const lifecycleId = requirePersonaId(idByEmail, "participant-lifecycle");
   const deleteId = requirePersonaId(idByEmail, "participant-delete");
-  const suspendableId = requirePersonaId(
-    idByEmail,
-    "participant-suspendable"
-  );
+  const suspendableId = requirePersonaId(idByEmail, "user-suspendable");
   const orgApprovedId = requirePersonaId(idByEmail, "organization-approved");
   const orgPendingId = requirePersonaId(idByEmail, "organization-pending");
+  const adminReviewId = requirePersonaId(idByEmail, "admin-review");
+  const orgReviewApproveId = requirePersonaId(
+    idByEmail,
+    "organization-review-approve"
+  );
+  const orgReviewRejectId = requirePersonaId(
+    idByEmail,
+    "organization-review-reject"
+  );
 
   // オンボーディングE2Eが作成した状態をseedごとに初期化する。
   await prisma.diagnosisResult.deleteMany({ where: { userId: freshId } });
@@ -603,6 +659,105 @@ export async function seedE2eUsers(): Promise<void> {
       activityAreas: ["神奈川県"],
       activityCategories: ["子ども支援"],
     },
+  });
+
+  await upsertOrganizationProfileFixture({
+    userId: orgReviewApproveId,
+    organizationName: "E2E詳細承認団体",
+    reviewStatus: "pending",
+    verified: false,
+    reviewComment: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    representativeName: "E2E承認代表",
+    contactEmail: "e2e-review-approve-contact@example.com",
+    activityAreas: ["東京都"],
+    activityCategories: ["環境保全"],
+    description: "E2E詳細承認団体の活動内容です。",
+    websiteUrl: "https://example.com/e2e-review-approve",
+    profileCompleteness: 90,
+  });
+
+  await upsertOrganizationProfileFixture({
+    userId: orgReviewRejectId,
+    organizationName: "E2E詳細否認団体",
+    reviewStatus: "pending",
+    verified: false,
+    reviewComment: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    representativeName: "E2E否認代表",
+    contactEmail: "e2e-review-reject-contact@example.com",
+    activityAreas: ["大阪府"],
+    activityCategories: ["子ども支援"],
+    description: "E2E詳細否認団体の活動内容です。",
+    websiteUrl: "https://example.com/e2e-review-reject",
+    profileCompleteness: 85,
+  });
+
+  const filterOrganizationUsers = [
+    {
+      id: "00000000-0000-4000-8000-000000000168",
+      email: "e2e-org-review-filter-pending@example.com",
+      name: "E2Eフィルター審査待ち団体",
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000169",
+      email: "e2e-org-review-filter-approved@example.com",
+      name: "E2Eフィルター承認済み団体",
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000170",
+      email: "e2e-org-review-filter-rejected@example.com",
+      name: "E2Eフィルター否認済み団体",
+    },
+  ] as const;
+
+  for (const user of filterOrganizationUsers) {
+    await prisma.user.upsert({
+      where: { id: user.id },
+      update: {
+        role: "organization",
+        email: user.email,
+        name: user.name,
+      },
+      create: {
+        id: user.id,
+        role: "organization",
+        email: user.email,
+        name: user.name,
+      },
+    });
+  }
+
+  await upsertOrganizationProfileFixture({
+    userId: "00000000-0000-4000-8000-000000000168",
+    organizationName: "E2Eフィルター審査待ち団体",
+    reviewStatus: "pending",
+    verified: false,
+    reviewComment: null,
+    reviewedAt: null,
+    reviewedBy: null,
+  });
+
+  await upsertOrganizationProfileFixture({
+    userId: "00000000-0000-4000-8000-000000000169",
+    organizationName: "E2Eフィルター承認済み団体",
+    reviewStatus: "approved",
+    verified: true,
+    reviewComment: null,
+    reviewedAt: new Date("2026-01-01T00:00:00.000Z"),
+    reviewedBy: adminReviewId,
+  });
+
+  await upsertOrganizationProfileFixture({
+    userId: "00000000-0000-4000-8000-000000000170",
+    organizationName: "E2Eフィルター否認済み団体",
+    reviewStatus: "rejected",
+    verified: false,
+    reviewComment: "E2Eフィルター否認理由",
+    reviewedAt: new Date("2026-01-02T00:00:00.000Z"),
+    reviewedBy: adminReviewId,
   });
 
   await prisma.user.update({

@@ -127,9 +127,9 @@ describe("seedE2eUsers", () => {
         role: "participant",
         description: "delete",
       },
-      "participant-suspendable": {
-        key: "participant-suspendable",
-        email: "e2e-participant-suspendable@example.com",
+      "user-suspendable": {
+        key: "user-suspendable",
+        email: "e2e-user-suspendable@example.com",
         role: "participant",
         description: "suspendable",
       },
@@ -145,11 +145,29 @@ describe("seedE2eUsers", () => {
         role: "organization",
         description: "pending",
       },
+      "organization-review-approve": {
+        key: "organization-review-approve",
+        email: "e2e-org-review-approve@example.com",
+        role: "organization",
+        description: "review approve",
+      },
+      "organization-review-reject": {
+        key: "organization-review-reject",
+        email: "e2e-org-review-reject@example.com",
+        role: "organization",
+        description: "review reject",
+      },
       admin: {
         key: "admin",
         email: "e2e-admin@example.com",
         role: "admin",
         description: "管理者ロール",
+      },
+      "admin-review": {
+        key: "admin-review",
+        email: "e2e-admin-review@example.com",
+        role: "admin",
+        description: "review admin",
       },
     });
     mocks.createUser.mockImplementation(async ({ email }: { email: string }) => ({
@@ -226,7 +244,11 @@ describe("seedE2eUsers", () => {
     );
     expect(mocks.userUpsert).toHaveBeenCalledWith({
       where: { id: "existing-user" },
-      update: { role: "admin", email: "e2e-admin@example.com" },
+      update: {
+        role: "admin",
+        email: "e2e-admin@example.com",
+        name: "E2E admin",
+      },
       create: {
         id: "existing-user",
         email: "e2e-admin@example.com",
@@ -345,7 +367,83 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(2);
+    expect(mocks.userUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "admin-review-id" },
+        update: {
+          role: "admin",
+          email: "e2e-admin-review@example.com",
+          name: "E2E admin-review",
+        },
+      })
+    );
+    expect(mocks.userUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "00000000-0000-4000-8000-000000000168" },
+        update: {
+          role: "organization",
+          email: "e2e-org-review-filter-pending@example.com",
+          name: "E2Eフィルター審査待ち団体",
+        },
+      })
+    );
+    expect(mocks.userUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "00000000-0000-4000-8000-000000000169" },
+        update: {
+          role: "organization",
+          email: "e2e-org-review-filter-approved@example.com",
+          name: "E2Eフィルター承認済み団体",
+        },
+      })
+    );
+    expect(mocks.userUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "00000000-0000-4000-8000-000000000170" },
+        update: {
+          role: "organization",
+          email: "e2e-org-review-filter-rejected@example.com",
+          name: "E2Eフィルター否認済み団体",
+        },
+      })
+    );
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(7);
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "organization-review-approve-id" },
+        update: expect.objectContaining({
+          organizationName: "E2E詳細承認団体",
+          reviewStatus: "pending",
+          verified: false,
+          reviewComment: null,
+          reviewedAt: null,
+          reviewedBy: null,
+        }),
+      })
+    );
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "organization-review-reject-id" },
+        update: expect.objectContaining({
+          organizationName: "E2E詳細否認団体",
+          reviewStatus: "pending",
+          verified: false,
+          reviewComment: null,
+          reviewedAt: null,
+          reviewedBy: null,
+        }),
+      })
+    );
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          organizationName: "E2Eフィルター否認済み団体",
+          reviewStatus: "rejected",
+          reviewComment: "E2Eフィルター否認理由",
+          reviewedBy: "admin-review-id",
+        }),
+      })
+    );
     expect(mocks.opportunityCreate).toHaveBeenCalledTimes(12);
     expect(mocks.matchingCandidateDeleteMany).toHaveBeenCalledWith({
       where: {
@@ -365,7 +463,7 @@ describe("seedE2eUsers", () => {
       })
     );
     expect(mocks.userUpdate).toHaveBeenCalledWith({
-      where: { id: "participant-suspendable-id" },
+      where: { id: "user-suspendable-id" },
       data: {
         isActive: true,
         suspendedAt: null,

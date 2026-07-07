@@ -6,10 +6,13 @@ export type PersonaKey =
   | "participant-diagnosis"
   | "participant-lifecycle"
   | "participant-delete"
-  | "participant-suspendable"
+  | "user-suspendable"
   | "organization-approved"
   | "organization-pending"
-  | "admin";
+  | "organization-review-approve"
+  | "organization-review-reject"
+  | "admin"
+  | "admin-review";
 
 export interface Persona {
   key: PersonaKey;
@@ -50,11 +53,11 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     role: "participant",
     description: "アカウント物理削除フロー専用（seedで毎回再作成）",
   },
-  "participant-suspendable": {
-    key: "participant-suspendable",
-    email: "e2e-participant-suspendable@example.com",
+  "user-suspendable": {
+    key: "user-suspendable",
+    email: "e2e-user-suspendable@example.com",
     role: "participant",
-    description: "admin の凍結/解除フロー専用（毎回 isActive=true に戻す）",
+    description: "admin-review の凍結/解除フロー専用（毎回 isActive=true に戻す）",
   },
   "organization-approved": {
     key: "organization-approved",
@@ -68,11 +71,29 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     role: "organization",
     description: "審査待ち団体（毎回 reviewStatus=pending に戻す）",
   },
+  "organization-review-approve": {
+    key: "organization-review-approve",
+    email: "e2e-org-review-approve@example.com",
+    role: "organization",
+    description: "管理者の審査詳細承認E2E専用（毎回 reviewStatus=pending に戻す）",
+  },
+  "organization-review-reject": {
+    key: "organization-review-reject",
+    email: "e2e-org-review-reject@example.com",
+    role: "organization",
+    description: "管理者の審査詳細否認E2E専用（毎回 reviewStatus=pending に戻す）",
+  },
   admin: {
     key: "admin",
     email: "e2e-admin@example.com",
     role: "admin",
     description: "管理者ロール",
+  },
+  "admin-review": {
+    key: "admin-review",
+    email: "e2e-admin-review@example.com",
+    role: "admin",
+    description: "管理者の審査・凍結mutation E2E専用",
   },
 };
 
