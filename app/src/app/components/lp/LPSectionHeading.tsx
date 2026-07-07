@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Heart } from "lucide-react";
 
 interface LPSectionHeadingProps {
   /** 見出し上の小ラベル */
@@ -15,9 +14,9 @@ export function LPSectionHeading({ eyebrow, title, description }: LPSectionHeadi
   return (
     <div className="mb-12 text-center">
       <p className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-primary">
-        <Heart className="size-3.5 fill-primary/25" strokeWidth={1.5} aria-hidden />
+        <span aria-hidden>✦</span>
         {eyebrow}
-        <Heart className="size-3.5 fill-primary/25" strokeWidth={1.5} aria-hidden />
+        <span aria-hidden>✦</span>
       </p>
       <h2 className="text-3xl font-bold tracking-tight text-text-dark sm:text-[32px]">
         {title}
