@@ -75,6 +75,18 @@ describe("診断設問数コピー", () => {
     expect(screen.queryByRole("link", { name: /管理ダッシュボード/ })).toBeNull();
   });
 
+  it("ログイン後トップでは利用の流れを表示しない", () => {
+    render(
+      <AuthenticatedHome
+        user={user}
+        role="participant"
+        onboardingCompleted
+      />,
+    );
+
+    expect(screen.queryByRole("heading", { name: "利用の流れ" })).toBeNull();
+  });
+
   it("募集団体トップに団体向け機能導線を表示する", () => {
     render(
       <AuthenticatedHome
