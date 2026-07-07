@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const ORGANIZATION_FIXTURE_PARTICIPANT_ID =
+  "00000000-0000-4000-8000-000000000167";
+const ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID =
+  "00000000-0000-4000-8000-000000000168";
+const ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID =
+  "00000000-0000-4000-8000-000000000169";
+
 const mocks = vi.hoisted(() => ({
   personas: {
     admin: {
@@ -27,13 +34,18 @@ const mocks = vi.hoisted(() => ({
   participantProfileDeleteMany: vi.fn(),
   diagnosisResultFindFirst: vi.fn(),
   diagnosisResultCreate: vi.fn(),
+  diagnosisResultUpsert: vi.fn(),
+  diagnosisResultUpdate: vi.fn(),
   diagnosisResultDeleteMany: vi.fn(),
+  organizationProfileDeleteMany: vi.fn(),
   organizationProfileUpsert: vi.fn(),
+  opportunityDeleteMany: vi.fn(),
   opportunityFindFirst: vi.fn(),
   opportunityCreate: vi.fn(),
   opportunityUpdate: vi.fn(),
   matchingCandidateDeleteMany: vi.fn(),
   matchingCandidateUpsert: vi.fn(),
+  approachDeleteMany: vi.fn(),
   approachUpsert: vi.fn(),
   certificateUpsert: vi.fn(),
   certificateDeleteMany: vi.fn(),
@@ -51,10 +63,16 @@ vi.mock("@/lib/prisma", () => ({
     diagnosisResult: {
       findFirst: mocks.diagnosisResultFindFirst,
       create: mocks.diagnosisResultCreate,
+      upsert: mocks.diagnosisResultUpsert,
+      update: mocks.diagnosisResultUpdate,
       deleteMany: mocks.diagnosisResultDeleteMany,
     },
-    organizationProfile: { upsert: mocks.organizationProfileUpsert },
+    organizationProfile: {
+      deleteMany: mocks.organizationProfileDeleteMany,
+      upsert: mocks.organizationProfileUpsert,
+    },
     opportunity: {
+      deleteMany: mocks.opportunityDeleteMany,
       findFirst: mocks.opportunityFindFirst,
       create: mocks.opportunityCreate,
       update: mocks.opportunityUpdate,
@@ -63,7 +81,10 @@ vi.mock("@/lib/prisma", () => ({
       deleteMany: mocks.matchingCandidateDeleteMany,
       upsert: mocks.matchingCandidateUpsert,
     },
-    approach: { upsert: mocks.approachUpsert },
+    approach: {
+      deleteMany: mocks.approachDeleteMany,
+      upsert: mocks.approachUpsert,
+    },
     certificate: {
       upsert: mocks.certificateUpsert,
       deleteMany: mocks.certificateDeleteMany,
@@ -90,142 +111,232 @@ vi.mock("@/lib/test-auth/personas", () => ({
 
 import { seedE2eUsers } from "./seed-e2e";
 
+const personaDefinitions = {
+  "participant-fresh": {
+    key: "participant-fresh",
+    email: "e2e-participant-fresh@example.com",
+    role: "participant",
+    description: "fresh",
+  },
+  "participant-onboarded": {
+    key: "participant-onboarded",
+    email: "e2e-participant-onboarded@example.com",
+    role: "participant",
+    description: "onboarded",
+  },
+  "participant-diagnosis": {
+    key: "participant-diagnosis",
+    email: "e2e-participant-diagnosis@example.com",
+    role: "participant",
+    description: "diagnosis",
+  },
+  "participant-lifecycle": {
+    key: "participant-lifecycle",
+    email: "e2e-participant-lifecycle@example.com",
+    role: "participant",
+    description: "lifecycle",
+  },
+  "participant-delete": {
+    key: "participant-delete",
+    email: "e2e-participant-delete@example.com",
+    role: "participant",
+    description: "delete",
+  },
+  "participant-logout": {
+    key: "participant-logout",
+    email: "e2e-participant-logout@example.com",
+    role: "participant",
+    description: "logout",
+  },
+  "participant-suspendable": {
+    key: "participant-suspendable",
+    email: "e2e-participant-suspendable@example.com",
+    role: "participant",
+    description: "suspendable",
+  },
+  "participant-suspended": {
+    key: "participant-suspended",
+    email: "e2e-participant-suspended@example.com",
+    role: "participant",
+    description: "suspended",
+  },
+  "organization-approved": {
+    key: "organization-approved",
+    email: "e2e-org-approved@example.com",
+    role: "organization",
+    description: "approved",
+  },
+  "organization-pending": {
+    key: "organization-pending",
+    email: "e2e-org-pending@example.com",
+    role: "organization",
+    description: "pending",
+  },
+  "organization-fresh": {
+    key: "organization-fresh",
+    email: "e2e-org-fresh@example.com",
+    role: "organization",
+    description: "fresh",
+  },
+  "organization-reapply": {
+    key: "organization-reapply",
+    email: "e2e-org-reapply@example.com",
+    role: "organization",
+    description: "reapply",
+  },
+  "organization-profile-review": {
+    key: "organization-profile-review",
+    email: "e2e-org-profile-review@example.com",
+    role: "organization",
+    description: "profile review",
+  },
+  "organization-lifecycle": {
+    key: "organization-lifecycle",
+    email: "e2e-org-lifecycle@example.com",
+    role: "organization",
+    description: "lifecycle",
+  },
+  "organization-foreign": {
+    key: "organization-foreign",
+    email: "e2e-org-foreign@example.com",
+    role: "organization",
+    description: "foreign",
+  },
+  "organization-pending-readonly": {
+    key: "organization-pending-readonly",
+    email: "e2e-org-pending-readonly@example.com",
+    role: "organization",
+    description: "pending readonly",
+  },
+  "organization-rejected": {
+    key: "organization-rejected",
+    email: "e2e-org-rejected@example.com",
+    role: "organization",
+    description: "rejected",
+  },
+  "organization-secondary": {
+    key: "organization-secondary",
+    email: "e2e-org-secondary@example.com",
+    role: "organization",
+    description: "secondary",
+  },
+  admin: {
+    key: "admin",
+    email: "e2e-admin@example.com",
+    role: "admin",
+    description: "管理者ロール",
+  },
+} as const;
+
+function personaId(key: string): string {
+  return `${key}-id`;
+}
+
+function personaByEmail(email: string) {
+  return Object.values(mocks.personas).find((persona) => persona.email === email);
+}
+
+function createResult(id: string, email: string) {
+  return { data: { user: { id, email } }, error: null };
+}
+
 describe("seedE2eUsers", () => {
+  const originalPassword = process.env.E2E_TEST_USER_PASSWORD;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     for (const key of Object.keys(mocks.personas)) {
       delete mocks.personas[key];
     }
-    Object.assign(mocks.personas, {
-      "participant-fresh": {
-        key: "participant-fresh",
-        email: "e2e-participant-fresh@example.com",
-        role: "participant",
-        description: "fresh",
-      },
-      "participant-onboarded": {
-        key: "participant-onboarded",
-        email: "e2e-participant-onboarded@example.com",
-        role: "participant",
-        description: "onboarded",
-      },
-      "participant-diagnosis": {
-        key: "participant-diagnosis",
-        email: "e2e-participant-diagnosis@example.com",
-        role: "participant",
-        description: "diagnosis",
-      },
-      "participant-lifecycle": {
-        key: "participant-lifecycle",
-        email: "e2e-participant-lifecycle@example.com",
-        role: "participant",
-        description: "lifecycle",
-      },
-      "participant-delete": {
-        key: "participant-delete",
-        email: "e2e-participant-delete@example.com",
-        role: "participant",
-        description: "delete",
-      },
-      "participant-logout": {
-        key: "participant-logout",
-        email: "e2e-participant-logout@example.com",
-        role: "participant",
-        description: "logout",
-      },
-      "participant-suspendable": {
-        key: "participant-suspendable",
-        email: "e2e-participant-suspendable@example.com",
-        role: "participant",
-        description: "suspendable",
-      },
-      "participant-suspended": {
-        key: "participant-suspended",
-        email: "e2e-participant-suspended@example.com",
-        role: "participant",
-        description: "suspended",
-      },
-      "organization-approved": {
-        key: "organization-approved",
-        email: "e2e-org-approved@example.com",
-        role: "organization",
-        description: "approved",
-      },
-      "organization-pending": {
-        key: "organization-pending",
-        email: "e2e-org-pending@example.com",
-        role: "organization",
-        description: "pending",
-      },
-      "organization-pending-readonly": {
-        key: "organization-pending-readonly",
-        email: "e2e-org-pending-readonly@example.com",
-        role: "organization",
-        description: "pending readonly",
-      },
-      "organization-rejected": {
-        key: "organization-rejected",
-        email: "e2e-org-rejected@example.com",
-        role: "organization",
-        description: "rejected",
-      },
-      "organization-secondary": {
-        key: "organization-secondary",
-        email: "e2e-org-secondary@example.com",
-        role: "organization",
-        description: "secondary",
-      },
-      admin: {
-        key: "admin",
-        email: "e2e-admin@example.com",
-        role: "admin",
-        description: "管理者ロール",
-      },
-    });
-    mocks.createUser.mockImplementation(async ({ email }: { email: string }) => ({
-      data: { user: { id: `${email}-id`, email } },
-      error: null,
-    }));
+    Object.assign(mocks.personas, personaDefinitions);
+    process.env.E2E_TEST_USER_PASSWORD = "password";
+    consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    mocks.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
+    mocks.createUser.mockImplementation(async ({ email }: { email: string }) =>
+      createResult(personaId(personaByEmail(email)?.key ?? email), email)
+    );
+    mocks.updateUserById.mockResolvedValue({ data: { user: {} }, error: null });
     mocks.userUpsert.mockResolvedValue({});
     mocks.userUpdate.mockResolvedValue({});
-    mocks.participantProfileUpsert.mockResolvedValue({});
+    mocks.participantProfileUpsert.mockImplementation(
+      async ({
+        where,
+        create,
+      }: {
+        where: { userId: string };
+        create: { id?: string };
+      }) => ({
+        id: create.id ?? `${where.userId}-profile-id`,
+      })
+    );
     mocks.participantProfileUpdate.mockResolvedValue({});
     mocks.participantProfileDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.diagnosisResultFindFirst.mockResolvedValue({ id: "diagnosis-id" });
-    mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
-    mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.organizationProfileUpsert
-      .mockResolvedValueOnce({ id: "approved-org-id" })
-      .mockResolvedValueOnce({ id: "pending-org-id" });
-    mocks.opportunityFindFirst.mockImplementation(
-      async ({ where }: { where: { title: string } }) => ({
-        id: `existing-${where.title}`,
+    mocks.diagnosisResultFindFirst.mockResolvedValue(null);
+    mocks.diagnosisResultCreate.mockImplementation(
+      async ({ data }: { data: { userId: string } }) => ({
+        id: `diagnosis-${data.userId}`,
       })
     );
+    mocks.diagnosisResultUpsert.mockImplementation(
+      async ({ where }: { where: { id: string } }) => ({ id: where.id })
+    );
+    mocks.diagnosisResultUpdate.mockResolvedValue({});
+    mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.organizationProfileDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.organizationProfileUpsert.mockImplementation(
+      async ({ where }: { where: { userId: string } }) => {
+        const ids: Record<string, string> = {
+          [personaId("organization-approved")]: "approved-org-id",
+          [personaId("organization-lifecycle")]: "lifecycle-org-id",
+          [personaId("organization-foreign")]: "foreign-org-id",
+        };
+        return { id: ids[where.userId] ?? `${where.userId}-profile-id` };
+      }
+    );
+    mocks.opportunityDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.opportunityFindFirst.mockResolvedValue(null);
     mocks.opportunityCreate.mockImplementation(
       async ({ data }: { data: { title: string } }) => ({
-        id: `created-${data.title}`,
+        id: `opportunity-${data.title}`,
       })
     );
-    mocks.opportunityUpdate.mockImplementation(async ({ where }: { where: { id: string } }) => ({
-      id: where.id,
-    }));
+    mocks.opportunityUpdate.mockImplementation(
+      async ({ where }: { where: { id: string } }) => ({ id: where.id })
+    );
     mocks.matchingCandidateDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.matchingCandidateUpsert.mockResolvedValue({ id: "candidate-id" });
-    mocks.approachUpsert.mockResolvedValue({ id: "approach-id" });
-    mocks.certificateUpsert.mockResolvedValue({ id: "certificate-id" });
+    mocks.matchingCandidateUpsert.mockImplementation(
+      async ({
+        where,
+      }: {
+        where: {
+          participantId_opportunityId: {
+            participantId: string;
+            opportunityId: string;
+          };
+        };
+      }) => ({
+        id: `candidate-${where.participantId_opportunityId.participantId}-${where.participantId_opportunityId.opportunityId}`,
+      })
+    );
+    mocks.approachDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.approachUpsert.mockResolvedValue({});
+    mocks.certificateUpsert.mockResolvedValue({});
     mocks.certificateDeleteMany.mockResolvedValue({ count: 0 });
-    vi.stubEnv("E2E_TEST_USER_PASSWORD", "test-password");
-    vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.restoreAllMocks();
+    if (originalPassword === undefined) {
+      delete process.env.E2E_TEST_USER_PASSWORD;
+    } else {
+      process.env.E2E_TEST_USER_PASSWORD = originalPassword;
+    }
+    consoleLogSpy.mockRestore();
   });
 
-  it("パスワード未設定の場合は処理を開始しない", async () => {
-    vi.stubEnv("E2E_TEST_USER_PASSWORD", "");
+  it("E2E_TEST_USER_PASSWORD が未設定の場合は失敗する", async () => {
+    delete process.env.E2E_TEST_USER_PASSWORD;
 
     await expect(seedE2eUsers()).rejects.toThrow(
       "E2E_TEST_USER_PASSWORD が未設定です"
@@ -233,66 +344,60 @@ describe("seedE2eUsers", () => {
     expect(mocks.listUsers).not.toHaveBeenCalled();
   });
 
-  it("既存の Auth ユーザーはパスワードを更新して m_user を upsert する", async () => {
+  it("既存 auth ユーザーは metadata を更新する", async () => {
     mocks.listUsers.mockResolvedValue({
-      data: { users: [{ id: "existing-user", email: "e2e-admin@example.com" }] },
+      data: {
+        users: [
+          {
+            id: "existing-participant-fresh-id",
+            email: personaDefinitions["participant-fresh"].email,
+          },
+        ],
+      },
       error: null,
     });
-    mocks.updateUserById.mockResolvedValue({ error: null });
-    mocks.userUpsert.mockResolvedValue({});
 
     await seedE2eUsers();
 
-    expect(mocks.updateUserById).toHaveBeenCalledWith("existing-user", {
-      password: "test-password",
-      user_metadata: {
-        full_name: "E2E admin",
-        onboarding_completed: true,
-        role: "admin",
-      },
-    });
-    expect(mocks.createUser).not.toHaveBeenCalledWith(
-      expect.objectContaining({ email: "e2e-admin@example.com" })
+    expect(mocks.updateUserById).toHaveBeenCalledWith(
+      "existing-participant-fresh-id",
+      {
+        password: "password",
+        user_metadata: {
+          full_name: "E2E participant-fresh",
+          role: null,
+          onboarding_completed: false,
+        },
+      }
     );
-    expect(mocks.userUpsert).toHaveBeenCalledWith({
-      where: { id: "existing-user" },
-      update: { role: "admin", email: "e2e-admin@example.com" },
-      create: {
-        id: "existing-user",
-        email: "e2e-admin@example.com",
-        name: "E2E admin",
-        role: "admin",
-      },
-    });
   });
 
-  it("Auth ユーザーが存在しない場合は作成して m_user を upsert する", async () => {
-    mocks.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
-    mocks.createUser.mockResolvedValue({
-      data: { user: { id: "new-user", email: "e2e-admin@example.com" } },
-      error: null,
-    });
-    mocks.userUpsert.mockResolvedValue({});
-
+  it("新規 auth ユーザーは email_confirm と metadata 付きで作成する", async () => {
     await seedE2eUsers();
 
     expect(mocks.createUser).toHaveBeenCalledWith({
-      email: "e2e-admin@example.com",
-      password: "test-password",
+      email: personaDefinitions["participant-onboarded"].email,
+      password: "password",
       email_confirm: true,
       user_metadata: {
-        full_name: "E2E admin",
+        full_name: "E2E participant-onboarded",
+        role: "participant",
         onboarding_completed: true,
-        role: "admin",
       },
     });
-    expect(mocks.updateUserById).not.toHaveBeenCalled();
-    expect(mocks.userUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "new-user" } })
-    );
+    expect(mocks.createUser).toHaveBeenCalledWith({
+      email: personaDefinitions["organization-fresh"].email,
+      password: "password",
+      email_confirm: true,
+      user_metadata: {
+        full_name: "E2E organization-fresh",
+        role: null,
+        onboarding_completed: false,
+      },
+    });
   });
 
-  it("Auth ユーザー一覧の取得失敗を握りつぶさない", async () => {
+  it("auth ユーザー一覧取得エラーを伝播する", async () => {
     mocks.listUsers.mockResolvedValue({
       data: { users: [] },
       error: { message: "list failed" },
@@ -301,163 +406,179 @@ describe("seedE2eUsers", () => {
     await expect(seedE2eUsers()).rejects.toThrow(
       "[seed] ユーザー一覧取得失敗: list failed"
     );
-    expect(mocks.createUser).not.toHaveBeenCalled();
   });
 
-  it("スモークに必要な状態データを作成し、副作用を初期状態へ戻す", async () => {
-    const authUsers = Object.values(mocks.personas).map((persona) => ({
-      id: `${persona.key}-id`,
-      email: persona.email,
-    }));
-    mocks.listUsers.mockResolvedValue({
-      data: { users: authUsers },
-      error: null,
-    });
-    mocks.updateUserById.mockResolvedValue({ error: null });
-    mocks.userUpsert.mockResolvedValue({});
-    mocks.participantProfileUpsert.mockResolvedValue({ id: "participant-profile-id" });
-    mocks.participantProfileUpdate.mockResolvedValue({});
-    mocks.diagnosisResultFindFirst.mockResolvedValue(null);
-    mocks.diagnosisResultCreate.mockResolvedValue({ id: "diagnosis-id" });
-    mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.organizationProfileUpsert
-      .mockReset()
-      .mockResolvedValueOnce({ id: "approved-org-id" })
-      .mockResolvedValueOnce({ id: "pending-org-id" })
-      .mockResolvedValueOnce({ id: "pending-readonly-org-id" })
-      .mockResolvedValueOnce({ id: "rejected-org-id" })
-      .mockResolvedValueOnce({ id: "secondary-org-id" });
-    mocks.opportunityFindFirst.mockReset().mockResolvedValue(null);
-    mocks.opportunityCreate.mockImplementation(
-      async ({ data }: { data: { title: string } }) => ({
-        id: `created-${data.title}`,
-      })
-    );
-    mocks.matchingCandidateDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.matchingCandidateUpsert.mockResolvedValue({ id: "candidate-id" });
-    mocks.approachUpsert.mockResolvedValue({ id: "approach-id" });
-    mocks.certificateUpsert.mockResolvedValue({ id: "certificate-id" });
-    mocks.certificateDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.userUpdate.mockResolvedValue({});
-
+  it("統合済みE2E fixtureを新schemaで作成する", async () => {
     await seedE2eUsers();
 
-    expect(mocks.updateUserById).toHaveBeenCalledWith(
-      "participant-fresh-id",
-      expect.objectContaining({
-        user_metadata: {
-          full_name: "E2E participant-fresh",
-          onboarding_completed: false,
-          role: null,
-        },
-      })
-    );
     expect(mocks.participantProfileDeleteMany).toHaveBeenCalledWith({
-      where: { userId: "participant-fresh-id" },
+      where: { userId: personaId("participant-fresh") },
+    });
+    expect(mocks.diagnosisResultDeleteMany).toHaveBeenCalledWith({
+      where: { userId: personaId("participant-fresh") },
+    });
+    expect(mocks.organizationProfileDeleteMany).toHaveBeenCalledWith({
+      where: { userId: personaId("organization-fresh") },
     });
 
+    expect(mocks.userUpsert).toHaveBeenCalledWith({
+      where: { id: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
+      update: expect.objectContaining({
+        email: "e2e-organization-fixture-participant@example.com",
+        role: "participant",
+      }),
+      create: expect.objectContaining({
+        id: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
+        role: "participant",
+      }),
+    });
     expect(mocks.participantProfileUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "participant-onboarded-id" },
+        where: { userId: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
+        create: expect.objectContaining({
+          id: ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID,
+        }),
       })
     );
-    for (const userId of [
-      "participant-diagnosis-id",
-      "participant-lifecycle-id",
-      "participant-delete-id",
-    ]) {
-      expect(mocks.participantProfileUpsert).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { userId } })
-      );
-    }
-    expect(mocks.diagnosisResultCreate).toHaveBeenCalledWith(
+    expect(mocks.diagnosisResultUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          userId: "participant-onboarded-id",
-          scaleCode: "ipip-bfm-50-ja",
+        where: { id: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID },
+        create: expect.objectContaining({
+          id: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID,
           styleTypeId: "supporter-care",
         }),
       })
     );
-    // 最新診断結果への参照がプロフィールに設定される
-    expect(mocks.participantProfileUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userId: "participant-onboarded-id" },
-        data: { latestDiagnosisResultId: "diagnosis-id" },
-      })
+    expect(mocks.participantProfileUpdate).toHaveBeenCalledWith({
+      where: { userId: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
+      data: { latestDiagnosisResultId: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID },
+    });
+
+    expect(mocks.diagnosisResultCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        scaleCode: expect.any(String),
+        scaleVersion: expect.any(String),
+        scoringAlgorithmVersion: expect.any(String),
+        qualityRuleVersion: expect.any(String),
+        styleTypeVersion: expect.any(String),
+        rawScores: expect.objectContaining({ agreeableness: 46 }),
+        scaledScores: expect.objectContaining({ agreeableness: 90 }),
+        styleTypeId: "supporter-care",
+        qualityFlags: [],
+      }),
+      select: { id: true },
+    });
+    const diagnosisCreatePayloads = mocks.diagnosisResultCreate.mock.calls.map(
+      ([arg]) => arg.data
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledTimes(5);
+    for (const payload of diagnosisCreatePayloads) {
+      expect(payload).not.toHaveProperty("big5Scores");
+      expect(payload).not.toHaveProperty("personalityTypeId");
+      expect(payload).not.toHaveProperty("diagnosisMode");
+    }
+
     expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "organization-pending-readonly-id" },
-        update: expect.objectContaining({
-          reviewStatus: "pending",
-          verified: false,
-        }),
+        where: { userId: personaId("organization-reapply") },
+        create: expect.objectContaining({ reviewStatus: "rejected" }),
       })
     );
     expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "organization-rejected-id" },
-        update: expect.objectContaining({
-          reviewStatus: "rejected",
-          verified: false,
-        }),
+        where: { userId: personaId("organization-lifecycle") },
+        create: expect.objectContaining({ reviewStatus: "approved" }),
       })
     );
     expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "organization-secondary-id" },
-        update: expect.objectContaining({
-          reviewStatus: "approved",
-          verified: true,
-        }),
+        where: { userId: personaId("organization-pending-readonly") },
+        create: expect.objectContaining({ reviewStatus: "pending" }),
       })
     );
-    expect(mocks.opportunityCreate).toHaveBeenCalledTimes(12);
+    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: personaId("organization-secondary") },
+        create: expect.objectContaining({ reviewStatus: "approved" }),
+      })
+    );
+
+    expect(mocks.opportunityDeleteMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: "lifecycle-org-id",
+        title: { startsWith: "E2E 団体案件管理" },
+      },
+    });
+    expect(mocks.opportunityCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        organizationId: "lifecycle-org-id",
+        title: "E2E 団体おすすめ高相性案件",
+        activityStyleTags: ["empathy-support"],
+      }),
+    });
+    for (const [arg] of mocks.opportunityCreate.mock.calls) {
+      expect(arg.data).not.toHaveProperty("requirementTraits");
+    }
+    for (const [arg] of mocks.opportunityUpdate.mock.calls) {
+      expect(arg.data).not.toHaveProperty("requirementTraits");
+    }
+
     expect(mocks.matchingCandidateDeleteMany).toHaveBeenCalledWith({
       where: {
-        participantId: "participant-onboarded-id",
-        opportunityId: "created-E2E 応募対象案件",
+        participantId: {
+          not: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
+        },
+        opportunityId: {
+          in: expect.arrayContaining([
+            "opportunity-E2E 団体応募辞退案件",
+            "opportunity-E2E 団体活動完了案件",
+          ]),
+        },
       },
     });
-    expect(mocks.matchingCandidateUpsert).toHaveBeenCalledWith(
+    for (const [arg] of mocks.matchingCandidateUpsert.mock.calls) {
+      expect(arg.create).not.toHaveProperty("matchScore");
+      expect(arg.create).not.toHaveProperty("diagnosisResultId");
+      expect(arg.update).not.toHaveProperty("matchScore");
+      expect(arg.update).not.toHaveProperty("diagnosisResultId");
+    }
+
+    expect(mocks.approachDeleteMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: "lifecycle-org-id",
+        participantProfileId: {
+          not: ORGANIZATION_FIXTURE_PARTICIPANT_PROFILE_ID,
+        },
+        opportunityId: expect.objectContaining({
+          in: expect.arrayContaining([
+            "opportunity-E2E 団体アプローチ送信案件",
+          ]),
+        }),
+      },
+    });
+    for (const [arg] of mocks.approachUpsert.mock.calls) {
+      expect(arg.create).not.toHaveProperty("matchScore");
+      expect(arg.update).not.toHaveProperty("matchScore");
+    }
+
+    expect(mocks.certificateUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          participantId_opportunityId: {
-            participantId: "participant-onboarded-id",
-            opportunityId: "created-E2E 団体フロー案件",
-          },
+          applicationId:
+            "candidate-00000000-0000-4000-8000-000000000167-opportunity-E2E 団体証明書承認案件",
         },
-        update: expect.objectContaining({ status: "applied" }),
+        create: expect.objectContaining({ status: "pending" }),
       })
     );
-    // 旧マッチングスコアは保存しない
-    const candidateCalls = mocks.matchingCandidateUpsert.mock.calls as Array<
-      [{ update: Record<string, unknown>; create: Record<string, unknown> }]
-    >;
-    for (const [args] of candidateCalls) {
-      expect(args.update).not.toHaveProperty("matchScore");
-      expect(args.create).not.toHaveProperty("matchScore");
-    }
     expect(mocks.userUpdate).toHaveBeenCalledWith({
-      where: { id: "participant-suspendable-id" },
-      data: {
-        isActive: true,
-        suspendedAt: null,
-        suspendReason: null,
-        suspendedBy: null,
-      },
+      where: { id: personaId("participant-suspendable") },
+      data: expect.objectContaining({ isActive: true, suspendReason: null }),
     });
     expect(mocks.userUpdate).toHaveBeenCalledWith({
-      where: { id: "participant-suspended-id" },
+      where: { id: personaId("participant-suspended") },
       data: expect.objectContaining({
         isActive: false,
         suspendReason: "E2E凍結ユーザー",
       }),
     });
-    expect(mocks.approachUpsert).toHaveBeenCalledTimes(3);
-    expect(mocks.certificateUpsert).toHaveBeenCalledTimes(3);
-    expect(mocks.certificateDeleteMany).toHaveBeenCalledTimes(1);
   });
 });

@@ -435,4 +435,3 @@ ALTER TABLE "t_certificate" ADD CONSTRAINT "t_certificate_organization_id_fkey" 
 
 -- AddForeignKey
 ALTER TABLE "t_certificate" ADD CONSTRAINT "t_certificate_opportunity_id_fkey" FOREIGN KEY ("opportunity_id") REFERENCES "m_opportunity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

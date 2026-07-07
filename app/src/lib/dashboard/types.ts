@@ -80,7 +80,7 @@ export type ApplicationStatus = "pending" | "approved" | "rejected" | "completed
 /** マッチング履歴に表示する応募ステータス */
 export type MatchingHistoryStatus = Extract<
   ApplicationStatus,
-  "approved" | "rejected"
+  "approved" | "rejected" | "completed"
 >;
 
 /** 団体向けマッチング履歴の1件 */
@@ -97,13 +97,13 @@ export interface MatchingHistoryItem {
   opportunity_title: string;
   /** 応募日時 */
   applied_at: string | null;
-  /** 承認・辞退の処理日時 */
+  /** 承認・辞退・活動完了の処理日時 */
   status_changed_at: string;
 }
 
 /** fetchMatchingHistory の戻り値 */
 export interface MatchingHistoryResult {
-  /** 自団体の承認・辞退済み応募履歴 */
+  /** 自団体の承認・辞退・活動完了済み応募履歴 */
   history: MatchingHistoryItem[];
   /** エラーメッセージ */
   error?: string;

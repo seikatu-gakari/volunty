@@ -16,6 +16,11 @@ describe("resolvePersona", () => {
   });
 
   it.each([
+    ["organization-fresh", "organization"],
+    ["organization-reapply", "organization"],
+    ["organization-profile-review", "organization"],
+    ["organization-lifecycle", "organization"],
+    ["organization-foreign", "organization"],
     ["organization-rejected", "organization"],
     ["organization-pending-readonly", "organization"],
     ["organization-secondary", "organization"],

@@ -11,6 +11,11 @@ const personas = [
   { key: "participant-suspendable", file: "participant-suspendable" },
   { key: "organization-approved", file: "organization" },
   { key: "organization-pending", file: "organization-pending" },
+  { key: "organization-fresh", file: "organization-fresh" },
+  { key: "organization-reapply", file: "organization-reapply" },
+  { key: "organization-profile-review", file: "organization-profile-review" },
+  { key: "organization-lifecycle", file: "organization-lifecycle" },
+  { key: "organization-foreign", file: "organization-foreign" },
   {
     key: "organization-pending-readonly",
     file: "organization-pending-readonly",
