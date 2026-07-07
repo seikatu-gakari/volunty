@@ -22,6 +22,16 @@ description: 'Use when: ユーザーが現在の変更を commit、push、GitHub
 
 worktree で作業している場合、別 worktree やメイン作業ツリーで commit しない。`main` / `master` や detached HEAD では絶対に commit しない。
 
+## ブランチ運用ルール（Volunty）
+
+```text
+feature/* → PR → preview（Vercel Preview確認）→ main（本番）
+```
+
+- `main` への直接 push は禁止。
+- 作業は `feature/*` ブランチで行い、PR でレビュー・Preview 確認を経由する。
+- 本番反映は `main` へのマージで行う。詳細は [docs/branch-workflow.md](../../../docs/branch-workflow.md) を参照する。
+
 ## 事前安全確認
 
 commit 前に必ず以下を実行する。

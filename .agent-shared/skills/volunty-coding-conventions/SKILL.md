@@ -22,3 +22,5 @@ argument-hint: '例: 実装規約を確認 / 新しいコンポーネントを�
 - 既存パターンに合わせ、不要なリファクタリングや再フォーマットを避ける。
 - 公開 API や型を変更する場合は影響範囲を確認する。
 - ドメインロジックを追加・変更した場合はテストを追加または更新する。
+- 新機能実装前に `docs/` の該当設計書を確認する（参照先は [volunty-document-map](../volunty-document-map/SKILL.md)）。
+- Supabase 認証は `app/src/lib/supabase/` のラッパー経由で扱い、SDK を直接呼び出さない。
