@@ -1081,11 +1081,23 @@ export async function fetchApplicantDetail(
 
     const organizationProfile = await prisma.organizationProfile.findUnique({
       where: { userId: user.id },
-      select: { id: true },
+      select: {
+        id: true,
+        reviewStatus: true,
+        user: { select: { role: true } },
+      },
     });
 
     if (!organizationProfile) {
       return { data: null, error: "団体プロフィールが見つかりません" };
+    }
+
+    if (organizationProfile.user.role !== "organization") {
+      return { data: null, error: "団体アカウントのみ利用できます" };
+    }
+
+    if (organizationProfile.reviewStatus !== "approved") {
+      return { data: null, error: "承認済み団体のみ利用できます" };
     }
 
     const application = await prisma.matchingCandidate.findFirst({

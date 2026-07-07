@@ -33,7 +33,11 @@ vi.mock("@/lib/recommendations/matching", () => ({
 
 const { fetchApplicantDetail } = await import("./actions");
 
-const organizationProfile = { id: "organization-profile-1" };
+const organizationProfile = {
+  id: "organization-profile-1",
+  reviewStatus: "approved",
+  user: { role: "organization" },
+};
 const diagnosisScores = {
   extraversion: 65,
   agreeableness: 85,
@@ -116,6 +120,36 @@ describe("fetchApplicantDetail", () => {
     expect(mockFindOwnedApplication).not.toHaveBeenCalled();
   });
 
+  it("DBロールが団体でない場合は応募を検索せずエラーを返す", async () => {
+    mockFindOrganizationProfile.mockResolvedValue({
+      ...organizationProfile,
+      user: { role: "participant" },
+    });
+
+    const result = await fetchApplicantDetail("application-1");
+
+    expect(result).toEqual({
+      data: null,
+      error: "団体アカウントのみ利用できます",
+    });
+    expect(mockFindOwnedApplication).not.toHaveBeenCalled();
+  });
+
+  it("団体審査が承認済みでない場合は応募を検索せずエラーを返す", async () => {
+    mockFindOrganizationProfile.mockResolvedValue({
+      ...organizationProfile,
+      reviewStatus: "pending",
+    });
+
+    const result = await fetchApplicantDetail("application-1");
+
+    expect(result).toEqual({
+      data: null,
+      error: "承認済み団体のみ利用できます",
+    });
+    expect(mockFindOwnedApplication).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["存在しない応募ID", "missing-application"],
     ["他団体所有の応募ID", "foreign-application"],
@@ -166,7 +200,11 @@ describe("fetchApplicantDetail", () => {
     );
     expect(mockFindOrganizationProfile).toHaveBeenCalledWith({
       where: { userId: "organization-user-1" },
-      select: { id: true },
+      select: {
+        id: true,
+        reviewStatus: true,
+        user: { select: { role: true } },
+      },
     });
     expect(mockFindOwnedApplication).toHaveBeenCalledWith({
       where: {

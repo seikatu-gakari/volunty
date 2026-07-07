@@ -13,6 +13,8 @@ const TITLES = {
 } as const;
 
 const APPROACH_PARTICIPANT_NAME = "E2E 団体操作専用参加者";
+const RECOMMENDATION_HIGH_PARTICIPANT_NAME = "E2E 参加者(診断済)";
+const RECOMMENDATION_LOW_PARTICIPANT_NAME = "E2E ライフサイクル参加者";
 
 async function scoreFromParticipantCard(card: Locator): Promise<number> {
   const text = await card.getByText(/^\d+%$/).textContent();
@@ -78,16 +80,35 @@ test.describe("団体業務ライフサイクル", () => {
       page.getByRole("heading", { name: "おすすめ参加者" }),
     ).toBeVisible();
 
-    const participantCards = await page
+    const participantCards = page
       .getByRole("link")
-      .filter({ hasText: "詳細を確認してアプローチ" })
-      .all();
-    expect(participantCards.length).toBeGreaterThanOrEqual(2);
+      .filter({ hasText: "詳細を確認してアプローチ" });
+    const participantCardCount = await participantCards.count();
+    expect(participantCardCount).toBeGreaterThanOrEqual(2);
 
-    const [firstParticipant, secondParticipant] = participantCards;
-    const firstScore = await scoreFromParticipantCard(firstParticipant);
-    const secondScore = await scoreFromParticipantCard(secondParticipant);
-    const opportunityTitle = await firstParticipant
+    const highParticipant = page.getByRole("link", {
+      name: new RegExp(
+        `${RECOMMENDATION_HIGH_PARTICIPANT_NAME.replace(/[()]/g, "\\$&")}.*詳細を確認してアプローチ`,
+      ),
+    });
+    const lowParticipant = page.getByRole("link", {
+      name: new RegExp(
+        `${RECOMMENDATION_LOW_PARTICIPANT_NAME}.*詳細を確認してアプローチ`,
+      ),
+    });
+    await expect(highParticipant).toBeVisible();
+    await expect(lowParticipant).toBeVisible();
+
+    const highScore = await scoreFromParticipantCard(highParticipant);
+    const lowScore = await scoreFromParticipantCard(lowParticipant);
+    const participantCardTexts = await participantCards.allTextContents();
+    const highParticipantIndex = participantCardTexts.findIndex((text) =>
+      text.includes(RECOMMENDATION_HIGH_PARTICIPANT_NAME),
+    );
+    const lowParticipantIndex = participantCardTexts.findIndex((text) =>
+      text.includes(RECOMMENDATION_LOW_PARTICIPANT_NAME),
+    );
+    const opportunityTitle = await highParticipant
       .getByText(/^E2E 団体.+案件(?: \d+)?$/)
       .textContent();
     expect(
@@ -95,8 +116,11 @@ test.describe("団体業務ライフサイクル", () => {
       "先頭参加者の対象案件名が表示されること",
     ).not.toBeNull();
 
-    expect(firstScore).toBeGreaterThanOrEqual(secondScore);
-    await firstParticipant.click();
+    expect(highScore).toBeGreaterThan(lowScore);
+    expect(highParticipantIndex).toBeGreaterThanOrEqual(0);
+    expect(lowParticipantIndex).toBeGreaterThanOrEqual(0);
+    expect(highParticipantIndex).toBeLessThan(lowParticipantIndex);
+    await highParticipant.click();
 
     await expect(page.getByRole("heading", { name: "相性概要" })).toBeVisible();
     await expect(
