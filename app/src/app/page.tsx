@@ -5,9 +5,8 @@ import { LPHeroSection } from "./components/lp/LPHeroSection";
 import { DiagnosisTypesCarousel } from "./components/lp/DiagnosisTypesCarousel";
 import { DiagnosisTypesGrid } from "./components/lp/DiagnosisTypesGrid";
 import { PainPointsSection } from "./components/lp/PainPointsSection";
-import { HowItWorksSection } from "./components/lp/HowItWorksSection";
+import { UsageSection } from "./components/lp/UsageSection";
 import { BenefitsSection } from "./components/lp/BenefitsSection";
-import { HowToUseSection } from "./components/lp/HowToUseSection";
 import { FeaturesSection } from "./components/lp/FeaturesSection";
 import { FAQSection } from "./components/lp/FAQSection";
 import { LPBottomCTA } from "./components/lp/LPBottomCTA";
@@ -48,29 +47,24 @@ export default async function Home() {
             </div>
           </Reveal>
 
-          {/* 8タイプグリッド */}
-          <Reveal>
-            <DiagnosisTypesGrid />
-          </Reveal>
-
           {/* 課題セクション */}
           <Reveal>
             <PainPointsSection />
           </Reveal>
 
-          {/* 仕組み */}
+          {/* 使い方（仕組みと統合） */}
           <Reveal>
-            <HowItWorksSection />
+            <UsageSection />
+          </Reveal>
+
+          {/* 10タイプグリッド */}
+          <Reveal>
+            <DiagnosisTypesGrid />
           </Reveal>
 
           {/* 参加メリット */}
           <Reveal>
             <BenefitsSection />
-          </Reveal>
-
-          {/* 使い方 */}
-          <Reveal>
-            <HowToUseSection />
           </Reveal>
 
           {/* 主な機能 */}
