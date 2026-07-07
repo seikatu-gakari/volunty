@@ -54,7 +54,11 @@ export function ReviewHistoryList({ entries }: Props) {
         const StatusIcon = statusView.icon;
 
         return (
-          <Card key={entry.id}>
+          <Card
+            key={entry.id}
+            role="article"
+            aria-label={`${entry.organizationName}（${statusView.label}）`}
+          >
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
