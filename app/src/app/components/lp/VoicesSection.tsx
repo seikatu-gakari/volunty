@@ -5,14 +5,14 @@ import { LPSectionHeading } from "./LPSectionHeading";
 const VOICES = [
   {
     role: "20代・はじめての参加",
-    tag: "サポータータイプ",
+    tag: "サポーター・ケアタイプ",
     text: "「自分に向いてる活動」から探せたので、初参加でも不安が少なかったです。受付サポートから始めました。",
     gradient: "from-blue-50 to-sky-50",
     accent: "text-blue-600 bg-blue-100",
   },
   {
     role: "30代・月1ペースで活動",
-    tag: "アイデアマンタイプ",
+    tag: "カリスマ・エンターテイナータイプ",
     text: "おすすめ理由が書いてあるから、納得して選べる。子ども向けワークショップの手伝いが楽しくて続いています。",
     gradient: "from-purple-50 to-violet-50",
     accent: "text-purple-600 bg-purple-100",
