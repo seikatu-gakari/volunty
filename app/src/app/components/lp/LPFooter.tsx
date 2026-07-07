@@ -1,10 +1,28 @@
 import Link from "next/link";
 import { Heart, Sparkles } from "lucide-react";
 
+const LINK_GROUPS = [
+  {
+    heading: "サービス",
+    links: [
+      { label: "性格傾向チェック", href: "/diagnosis" },
+      { label: "活動を探す", href: "/opportunities" },
+      { label: "団体の方へ", href: "/signup" },
+    ],
+  },
+  {
+    heading: "サポート",
+    links: [
+      { label: "使い方ガイド", href: "#usage" },
+      { label: "よくある質問", href: "#faq" },
+    ],
+  },
+];
+
 export function LPFooter() {
   return (
     <footer className="relative z-10 mt-20 border-t border-card-border pb-10 pt-12">
-      <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <div className="lg:col-span-1">
           <Link href="/" className="mb-4 flex items-center gap-2">
             <div className="relative">
@@ -18,48 +36,27 @@ export function LPFooter() {
           </Link>
           <p className="text-xs leading-6 text-text-body">
             つながる、みつかる、変わっていく。<br />
-            AIが見つける、あなたにぴったりなボランティア。
+            あなたにぴったりのボランティアが見つかる。
           </p>
         </div>
 
-        <div>
-          <p className="mb-3 text-sm font-bold text-text-dark">サービス</p>
-          <ul className="space-y-2">
-            {["性格診断について", "活動を探す", "団体の方へ"].map((label) => (
-              <li key={label}>
-                <Link href="#" className="text-xs text-text-body transition-colors hover:text-text-dark">
-                  {label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <p className="mb-3 text-sm font-bold text-text-dark">サポート</p>
-          <ul className="space-y-2">
-            {["使い方ガイド", "よくある質問", "お問い合わせ"].map((label) => (
-              <li key={label}>
-                <Link href="#" className="text-xs text-text-body transition-colors hover:text-text-dark">
-                  {label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <p className="mb-3 text-sm font-bold text-text-dark">運営</p>
-          <ul className="space-y-2">
-            {["運営会社", "プライバシーポリシー", "利用規約"].map((label) => (
-              <li key={label}>
-                <Link href="#" className="text-xs text-text-body transition-colors hover:text-text-dark">
-                  {label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {LINK_GROUPS.map((group) => (
+          <div key={group.heading}>
+            <p className="mb-3 text-sm font-bold text-text-dark">{group.heading}</p>
+            <ul className="space-y-2">
+              {group.links.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-xs text-text-body transition-colors hover:text-text-dark"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
 
       <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-card-border pt-6 sm:flex-row">
