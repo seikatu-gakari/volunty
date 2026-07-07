@@ -181,6 +181,12 @@ test("C-E7: モバイル表示で各ロールの主要導線を操作できる",
   await expect(
     participantPage.getByRole("link", { name: /性格傾向チェック/ })
   ).toBeVisible();
+  await participantPage.getByRole("link", { name: /性格傾向チェック/ }).click();
+  await expect(participantPage).toHaveURL(/\/diagnosis$/);
+  await expect(
+    participantPage.getByRole("heading", { name: "性格傾向チェック" })
+  ).toBeVisible();
+  await participantPage.goto("/");
   await participantPage.getByRole("link", { name: "マイページ" }).click();
   await expect(participantPage).toHaveURL(/\/mypage$/);
   await participantContext.close();
