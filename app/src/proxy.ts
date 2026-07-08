@@ -113,17 +113,13 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // --- パブリック（/）: 未認証ならスルー、認証済みならロール/オンボーディングチェックを実施 ---
-  const isPublicPath = PUBLIC_PATHS.has(pathname);
-  if (isPublicPath) {
-    if (!user) {
-      return response;
-    }
-    // 認証済みユーザーは下のロール・オンボーディングチェックに進む
+  // --- パブリック（/）: 認証状態に関係なくスルー ---
+  if (PUBLIC_PATHS.has(pathname)) {
+    return response;
   }
 
   // --- 保護対象外の未知URLなどは Next.js の 404 判定へ通す ---
-  if (!isPublicPath && !isProtectedPath(pathname)) {
+  if (!isProtectedPath(pathname)) {
     return response;
   }
 
@@ -183,27 +179,13 @@ export async function proxy(request: NextRequest) {
   const metadata = user.user_metadata as Record<string, unknown>;
   const rawRole = metadata.role;
 
-  // ロール未選択 → /onboarding/role
-  if (!isAppRole(rawRole)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/onboarding/role";
-    return redirectWithCookies(url, response);
-  }
-
   // 認可には自己更新可能な metadata ではなく DB のロールだけを使う
   if (!isAppRole(databaseRole)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/forbidden";
+    url.pathname = isAppRole(rawRole) ? "/forbidden" : "/onboarding/role";
     return redirectWithCookies(url, response);
   }
   const role = databaseRole;
-
-  // 管理者: トップアクセス時は管理ダッシュボードへ
-  if (role === "admin" && pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/admin/organizations";
-    return redirectWithCookies(url, response);
-  }
 
   // オンボーディング未完了 → /onboarding/{role}
   if (role !== "admin" && !metadata.onboarding_completed) {

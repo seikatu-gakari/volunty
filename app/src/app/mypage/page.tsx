@@ -3,6 +3,7 @@ import {
   User,
   MapPin,
   Brain,
+  ArrowRight,
   ClipboardList,
   Search,
   Clock,
@@ -74,10 +75,7 @@ export default async function MyPage() {
   const profileActionLabel = profile ? "編集" : "登録";
   const diagnosisActionHref = profile?.diagnosis_completed
     ? "/diagnosis/result"
-    : "/diagnosis";
-  const diagnosisActionLabel = profile?.diagnosis_completed
-    ? "診断結果を見る"
-    : "性格診断を受ける";
+    : null;
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -167,17 +165,65 @@ export default async function MyPage() {
           </CardContent>
         </Card>
 
+        {profile && !profile.diagnosis_completed && (
+          <section
+            aria-labelledby="diagnosis-start-title"
+            className="mb-8 flex flex-col gap-4"
+          >
+            <h2
+              id="diagnosis-start-title"
+              className="text-lg font-bold text-text-dark"
+            >
+              性格傾向チェックを始める
+            </h2>
+            <Link
+              href="/diagnosis"
+              className="group flex flex-col gap-4 rounded-[10px] border border-primary/30 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <Brain className="size-8 text-primary" />
+                <div>
+                  <h3 className="text-xl font-bold tracking-tight text-text-dark">
+                    性格傾向チェック
+                  </h3>
+                  <p className="text-sm text-text-body">
+                    簡易診断（15問・約2分）/ 全50問（約5〜8分）から選べます
+                  </p>
+                </div>
+              </div>
+              <ul className="flex flex-col gap-2">
+                {[
+                  "世界中で使われている性格研究をもとに設計",
+                  "5つの性格特性の傾向を確認",
+                  "おすすめ案件の並び順の参考になります",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-full bg-primary" />
+                    <span className="text-sm text-text-dark">{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-auto flex items-center gap-1 text-sm font-medium text-primary group-hover:underline">
+                診断を始める
+                <ArrowRight className="size-4" />
+              </div>
+            </Link>
+          </section>
+        )}
+
         {/* アクションリンク */}
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Link
-            href={diagnosisActionHref}
-            className="flex items-center gap-3 rounded-[10px] border border-card-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <Brain className="size-5 text-primary" />
-            <span className="text-sm font-medium text-text-dark">
-              {diagnosisActionLabel}
-            </span>
-          </Link>
+          {diagnosisActionHref && (
+            <Link
+              href={diagnosisActionHref}
+              className="flex items-center gap-3 rounded-[10px] border border-card-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <Brain className="size-5 text-primary" />
+              <span className="text-sm font-medium text-text-dark">
+                診断結果を見る
+              </span>
+            </Link>
+          )}
           <Link
             href="/recommendations"
             className="flex items-center gap-3 rounded-[10px] border border-card-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"

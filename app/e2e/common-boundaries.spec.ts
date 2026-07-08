@@ -2,6 +2,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 
 const AUTH_STATE = {
   participant: "playwright/.auth/participant.json",
+  participantDiagnosis: "playwright/.auth/participant-diagnosis.json",
   participantLogout: "playwright/.auth/participant-logout.json",
   organization: "playwright/.auth/organization.json",
   organizationPendingReadonly:
@@ -46,6 +47,11 @@ test("C-E2: ロール越境を認可マトリクスで拒否する", async ({ br
     const { context, page } = await openAuthenticatedPage(browser, storageState);
     await page.goto(path);
     await expectForbidden(page, hiddenText);
+    await page.getByRole("link", { name: "トップへ戻る" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.getByRole("heading", { name: "このページにはアクセスできません" })
+    ).toHaveCount(0);
     await context.close();
   }
 });
@@ -166,10 +172,44 @@ test("C-E7: モバイル表示で各ロールの主要導線を操作できる",
   });
   const participantPage = await participantContext.newPage();
   await participantPage.goto("/");
-  await participantPage.getByRole("button", { name: "メニューを開く" }).click();
+  await expect(
+    participantPage.getByRole("heading", { name: "性格傾向チェックを始める" })
+  ).toHaveCount(0);
+  await expect(
+    participantPage.getByRole("link", { name: /おすすめ案件/ })
+  ).toBeVisible();
+  await expect(
+    participantPage.getByRole("link", { name: /性格傾向チェック/ })
+  ).toBeVisible();
+  await participantPage.getByRole("link", { name: /性格傾向チェック/ }).click();
+  await expect(participantPage).toHaveURL(/\/diagnosis$/);
+  await expect(
+    participantPage.getByRole("heading", { name: "性格傾向チェック" })
+  ).toBeVisible();
+  await participantPage.goto("/");
   await participantPage.getByRole("link", { name: "マイページ" }).click();
   await expect(participantPage).toHaveURL(/\/mypage$/);
   await participantContext.close();
+
+  const participantDiagnosisContext = await browser.newContext({
+    storageState: AUTH_STATE.participantDiagnosis,
+    viewport,
+  });
+  const participantDiagnosisPage = await participantDiagnosisContext.newPage();
+  await participantDiagnosisPage.goto("/");
+  await expect(
+    participantDiagnosisPage.getByRole("heading", {
+      name: "性格傾向チェックを始める",
+    })
+  ).toHaveCount(0);
+  await participantDiagnosisPage.getByRole("link", { name: "マイページ" }).click();
+  await expect(participantDiagnosisPage).toHaveURL(/\/mypage$/);
+  await expect(
+    participantDiagnosisPage.getByRole("heading", {
+      name: "性格傾向チェックを始める",
+    })
+  ).toBeVisible();
+  await participantDiagnosisContext.close();
 
   const organizationContext = await browser.newContext({
     storageState: AUTH_STATE.organization,
@@ -177,7 +217,15 @@ test("C-E7: モバイル表示で各ロールの主要導線を操作できる",
   });
   const organizationPage = await organizationContext.newPage();
   await organizationPage.goto("/");
-  await organizationPage.getByRole("button", { name: "メニューを開く" }).click();
+  await expect(
+    organizationPage.getByRole("heading", { name: "性格傾向チェックを始める" })
+  ).toHaveCount(0);
+  await expect(
+    organizationPage.getByRole("link", { name: /新しい案件を作成/ })
+  ).toBeVisible();
+  await expect(
+    organizationPage.getByRole("link", { name: /おすすめ参加者/ })
+  ).toBeVisible();
   await organizationPage.getByRole("link", { name: "ダッシュボード" }).click();
   await expect(organizationPage).toHaveURL(/\/dashboard$/);
   await organizationContext.close();
@@ -187,7 +235,16 @@ test("C-E7: モバイル表示で各ロールの主要導線を操作できる",
     viewport,
   });
   const adminPage = await adminContext.newPage();
-  await adminPage.goto("/admin");
+  await adminPage.goto("/");
+  await expect(
+    adminPage.getByRole("heading", { name: "性格傾向チェックを始める" })
+  ).toHaveCount(0);
+  await expect(
+    adminPage.getByRole("link", { name: /管理ダッシュボード/ })
+  ).toBeVisible();
+  await expect(
+    adminPage.getByRole("link", { name: /ユーザー管理/ })
+  ).toBeVisible();
   await adminPage.getByRole("link", { name: "団体審査一覧" }).click();
   await expect(adminPage).toHaveURL(/\/admin\/organizations$/);
   await adminContext.close();

@@ -12,11 +12,21 @@ import { DiagnosisWizard } from "./components/DiagnosisWizard";
  */
 export default async function DiagnosisPage() {
   let user = null;
+  let role: unknown = null;
 
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
     user = data.user;
+
+    if (user) {
+      const { data: account } = await supabase
+        .from("m_user")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      role = account?.role;
+    }
   } catch (err) {
     console.error("[DiagnosisPage] Supabase接続エラー:", err);
   }
@@ -26,8 +36,7 @@ export default async function DiagnosisPage() {
     redirect("/login");
   }
 
-  // 参加者ロールチェック（proxy の user_metadata 検証と同じ基準を利用）
-  const role = (user.user_metadata as Record<string, unknown>).role as string | undefined;
+  // 参加者ロールチェック（自己更新可能な metadata ではなく DB role を利用）
   if (role !== "participant") {
     redirect("/");
   }
