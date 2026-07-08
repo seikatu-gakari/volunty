@@ -87,12 +87,12 @@ export function LPHeroSection() {
 
         <div className="relative z-10 mt-4 flex flex-col gap-4 sm:flex-row sm:gap-5 lg:col-start-1 lg:row-start-3">
           <Link
-            href="/diagnosis"
+            href="/diagnosis/trial"
             className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 text-base font-bold text-white shadow-md transition-all hover:bg-primary-dark hover:shadow-lg sm:w-auto"
           >
             <Zap className="size-5" />
-            <span className="whitespace-nowrap">性格傾向チェックを始める</span>
-            <span className="ml-1 hidden text-xs font-normal opacity-75 2xl:inline">簡易15問・約2分/全50問・約5〜8分・無料</span>
+            <span className="whitespace-nowrap">登録前に簡易診断を試す</span>
+            <span className="ml-1 hidden text-xs font-normal opacity-75 2xl:inline">15問・約2分・無料</span>
             <ArrowRight className="ml-1 size-5" />
           </Link>
           <Link

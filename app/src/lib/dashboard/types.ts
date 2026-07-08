@@ -14,6 +14,22 @@ export type OpportunityStatus = "draft" | "published" | "closed";
 
 export type { ParticipationMode };
 
+/** 応募者一覧の並び替え条件 */
+export type ApplicantSort = "compatibility" | "applied_desc" | "applied_asc";
+
+/** 応募者一覧のステータス絞り込み */
+export type ApplicantStatusFilter =
+  | "all"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "completed";
+
+export interface ApplicantListOptions {
+  sort?: ApplicantSort;
+  status?: ApplicantStatusFilter;
+}
+
 /** 自団体の募集案件（応募者数付き） */
 export interface DashboardOpportunity {
   id: string;
@@ -154,6 +170,41 @@ export interface ApplicantsResult {
 /** updateApplicationStatus の戻り値 */
 export interface UpdateApplicationStatusResult {
   success: boolean;
+  error?: string;
+}
+
+/** 活動完了報告の一括操作結果 */
+export interface BulkCompleteApplicationsResult {
+  success: boolean;
+  completedCount: number;
+  failedCount: number;
+  error?: string;
+}
+
+/** 団体ダッシュボード分析: 案件ごとの指標 */
+export interface OpportunityAnalytics {
+  opportunityId: string;
+  title: string;
+  viewCount: number;
+  applicationCount: number;
+  approvedCount: number;
+  approvalRate: number;
+  declinedCount: number;
+  completedCount: number;
+}
+
+/** 団体ダッシュボード分析: アプローチ指標 */
+export interface ApproachAnalytics {
+  sentTotal: number;
+  acceptedCount: number;
+  acceptanceRate: number;
+  declinedCount: number;
+  pendingCount: number;
+}
+
+export interface DashboardAnalyticsResult {
+  opportunities: OpportunityAnalytics[];
+  approaches: ApproachAnalytics;
   error?: string;
 }
 

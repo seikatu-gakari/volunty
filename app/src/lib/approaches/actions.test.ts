@@ -11,6 +11,8 @@ const mockFindApproaches = vi.fn();
 const mockCountApproaches = vi.fn();
 const mockCreateApproach = vi.fn();
 const mockUpdateApproach = vi.fn();
+const mockFindTemplates = vi.fn();
+const mockUpsertTemplate = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -46,6 +48,10 @@ vi.mock("@/lib/prisma", () => ({
       create: (...args: unknown[]) => mockCreateApproach(...args),
       update: (...args: unknown[]) => mockUpdateApproach(...args),
     },
+    messageTemplate: {
+      findMany: (...args: unknown[]) => mockFindTemplates(...args),
+      upsert: (...args: unknown[]) => mockUpsertTemplate(...args),
+    },
   },
 }));
 
@@ -57,6 +63,7 @@ const {
   fetchMyApproachDetail,
   fetchMyApproaches,
   respondToApproach,
+  saveApproachTemplate,
   sendApproach,
 } = await import("./actions");
 
@@ -445,6 +452,13 @@ describe("dashboard approach views", () => {
     mockFindParticipant.mockResolvedValue(publicParticipant);
     mockFindOpportunities.mockResolvedValue([publishedOpportunity]);
     mockFindApproaches.mockResolvedValue([]);
+    mockFindTemplates.mockResolvedValue([
+      {
+        id: "template-1",
+        name: "初回案内",
+        body: "{participantName}さん、{opportunityTitle}に参加しませんか。",
+      },
+    ]);
 
     const result = await fetchApproachSendData("participant-profile-1");
 
@@ -459,6 +473,18 @@ describe("dashboard approach views", () => {
         alreadyApproached: false,
       },
     ]);
+    expect(result.templates).toEqual([
+      {
+        id: "template-1",
+        name: "初回案内",
+        body: "{participantName}さん、{opportunityTitle}に参加しませんか。",
+      },
+    ]);
+    expect(mockFindTemplates).toHaveBeenCalledWith({
+      where: { organizationId: "org-profile-1" },
+      select: { id: true, name: true, body: true },
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+    });
   });
 
   it("団体は送信済みアプローチ履歴を取得できる", async () => {
@@ -486,5 +512,54 @@ describe("dashboard approach views", () => {
         status: "declined",
       }),
     ]);
+  });
+});
+
+describe("saveApproachTemplate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUser.mockReturnValue({ data: { user: { id: "org-user-1" } } });
+    mockFindOrganization.mockResolvedValue(approvedOrganization);
+  });
+
+  it("自団体のテンプレートを保存できる", async () => {
+    mockUpsertTemplate.mockResolvedValue({ id: "template-1" });
+
+    const result = await saveApproachTemplate({
+      name: "初回案内",
+      body: "こんにちは、ぜひ参加してください。",
+    });
+
+    expect(result).toEqual({ success: true, templateId: "template-1" });
+    expect(mockUpsertTemplate).toHaveBeenCalledWith({
+      where: {
+        organizationId_name: {
+          organizationId: "org-profile-1",
+          name: "初回案内",
+        },
+      },
+      create: {
+        organizationId: "org-profile-1",
+        name: "初回案内",
+        body: "こんにちは、ぜひ参加してください。",
+      },
+      update: {
+        body: "こんにちは、ぜひ参加してください。",
+      },
+      select: { id: true },
+    });
+  });
+
+  it("テンプレート本文は1000文字以内に制限する", async () => {
+    const result = await saveApproachTemplate({
+      name: "長文",
+      body: "あ".repeat(APPROACH_MESSAGE_MAX_LENGTH + 1),
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "テンプレート本文は1000文字以内で入力してください",
+    });
+    expect(mockUpsertTemplate).not.toHaveBeenCalled();
   });
 });

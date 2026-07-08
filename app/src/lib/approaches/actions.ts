@@ -8,6 +8,7 @@ import type {
   ApproachContact,
   ApproachDetail,
   ApproachListItem,
+  ApproachMessageTemplate,
   ApproachMutationResult,
   ApproachParticipant,
   ApproachResponse,
@@ -242,6 +243,14 @@ function mapApproachForDashboard(approach: ApproachRecord): ApproachListItem {
   };
 }
 
+function mapTemplate(template: ApproachMessageTemplate): ApproachMessageTemplate {
+  return {
+    id: template.id,
+    name: template.name,
+    body: template.body,
+  };
+}
+
 export async function fetchApproachableParticipants(): Promise<ApproachableParticipantsResult> {
   try {
     const auth = await getCurrentUserId();
@@ -290,7 +299,12 @@ export async function fetchApproachSendData(
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) {
-      return { participant: null, opportunities: [], error: auth.error };
+      return {
+        participant: null,
+        opportunities: [],
+        templates: [],
+        error: auth.error,
+      };
     }
 
     const organization = await fetchApprovedOrganizationProfile(auth.userId);
@@ -298,6 +312,7 @@ export async function fetchApproachSendData(
       return {
         participant: null,
         opportunities: [],
+        templates: [],
         error: organization.error,
       };
     }
@@ -321,11 +336,12 @@ export async function fetchApproachSendData(
       return {
         participant: null,
         opportunities: [],
+        templates: [],
         error: "参加者が見つかりません",
       };
     }
 
-    const [opportunities, approaches] = await Promise.all([
+    const [opportunities, approaches, templates] = await Promise.all([
       prisma.opportunity.findMany({
         where: { organizationId: organization.id, status: "published" },
         select: { id: true, title: true },
@@ -337,6 +353,11 @@ export async function fetchApproachSendData(
           participantProfileId,
         },
         select: { opportunityId: true },
+      }),
+      prisma.messageTemplate.findMany({
+        where: { organizationId: organization.id },
+        select: { id: true, name: true, body: true },
+        orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
       }),
     ]);
 
@@ -351,14 +372,70 @@ export async function fetchApproachSendData(
         title: opportunity.title,
         alreadyApproached: approachedOpportunityIds.has(opportunity.id),
       })),
+      templates: templates.map(mapTemplate),
     };
   } catch (err) {
     console.error("[fetchApproachSendData] 予期しないエラー:", err);
     return {
       participant: null,
       opportunities: [],
+      templates: [],
       error: "予期しないエラーが発生しました",
     };
+  }
+}
+
+export async function saveApproachTemplate(input: {
+  name: string;
+  body: string;
+}): Promise<ApproachMutationResult & { templateId?: string }> {
+  const name = input.name.trim();
+  const body = input.body.trim();
+
+  if (!name) {
+    return { success: false, error: "テンプレート名を入力してください" };
+  }
+  if (!body) {
+    return { success: false, error: "テンプレート本文を入力してください" };
+  }
+  if (body.length > APPROACH_MESSAGE_MAX_LENGTH) {
+    return {
+      success: false,
+      error: "テンプレート本文は1000文字以内で入力してください",
+    };
+  }
+
+  try {
+    const auth = await getCurrentUserId();
+    if ("error" in auth) return { success: false, error: auth.error };
+
+    const organization = await fetchApprovedOrganizationProfile(auth.userId);
+    if ("error" in organization) {
+      return { success: false, error: organization.error };
+    }
+
+    const template = await prisma.messageTemplate.upsert({
+      where: {
+        organizationId_name: {
+          organizationId: organization.id,
+          name,
+        },
+      },
+      create: {
+        organizationId: organization.id,
+        name,
+        body,
+      },
+      update: {
+        body,
+      },
+      select: { id: true },
+    });
+
+    return { success: true, templateId: template.id };
+  } catch (err) {
+    console.error("[saveApproachTemplate] 予期しないエラー:", err);
+    return { success: false, error: "予期しないエラーが発生しました" };
   }
 }
 

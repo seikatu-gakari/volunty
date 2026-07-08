@@ -58,9 +58,9 @@ describe("LPHeroSection", () => {
 
     expect(
       screen
-        .getByRole("link", { name: /性格傾向チェックを始める/ })
+        .getByRole("link", { name: /登録前に簡易診断を試す/ })
         .getAttribute("href"),
-    ).toBe("/diagnosis");
+    ).toBe("/diagnosis/trial");
     expect(
       screen.getByRole("link", { name: /募集中の活動を見る/ }).getAttribute("href"),
     ).toBe("/opportunities");

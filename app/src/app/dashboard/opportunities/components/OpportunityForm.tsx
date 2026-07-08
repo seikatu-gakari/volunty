@@ -83,6 +83,9 @@ export function OpportunityForm({
   const [status, setStatus] = useState<OpportunityStatus>(
     initialData?.status ?? "published"
   );
+  const [publishMode, setPublishMode] = useState<
+    "published" | "draft" | "scheduled"
+  >(initialData?.status === "draft" ? "draft" : "published");
 
   const handleTagToggle = (tagId: string) => {
     setSelectedTags((prev) => {
@@ -303,6 +306,49 @@ export function OpportunityForm({
             </div>
           </div>
 
+          {!isEdit && (
+            <div className="flex flex-col gap-3 rounded-lg border border-card-border bg-background/60 p-4">
+              <span className="text-sm font-medium text-text-dark">
+                公開方法
+              </span>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  ["published", "すぐ公開"],
+                  ["draft", "下書き保存"],
+                  ["scheduled", "公開予約"],
+                ].map(([value, label]) => (
+                  <label
+                    key={value}
+                    className="flex items-center gap-2 text-sm text-text-body"
+                  >
+                    <input
+                      type="radio"
+                      name="publishMode"
+                      value={value}
+                      checked={publishMode === value}
+                      onChange={() =>
+                        setPublishMode(value as "published" | "draft" | "scheduled")
+                      }
+                      className="accent-primary"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {publishMode === "scheduled" && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-text-body">公開日時</span>
+                  <input
+                    type="datetime-local"
+                    name="publishedAt"
+                    required
+                    className="w-full rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </label>
+              )}
+            </div>
+          )}
+
           {/* 案件ステータス（編集モードのみ） */}
           {isEdit && (
             <div className="flex flex-col gap-2">
@@ -310,6 +356,17 @@ export function OpportunityForm({
                 案件ステータス
               </span>
               <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-sm text-text-body">
+                  <input
+                    type="radio"
+                    name="status_radio"
+                    value="draft"
+                    checked={status === "draft"}
+                    onChange={() => setStatus("draft")}
+                    className="accent-primary"
+                  />
+                  下書き
+                </label>
                 <label className="flex items-center gap-2 text-sm text-text-body">
                   <input
                     type="radio"
