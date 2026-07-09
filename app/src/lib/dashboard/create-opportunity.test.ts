@@ -154,6 +154,55 @@ describe("createOpportunity", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("下書きとして案件を作成できる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: null });
+
+    await createOpportunity(
+      buildFormData({
+        title: "下書き案件",
+        description: "あとで公開します",
+        publishMode: "draft",
+      })
+    );
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "draft",
+        published_at: null,
+      })
+    );
+  });
+
+  it("公開予約日時を指定して案件を作成できる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: null });
+
+    await createOpportunity(
+      buildFormData({
+        title: "予約案件",
+        description: "来週公開します",
+        publishMode: "scheduled",
+        publishedAt: "2026-08-01T10:00",
+      })
+    );
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "published",
+        published_at: "2026-08-01T01:00:00.000Z",
+      })
+    );
+  });
+
   it("Supabase REST経由の作成時に必須タイムスタンプを明示する", async () => {
     mockGetUser.mockReturnValue({
       data: { user: { id: "org-123", email: "org@example.com" } },

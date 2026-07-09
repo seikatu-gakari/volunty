@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Inbox,
   FileCheck2,
+  Bookmark,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
@@ -240,6 +241,15 @@ export default async function MyPage() {
             <Inbox className="size-5 text-primary" />
             <span className="text-sm font-medium text-text-dark">
               受信アプローチを見る
+            </span>
+          </Link>
+          <Link
+            href="/mypage/bookmarks"
+            className="flex items-center gap-3 rounded-[10px] border border-card-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+          >
+            <Bookmark className="size-5 text-primary" />
+            <span className="text-sm font-medium text-text-dark">
+              後で見る案件
             </span>
           </Link>
           <Link

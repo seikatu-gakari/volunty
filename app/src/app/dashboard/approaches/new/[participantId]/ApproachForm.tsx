@@ -1,32 +1,60 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCircle2, Loader2, Send } from "lucide-react";
+import { CheckCircle2, Loader2, Save, Send } from "lucide-react";
 import Link from "next/link";
 import { APPROACH_MESSAGE_MAX_LENGTH } from "@/lib/approaches/constants";
-import { sendApproach } from "@/lib/approaches/actions";
-import type { ApproachOpportunityOption } from "@/lib/approaches/types";
+import { saveApproachTemplate, sendApproach } from "@/lib/approaches/actions";
+import type {
+  ApproachMessageTemplate,
+  ApproachOpportunityOption,
+} from "@/lib/approaches/types";
 
 interface ApproachFormProps {
   participantProfileId: string;
+  participantName: string;
   opportunities: ApproachOpportunityOption[];
+  templates: ApproachMessageTemplate[];
 }
 
 export function ApproachForm({
   participantProfileId,
+  participantName,
   opportunities,
+  templates,
 }: ApproachFormProps) {
   const firstAvailable = opportunities.find(
     (opportunity) => !opportunity.alreadyApproached
   );
   const [opportunityId, setOpportunityId] = useState(firstAvailable?.id ?? "");
   const [message, setMessage] = useState("");
+  const [templateName, setTemplateName] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [isSavingTemplate, startTemplateTransition] = useTransition();
   const [result, setResult] = useState<{
     success: boolean;
     approachId?: string;
     error?: string;
   } | null>(null);
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null);
+
+  const selectedOpportunity = opportunities.find(
+    (opportunity) => opportunity.id === opportunityId
+  );
+
+  function fillTemplate(body: string) {
+    return body
+      .replaceAll("{participantName}", participantName)
+      .replaceAll("{opportunityTitle}", selectedOpportunity?.title ?? "");
+  }
+
+  function handleTemplateSelect(value: string) {
+    const template = templates.find((item) => item.id === value);
+    if (!template) return;
+    setMessage(fillTemplate(template.body));
+    setTemplateName(template.name);
+    setTemplateMessage(null);
+  }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -39,6 +67,21 @@ export function ApproachForm({
         message,
       });
       setResult(response);
+    });
+  }
+
+  function handleSaveTemplate() {
+    setTemplateMessage(null);
+    startTemplateTransition(async () => {
+      const response = await saveApproachTemplate({
+        name: templateName,
+        body: message,
+      });
+      setTemplateMessage(
+        response.success
+          ? "テンプレートを保存しました"
+          : (response.error ?? "テンプレートを保存できませんでした")
+      );
     });
   }
 
@@ -66,6 +109,57 @@ export function ApproachForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <div className="grid gap-3 rounded-lg border border-card-border bg-background/60 p-4 sm:grid-cols-[1fr_auto]">
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-text-dark">
+            テンプレート
+          </span>
+          <select
+            defaultValue=""
+            onChange={(event) => handleTemplateSelect(event.target.value)}
+            className="h-11 rounded-lg border border-input-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary"
+          >
+            <option value="">選択しない</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-text-dark">
+            保存名
+          </span>
+          <div className="flex gap-2">
+            <input
+              value={templateName}
+              onChange={(event) => setTemplateName(event.target.value)}
+              className="h-11 min-w-0 rounded-lg border border-input-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary"
+              placeholder="例: 初回案内"
+            />
+            <button
+              type="button"
+              onClick={handleSaveTemplate}
+              disabled={isSavingTemplate || !message.trim()}
+              className="inline-flex h-11 items-center gap-2 rounded-lg border border-card-border bg-white px-3 text-sm font-medium text-text-dark hover:bg-background disabled:opacity-50"
+            >
+              {isSavingTemplate ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Save className="size-4" />
+              )}
+              保存
+            </button>
+          </div>
+        </label>
+        {templateMessage && (
+          <p className="text-xs text-text-body sm:col-span-2">
+            {templateMessage}
+          </p>
+        )}
+      </div>
+
       <div className="flex flex-col gap-2">
         <label
           htmlFor="approach-opportunity"

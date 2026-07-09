@@ -29,6 +29,12 @@ export interface ApproachOpportunityOption {
   alreadyApproached: boolean;
 }
 
+export interface ApproachMessageTemplate {
+  id: string;
+  name: string;
+  body: string;
+}
+
 export interface ApproachListItem {
   id: string;
   status: ApproachStatus;
@@ -59,6 +65,7 @@ export interface ApproachMutationResult {
 export interface ApproachSendDataResult {
   participant: ApproachParticipant | null;
   opportunities: ApproachOpportunityOption[];
+  templates: ApproachMessageTemplate[];
   error?: string;
 }
 

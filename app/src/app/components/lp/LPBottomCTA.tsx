@@ -16,11 +16,11 @@ export function LPBottomCTA() {
       </p>
       <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
         <Link
-          href="/diagnosis"
+          href="/diagnosis/trial"
           className="flex h-14 w-full max-w-[300px] items-center justify-center gap-2 rounded-full bg-white px-8 text-base font-bold text-primary-dark shadow-md transition-all hover:shadow-xl sm:w-auto"
         >
           <Zap className="size-5" />
-          性格傾向チェックを始める
+          簡易診断を試す
         </Link>
         <Link
           href="/opportunities"

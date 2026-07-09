@@ -180,6 +180,47 @@ describe("fetchOpportunityDetail", () => {
     );
   });
 
+  it("公開予約中の案件は参加者向け詳細として返さない", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+
+    mockSingle.mockReturnValueOnce({
+      data: {
+        id: "opp-scheduled",
+        title: "予約案件",
+        description: "未来に公開",
+        activity_style_tags: null,
+        required_qualifications: null,
+        min_age: null,
+        max_age: null,
+        status: "published",
+        published_at: "2999-01-01T00:00:00.000Z",
+        created_at: "2026-01-01T00:00:00Z",
+        location: null,
+        start_date: null,
+        end_date: null,
+        capacity: null,
+        current_applicants: 0,
+        category: null,
+        participation_mode: null,
+        m_organization_profile: {
+          id: "org-1",
+          organization_name: "NPO法人テスト",
+          description: null,
+        },
+      },
+      error: null,
+    });
+
+    const result = await fetchOpportunityDetail("opp-scheduled");
+
+    expect(result.opportunity).toBeNull();
+    expect(mockEngagementCreate).not.toHaveBeenCalled();
+  });
+
   it("応募済みの場合、existingApplication を含める", async () => {
     const mockUser = { id: "user-123" };
     mockGetUser.mockReturnValue({
@@ -363,6 +404,36 @@ describe("applyToOpportunity", () => {
       callCount++;
       if (callCount === 1) return { data: { id: "user-123" }, error: null }; // m_participant_profile
       return { data: { id: "opp-1", status: "closed" }, error: null }; // m_opportunity
+    });
+
+    const result: ApplyResult = await applyToOpportunity(
+      "opp-1",
+      "メッセージ"
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("この案件は募集を終了しています");
+  });
+
+  it("公開予約中の案件には応募できない", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+
+    let callCount = 0;
+    mockSingle.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return { data: { id: "user-123" }, error: null };
+      return {
+        data: {
+          id: "opp-1",
+          status: "published",
+          published_at: "2999-01-01T00:00:00.000Z",
+        },
+        error: null,
+      };
     });
 
     const result: ApplyResult = await applyToOpportunity(

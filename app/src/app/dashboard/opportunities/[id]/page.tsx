@@ -13,12 +13,19 @@ import {
   User,
   ChevronRight,
   CircleDashed,
+  Filter,
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
 import { fetchApplicantsForOpportunity } from "@/lib/dashboard/actions";
-import type { Applicant, OpportunityStatus } from "@/lib/dashboard/types";
+import type {
+  Applicant,
+  ApplicantSort,
+  ApplicantStatusFilter,
+  OpportunityStatus,
+} from "@/lib/dashboard/types";
+import { BulkCompleteActions } from "./components/BulkCompleteActions";
 import { StatusActions } from "./components/StatusActions";
 
 /** 案件ステータス表示 */
@@ -127,10 +134,26 @@ function ApplicantCard({
 
 export default async function OpportunityApplicantsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ sort?: string; status?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
+  const sort =
+    query?.sort === "compatibility" ||
+    query?.sort === "applied_asc" ||
+    query?.sort === "applied_desc"
+      ? (query.sort as ApplicantSort)
+      : "applied_desc";
+  const status =
+    query?.status === "pending" ||
+    query?.status === "approved" ||
+    query?.status === "rejected" ||
+    query?.status === "completed"
+      ? (query.status as ApplicantStatusFilter)
+      : "all";
 
   // 認証チェック
   let isAuthenticated = false;
@@ -146,7 +169,10 @@ export default async function OpportunityApplicantsPage({
     redirect("/login");
   }
 
-  const { data, error } = await fetchApplicantsForOpportunity(id);
+  const { data, error } = await fetchApplicantsForOpportunity(id, {
+    sort,
+    status,
+  });
 
   // 案件が存在しない、またはアクセス権がない場合
   if (!data) {
@@ -219,12 +245,58 @@ export default async function OpportunityApplicantsPage({
               <div className="flex flex-col">
                 <h2 className="text-lg font-bold text-text-dark">応募者一覧</h2>
                 <span className="text-xs text-text-body">
-                  {data.applicants.length}件の応募・応募日順
+                  {data.applicants.length}件の応募
                 </span>
               </div>
             </div>
           </CardHeader>
           <CardContent>
+            <form
+              method="get"
+              className="mb-4 grid gap-3 rounded-lg border border-card-border bg-background/60 p-4 sm:grid-cols-[1fr_1fr_auto]"
+            >
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-text-dark">
+                  並び替え
+                </span>
+                <select
+                  name="sort"
+                  defaultValue={sort}
+                  className="h-10 rounded-lg border border-input-border bg-white px-3 text-sm"
+                >
+                  <option value="applied_desc">応募日が新しい順</option>
+                  <option value="applied_asc">応募日が古い順</option>
+                  <option value="compatibility">相性スコア順</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-text-dark">
+                  ステータス
+                </span>
+                <select
+                  name="status"
+                  defaultValue={status}
+                  className="h-10 rounded-lg border border-input-border bg-white px-3 text-sm"
+                >
+                  <option value="all">すべて</option>
+                  <option value="pending">未対応のみ</option>
+                  <option value="approved">承認済みのみ</option>
+                  <option value="rejected">辞退済み</option>
+                  <option value="completed">活動完了のみ</option>
+                </select>
+              </label>
+              <button
+                type="submit"
+                className="inline-flex h-10 items-center justify-center gap-2 self-end rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark"
+              >
+                <Filter className="size-4" />
+                適用
+              </button>
+            </form>
+            <BulkCompleteActions
+              opportunityId={id}
+              applicants={data.applicants}
+            />
             {data.applicants.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {data.applicants.map((applicant) => (

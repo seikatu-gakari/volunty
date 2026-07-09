@@ -12,12 +12,15 @@ import type {
   DashboardData,
   DashboardOpportunity,
   CreateOpportunityResult,
+  ApplicantListOptions,
   OpportunityEditResult,
   OpportunityEditData,
   OpportunityStatus,
   UpdateOpportunityResult,
   Applicant,
   ApplicantsResult,
+  BulkCompleteApplicationsResult,
+  DashboardAnalyticsResult,
   UpdateApplicationStatusResult,
   ApplicantDetailResult,
   MatchingHistoryResult,
@@ -369,6 +372,44 @@ function parseOpportunityExtraFields(
   };
 }
 
+function parsePublishFields(
+  formData: FormData,
+  nowIso: string
+): { data: { status: OpportunityStatus; published_at: string | null } } | { error: string } {
+  const rawPublishMode = formData.get("publishMode");
+  const publishMode =
+    rawPublishMode === "draft" ||
+    rawPublishMode === "published" ||
+    rawPublishMode === "scheduled"
+      ? rawPublishMode
+      : "published";
+
+  if (publishMode === "draft") {
+    return { data: { status: "draft", published_at: null } };
+  }
+
+  if (publishMode === "scheduled") {
+    const rawPublishedAt = formData.get("publishedAt");
+    const publishedAt =
+      typeof rawPublishedAt === "string" ? rawPublishedAt.trim() : "";
+    if (!publishedAt) {
+      return { error: "公開予約日時を入力してください" };
+    }
+    const scheduledAt = new Date(publishedAt);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      return { error: "公開予約日時の形式が正しくありません" };
+    }
+    return {
+      data: {
+        status: "published",
+        published_at: scheduledAt.toISOString(),
+      },
+    };
+  }
+
+  return { data: { status: "published", published_at: nowIso } };
+}
+
 /**
  * 募集案件を新規作成する
  *
@@ -419,6 +460,12 @@ export async function createOpportunity(
     return { success: false, error: extra.error };
   }
 
+  const now = new Date().toISOString();
+  const publish = parsePublishFields(formData, now);
+  if ("error" in publish) {
+    return { success: false, error: publish.error };
+  }
+
   try {
     // 団体プロフィールIDを取得
     const { data: orgProfile, error: profileError } = await supabase
@@ -432,7 +479,6 @@ export async function createOpportunity(
     }
 
     // Supabase REST経由ではPrismaの @updatedAt が適用されないため明示する。
-    const now = new Date().toISOString();
     const { error: insertError } = await supabase
       .from("m_opportunity")
       .insert({
@@ -440,8 +486,8 @@ export async function createOpportunity(
         title,
         description,
         ...matching.data,
-        status: "published",
-        published_at: now,
+        status: publish.data.status,
+        published_at: publish.data.published_at,
         created_at: now,
         updated_at: now,
         ...extra.data,
@@ -677,6 +723,13 @@ export async function updateOpportunity(
     return { success: false, error: extra.error };
   }
 
+  const publish = formData.has("publishMode")
+    ? parsePublishFields(formData, new Date().toISOString())
+    : null;
+  if (publish && "error" in publish) {
+    return { success: false, error: publish.error };
+  }
+
   try {
     // 団体プロフィールIDを取得
     const { data: orgProfile, error: profileError } = await supabase
@@ -695,7 +748,10 @@ export async function updateOpportunity(
       ...matching.data,
       ...extra.data,
     };
-    if (status) {
+    if (publish) {
+      updateData.status = publish.data.status;
+      updateData.published_at = publish.data.published_at;
+    } else if (status) {
       updateData.status = status;
     }
 
@@ -725,7 +781,8 @@ export async function updateOpportunity(
  * - 自団体の案件のみアクセス可能（認可チェック）
  */
 export async function fetchApplicantsForOpportunity(
-  opportunityId: string
+  opportunityId: string,
+  options: ApplicantListOptions = {}
 ): Promise<ApplicantsResult> {
   try {
     const supabase = await createClient();
@@ -816,22 +873,27 @@ export async function fetchApplicantsForOpportunity(
       }
     }
 
-    const applicants: Applicant[] = (matchingData ?? []).map((m) => {
-      const profile = profileMap[m.participant_id as string];
+    const applicants: Applicant[] = (matchingData ?? [])
+      .map((m) => {
+        const profile = profileMap[m.participant_id as string];
 
-      return {
-        id: m.id as string,
-        status: mapApplicationStatus(m.status as string),
-        message: (m.message as string) ?? null,
-        created_at: (m.applied_at as string) ?? "",
-        completed_at:
-          m.status === "completed" ? (m.status_changed_at as string) : null,
-        participant_name: profile?.name ?? "不明",
-        style_type_label: profile?.styleTypeLabel ?? null,
-      };
-    });
+        return {
+          id: m.id as string,
+          status: mapApplicationStatus(m.status as string),
+          message: (m.message as string) ?? null,
+          created_at: (m.applied_at as string) ?? "",
+          completed_at:
+            m.status === "completed" ? (m.status_changed_at as string) : null,
+          participant_name: profile?.name ?? "不明",
+          style_type_label: profile?.styleTypeLabel ?? null,
+        };
+      })
+      .filter((applicant) => {
+        const status = options.status ?? "all";
+        return status === "all" || applicant.status === status;
+      });
 
-    applicants.sort((a, b) => {
+    const compareAppliedDesc = (a: Applicant, b: Applicant) => {
       const appliedAtA = Date.parse(a.created_at);
       const appliedAtB = Date.parse(b.created_at);
       const timeA = Number.isNaN(appliedAtA) ? 0 : appliedAtA;
@@ -842,6 +904,22 @@ export async function fetchApplicantsForOpportunity(
       }
 
       return a.id.localeCompare(b.id);
+    };
+
+    applicants.sort((a, b) => {
+      switch (options.sort ?? "applied_desc") {
+        case "applied_asc":
+          return -compareAppliedDesc(a, b);
+        case "compatibility": {
+          const styleA = a.style_type_label ? 0 : 1;
+          const styleB = b.style_type_label ? 0 : 1;
+          if (styleA !== styleB) return styleA - styleB;
+          return compareAppliedDesc(a, b);
+        }
+        case "applied_desc":
+        default:
+          return compareAppliedDesc(a, b);
+      }
     });
 
     return {
@@ -1070,6 +1148,208 @@ export async function updateApplicationStatus(
   } catch (err) {
     console.error("[updateApplicationStatus] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
+  }
+}
+
+export async function bulkCompleteApplications(
+  opportunityId: string,
+  applicationIds: string[]
+): Promise<BulkCompleteApplicationsResult> {
+  const uniqueIds = Array.from(new Set(applicationIds.filter(Boolean)));
+  if (uniqueIds.length === 0) {
+    return {
+      success: false,
+      completedCount: 0,
+      failedCount: 0,
+      error: "活動完了にする応募を選択してください",
+    };
+  }
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        completedCount: 0,
+        failedCount: uniqueIds.length,
+        error: "ログインが必要です",
+      };
+    }
+
+    const organizationProfile = await fetchApprovedOrganizationProfile(user.id);
+    if ("error" in organizationProfile) {
+      return {
+        success: false,
+        completedCount: 0,
+        failedCount: uniqueIds.length,
+        error: organizationProfile.error,
+      };
+    }
+
+    const completable = await prisma.matchingCandidate.findMany({
+      where: {
+        id: { in: uniqueIds },
+        opportunityId,
+        status: "accepted",
+        opportunity: { organizationId: organizationProfile.id },
+      },
+      select: { id: true },
+    });
+
+    const completableIds = completable.map((application) => application.id);
+    if (completableIds.length > 0) {
+      await prisma.matchingCandidate.updateMany({
+        where: { id: { in: completableIds } },
+        data: {
+          status: "completed",
+          statusChangedAt: new Date(),
+        },
+      });
+    }
+
+    return {
+      success: completableIds.length > 0,
+      completedCount: completableIds.length,
+      failedCount: uniqueIds.length - completableIds.length,
+    };
+  } catch (err) {
+    console.error("[bulkCompleteApplications] 予期しないエラー:", err);
+    return {
+      success: false,
+      completedCount: 0,
+      failedCount: uniqueIds.length,
+      error: "予期しないエラーが発生しました",
+    };
+  }
+}
+
+export async function fetchDashboardAnalytics(): Promise<DashboardAnalyticsResult> {
+  const emptyApproaches = {
+    sentTotal: 0,
+    acceptedCount: 0,
+    acceptanceRate: 0,
+    declinedCount: 0,
+    pendingCount: 0,
+  };
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        opportunities: [],
+        approaches: emptyApproaches,
+        error: "ログインが必要です",
+      };
+    }
+
+    const organizationProfile = await fetchApprovedOrganizationProfile(user.id);
+    if ("error" in organizationProfile) {
+      return {
+        opportunities: [],
+        approaches: emptyApproaches,
+        error: organizationProfile.error,
+      };
+    }
+
+    const opportunities = await prisma.opportunity.findMany({
+      where: { organizationId: organizationProfile.id },
+      select: { id: true, title: true },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    });
+    const opportunityIds = opportunities.map((opportunity) => opportunity.id);
+
+    const [matchingGroups, viewGroups, approachGroups] = await Promise.all([
+      prisma.matchingCandidate.groupBy({
+        by: ["opportunityId", "status"],
+        where: { opportunityId: { in: opportunityIds } },
+        _count: { _all: true },
+      }),
+      prisma.engagementEvent.groupBy({
+        by: ["opportunityId"],
+        where: {
+          opportunityId: { in: opportunityIds },
+          event: "view",
+        },
+        _count: { _all: true },
+      }),
+      prisma.approach.groupBy({
+        by: ["status"],
+        where: { organizationId: organizationProfile.id },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const matchingByOpportunity = new Map<string, Record<string, number>>();
+    for (const group of matchingGroups) {
+      const current = matchingByOpportunity.get(group.opportunityId) ?? {};
+      current[group.status] = group._count._all;
+      matchingByOpportunity.set(group.opportunityId, current);
+    }
+
+    const viewsByOpportunity = new Map(
+      viewGroups.map((group) => [group.opportunityId, group._count._all])
+    );
+
+    const analytics = opportunities.map((opportunity) => {
+      const counts = matchingByOpportunity.get(opportunity.id) ?? {};
+      const applicationCount = Object.values(counts).reduce(
+        (total, count) => total + count,
+        0
+      );
+      const completedCount = counts.completed ?? 0;
+      const approvedCount = (counts.accepted ?? 0) + completedCount;
+      return {
+        opportunityId: opportunity.id,
+        title: opportunity.title,
+        viewCount: viewsByOpportunity.get(opportunity.id) ?? 0,
+        applicationCount,
+        approvedCount,
+        approvalRate:
+          applicationCount > 0
+            ? Math.round((approvedCount / applicationCount) * 100)
+            : 0,
+        declinedCount: counts.declined ?? 0,
+        completedCount,
+      };
+    });
+
+    const approachCounts = Object.fromEntries(
+      approachGroups.map((group) => [group.status, group._count._all])
+    ) as Record<string, number>;
+    const sentTotal = Object.values(approachCounts).reduce(
+      (total, count) => total + count,
+      0
+    );
+    const acceptedCount = approachCounts.accepted ?? 0;
+
+    return {
+      opportunities: analytics,
+      approaches: {
+        sentTotal,
+        acceptedCount,
+        acceptanceRate:
+          sentTotal > 0 ? Math.round((acceptedCount / sentTotal) * 100) : 0,
+        declinedCount: approachCounts.declined ?? 0,
+        pendingCount: approachCounts.sent ?? 0,
+      },
+    };
+  } catch (err) {
+    console.error("[fetchDashboardAnalytics] 予期しないエラー:", err);
+    return {
+      opportunities: [],
+      approaches: emptyApproaches,
+      error: "予期しないエラーが発生しました",
+    };
   }
 }
 

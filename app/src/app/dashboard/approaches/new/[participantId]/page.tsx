@@ -14,7 +14,7 @@ export default async function NewApproachPage({
   params: Promise<{ participantId: string }>;
 }) {
   const { participantId } = await params;
-  const { participant, opportunities, error } =
+  const { participant, opportunities, templates, error } =
     await fetchApproachSendData(participantId);
 
   if (error === "ログインが必要です") {
@@ -73,7 +73,9 @@ export default async function NewApproachPage({
           <CardContent>
             <ApproachForm
               participantProfileId={participant.id}
+              participantName={participant.name}
               opportunities={opportunities}
+              templates={templates}
             />
           </CardContent>
         </Card>

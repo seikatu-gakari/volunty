@@ -195,11 +195,28 @@ model OrganizationProfile {
   opportunities Opportunity[]
   approaches    Approach[]
   certificates  Certificate[]
+  messageTemplates MessageTemplate[]
 
   @@index([reviewStatus])
   @@index([verified])
   @@index([organizationName])
   @@map("m_organization_profile")
+}
+
+/// メッセージテンプレート — 団体がアプローチ文を再利用するための定型文
+model MessageTemplate {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(100)
+  body           String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization OrganizationProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("m_message_template")
 }
 
 /// 募集案件 — 団体が投稿するボランティア募集情報

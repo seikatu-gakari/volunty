@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ApplicantsResult, UpdateApplicationStatusResult } from "./types";
+import type {
+  ApplicantsResult,
+  BulkCompleteApplicationsResult,
+  UpdateApplicationStatusResult,
+} from "./types";
 
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
@@ -11,6 +15,9 @@ const mockSingle = vi.fn();
 const mockUpdate = vi.fn();
 const mockUpdateEq = vi.fn();
 const mockIn = vi.fn();
+const mockFindOrganization = vi.fn();
+const mockFindApplications = vi.fn();
+const mockUpdateManyApplications = vi.fn();
 
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -64,15 +71,29 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    organizationProfile: {
+      findUnique: (...args: unknown[]) => mockFindOrganization(...args),
+    },
+    matchingCandidate: {
+      findMany: (...args: unknown[]) => mockFindApplications(...args),
+      updateMany: (...args: unknown[]) => mockUpdateManyApplications(...args),
+    },
+  },
+}));
+
 // redirect のモック
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
 // "use server" ディレクティブを含むモジュールの動的インポート
-const { fetchApplicantsForOpportunity, updateApplicationStatus } = await import(
-  "./actions"
-);
+const {
+  bulkCompleteApplications,
+  fetchApplicantsForOpportunity,
+  updateApplicationStatus,
+} = await import("./actions");
 
 
 describe("fetchApplicantsForOpportunity", () => {
@@ -293,6 +314,115 @@ describe("fetchApplicantsForOpportunity", () => {
     ]);
   });
 
+  it("未対応のみで絞り込める", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({
+        data: {
+          id: "opp-1",
+          title: "テスト案件",
+          description: null,
+          status: "published",
+          created_at: "2026-01-15T00:00:00Z",
+        },
+        error: null,
+      });
+
+    mockOrder.mockReturnValueOnce({
+      data: [
+        {
+          id: "app-pending",
+          status: "applied",
+          message: null,
+          applied_at: "2026-01-10T00:00:00Z",
+          status_changed_at: "2026-01-10T00:00:00Z",
+          participant_id: "p1",
+        },
+        {
+          id: "app-approved",
+          status: "accepted",
+          message: null,
+          applied_at: "2026-01-11T00:00:00Z",
+          status_changed_at: "2026-01-11T00:00:00Z",
+          participant_id: "p2",
+        },
+      ],
+      error: null,
+    });
+
+    mockIn.mockReturnValueOnce({
+      data: [
+        { user_id: "p1", name: "未対応", latest_diagnosis_result_id: null },
+        { user_id: "p2", name: "承認済み", latest_diagnosis_result_id: null },
+      ],
+      error: null,
+    });
+
+    const result = await fetchApplicantsForOpportunity("opp-1", {
+      status: "pending",
+    });
+
+    expect(result.data!.applicants.map((a) => a.id)).toEqual(["app-pending"]);
+  });
+
+  it("応募日昇順で並び替えられる", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
+
+    mockSingle
+      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+      .mockReturnValueOnce({
+        data: {
+          id: "opp-1",
+          title: "テスト案件",
+          description: null,
+          status: "published",
+          created_at: "2026-01-15T00:00:00Z",
+        },
+        error: null,
+      });
+    mockOrder.mockReturnValueOnce({
+      data: [
+        {
+          id: "app-new",
+          status: "applied",
+          message: null,
+          applied_at: "2026-01-25T00:00:00Z",
+          status_changed_at: "2026-01-25T00:00:00Z",
+          participant_id: "p2",
+        },
+        {
+          id: "app-old",
+          status: "applied",
+          message: null,
+          applied_at: "2026-01-10T00:00:00Z",
+          status_changed_at: "2026-01-10T00:00:00Z",
+          participant_id: "p1",
+        },
+      ],
+      error: null,
+    });
+    mockIn.mockReturnValueOnce({
+      data: [
+        { user_id: "p1", name: "旧応募者", latest_diagnosis_result_id: null },
+        { user_id: "p2", name: "新応募者", latest_diagnosis_result_id: null },
+      ],
+      error: null,
+    });
+
+    const result = await fetchApplicantsForOpportunity("opp-1", {
+      sort: "applied_asc",
+    });
+
+    expect(result.data!.applicants.map((a) => a.id)).toEqual([
+      "app-old",
+      "app-new",
+    ]);
+  });
+
   it("応募者が0件の場合、空配列を返す", async () => {
     const mockUser = { id: "user-123" };
     mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
@@ -330,6 +460,67 @@ describe("fetchApplicantsForOpportunity", () => {
 
     expect(result.data).toBeNull();
     expect(result.error).toBe("予期しないエラーが発生しました");
+  });
+});
+
+describe("bulkCompleteApplications", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUser.mockReturnValue({ data: { user: { id: "org-user-1" } }, error: null });
+    mockFindOrganization.mockResolvedValue({
+      id: "org-profile-1",
+      reviewStatus: "approved",
+      user: { role: "organization" },
+    });
+  });
+
+  it("空選択の場合はエラーを返す", async () => {
+    const result: BulkCompleteApplicationsResult =
+      await bulkCompleteApplications("opp-1", []);
+
+    expect(result).toEqual({
+      success: false,
+      completedCount: 0,
+      failedCount: 0,
+      error: "活動完了にする応募を選択してください",
+    });
+    expect(mockUpdateManyApplications).not.toHaveBeenCalled();
+  });
+
+  it("自団体案件の承認済み応募だけを一括完了する", async () => {
+    mockFindApplications.mockResolvedValue([
+      { id: "app-1" },
+      { id: "app-2" },
+    ]);
+    mockUpdateManyApplications.mockResolvedValue({ count: 2 });
+
+    const result = await bulkCompleteApplications("opp-1", [
+      "app-1",
+      "app-2",
+      "app-declined",
+    ]);
+
+    expect(result).toEqual({
+      success: true,
+      completedCount: 2,
+      failedCount: 1,
+    });
+    expect(mockFindApplications).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["app-1", "app-2", "app-declined"] },
+        opportunityId: "opp-1",
+        status: "accepted",
+        opportunity: { organizationId: "org-profile-1" },
+      },
+      select: { id: true },
+    });
+    expect(mockUpdateManyApplications).toHaveBeenCalledWith({
+      where: { id: { in: ["app-1", "app-2"] } },
+      data: {
+        status: "completed",
+        statusChangedAt: expect.any(Date),
+      },
+    });
   });
 });
 

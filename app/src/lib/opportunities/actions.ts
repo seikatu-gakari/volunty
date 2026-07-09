@@ -57,6 +57,7 @@ export async function fetchOpportunityDetail(
         min_age,
         max_age,
         status,
+        published_at,
         created_at,
         location,
         start_date,
@@ -76,6 +77,18 @@ export async function fetchOpportunityDetail(
       .single();
 
     if (oppError || !oppData) {
+      return {
+        opportunity: null,
+        existingApplication: null,
+        isParticipant: false,
+      };
+    }
+
+    const publishedAt = oppData.published_at as string | null;
+    if (
+      oppData.status !== "published" ||
+      (publishedAt && new Date(publishedAt).getTime() > Date.now())
+    ) {
       return {
         opportunity: null,
         existingApplication: null,
@@ -233,7 +246,7 @@ export async function applyToOpportunity(
     // 案件の存在とステータスを確認
     const { data: opportunity } = await supabase
       .from("m_opportunity")
-      .select("id, status")
+      .select("id, status, published_at")
       .eq("id", opportunityId)
       .single();
 
@@ -241,7 +254,11 @@ export async function applyToOpportunity(
       return { success: false, error: "案件が見つかりません" };
     }
 
-    if (opportunity.status !== "published") {
+    const publishedAt = opportunity.published_at as string | null;
+    if (
+      opportunity.status !== "published" ||
+      (publishedAt && new Date(publishedAt).getTime() > Date.now())
+    ) {
       return { success: false, error: "この案件は募集を終了しています" };
     }
 

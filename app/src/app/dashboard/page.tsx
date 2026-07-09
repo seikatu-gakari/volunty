@@ -8,9 +8,11 @@ import {
   Unlock,
   Pencil,
   BadgeCheck,
+  BarChart3,
   AlertTriangle,
   CircleDashed,
   Building2,
+  Copy,
   MessageSquarePlus,
   X,
   FileCheck2,
@@ -20,7 +22,10 @@ import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
-import { fetchMyOpportunities } from "@/lib/dashboard/actions";
+import {
+  fetchDashboardAnalytics,
+  fetchMyOpportunities,
+} from "@/lib/dashboard/actions";
 import type { OpportunityStatus } from "@/lib/dashboard/types";
 import { prisma } from "@/lib/prisma";
 
@@ -72,6 +77,10 @@ function reviewStatusDisplay(status: "pending" | "approved" | "rejected") {
         description: "審査完了まで一部機能は利用できません。",
       };
   }
+}
+
+function shortAnalyticsTitle(title: string): string {
+  return title.length > 10 ? `${title.slice(0, 10)}...` : title;
 }
 
 export default async function DashboardPage() {
@@ -138,14 +147,25 @@ export default async function DashboardPage() {
     redirect("/onboarding/organization");
   }
 
-  const { opportunities } = await fetchMyOpportunities();
+  const [{ opportunities }, analytics] = await Promise.all([
+    fetchMyOpportunities(),
+    fetchDashboardAnalytics(),
+  ]);
   const reviewDisplay = reviewStatusDisplay(organizationProfile.reviewStatus);
+  const totalViews = analytics.opportunities.reduce(
+    (sum, item) => sum + item.viewCount,
+    0
+  );
+  const totalApplications = analytics.opportunities.reduce(
+    (sum, item) => sum + item.applicationCount,
+    0
+  );
 
   return (
     <div className="min-h-screen bg-background font-sans">
       <Header />
 
-      <main className="mx-auto max-w-3xl px-6 py-8">
+      <main className="mx-auto max-w-5xl px-6 py-8">
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-text-dark">ダッシュボード</h1>
           <div className="flex flex-wrap items-center gap-3">
@@ -251,6 +271,80 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+                <BarChart3 className="size-5 text-primary" />
+              </div>
+              <h2 className="text-lg font-bold text-text-dark">分析</h2>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="rounded-lg bg-background px-4 py-3">
+                <p className="text-xs text-text-body">閲覧数</p>
+                <p className="mt-1 text-2xl font-bold text-text-dark">
+                  {totalViews}
+                </p>
+              </div>
+              <div className="rounded-lg bg-background px-4 py-3">
+                <p className="text-xs text-text-body">応募数</p>
+                <p className="mt-1 text-2xl font-bold text-text-dark">
+                  {totalApplications}
+                </p>
+              </div>
+              <div className="rounded-lg bg-background px-4 py-3">
+                <p className="text-xs text-text-body">承認率</p>
+                <p className="mt-1 text-2xl font-bold text-text-dark">
+                  {analytics.opportunities.length > 0
+                    ? `${Math.round(
+                        analytics.opportunities.reduce(
+                          (sum, item) => sum + item.approvalRate,
+                          0
+                        ) / analytics.opportunities.length
+                      )}%`
+                    : "0%"}
+                </p>
+              </div>
+              <div className="rounded-lg bg-background px-4 py-3">
+                <p className="text-xs text-text-body">アプローチ承諾率</p>
+                <p className="mt-1 text-2xl font-bold text-text-dark">
+                  {analytics.approaches.acceptanceRate}%
+                </p>
+              </div>
+            </div>
+            {analytics.opportunities.length > 0 && (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="text-xs text-text-body">
+                    <tr>
+                      <th className="py-2 pr-3 font-medium">案件</th>
+                      <th className="py-2 pr-3 font-medium">閲覧</th>
+                      <th className="py-2 pr-3 font-medium">応募</th>
+                      <th className="py-2 pr-3 font-medium">承認率</th>
+                      <th className="py-2 pr-3 font-medium">完了</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.opportunities.slice(0, 5).map((item) => (
+                      <tr key={item.opportunityId} className="border-t border-card-border">
+                        <td className="py-2 pr-3 font-medium text-text-dark">
+                          {shortAnalyticsTitle(item.title)}
+                        </td>
+                        <td className="py-2 pr-3 text-text-body">{item.viewCount}</td>
+                        <td className="py-2 pr-3 text-text-body">{item.applicationCount}</td>
+                        <td className="py-2 pr-3 text-text-body">{item.approvalRate}%</td>
+                        <td className="py-2 pr-3 text-text-body">{item.completedCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* 案件一覧セクション */}
         <Card>
           <CardHeader>
@@ -267,16 +361,18 @@ export default async function DashboardPage() {
                 {opportunities.map((opp) => {
                   const display = opportunityStatusDisplay(opp.status);
                   return (
-                    <Link
+                    <div
                       key={opp.id}
-                      href={`/dashboard/opportunities/${opp.id}`}
-                      className="block rounded-lg border border-card-border p-4 transition-shadow hover:shadow-md"
+                      className="rounded-lg border border-card-border p-4 transition-shadow hover:shadow-md"
                     >
                       <div className="flex flex-col gap-3">
                         <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-sm font-medium text-text-dark">
+                          <Link
+                            href={`/dashboard/opportunities/${opp.id}`}
+                            className="text-sm font-medium text-text-dark hover:text-primary"
+                          >
                             {opp.title}
-                          </h3>
+                          </Link>
                           <span
                             className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${display.color}`}
                           >
@@ -284,7 +380,7 @@ export default async function DashboardPage() {
                             {display.label}
                           </span>
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-text-body">
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-text-body">
                           <span className="flex items-center gap-1">
                             <Users className="size-3.5" />
                             応募者 {opp.application_count}件
@@ -295,9 +391,16 @@ export default async function DashboardPage() {
                               "ja-JP"
                             )}
                           </span>
+                          <Link
+                            href={`/dashboard/opportunities/new?copyFrom=${opp.id}`}
+                            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                          >
+                            <Copy className="size-3.5" />
+                            複製
+                          </Link>
                         </div>
                       </div>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
