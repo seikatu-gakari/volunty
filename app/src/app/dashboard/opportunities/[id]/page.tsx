@@ -27,6 +27,7 @@ import type {
 } from "@/lib/dashboard/types";
 import { BulkCompleteActions } from "./components/BulkCompleteActions";
 import { StatusActions } from "./components/StatusActions";
+import { OpportunityCreatedDate } from "./OpportunityCreatedDate";
 
 /** 案件ステータス表示 */
 function opportunityStatusDisplay(status: OpportunityStatus) {
@@ -213,8 +214,7 @@ export default async function OpportunityApplicantsPage({
                   {statusDisplay.label}
                 </span>
                 <span className="text-xs text-text-body">
-                  作成日:{" "}
-                  {new Date(data.created_at).toLocaleDateString("ja-JP")}
+                  <OpportunityCreatedDate createdAt={data.created_at} />
                 </span>
               </div>
             </div>
