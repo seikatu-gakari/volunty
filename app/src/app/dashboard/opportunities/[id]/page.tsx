@@ -27,6 +27,7 @@ import type {
 } from "@/lib/dashboard/types";
 import { BulkCompleteActions } from "./components/BulkCompleteActions";
 import { StatusActions } from "./components/StatusActions";
+import { ApplicantStatusDate } from "./ApplicantStatusDate";
 import { OpportunityCreatedDate } from "./OpportunityCreatedDate";
 
 /** 案件ステータス表示 */
@@ -110,13 +111,18 @@ function ApplicantCard({
           <div className="flex flex-col gap-1 text-xs text-text-body/70">
             <span className="flex items-center gap-1">
               <Clock className="size-3" />
-              応募日: {new Date(applicant.created_at).toLocaleDateString("ja-JP")}
+              <ApplicantStatusDate
+                label="応募日"
+                value={applicant.created_at}
+              />
             </span>
             {applicant.completed_at && (
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="size-3" />
-                完了日:{" "}
-                {new Date(applicant.completed_at).toLocaleDateString("ja-JP")}
+                <ApplicantStatusDate
+                  label="完了日"
+                  value={applicant.completed_at}
+                />
               </span>
             )}
           </div>
