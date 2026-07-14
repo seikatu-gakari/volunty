@@ -51,6 +51,7 @@ vi.mock("@/lib/supabase/server", () => ({
 // Prisma のモック（閲覧イベント記録・推薦ログ検証用）
 const mockEngagementCreate = vi.fn().mockResolvedValue({});
 const mockRecommendationLogFindFirst = vi.fn().mockResolvedValue(null);
+const mockMatchingCandidateCount = vi.fn().mockResolvedValue(null);
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     engagementEvent: {
@@ -58,6 +59,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     recommendationLog: {
       findFirst: (...args: unknown[]) => mockRecommendationLogFindFirst(...args),
+    },
+    matchingCandidate: {
+      count: (...args: unknown[]) => mockMatchingCandidateCount(...args),
     },
   },
 }));
@@ -219,6 +223,58 @@ describe("fetchOpportunityDetail", () => {
 
     expect(result.opportunity).toBeNull();
     expect(mockEngagementCreate).not.toHaveBeenCalled();
+  });
+
+  it("応募者数は応募レコードの実件数を返す", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+    mockMatchingCandidateCount.mockResolvedValueOnce(1);
+
+    const mockOpp = {
+      id: "opp-1",
+      title: "環境保全ボランティア",
+      description: null,
+      activity_style_tags: null,
+      required_qualifications: null,
+      min_age: null,
+      max_age: null,
+      status: "published",
+      published_at: "2026-01-01T00:00:00Z",
+      created_at: "2026-01-01T00:00:00Z",
+      location: null,
+      start_date: null,
+      end_date: null,
+      capacity: 5,
+      current_applicants: 0,
+      category: null,
+      participation_mode: null,
+      m_organization_profile: {
+        id: "org-1",
+        organization_name: "NPO法人テスト",
+        description: null,
+      },
+    };
+
+    let callCount = 0;
+    mockSingle.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return { data: mockOpp, error: null };
+      if (callCount === 2) return { data: { id: "participant-1" }, error: null };
+      return { data: null, error: null };
+    });
+
+    const result = await fetchOpportunityDetail("opp-1");
+
+    expect(result.opportunity?.current_applicants).toBe(1);
+    expect(mockMatchingCandidateCount).toHaveBeenCalledWith({
+      where: {
+        opportunityId: "opp-1",
+        status: { in: ["applied", "accepted", "completed"] },
+      },
+    });
   });
 
   it("応募済みの場合、existingApplication を含める", async () => {

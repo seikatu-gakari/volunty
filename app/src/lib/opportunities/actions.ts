@@ -135,6 +135,22 @@ export async function fetchOpportunityDetail(
         null,
     };
 
+    // current_applicants は応募作成時に同期されないため、応募テーブルの実件数を使う。
+    // 集計に失敗した場合のみ、案件テーブルの保持値へフォールバックする。
+    try {
+      const currentApplicants = await prisma.matchingCandidate.count({
+        where: {
+          opportunityId,
+          status: { in: ["applied", "accepted", "completed"] },
+        },
+      });
+      if (typeof currentApplicants === "number") {
+        opportunity.current_applicants = currentApplicants;
+      }
+    } catch (err) {
+      console.error("[fetchOpportunityDetail] 応募者数の集計に失敗:", err);
+    }
+
     // 参加者判定
     const { data: participant } = await supabase
       .from("m_participant_profile")
