@@ -18,6 +18,7 @@ const mockIn = vi.fn();
 const mockFindOrganization = vi.fn();
 const mockFindApplications = vi.fn();
 const mockUpdateManyApplications = vi.fn();
+const mockFindParticipants = vi.fn();
 
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -73,6 +74,9 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    user: {
+      findMany: (...args: unknown[]) => mockFindParticipants(...args),
+    },
     organizationProfile: {
       findUnique: (...args: unknown[]) => mockFindOrganization(...args),
     },
@@ -175,23 +179,16 @@ describe("fetchApplicantsForOpportunity", () => {
       error: null,
     });
 
-    // m_participant_profile .in(...)
-    mockIn
-      .mockReturnValueOnce({
-        data: [
-          {
-            user_id: "user-participant-1",
-            name: "テスト太郎",
-            latest_diagnosis_result_id: "diag-1",
-          },
-        ],
-        error: null,
-      })
-      // t_diagnosis_result .in(...)
-      .mockReturnValueOnce({
-        data: [{ id: "diag-1", style_type_id: "supporter-care" }],
-        error: null,
-      });
+    mockFindParticipants.mockResolvedValueOnce([
+      {
+        id: "user-participant-1",
+        name: null,
+        participantProfile: {
+          name: "テスト太郎",
+          latestDiagnosisResult: { styleTypeId: "supporter-care" },
+        },
+      },
+    ]);
 
     const result: ApplicantsResult =
       await fetchApplicantsForOpportunity("opp-1");
@@ -208,6 +205,55 @@ describe("fetchApplicantsForOpportunity", () => {
     expect(applicant.status).toBe("pending"); // DB: applied → UI: pending
     expect(applicant).not.toHaveProperty("diagnosis_scores");
     expect(applicant).not.toHaveProperty("match_score");
+  });
+
+  it("団体ユーザーでも応募者名と参考タイプを取得できる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "organization-user" } },
+      error: null,
+    });
+    mockSingle
+      .mockReturnValueOnce({ data: { id: "organization-profile" }, error: null })
+      .mockReturnValueOnce({
+        data: {
+          id: "opp-1",
+          title: "テスト案件",
+          description: null,
+          status: "published",
+          created_at: "2026-07-14T16:05:00.000",
+        },
+        error: null,
+      });
+    mockOrder.mockReturnValueOnce({
+      data: [
+        {
+          id: "app-1",
+          status: "applied",
+          message: null,
+          applied_at: "2026-07-14T16:10:00.000",
+          status_changed_at: "2026-07-14T16:10:00.000",
+          participant_id: "participant-user",
+        },
+      ],
+      error: null,
+    });
+    mockFindParticipants.mockResolvedValueOnce([
+      {
+        id: "participant-user",
+        name: "ユーザー名",
+        participantProfile: {
+          name: "手動検証参加者",
+          latestDiagnosisResult: { styleTypeId: "supporter-care" },
+        },
+      },
+    ]);
+
+    const result = await fetchApplicantsForOpportunity("opp-1");
+
+    expect(result.data?.applicants[0]).toMatchObject({
+      participant_name: "手動検証参加者",
+      style_type_label: "サポーター・ケアタイプ",
+    });
   });
 
   it("未診断の応募者は style_type_label が null になる", async () => {
@@ -241,16 +287,16 @@ describe("fetchApplicantsForOpportunity", () => {
       error: null,
     });
 
-    mockIn.mockReturnValueOnce({
-      data: [
-        {
-          user_id: "user-participant-2",
+    mockFindParticipants.mockResolvedValueOnce([
+      {
+        id: "user-participant-2",
+        name: null,
+        participantProfile: {
           name: "未診断ユーザー",
-          latest_diagnosis_result_id: null,
+          latestDiagnosisResult: null,
         },
-      ],
-      error: null,
-    });
+      },
+    ]);
 
     const result: ApplicantsResult =
       await fetchApplicantsForOpportunity("opp-1");
@@ -297,13 +343,10 @@ describe("fetchApplicantsForOpportunity", () => {
       error: null,
     });
 
-    mockIn.mockReturnValueOnce({
-      data: [
-        { user_id: "p1", name: "旧応募者", latest_diagnosis_result_id: null },
-        { user_id: "p2", name: "新応募者", latest_diagnosis_result_id: null },
-      ],
-      error: null,
-    });
+    mockFindParticipants.mockResolvedValueOnce([
+      { id: "p1", name: "旧応募者", participantProfile: null },
+      { id: "p2", name: "新応募者", participantProfile: null },
+    ]);
 
     const result: ApplicantsResult =
       await fetchApplicantsForOpportunity("opp-1");
@@ -353,13 +396,10 @@ describe("fetchApplicantsForOpportunity", () => {
       error: null,
     });
 
-    mockIn.mockReturnValueOnce({
-      data: [
-        { user_id: "p1", name: "未対応", latest_diagnosis_result_id: null },
-        { user_id: "p2", name: "承認済み", latest_diagnosis_result_id: null },
-      ],
-      error: null,
-    });
+    mockFindParticipants.mockResolvedValueOnce([
+      { id: "p1", name: "未対応", participantProfile: null },
+      { id: "p2", name: "承認済み", participantProfile: null },
+    ]);
 
     const result = await fetchApplicantsForOpportunity("opp-1", {
       status: "pending",
@@ -405,13 +445,10 @@ describe("fetchApplicantsForOpportunity", () => {
       ],
       error: null,
     });
-    mockIn.mockReturnValueOnce({
-      data: [
-        { user_id: "p1", name: "旧応募者", latest_diagnosis_result_id: null },
-        { user_id: "p2", name: "新応募者", latest_diagnosis_result_id: null },
-      ],
-      error: null,
-    });
+    mockFindParticipants.mockResolvedValueOnce([
+      { id: "p1", name: "旧応募者", participantProfile: null },
+      { id: "p2", name: "新応募者", participantProfile: null },
+    ]);
 
     const result = await fetchApplicantsForOpportunity("opp-1", {
       sort: "applied_asc",
