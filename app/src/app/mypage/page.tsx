@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
 import { fetchMyPageData } from "@/lib/mypage/actions";
 import type { ApplicationStatus } from "@/lib/mypage/types";
+import { formatDateInJapan } from "@/lib/date/format-date";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 
 /** ステータスに応じたラベル・アイコン・カラー */
@@ -319,15 +320,11 @@ export default async function MyPage() {
                           )}
 
                         <p className="text-xs text-text-body">
-                          応募日:{" "}
-                          {new Date(app.created_at).toLocaleDateString("ja-JP")}
+                          応募日: {formatDateInJapan(app.created_at)}
                         </p>
                         {app.completed_at && (
                           <p className="text-xs text-text-body">
-                            完了日:{" "}
-                            {new Date(app.completed_at).toLocaleDateString(
-                              "ja-JP"
-                            )}
+                            完了日: {formatDateInJapan(app.completed_at)}
                           </p>
                         )}
                         {app.can_request_certificate && (
