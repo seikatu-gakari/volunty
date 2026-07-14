@@ -22,6 +22,7 @@ import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
 import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
+import { ApplicationStatusDate } from "./ApplicationStatusDate";
 import { OpportunityPublicationDate } from "./OpportunityPublicationDate";
 
 /** 応募ステータスに応じたラベル・アイコン・カラー */
@@ -333,19 +334,15 @@ export default async function OpportunityDetailPage({
                     </p>
                   </div>
                 )}
-                <p className="text-xs text-text-body">
-                  応募日:{" "}
-                  {new Date(
-                    existingApplication.created_at
-                  ).toLocaleDateString("ja-JP")}
-                </p>
+                <ApplicationStatusDate
+                  label="応募日"
+                  value={existingApplication.created_at}
+                />
                 {existingApplication.completed_at && (
-                  <p className="text-xs text-text-body">
-                    完了日:{" "}
-                    {new Date(
-                      existingApplication.completed_at
-                    ).toLocaleDateString("ja-JP")}
-                  </p>
+                  <ApplicationStatusDate
+                    label="完了日"
+                    value={existingApplication.completed_at}
+                  />
                 )}
               </div>
             </CardContent>
