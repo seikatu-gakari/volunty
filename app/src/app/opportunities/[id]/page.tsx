@@ -22,6 +22,7 @@ import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
 import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
+import { OpportunityPublicationDate } from "./OpportunityPublicationDate";
 
 /** 応募ステータスに応じたラベル・アイコン・カラー */
 function statusDisplay(status: ApplicationStatus) {
@@ -118,10 +119,7 @@ export default async function OpportunityDetailPage({
           <h1 className="text-2xl font-bold text-text-dark">
             {opportunity.title}
           </h1>
-          <p className="text-sm text-text-body">
-            掲載日:{" "}
-            {new Date(opportunity.created_at).toLocaleDateString("ja-JP")}
-          </p>
+          <OpportunityPublicationDate createdAt={opportunity.created_at} />
           {isParticipant && <BookmarkButton opportunityId={opportunity.id} />}
         </div>
 

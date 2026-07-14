@@ -26,7 +26,7 @@ import {
   fetchDashboardAnalytics,
   fetchMyOpportunities,
 } from "@/lib/dashboard/actions";
-import { formatDateInJapan } from "@/lib/dashboard/format-date";
+import { formatDateInJapan } from "@/lib/date/format-date";
 import type { OpportunityStatus } from "@/lib/dashboard/types";
 import { prisma } from "@/lib/prisma";
 

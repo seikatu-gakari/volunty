@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateInJapan } from "@/lib/dashboard/format-date";
+import { formatDateInJapan } from "@/lib/date/format-date";
 
 describe("formatDateInJapan", () => {
   it("UTCでは前日でも日本時間の日付で表示する", () => {
