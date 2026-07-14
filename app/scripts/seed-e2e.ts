@@ -113,6 +113,8 @@ interface OrganizationProfileSeedOptions {
   reviewedBy: string | null;
   representativeName?: string | null;
   contactEmail?: string | null;
+  contactLineId?: string | null;
+  contactLineUrl?: string | null;
   activityAreas?: string[];
   activityCategories?: string[];
   description?: string | null;
@@ -288,6 +290,8 @@ async function upsertOrganizationProfileFixture(
     organizationName: options.organizationName,
     representativeName: options.representativeName ?? null,
     contactEmail: options.contactEmail ?? null,
+    contactLineId: options.contactLineId ?? null,
+    contactLineUrl: options.contactLineUrl ?? null,
     activityAreas: options.activityAreas ?? ["東京都"],
     activityCategories: options.activityCategories ?? ["地域活性化"],
     description: options.description ?? null,
@@ -1048,6 +1052,8 @@ export async function seedE2eUsers(): Promise<void> {
     reviewedBy: null,
     representativeName: "E2E否認代表",
     contactEmail: "e2e-review-reject-contact@example.com",
+    contactLineId: "@e2e-review-reject",
+    contactLineUrl: "https://line.me/R/ti/p/@e2e-review-reject",
     activityAreas: ["大阪府"],
     activityCategories: ["子ども支援"],
     description: "E2E詳細否認団体の活動内容です。",
