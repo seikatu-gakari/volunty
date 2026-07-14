@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { buildLineFriendContact } from "@/lib/line/contact";
 import { fetchMyApplicationDetail } from "@/lib/mypage/actions";
 import type { ApplicationStatus } from "@/lib/mypage/types";
+import { applicationStatusLabel } from "@/lib/mypage/status";
 
 export const dynamic = "force-dynamic";
 
@@ -25,25 +26,25 @@ function statusDisplay(status: ApplicationStatus) {
   switch (status) {
     case "pending":
       return {
-        label: "審査中",
+        label: applicationStatusLabel(status),
         icon: <Clock className="size-4" />,
         color: "text-yellow-700 bg-yellow-50 border-yellow-200",
       };
     case "approved":
       return {
-        label: "マッチング成立",
+        label: applicationStatusLabel(status),
         icon: <CheckCircle2 className="size-4" />,
         color: "text-green-700 bg-green-50 border-green-200",
       };
     case "completed":
       return {
-        label: "活動完了",
+        label: applicationStatusLabel(status),
         icon: <CheckCircle2 className="size-4" />,
         color: "text-primary bg-primary/10 border-primary/20",
       };
     case "rejected":
       return {
-        label: "辞退",
+        label: applicationStatusLabel(status),
         icon: <XCircle className="size-4" />,
         color: "text-red-700 bg-red-50 border-red-200",
       };

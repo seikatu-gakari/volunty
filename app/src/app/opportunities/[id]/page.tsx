@@ -20,6 +20,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchOpportunityDetail } from "@/lib/opportunities/actions";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
+import { applicationStatusLabel } from "@/lib/mypage/status";
 import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
 import { ApplicationStatusDate } from "./ApplicationStatusDate";
@@ -48,7 +49,7 @@ function statusDisplay(status: ApplicationStatus) {
       };
     case "rejected":
       return {
-        label: "辞退",
+        label: applicationStatusLabel("rejected"),
         icon: <XCircle className="size-4" />,
         color: "text-red-700 bg-red-50 border-red-200",
       };
