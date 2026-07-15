@@ -20,8 +20,11 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchOpportunityDetail } from "@/lib/opportunities/actions";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
+import { applicationStatusLabel } from "@/lib/mypage/status";
 import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
+import { ApplicationStatusDate } from "./ApplicationStatusDate";
+import { OpportunityPublicationDate } from "./OpportunityPublicationDate";
 
 /** 応募ステータスに応じたラベル・アイコン・カラー */
 function statusDisplay(status: ApplicationStatus) {
@@ -46,7 +49,7 @@ function statusDisplay(status: ApplicationStatus) {
       };
     case "rejected":
       return {
-        label: "辞退",
+        label: applicationStatusLabel("rejected"),
         icon: <XCircle className="size-4" />,
         color: "text-red-700 bg-red-50 border-red-200",
       };
@@ -118,10 +121,7 @@ export default async function OpportunityDetailPage({
           <h1 className="text-2xl font-bold text-text-dark">
             {opportunity.title}
           </h1>
-          <p className="text-sm text-text-body">
-            掲載日:{" "}
-            {new Date(opportunity.created_at).toLocaleDateString("ja-JP")}
-          </p>
+          <OpportunityPublicationDate createdAt={opportunity.created_at} />
           {isParticipant && <BookmarkButton opportunityId={opportunity.id} />}
         </div>
 
@@ -335,19 +335,15 @@ export default async function OpportunityDetailPage({
                     </p>
                   </div>
                 )}
-                <p className="text-xs text-text-body">
-                  応募日:{" "}
-                  {new Date(
-                    existingApplication.created_at
-                  ).toLocaleDateString("ja-JP")}
-                </p>
+                <ApplicationStatusDate
+                  label="応募日"
+                  value={existingApplication.created_at}
+                />
                 {existingApplication.completed_at && (
-                  <p className="text-xs text-text-body">
-                    完了日:{" "}
-                    {new Date(
-                      existingApplication.completed_at
-                    ).toLocaleDateString("ja-JP")}
-                  </p>
+                  <ApplicationStatusDate
+                    label="完了日"
+                    value={existingApplication.completed_at}
+                  />
                 )}
               </div>
             </CardContent>

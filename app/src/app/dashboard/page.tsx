@@ -26,6 +26,7 @@ import {
   fetchDashboardAnalytics,
   fetchMyOpportunities,
 } from "@/lib/dashboard/actions";
+import { formatDateInJapan } from "@/lib/date/format-date";
 import type { OpportunityStatus } from "@/lib/dashboard/types";
 import { prisma } from "@/lib/prisma";
 
@@ -387,9 +388,7 @@ export default async function DashboardPage() {
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="size-3.5" />
-                            {new Date(opp.created_at).toLocaleDateString(
-                              "ja-JP"
-                            )}
+                            {formatDateInJapan(opp.created_at)}
                           </span>
                           <Link
                             href={`/dashboard/opportunities/new?copyFrom=${opp.id}`}

@@ -105,6 +105,34 @@ describe("MyPage", () => {
     expect(screen.queryByText("診断を始める")).toBeNull();
   });
 
+  it("応募日を日本時間で表示する", async () => {
+    mocks.fetchMyPageData.mockResolvedValueOnce({
+      profile,
+      applications: [
+        {
+          id: "application-1",
+          status: "approved",
+          message: null,
+          created_at: "2026-07-14T16:10:00.000",
+          completed_at: null,
+          can_request_certificate: false,
+          opportunity: {
+            id: "opportunity-1",
+            title: "清掃活動",
+            organization_name: "テスト団体",
+            organization_line_id: "@test",
+          },
+        },
+      ],
+      alert: null,
+    } satisfies MyPageData);
+
+    const page = await MyPage();
+    render(page);
+
+    expect(screen.getByText("応募日: 2026/7/15")).toBeDefined();
+  });
+
   it("未ログインユーザーはログイン画面へリダイレクトする", async () => {
     mocks.getUser.mockResolvedValueOnce({ data: { user: null } });
 

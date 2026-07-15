@@ -1,0 +1,28 @@
+import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/link", () => ({
+  default: ({ children, href }: { children: ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
+
+vi.mock("@/app/components/Header", () => ({
+  Header: () => <header>ヘッダー</header>,
+}));
+
+import ForbiddenPage from "./page";
+
+describe("ForbiddenPage", () => {
+  it("アクセス元のロールや画面を限定しない案内を表示する", () => {
+    render(<ForbiddenPage />);
+
+    expect(
+      screen.getByText(
+        "現在のアカウントの権限では、このページを表示できません。",
+      ),
+    ).toBeDefined();
+    expect(screen.queryByText(/role が admin/)).toBeNull();
+  });
+});

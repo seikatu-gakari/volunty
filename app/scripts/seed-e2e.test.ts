@@ -566,6 +566,8 @@ describe("seedE2eUsers", () => {
           reviewedBy: null,
           representativeName: "E2E否認代表",
           contactEmail: "e2e-review-reject-contact@example.com",
+          contactLineId: "@e2e-review-reject",
+          contactLineUrl: "https://line.me/R/ti/p/@e2e-review-reject",
         }),
       })
     );

@@ -828,7 +828,9 @@ export async function fetchApplicantsForOpportunity(
       .eq("opportunity_id", opportunityId)
       .order("applied_at", { ascending: false });
 
-    // 参加者プロフィールを別クエリで取得（split-fetch パターン）
+    // 自団体案件の応募者だけをRLSの影響を受けないサーバー側で取得する。
+    // m_participant_profile / t_diagnosis_result は参加者本人限定のRLSのため、
+    // 団体セッションのSupabaseクライアントでは取得できない。
     const participantIds = (matchingData ?? []).map(
       (m) => m.participant_id as string
     );
@@ -838,34 +840,25 @@ export async function fetchApplicantsForOpportunity(
     > = {};
 
     if (participantIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("m_participant_profile")
-        .select("user_id, name, latest_diagnosis_result_id")
-        .in("user_id", participantIds);
+      const participants = await prisma.user.findMany({
+        where: { id: { in: participantIds } },
+        select: {
+          id: true,
+          name: true,
+          participantProfile: {
+            select: {
+              name: true,
+              latestDiagnosisResult: { select: { styleTypeId: true } },
+            },
+          },
+        },
+      });
 
-      // 最新診断の参考タイプIDのみ取得する（生スコアは団体へ開示しない）
-      const diagnosisIds = (profiles ?? [])
-        .map((p) => p.latest_diagnosis_result_id as string | null)
-        .filter((id): id is string => Boolean(id));
-      const styleTypeIdByDiagnosisId: Record<string, string | null> = {};
-      if (diagnosisIds.length > 0) {
-        const { data: diagnoses } = await supabase
-          .from("t_diagnosis_result")
-          .select("id, style_type_id")
-          .in("id", diagnosisIds);
-        for (const d of diagnoses ?? []) {
-          styleTypeIdByDiagnosisId[d.id as string] =
-            (d.style_type_id as string | null) ?? null;
-        }
-      }
-
-      for (const p of profiles ?? []) {
-        const diagnosisId = p.latest_diagnosis_result_id as string | null;
-        const styleTypeId = diagnosisId
-          ? (styleTypeIdByDiagnosisId[diagnosisId] ?? null)
-          : null;
-        profileMap[p.user_id as string] = {
-          name: p.name as string,
+      for (const participant of participants) {
+        const profile = participant.participantProfile;
+        const styleTypeId = profile?.latestDiagnosisResult?.styleTypeId ?? null;
+        profileMap[participant.id] = {
+          name: profile?.name ?? participant.name ?? "不明",
           styleTypeLabel: styleTypeId
             ? (findStyleTypeById(styleTypeId)?.name ?? null)
             : null,

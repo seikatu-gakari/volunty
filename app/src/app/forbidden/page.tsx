@@ -16,8 +16,7 @@ export default function ForbiddenPage() {
         </h1>
 
         <p className="mt-4 max-w-xl text-sm leading-6 text-text-body">
-          管理者向けページのため、現在のアカウントでは表示できません。
-          団体審査画面を開くには、m_user の role が admin である必要があります。
+          現在のアカウントの権限では、このページを表示できません。
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
