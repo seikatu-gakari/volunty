@@ -47,7 +47,7 @@ export function LPFooter() {
             <ul className="space-y-3">
               {group.links.map((link) => (
                 <li key={link.label}>
-                  <Link href={link.href} className="text-sm text-text-body transition-colors hover:text-primary">
+                  <Link href={link.href} className="text-sm text-text-body transition-colors hover:text-secondary-dark">
                     {link.label}
                   </Link>
                 </li>

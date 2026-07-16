@@ -10,24 +10,27 @@ const VOICES = [
     tag: "サポーター・ケア傾向",
     text: "「自分に向いている理由」がわかったので、初参加でも不安が少なかったです。受付サポートから始めました。",
     image: lpAssets.voiceFirst,
+    accent: "bg-pop-coral-soft text-text-dark",
   },
   {
     role: "30代・月1ペースで活動",
     tag: "クリエイティブ・ソロ傾向",
     text: "活動の雰囲気まで見て選べるのがいい。子ども向けワークショップの手伝いが楽しくて続いています。",
     image: lpAssets.voiceMonthly,
+    accent: "bg-pop-yellow-soft text-warning",
   },
   {
     role: "NPO法人・イベント運営",
     tag: "活動団体",
     text: "応募前にメッセージで確認できるので、参加する方も私たちも安心して当日を迎えられます。",
     image: lpAssets.voiceOrganization,
+    accent: "bg-pop-purple-soft text-text-dark",
   },
 ] as const;
 
 export function VoicesSection() {
   return (
-    <section id="voices" className="rounded-[40px] bg-sky-50/70 px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
+    <section id="voices" className="rounded-[40px] bg-pop-teal-soft px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
       <LPSectionHeading
         eyebrow="こんな使われ方"
         title="ひとりひとりの「ちょうどいい」参加へ。"
@@ -47,7 +50,7 @@ export function VoicesSection() {
               />
               <div>
                 <p className="text-xs font-bold text-text-body">{voice.role}</p>
-                <span className="mt-2 inline-flex rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">
+                <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-[11px] font-bold ${voice.accent}`}>
                   {voice.tag}
                 </span>
               </div>
