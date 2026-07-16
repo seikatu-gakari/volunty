@@ -10,16 +10,18 @@
 
 ## 比較結果
 
-承認済みA案と実装を同じ画像内で比較するため、以下の左右比較画像を作成した。各画像の左側はブラウザーでA. Balanced Popのモック本体を撮影した同一素材、右側は対応する390×844の実装画面である。旧構成参照6画像はレイアウト・画像クロップの確認に使用し、現在の `compare-*.jpg` の左側には使用していない。
+承認済みA案と実装を同じ画像内で比較するため、以下の左右比較画像を作成した。各画像の左側は旧 `compare-01-hero.jpg` の正常な左半分（390×844）から抽出した単一canonical素材、右側は対応する390×844の実装画面である。旧構成参照6画像はレイアウト・画像クロップの確認に使用し、現在の `compare-*.png` の左側には使用していない。
 
-- `qa/compare-01-hero.jpg`: A案 / ヒーロー
-- `qa/compare-02-pain.jpg`: A案 / 課題解決
-- `qa/compare-03-usage.jpg`: A案 / 使い方
-- `qa/compare-04-benefits.jpg`: A案 / メリット
-- `qa/compare-05-voices.jpg`: A案 / 利用イメージ
-- `qa/compare-06-faq.jpg`: A案 / FAQ 2件目展開
+- `qa/compare-01-hero.png`: A案 / ヒーロー
+- `qa/compare-02-pain.png`: A案 / 課題解決
+- `qa/compare-03-usage.png`: A案 / 使い方
+- `qa/compare-04-benefits.png`: A案 / メリット
+- `qa/compare-05-voices.png`: A案 / 利用イメージ
+- `qa/compare-06-faq.png`: A案 / FAQ 2件目展開
 
-A案素材は同一DOM要素の可視領域を上600px・下126pxに分けてブラウザー撮影し、境界どおり縦連結した。比較画像はA案素材と実装画像を左右へ機械連結しただけで、生成・装飾・テキスト追加はしていない。各比較画像の左側だけで、ティールの「みつかる」、オレンジ・ティール・パープルの活動スタイルカード、オレンジ・ティール・イエロー・パープルの4色swatchを確認できる。
+A案素材は旧 `compare-01-hero.jpg` の左半分だけを一度抽出し、6枚すべてへ同じpixel bufferを使用した。長尺ブラウザー撮影や分割撮影は再利用していない。比較画像はcanonical素材と実装画像を左右へ機械連結し、RGB PNGとして保存しただけで、生成・装飾・テキスト追加はしていない。最終PNGから再デコードした左半分のraw SHA-256は6/6で `9b89d146808fe08fa8f07c840f47726961b5907fcd8289933a311d32573da215` と一致した。各比較画像の左側だけで、ティールの「みつかる」、オレンジ・ティール・パープルの活動スタイルカード、オレンジ・ティール・イエロー・パープルの4色swatchを確認できる。
+
+比較画像6枚は `file` で `PNG image data, 780 x 844, 8-bit/color RGB, non-interlaced` であることを確認した。特に `compare-02-pain.png`、`compare-03-usage.png`、`compare-05-voices.png` は原寸で個別に開き、広い黒領域がなく、canonical左と実装右が正常に表示されることを確認した。
 
 実装単体の確認画像:
 
@@ -73,5 +75,6 @@ A案素材は同一DOM要素の可視領域を上600px・下126pxに分けてブ
 - [x] 表示画像18点の読み込み失敗とブラウザーconsole errorが0件であることを確認した
 - [x] `document.documentElement.scrollWidth === 390` を確認した
 - [x] 実装画像11枚の実体がPNGであることを確認した
+- [x] 比較画像6枚を780×844のRGB PNGへ統一し、左canonicalの画素一致を確認した
 
 final result: passed
