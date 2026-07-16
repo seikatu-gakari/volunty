@@ -14,17 +14,60 @@ import { ACTIVITY_STYLE_TYPES } from "@/lib/diagnosis-scale/style-types";
 import { LPSectionHeading } from "./LPSectionHeading";
 
 /** 参考タイプIDごとの表示設定（アイコン・カラー） */
-const TYPE_DISPLAY: Record<string, { icon: typeof Users; color: string }> = {
-  "innovator-leader": { icon: Star, color: "bg-red-50 text-red-600" },
-  "supporter-care": { icon: Heart, color: "bg-pink-50 text-pink-600" },
-  "creative-solo": { icon: Lightbulb, color: "bg-violet-50 text-violet-600" },
-  "perfectionist-analyst": { icon: BarChart2, color: "bg-indigo-50 text-indigo-600" },
-  "charisma-entertainer": { icon: MessageCircle, color: "bg-amber-50 text-amber-600" },
-  "strategist-planner": { icon: Zap, color: "bg-emerald-50 text-emerald-600" },
-  "harmony-mediator": { icon: Handshake, color: "bg-sky-50 text-sky-600" },
-  "adventure-explorer": { icon: Compass, color: "bg-primary/10 text-primary" },
-  "conservative-guardian": { icon: Shield, color: "bg-teal-50 text-teal-600" },
-  "sensitive-artist": { icon: Users, color: "bg-rose-50 text-rose-600" },
+const TYPE_DISPLAY: Record<
+  string,
+  { icon: typeof Users; color: string; border: string }
+> = {
+  "innovator-leader": {
+    icon: Star,
+    color: "bg-pop-coral-soft text-primary-dark",
+    border: "border-t-primary",
+  },
+  "supporter-care": {
+    icon: Heart,
+    color: "bg-pop-teal-soft text-secondary-dark",
+    border: "border-t-pop-teal",
+  },
+  "creative-solo": {
+    icon: Lightbulb,
+    color: "bg-pop-purple-soft text-pop-purple",
+    border: "border-t-pop-purple",
+  },
+  "perfectionist-analyst": {
+    icon: BarChart2,
+    color: "bg-pop-yellow-soft text-warning",
+    border: "border-t-pop-yellow",
+  },
+  "charisma-entertainer": {
+    icon: MessageCircle,
+    color: "bg-pop-coral-soft text-primary-dark",
+    border: "border-t-primary",
+  },
+  "strategist-planner": {
+    icon: Zap,
+    color: "bg-pop-teal-soft text-secondary-dark",
+    border: "border-t-pop-teal",
+  },
+  "harmony-mediator": {
+    icon: Handshake,
+    color: "bg-pop-yellow-soft text-warning",
+    border: "border-t-pop-yellow",
+  },
+  "adventure-explorer": {
+    icon: Compass,
+    color: "bg-pop-purple-soft text-pop-purple",
+    border: "border-t-pop-purple",
+  },
+  "conservative-guardian": {
+    icon: Shield,
+    color: "bg-pop-teal-soft text-secondary-dark",
+    border: "border-t-pop-teal",
+  },
+  "sensitive-artist": {
+    icon: Users,
+    color: "bg-pop-coral-soft text-primary-dark",
+    border: "border-t-primary",
+  },
 };
 
 export function DiagnosisTypesGrid() {
@@ -46,12 +89,13 @@ export function DiagnosisTypesGrid() {
           const display = TYPE_DISPLAY[type.id] ?? {
             icon: Users,
             color: "bg-primary/10 text-primary",
+            border: "border-t-primary",
           };
           const Icon = display.icon;
           return (
             <div
               key={type.id}
-              className="flex flex-col rounded-[24px] border border-card-border bg-white p-5 shadow-sm"
+              className={`flex flex-col rounded-[24px] border border-t-4 border-card-border bg-white p-5 shadow-sm ${display.border}`}
             >
               <span
                 className={`mb-4 inline-flex size-12 items-center justify-center rounded-xl ${display.color}`}

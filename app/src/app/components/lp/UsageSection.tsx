@@ -10,6 +10,7 @@ const STEPS = [
     description:
       "世界中で使われている性格研究をもとに、5つの性格特性の傾向を確認。簡易15問（約2分）と全50問（約5〜8分）から選べて、登録は無料です。",
     image: lpAssets.stepDiagnosis,
+    accent: "bg-pop-coral-soft text-text-dark border-primary/20",
   },
   {
     label: "STEP 02",
@@ -17,6 +18,7 @@ const STEPS = [
     description:
       "興味分野・地域・日程を中心に、性格傾向も参考にして活動を提案。おすすめの理由も確認できます。",
     image: lpAssets.stepMatching,
+    accent: "bg-pop-teal-soft text-secondary-dark border-pop-teal/20",
   },
   {
     label: "STEP 03",
@@ -24,14 +26,21 @@ const STEPS = [
     description:
       "応募前に団体へ質問できるから、持ち物や当日の流れも安心。参加後の記録も残せます。",
     image: lpAssets.painWelcome,
+    accent: "bg-pop-purple-soft text-text-dark border-pop-purple/20",
   },
 ] as const;
 
-const TRAITS = ["外向性", "協調性", "誠実性", "情緒安定性", "知性・想像性"] as const;
+const TRAITS = [
+  { label: "外向性", accent: "bg-pop-coral-soft" },
+  { label: "協調性", accent: "bg-pop-teal-soft" },
+  { label: "誠実性", accent: "bg-pop-yellow-soft" },
+  { label: "情緒安定性", accent: "bg-pop-purple-soft" },
+  { label: "知性・想像性", accent: "bg-lp-cream" },
+] as const;
 
 export function UsageSection() {
   return (
-    <section id="usage" className="rounded-[40px] bg-primary/5 px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
+    <section id="usage" className="rounded-[40px] bg-pop-teal-soft px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
       <LPSectionHeading
         eyebrow="HOW IT WORKS"
         title="はじめるのは、かんたん3ステップ。"
@@ -49,7 +58,9 @@ export function UsageSection() {
                 sizes="(max-width: 1024px) 100vw, 33vw"
                 className="object-cover"
               />
-              <span className="absolute top-4 left-4 rounded-full bg-white/95 px-3 py-1.5 text-xs font-black tracking-[0.14em] text-primary shadow-sm">
+              <span
+                className={`absolute top-4 left-4 rounded-full border px-3 py-1.5 text-xs font-black tracking-[0.14em] shadow-sm ${step.accent}`}
+              >
                 {step.label}
               </span>
             </div>
@@ -74,15 +85,18 @@ export function UsageSection() {
           </div>
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {TRAITS.map((trait) => (
-              <li key={trait} className="rounded-2xl bg-stone-50 px-3 py-4 text-center text-sm font-bold text-text-dark">
-                {trait}
+              <li
+                key={trait.label}
+                className={`rounded-2xl px-3 py-4 text-center text-sm font-bold text-text-dark ${trait.accent}`}
+              >
+                {trait.label}
               </li>
             ))}
           </ul>
           <p className="mt-5 text-xs leading-5 text-text-body">結果は活動選びの参考情報です</p>
         </div>
 
-        <div className="flex flex-col justify-between rounded-[28px] bg-primary p-6 text-white shadow-sm sm:p-8">
+        <div className="flex flex-col justify-between rounded-[28px] bg-secondary-dark p-6 text-white shadow-sm sm:p-8">
           <div>
             <p className="text-xs font-bold tracking-[0.14em] text-white/75">YOUR STYLE</p>
             <h3 className="mt-3 text-2xl font-black leading-tight">サポーター・ケア傾向</h3>
