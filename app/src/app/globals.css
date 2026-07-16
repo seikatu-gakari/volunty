@@ -14,6 +14,16 @@
   --primary-dark: #c74700;
   --primary-light: #fb8a3c;
 
+  /* 未ログインLP: Balanced Pop */
+  --pop-teal: #12a4a1;
+  --pop-teal-soft: #dff5f1;
+  --pop-yellow: #f6c644;
+  --pop-yellow-soft: #fff3c9;
+  --pop-purple: #9370db;
+  --pop-purple-soft: #eee7ff;
+  --pop-coral-soft: #ffe4d5;
+  --lp-cream: #fff8ee;
+
   /* セカンダリー: オレンジの補色系（ティールブルー） */
   --secondary: #0e7490;
   --secondary-dark: #155e75;
@@ -43,6 +53,14 @@
   --color-primary: var(--primary);
   --color-primary-dark: var(--primary-dark);
   --color-primary-light: var(--primary-light);
+  --color-pop-teal: var(--pop-teal);
+  --color-pop-teal-soft: var(--pop-teal-soft);
+  --color-pop-yellow: var(--pop-yellow);
+  --color-pop-yellow-soft: var(--pop-yellow-soft);
+  --color-pop-purple: var(--pop-purple);
+  --color-pop-purple-soft: var(--pop-purple-soft);
+  --color-pop-coral-soft: var(--pop-coral-soft);
+  --color-lp-cream: var(--lp-cream);
   --color-secondary: var(--secondary);
   --color-secondary-dark: var(--secondary-dark);
   --color-success: var(--success);
