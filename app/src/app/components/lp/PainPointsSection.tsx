@@ -46,15 +46,15 @@ export function PainPointsSection() {
               data-testid="pain-solution"
               className="rounded-[28px] border border-card-border bg-white p-5 shadow-sm sm:p-6"
             >
-              <div className="flex items-center gap-3 text-sm font-medium text-text-body">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-text-body">
+              <div className="flex items-center gap-3 rounded-2xl bg-pop-coral-soft px-4 py-3 text-sm font-medium text-text-body">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-primary">
                   <CircleHelp className="size-4" aria-hidden />
                 </span>
                 <p>{item.problem}</p>
               </div>
-              <ArrowDown className="my-2 ml-3 size-4 text-primary" aria-hidden />
-              <div className="flex items-center gap-3 rounded-2xl bg-primary/5 px-4 py-3 text-sm font-bold text-text-dark">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-white">
+              <ArrowDown className="my-2 ml-3 size-4 text-pop-teal" aria-hidden />
+              <div className="flex items-center gap-3 rounded-2xl bg-pop-teal-soft px-4 py-3 text-sm font-bold text-text-dark">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-pop-teal text-white">
                   <Check className="size-4" aria-hidden />
                 </span>
                 <p>{item.solution}</p>

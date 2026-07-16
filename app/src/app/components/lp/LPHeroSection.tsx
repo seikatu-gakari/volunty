@@ -13,11 +13,11 @@ export function LPHeroSection() {
   const hero = lpAssets.heroCleanup;
 
   return (
-    <section className="relative z-10 overflow-hidden py-8 sm:py-12 lg:py-16">
+    <section className="relative z-10 -mx-4 overflow-hidden bg-lp-cream px-4 py-8 sm:-mx-6 sm:px-6 sm:py-12 lg:mx-0 lg:rounded-[40px] lg:px-10 lg:py-16">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-x-12 lg:gap-y-7">
         <div className="relative z-10 lg:col-start-1 lg:row-start-1">
-          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-white px-4 py-2 text-xs font-bold text-text-dark shadow-sm sm:text-sm">
-            <Brain className="size-4 text-primary" aria-hidden />
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-pop-teal/25 bg-pop-teal-soft px-4 py-2 text-xs font-bold text-text-dark shadow-sm sm:text-sm">
+            <Brain className="size-4 text-pop-teal" aria-hidden />
             性格傾向 × ボランティアマッチング
           </p>
 
@@ -26,8 +26,8 @@ export function LPHeroSection() {
             className="text-[clamp(2.85rem,13vw,4.75rem)] leading-[1.2] font-black tracking-[-0.045em] text-text-dark lg:text-[4.5rem]"
           >
             <span className="block">つながる<span className="text-primary">、</span></span>
-            <span className="block">みつかる<span className="text-primary">、</span></span>
-            <span className="block">変わっていく<span className="text-primary">。</span></span>
+            <span className="block">みつかる<span className="text-pop-teal">、</span></span>
+            <span className="block">変わっていく<span className="text-pop-purple">。</span></span>
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-8 font-medium text-text-body sm:text-lg">

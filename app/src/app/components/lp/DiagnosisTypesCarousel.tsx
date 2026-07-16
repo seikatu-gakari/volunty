@@ -7,31 +7,31 @@ const FEATURED_STYLES = [
     name: "サポーター・ケア傾向",
     description: "そっと寄り添い、誰かの安心を支える。",
     image: lpAssets.styleSupporter,
-    accent: "bg-primary/10 text-primary",
+    accent: "bg-pop-coral-soft text-primary border-primary/20",
   },
   {
     name: "アドベンチャー・エクスプローラー傾向",
     description: "新しい場所へ飛び込み、体験を楽しむ。",
     image: lpAssets.styleExplorer,
-    accent: "bg-sky-50 text-sky-700",
+    accent: "bg-pop-teal-soft text-pop-teal border-pop-teal/20",
   },
   {
     name: "ハーモニー・メディエーター傾向",
     description: "対話をつなぎ、チームの空気を整える。",
     image: lpAssets.styleMediator,
-    accent: "bg-emerald-50 text-emerald-700",
+    accent: "bg-pop-yellow-soft text-warning border-pop-yellow/30",
   },
   {
     name: "クリエイティブ・ソロ傾向",
     description: "得意な表現で、静かに力を発揮する。",
     image: lpAssets.styleCreative,
-    accent: "bg-violet-50 text-violet-700",
+    accent: "bg-pop-purple-soft text-pop-purple border-pop-purple/20",
   },
 ] as const;
 
 export function DiagnosisTypesCarousel() {
   return (
-    <section id="styles" className="relative py-20 sm:py-28">
+    <section id="styles" className="relative -mx-4 bg-pop-yellow-soft/60 px-4 py-20 sm:-mx-6 sm:px-6 sm:py-28 lg:mx-0 lg:rounded-[40px] lg:px-10">
       <div className="mb-8 max-w-2xl">
         <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-primary">
           10の活動スタイル
@@ -63,7 +63,7 @@ export function DiagnosisTypesCarousel() {
               />
             </div>
             <div className="p-5">
-              <div className={`mb-4 inline-flex rounded-full px-3 py-1.5 text-[11px] font-bold ${style.accent}`}>
+              <div className={`mb-4 inline-flex rounded-full border px-3 py-1.5 text-[11px] font-bold ${style.accent}`}>
                 活動スタイル
               </div>
               <h3 className="min-h-12 text-base font-bold leading-6 text-text-dark">{style.name}</h3>
