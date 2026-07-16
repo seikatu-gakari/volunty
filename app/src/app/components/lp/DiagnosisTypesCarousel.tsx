@@ -7,7 +7,7 @@ const FEATURED_STYLES = [
     name: "サポーター・ケア傾向",
     description: "そっと寄り添い、誰かの安心を支える。",
     image: lpAssets.styleSupporter,
-    accent: "bg-pop-coral-soft text-primary-dark border-primary/20",
+    accent: "bg-pop-coral-soft text-text-dark border-primary/20",
   },
   {
     name: "アドベンチャー・エクスプローラー傾向",
