@@ -7,13 +7,13 @@ const FEATURED_STYLES = [
     name: "サポーター・ケア傾向",
     description: "そっと寄り添い、誰かの安心を支える。",
     image: lpAssets.styleSupporter,
-    accent: "bg-pop-coral-soft text-primary border-primary/20",
+    accent: "bg-pop-coral-soft text-primary-dark border-primary/20",
   },
   {
     name: "アドベンチャー・エクスプローラー傾向",
     description: "新しい場所へ飛び込み、体験を楽しむ。",
     image: lpAssets.styleExplorer,
-    accent: "bg-pop-teal-soft text-pop-teal border-pop-teal/20",
+    accent: "bg-pop-teal-soft text-secondary-dark border-pop-teal/20",
   },
   {
     name: "ハーモニー・メディエーター傾向",
@@ -25,7 +25,7 @@ const FEATURED_STYLES = [
     name: "クリエイティブ・ソロ傾向",
     description: "得意な表現で、静かに力を発揮する。",
     image: lpAssets.styleCreative,
-    accent: "bg-pop-purple-soft text-pop-purple border-pop-purple/20",
+    accent: "bg-pop-purple-soft text-text-dark border-pop-purple/20",
   },
 ] as const;
 
