@@ -26,24 +26,24 @@ const FEATURES = [
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="relative z-10 mt-20 sm:mt-28">
+    <section id="features" className="py-20 sm:py-28">
       <LPSectionHeading
         eyebrow="主な機能"
         title="続けやすさまで、まるごと設計。"
         description="出会うだけで終わらない。安心して参加し、実績を積み上げられる機能がそろっています。"
       />
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {FEATURES.map((item, i) => (
           <div
             key={i}
-            className="flex flex-col items-center rounded-3xl border border-card-border bg-white p-6 text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10"
+            className="flex flex-col rounded-[28px] border border-card-border bg-white p-6 shadow-sm"
           >
-            <span className="mb-5 flex size-16 items-center justify-center rounded-full bg-linear-to-br from-orange-50 to-amber-100 text-primary">
-              <item.icon className="size-8" />
+            <span className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <item.icon className="size-6" aria-hidden />
             </span>
-            <h3 className="text-lg font-bold text-text-dark">{item.title}</h3>
-            <p className="mt-3 text-sm leading-6 text-text-body">{item.desc}</p>
+            <h3 className="text-lg font-black text-text-dark">{item.title}</h3>
+            <p className="mt-3 text-sm leading-7 text-text-body">{item.desc}</p>
           </div>
         ))}
       </div>

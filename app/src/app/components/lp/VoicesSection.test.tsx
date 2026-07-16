@@ -8,6 +8,7 @@ describe("VoicesSection", () => {
 
     expect(screen.getByText(/はじめての参加/)).toBeDefined();
     expect(screen.getByText(/NPO法人/)).toBeDefined();
+    expect(screen.getAllByRole("img")).toHaveLength(3);
   });
 
   it("実際の声ではなくイメージ例であることを明記する", () => {
@@ -18,5 +19,12 @@ describe("VoicesSection", () => {
     expect(
       screen.getByText(/実際のご利用者の声ではありません/),
     ).toBeDefined();
+  });
+
+  it("サービス名をカタカナで表示する", () => {
+    render(<VoicesSection />);
+
+    expect(screen.getByText(/ボランティーが目指す/)).toBeDefined();
+    expect(screen.queryByText(/Volunty/)).toBeNull();
   });
 });

@@ -82,21 +82,12 @@ export default async function Home() {
       )}
 
       {!user && (
-        <main className="relative mx-auto w-full max-w-7xl overflow-x-hidden px-4 pt-8 pb-20 sm:px-6 lg:px-8">
-          {/* 背景 blob 装飾 */}
-          <div className="lp-blob top-[120px] -left-32 size-[480px] bg-primary/20" aria-hidden />
-          <div className="lp-blob top-[640px] -right-32 size-[560px] bg-primary-light/30" aria-hidden />
-          <div className="lp-blob top-[1400px] left-1/3 size-[520px] bg-secondary/10" aria-hidden />
-          <div className="lp-blob top-[2200px] -left-24 size-[560px] bg-primary/10" aria-hidden />
-
-          {/* ヒーロー */}
+        <main className="mx-auto w-full max-w-7xl overflow-x-hidden px-4 pb-20 sm:px-6 lg:px-8">
           <LPHeroSection />
 
           {/* 診断タイプカルーセル */}
           <Reveal>
-            <div className="relative z-10 mt-20 sm:mt-28">
-              <DiagnosisTypesCarousel />
-            </div>
+            <DiagnosisTypesCarousel />
           </Reveal>
 
           {/* 課題セクション */}

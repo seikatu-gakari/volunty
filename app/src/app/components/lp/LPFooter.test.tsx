@@ -52,4 +52,12 @@ describe("LPFooter", () => {
     expect(screen.queryByText("利用規約")).toBeNull();
     expect(screen.queryByText("お問い合わせ")).toBeNull();
   });
+
+  it("カタカナのブランド名と現在年を表示する", () => {
+    render(<LPFooter />);
+
+    expect(screen.getByRole("link", { name: "ボランティー" })).toBeDefined();
+    expect(screen.getByText(/© 2026 ボランティー/)).toBeDefined();
+    expect(screen.queryByText(/Volunty/)).toBeNull();
+  });
 });

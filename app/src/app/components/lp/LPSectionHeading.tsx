@@ -12,17 +12,15 @@ interface LPSectionHeadingProps {
 /** LP各セクション共通の見出しブロック */
 export function LPSectionHeading({ eyebrow, title, description }: LPSectionHeadingProps) {
   return (
-    <div className="mb-12 text-center">
-      <p className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-primary">
-        <span aria-hidden>✦</span>
+    <div className="mb-10 text-left sm:mb-12">
+      <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.14em] text-primary">
         {eyebrow}
-        <span aria-hidden>✦</span>
       </p>
-      <h2 className="text-3xl font-bold tracking-tight text-text-dark sm:text-[32px]">
+      <h2 className="text-3xl font-black leading-tight tracking-tight text-text-dark sm:text-4xl">
         {title}
       </h2>
       {description && (
-        <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-text-body">
+        <p className="mt-4 max-w-2xl text-sm leading-7 text-text-body sm:text-base">
           {description}
         </p>
       )}

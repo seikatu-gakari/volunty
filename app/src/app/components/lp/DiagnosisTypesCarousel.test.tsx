@@ -21,17 +21,15 @@ describe("DiagnosisTypesCarousel", () => {
     expect(screen.queryByRole("button", { name: "次へ" })).toBeNull();
   });
 
-  it("連続アニメーション用にカード列を複製して表示する", () => {
+  it("4つの代表的な活動スタイルを写真付きで表示する", () => {
     const { container } = render(<DiagnosisTypesCarousel />);
 
-    const carousel = screen.getByLabelText("診断タイプの連続カルーセル");
-    const track = carousel.querySelector(".lp-carousel-track");
-    const cardGroups = container.querySelectorAll("[data-carousel-card-group]");
-
-    expect(track).not.toBeNull();
-    expect(cardGroups).toHaveLength(2);
-    expect(cardGroups[1].getAttribute("aria-hidden")).toBe("true");
-    expect(container.querySelectorAll(".lp-carousel-card")).toHaveLength(16);
+    expect(screen.getByText("サポーター・ケア傾向")).toBeDefined();
+    expect(screen.getByText("アドベンチャー・エクスプローラー傾向")).toBeDefined();
+    expect(screen.getByText("ハーモニー・メディエーター傾向")).toBeDefined();
+    expect(screen.getByText("クリエイティブ・ソロ傾向")).toBeDefined();
+    expect(container.querySelectorAll(".lp-carousel-card")).toHaveLength(4);
+    expect(screen.getAllByRole("img")).toHaveLength(4);
   });
 
   it("JavaScriptのタイマーでスクロール位置を更新しない", () => {

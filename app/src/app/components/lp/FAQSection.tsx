@@ -35,28 +35,33 @@ export function FAQSection() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="relative z-10 mt-20 sm:mt-28">
+    <section id="faq" className="py-20 sm:py-28">
       <LPSectionHeading
         eyebrow="よくある質問"
         title="はじめる前の、ちいさな不安に。"
       />
 
-      <div className="mx-auto max-w-2xl divide-y divide-card-border rounded-2xl border border-card-border bg-white shadow-sm">
+      <div className="mx-auto max-w-3xl space-y-3">
         {FAQ_ITEMS.map((item, i) => (
-          <div key={i}>
+          <div key={item.q} className="overflow-hidden rounded-2xl border border-card-border bg-white shadow-sm">
             <button
+              type="button"
+              aria-label={item.q}
               onClick={() => setOpenIndex(openIndex === i ? null : i)}
-              className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-primary/5"
+              className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left transition-colors hover:bg-primary/5 sm:px-6"
               aria-expanded={openIndex === i}
             >
-              <span className="text-sm font-bold text-text-dark">{item.q}</span>
+              <span className="flex items-center gap-3 text-sm font-bold text-text-dark">
+                <span className="text-base font-black text-primary">Q.</span>
+                {item.q}
+              </span>
               <ChevronDown
                 className={`size-5 shrink-0 text-primary transition-transform duration-200 ${openIndex === i ? "rotate-180" : ""}`}
               />
             </button>
             {openIndex === i && (
-              <div className="px-6 pb-5">
-                <p className="text-sm leading-7 text-text-body">{item.a}</p>
+              <div className="px-5 pb-5 sm:px-6">
+                <p className="border-t border-card-border pt-4 text-sm leading-7 text-text-body">{item.a}</p>
               </div>
             )}
           </div>

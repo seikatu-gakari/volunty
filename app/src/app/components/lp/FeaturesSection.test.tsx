@@ -13,6 +13,13 @@ describe("FeaturesSection", () => {
   it("性格傾向マッチングの機能を表示する", () => {
     render(<FeaturesSection />);
 
-    expect(screen.getByText("性格傾向マッチング")).toBeDefined();
+    for (const feature of [
+      "性格傾向マッチング",
+      "双方向アプローチ",
+      "メッセージ機能",
+      "活動管理・記録",
+    ]) {
+      expect(screen.getByText(feature)).toBeDefined();
+    }
   });
 });

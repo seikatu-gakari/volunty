@@ -42,27 +42,33 @@ vi.mock("next/image", () => ({
 }));
 
 describe("LPHeroSection", () => {
-  it("差し替え可能なアプリUIプレビュー画像を表示する", () => {
+  it("清掃ボランティアのヒーロー画像を優先表示する", () => {
     render(<LPHeroSection />);
 
     const image = screen.getByRole("img", {
-      name: "Voluntyの診断結果とおすすめ活動を表示したアプリ画面",
+      name: "公園で清掃ボランティアに参加する若者たち",
     });
 
-    expect(image.getAttribute("src")).toBe("/lp/volunty-match-preview.png");
+    expect(image.getAttribute("src")).toBe("/lp/mobile/hero-cleanup.png");
     expect(image.getAttribute("data-priority")).toBe("true");
   });
 
-  it("診断開始CTAのリンクを維持する", () => {
+  it("モバイルLPの見出しとCTA導線を表示する", () => {
     render(<LPHeroSection />);
 
     expect(
+      screen.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
+    ).toBeDefined();
+    expect(
       screen
-        .getByRole("link", { name: /登録前に簡易診断を試す/ })
+        .getByRole("link", { name: /無料で簡易診断を試す/ })
         .getAttribute("href"),
     ).toBe("/diagnosis/trial");
     expect(
       screen.getByRole("link", { name: /募集中の活動を見る/ }).getAttribute("href"),
     ).toBe("/opportunities");
+    expect(screen.getByText("登録・診断は無料")).toBeDefined();
+    expect(screen.getByText("約2分でできる")).toBeDefined();
+    expect(screen.getByText("スマホ・PC対応")).toBeDefined();
   });
 });

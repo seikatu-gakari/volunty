@@ -15,21 +15,21 @@ import { LPSectionHeading } from "./LPSectionHeading";
 
 /** 参考タイプIDごとの表示設定（アイコン・カラー） */
 const TYPE_DISPLAY: Record<string, { icon: typeof Users; color: string }> = {
-  "innovator-leader": { icon: Star, color: "bg-linear-to-br from-red-50 to-orange-100 text-red-600" },
-  "supporter-care": { icon: Heart, color: "bg-linear-to-br from-pink-50 to-rose-100 text-pink-600" },
-  "creative-solo": { icon: Lightbulb, color: "bg-linear-to-br from-purple-50 to-violet-100 text-purple-600" },
-  "perfectionist-analyst": { icon: BarChart2, color: "bg-linear-to-br from-indigo-50 to-blue-100 text-indigo-600" },
-  "charisma-entertainer": { icon: MessageCircle, color: "bg-linear-to-br from-yellow-50 to-amber-100 text-yellow-600" },
-  "strategist-planner": { icon: Zap, color: "bg-linear-to-br from-green-50 to-emerald-100 text-green-600" },
-  "harmony-mediator": { icon: Handshake, color: "bg-linear-to-br from-blue-50 to-sky-100 text-blue-600" },
-  "adventure-explorer": { icon: Compass, color: "bg-linear-to-br from-orange-50 to-amber-100 text-primary" },
-  "conservative-guardian": { icon: Shield, color: "bg-linear-to-br from-teal-50 to-cyan-100 text-teal-600" },
-  "sensitive-artist": { icon: Users, color: "bg-linear-to-br from-rose-50 to-pink-100 text-rose-600" },
+  "innovator-leader": { icon: Star, color: "bg-red-50 text-red-600" },
+  "supporter-care": { icon: Heart, color: "bg-pink-50 text-pink-600" },
+  "creative-solo": { icon: Lightbulb, color: "bg-violet-50 text-violet-600" },
+  "perfectionist-analyst": { icon: BarChart2, color: "bg-indigo-50 text-indigo-600" },
+  "charisma-entertainer": { icon: MessageCircle, color: "bg-amber-50 text-amber-600" },
+  "strategist-planner": { icon: Zap, color: "bg-emerald-50 text-emerald-600" },
+  "harmony-mediator": { icon: Handshake, color: "bg-sky-50 text-sky-600" },
+  "adventure-explorer": { icon: Compass, color: "bg-primary/10 text-primary" },
+  "conservative-guardian": { icon: Shield, color: "bg-teal-50 text-teal-600" },
+  "sensitive-artist": { icon: Users, color: "bg-rose-50 text-rose-600" },
 };
 
 export function DiagnosisTypesGrid() {
   return (
-    <section id="types" className="relative z-10 mt-20 sm:mt-28">
+    <section id="types" className="py-20 sm:py-28">
       <LPSectionHeading
         eyebrow="10の活動スタイル（参考タイプ）"
         title="あなたは、どのスタイルに近い？"
@@ -45,22 +45,22 @@ export function DiagnosisTypesGrid() {
         {ACTIVITY_STYLE_TYPES.map((type) => {
           const display = TYPE_DISPLAY[type.id] ?? {
             icon: Users,
-            color: "bg-linear-to-br from-orange-50 to-amber-100 text-primary",
+            color: "bg-primary/10 text-primary",
           };
           const Icon = display.icon;
           return (
             <div
               key={type.id}
-              className="flex flex-col rounded-2xl border border-card-border bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10"
+              className="flex flex-col rounded-[24px] border border-card-border bg-white p-5 shadow-sm"
             >
               <span
                 className={`mb-4 inline-flex size-12 items-center justify-center rounded-xl ${display.color}`}
               >
-                <Icon className="size-6" />
+                <Icon className="size-6" aria-hidden />
               </span>
               <h3 className="text-base font-bold text-text-dark">{type.name}</h3>
-              <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-background px-2 py-1.5">
-                <span className="text-xs text-primary">→</span>
+              <div className="mt-4 flex items-center gap-1.5 rounded-xl bg-stone-50 px-3 py-2">
+                <span className="text-xs font-bold text-primary">活動例</span>
                 <span className="text-xs font-medium text-text-body">
                   {type.activityExamples[0]}
                 </span>
