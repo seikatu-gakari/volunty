@@ -33,8 +33,9 @@ test.describe("未ログインLP（モバイル）", () => {
     );
 
     await page.getByRole("button", { name: "メニューを開く" }).click();
-    await expect(page.getByRole("navigation", { name: "モバイルナビゲーション" })).toBeVisible();
-    await page.getByRole("link", { name: "よくある質問" }).click();
+    const mobileNavigation = page.getByRole("navigation", { name: "モバイルナビゲーション" });
+    await expect(mobileNavigation).toBeVisible();
+    await mobileNavigation.getByRole("link", { name: "よくある質問" }).click();
     await expect(page).toHaveURL(/#faq$/);
 
     const secondQuestion = page.getByRole("button", {
