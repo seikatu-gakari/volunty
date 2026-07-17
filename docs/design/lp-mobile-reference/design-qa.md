@@ -122,4 +122,16 @@ crop座標は `y開始:y終了`（終了は含まない）で記録する。03�
 - 実装画像はsection 10枚が390×844、full-page 1枚が390×14622のRGB PNG、比較画像6枚は780×844のRGB PNGへ更新した。比較画像左側のraw SHA-256は6/6でcanonicalの `9b89d146808fe08fa8f07c840f47726961b5907fcd8289933a311d32573da215` と一致し、右側も6/6で対応するimplementationのraw SHA-256と一致した。
 - `guards.spec.ts` はsetupを含め30/30 passedだった。390px・768px・1440pxでheroを含む全10セクションの境界、17画像の読み込み、主要CTA、横あふれを検証し、1023px・1024pxでは公開Headerのモバイル/デスクトップ切替も確認した。
 
+## 2026-07-18 Photo Orbit更新
+
+- 選択モック `concepts/photo-orbit-selected.png` と実装390×844を左右比較した。
+- 既存写真5枚をメイン1枚・サブ4枚の非対称配置で表示し、単一写真だけの寂しさを解消した。
+- モバイルではCTA→Photo Orbit→安心情報のDOM順、デスクトップでは左コピー／右Photo Orbitの構成を確認した。
+- 390px・1024pxで写真の顔、白縁、重なり、横あふれ、画像読み込み、console errorを確認した。
+- 日本語コピー、CTA、ヘッダー、認証分岐、後続セクションは変更していない。
+- `qa/implementation-hero-photo-orbit-390x844.png` は390×844、`qa/implementation-hero-photo-orbit-1024x844.png` は1024×844、`qa/compare-photo-orbit-390x844.png` は780×844のRGB PNGとして保存した。
+- モバイルで `main` 内の21画像が全件 `complete && naturalWidth > 0`、Photo Orbit内が5画像、`document.documentElement.scrollWidth === 390`、console error 0件であることを確認した。
+- 1024pxでは公開ヘッダーがデスクトップ表示へ切り替わり、Photo Orbitが左カラムやヘッダーへ重ならず、横方向のオーバーフローもないことを確認した。
+- 完了ゲートはUT 75ファイル・504件、lint、production build、`guards.spec.ts` 30/30件、`git diff --check` がすべて成功した。
+
 final result: passed
