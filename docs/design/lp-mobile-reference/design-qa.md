@@ -72,9 +72,21 @@ A案素材は旧 `compare-01-hero.jpg` の左半分だけを一度抽出し、6�
 - [x] 強い色面が連続せず、写真とウォームホワイトの余白を維持した
 - [x] 本文と白抜き文字の可読性、角丸、余白、画像クロップ、見出し折り返しに破綻がない
 - [x] FAQ 2件目の展開、モバイルメニューの開閉、CTAリンクを実画面で確認した
-- [x] 表示画像18点の読み込み失敗とブラウザーconsole errorが0件であることを確認した
+- [x] `main` 内の表示画像17点の読み込み失敗とブラウザーconsole errorが0件であることを確認した
 - [x] `document.documentElement.scrollWidth === 390` を確認した
 - [x] 実装画像11枚の実体がPNGであることを確認した
 - [x] 比較画像6枚を780×844のRGB PNGへ統一し、左canonicalの画素一致を確認した
+
+## 2026-07-17 最終QA
+
+- Browser skillが選択したChromeで `http://localhost:3000/` を確認し、viewport overrideを使って390×844、1023×844、1024×844を実画面検査した。
+- 390×844でhero / styles / kadai / usage / types / benefits / voices / features / faq / startを再撮影した。濃色CTA、写真、見出し、カード、FAQ 2件目展開を確認した。
+- モバイルメニューを開いて `#faq` へ遷移し、メニューが閉じることとFAQ 2件目を展開できることを確認した。
+- `main` 内の画像17点は全件 `complete && naturalWidth > 0`、ブラウザーconsole errorは0件だった。
+- 簡易診断CTAは2件とも `/diagnosis/trial`、活動CTAは2件とも `/opportunities`、ログインは `/login`、新規登録は `/signup` だった。
+- 9セクションの左右境界はviewport内、`document.documentElement.scrollWidth === 390` だった。
+- 1023pxではモバイルメニュー表示・デスクトップナビ非表示、1024pxではモバイルメニュー非表示・デスクトップナビ表示だった。両幅ともHeaderは高さ72px、`scrollHeight === clientHeight`、横あふれなしだった。
+- 実装画像11枚は390×844のRGB PNG、比較画像6枚は780×844のRGB PNGへ更新した。比較画像左側のraw SHA-256は6/6でcanonicalの `9b89d146808fe08fa8f07c840f47726961b5907fcd8289933a311d32573da215` と一致した。
+- `guards.spec.ts` の対象4ケースはREDでlocatorの曖昧さ2件を検出後、productionを変更せずlocatorを限定してGREENにした。指定grepはsetupを含め25/25 passed、`guards.spec.ts` 全体は28/28 passedだった。
 
 final result: passed
