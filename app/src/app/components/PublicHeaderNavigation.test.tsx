@@ -26,6 +26,12 @@ describe("PublicHeaderNavigation", () => {
 
     const trigger = screen.getByRole("button", { name: "メニューを開く" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.className).toContain("lg:hidden");
+
+    const desktopSignup = screen.getByRole("link", { name: "無料で始める" });
+    expect(desktopSignup.className).toContain("lg:inline-flex");
+    expect(desktopSignup.className).toContain("bg-primary-dark");
+    expect(desktopSignup.className).toContain("hover:bg-text-dark");
 
     fireEvent.click(trigger);
 
@@ -35,6 +41,20 @@ describe("PublicHeaderNavigation", () => {
         .getAllByRole("link", { name: "無料で始める" })
         .every((link) => link.getAttribute("href") === "/signup"),
     ).toBe(true);
+    expect(
+      screen
+        .getAllByRole("link", { name: "無料で始める" })
+        .every((link) => link.className.includes("bg-primary-dark")),
+    ).toBe(true);
+    expect(
+      screen
+        .getAllByRole("link", { name: "無料で始める" })
+        .every((link) => link.className.includes("hover:bg-text-dark")),
+    ).toBe(true);
+    expect(
+      screen.getByRole("navigation", { name: "モバイルナビゲーション" })
+        .parentElement?.className,
+    ).toContain("lg:hidden");
     expect(screen.getByRole("link", { name: "使い方" }).getAttribute("href")).toBe(
       "#usage",
     );

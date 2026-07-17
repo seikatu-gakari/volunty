@@ -1,5 +1,14 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { lpAssets } from "./lpAssets";
+
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const JAPANESE_TEXT = /[\u3040-\u30ff\u3400-\u9fff]/;
+
+function getPublicAssetPath(src: string) {
+  return path.join(process.cwd(), "public", src);
+}
 
 describe("lpAssets", () => {
   it("LPで使う画像を /lp/mobile/ 配下へ一意に定義する", () => {
@@ -17,11 +26,30 @@ describe("lpAssets", () => {
     }
   });
 
-  it("内容を伝える写真には日本語の代替テキストを持たせる", () => {
-    expect(lpAssets.heroCleanup.alt).toContain("ボランティア");
-    expect(lpAssets.painWelcome.alt).toContain("参加");
-    expect(lpAssets.benefitFestival.alt).toContain("地域");
-    expect(lpAssets.brandMark.alt).toBe("");
-    expect(lpAssets.orbitMotif.alt).toBe("");
+  it("publicに実在するPNGの実寸をmetadataと一致させる", () => {
+    for (const asset of Object.values(lpAssets)) {
+      const assetPath = getPublicAssetPath(asset.src);
+
+      expect(existsSync(assetPath)).toBe(true);
+      const png = readFileSync(assetPath);
+
+      expect(png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)).toBe(true);
+      expect(png.toString("ascii", 12, 16)).toBe("IHDR");
+      expect(png.readUInt32BE(16)).toBe(asset.width);
+      expect(png.readUInt32BE(20)).toBe(asset.height);
+    }
+  });
+
+  it("内容画像には日本語altを持たせ、重複ロゴと装飾画像は空altにする", () => {
+    const { brandMark, orbitMotif, ...contentImages } = lpAssets;
+
+    for (const asset of Object.values(contentImages)) {
+      expect(asset.alt).toMatch(JAPANESE_TEXT);
+    }
+
+    // ロゴは隣接するブランド名が同じ内容を伝えるため、画像自体の読み上げは不要。
+    expect(brandMark.alt).toBe("");
+    // 軌道モチーフは情報を持たない純粋な装飾画像。
+    expect(orbitMotif.alt).toBe("");
   });
 });

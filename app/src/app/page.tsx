@@ -70,7 +70,7 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header variant="landing" />
 
       {user && (
         <AuthenticatedHome

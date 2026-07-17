@@ -13,11 +13,15 @@ import {
 import { ACTIVITY_STYLE_TYPES } from "@/lib/diagnosis-scale/style-types";
 import { LPSectionHeading } from "./LPSectionHeading";
 
+type ActivityStyleId = (typeof ACTIVITY_STYLE_TYPES)[number]["id"];
+type TypeDisplay = {
+  icon: typeof Users;
+  color: string;
+  border: string;
+};
+
 /** 参考タイプIDごとの表示設定（アイコン・カラー） */
-const TYPE_DISPLAY: Record<
-  string,
-  { icon: typeof Users; color: string; border: string }
-> = {
+const TYPE_DISPLAY = {
   "innovator-leader": {
     icon: Star,
     color: "bg-pop-coral-soft text-primary-dark",
@@ -68,7 +72,7 @@ const TYPE_DISPLAY: Record<
     color: "bg-pop-coral-soft text-primary-dark",
     border: "border-t-primary",
   },
-};
+} satisfies Record<ActivityStyleId, TypeDisplay>;
 
 export function DiagnosisTypesGrid() {
   return (
@@ -86,11 +90,7 @@ export function DiagnosisTypesGrid() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {ACTIVITY_STYLE_TYPES.map((type) => {
-          const display = TYPE_DISPLAY[type.id] ?? {
-            icon: Users,
-            color: "bg-primary/10 text-primary",
-            border: "border-t-primary",
-          };
+          const display = TYPE_DISPLAY[type.id];
           const Icon = display.icon;
           return (
             <div
@@ -103,7 +103,7 @@ export function DiagnosisTypesGrid() {
                 <Icon className="size-6" aria-hidden />
               </span>
               <h3 className="text-base font-bold text-text-dark">{type.name}</h3>
-              <div className="mt-4 flex items-center gap-1.5 rounded-xl bg-stone-50 px-3 py-2">
+              <div className="mt-4 flex items-center gap-1.5 rounded-xl bg-background px-3 py-2">
                 <span className="text-xs font-bold text-primary">活動例</span>
                 <span className="text-xs font-medium text-text-body">
                   {type.activityExamples[0]}

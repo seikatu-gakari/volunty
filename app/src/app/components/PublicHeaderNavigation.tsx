@@ -26,7 +26,7 @@ export function PublicHeaderNavigation() {
 
       <Link
         href="/signup"
-        className="hidden h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary-dark md:inline-flex"
+        className="hidden h-10 items-center gap-2 rounded-xl bg-primary-dark px-4 text-sm font-bold text-white transition-colors hover:bg-text-dark lg:inline-flex"
       >
         <UserPlus className="size-4" aria-hidden />
         無料で始める
@@ -37,13 +37,13 @@ export function PublicHeaderNavigation() {
         aria-expanded={menuOpen}
         aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
         onClick={() => setMenuOpen((open) => !open)}
-        className="inline-flex size-10 items-center justify-center rounded-xl text-text-dark transition-colors hover:bg-primary/5 md:hidden"
+        className="inline-flex size-10 items-center justify-center rounded-xl text-text-dark transition-colors hover:bg-primary/5 lg:hidden"
       >
         {menuOpen ? <X className="size-6" aria-hidden /> : <Menu className="size-6" aria-hidden />}
       </button>
 
       {menuOpen && (
-        <div className="absolute top-full right-4 left-4 mt-2 overflow-hidden rounded-3xl border border-card-border bg-background p-3 shadow-xl md:hidden">
+        <div className="absolute top-full right-4 left-4 mt-2 overflow-hidden rounded-3xl border border-card-border bg-background p-3 shadow-xl lg:hidden">
           <nav aria-label="モバイルナビゲーション" className="grid gap-1">
             {MOBILE_LINKS.map((item) => (
               <a
@@ -58,7 +58,7 @@ export function PublicHeaderNavigation() {
             <Link
               href="/signup"
               onClick={() => setMenuOpen(false)}
-              className="mt-2 inline-flex h-12 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-bold text-white"
+              className="mt-2 inline-flex h-12 items-center justify-center rounded-2xl bg-primary-dark px-4 text-sm font-bold text-white transition-colors hover:bg-text-dark"
             >
               無料で始める
             </Link>
