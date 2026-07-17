@@ -18,7 +18,7 @@ export function PublicHeaderNavigation() {
     <div className="flex items-center gap-2">
       <Link
         href="/login"
-        className="inline-flex h-10 items-center gap-2 rounded-xl border border-card-border bg-white px-3 text-sm font-bold text-text-dark transition-colors hover:border-primary/40 hover:text-primary-dark"
+        className="inline-flex h-10 items-center gap-2 rounded-xl border border-card-border bg-white px-3 text-sm font-bold text-text-dark transition-colors hover:border-primary/40 hover:text-text-dark"
       >
         <LogIn className="hidden size-4 sm:block" aria-hidden />
         ログイン
@@ -50,7 +50,7 @@ export function PublicHeaderNavigation() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setMenuOpen(false)}
-                className="rounded-2xl px-4 py-3 text-sm font-bold text-text-dark transition-colors hover:bg-primary/5 hover:text-primary-dark"
+                className="rounded-2xl px-4 py-3 text-sm font-bold text-text-dark transition-colors hover:bg-primary/5 hover:text-text-dark"
               >
                 {item.label}
               </a>

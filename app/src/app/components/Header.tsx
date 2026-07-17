@@ -149,7 +149,7 @@ export async function Header({ variant = "default" }: HeaderProps = {}) {
               <a
                 key={item.href}
                 href={item.href}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-text-body transition-colors hover:bg-primary/10 hover:text-primary-dark"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-text-body transition-colors hover:bg-primary/10 hover:text-text-dark"
               >
                 {item.label}
               </a>

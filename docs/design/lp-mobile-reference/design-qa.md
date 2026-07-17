@@ -27,27 +27,31 @@ A案素材は旧 `compare-01-hero.jpg` の左半分だけを一度抽出し、6�
 
 ### 元構成参照との構成比較（6枚）
 
-元の構成参照 `01-hero.png` 〜 `06-faq-footer.png` と、対応する実装section画像を同じ780×844画像内で比較するため、次の `compare-reference-*.png` を追加した。これらは上記のA. Balanced Pop配色方向比較とは別用途であり、左側へ単一A canonicalを再利用していない。
+元の構成参照と `qa/implementation-390x844.png` の同じ意味的セクション範囲を切り出し、次の `compare-reference-*.png` へ左右比較として配置した。上記のA. Balanced Pop配色方向比較とは別用途であり、左側へ単一A canonicalを再利用していない。
 
-- `qa/compare-reference-01-hero.png`: `01-hero.png` / `implementation-hero-390x844.png`
-- `qa/compare-reference-02-pain.png`: `02-pain-points.png` / `implementation-kadai-390x844.png`
-- `qa/compare-reference-03-usage.png`: `03-usage-types.png` / `implementation-usage-390x844.png`
-- `qa/compare-reference-04-benefits.png`: `04-benefits.png` / `implementation-benefits-390x844.png`
-- `qa/compare-reference-05-voices.png`: `05-voices-features.png` / `implementation-voices-390x844.png`
-- `qa/compare-reference-06-faq.png`: `06-faq-footer.png` / `implementation-faq-390x844.png`
+crop座標は `y開始:y終了`（終了は含まない）で記録する。03だけ活動スタイル10類型を欠かさないよう、`03-usage-types.png` の全体と `04-benefits.png` 冒頭を縦連結した。
 
-参照側はSharpのLanczos3、`fit: cover`、中央位置で390×844へaspectを維持して縮小した。852×1847の `04-benefits.png` は中央cropを伴い、ほかの852×1846画像も同じ決定的な処理を使用した。縮小後のreferenceと既存implementationをPNG raw RGBでデコードし、生成・装飾・テキスト追加をせず左右へ機械連結した。各sourceの状態とクロップは加工せず、referenceは左390px、implementationは右390pxへ配置している。
+| 比較画像 | 意味的範囲 | 左reference crop | 右implementation crop |
+| --- | --- | --- | --- |
+| `compare-reference-01-hero.png` | Hero | `01-hero.png` `y0:1300` | full-page `y0:980` |
+| `compare-reference-02-pain.png` | 課題 | `02-pain-points.png` `y580:1600` | full-page `y1900:3220` |
+| `compare-reference-03-usage.png` | 使い方・診断結果・活動スタイル10類型 | `03-usage-types.png` `y0:1846` + `04-benefits.png` `y0:420` | full-page `y3220:8150` |
+| `compare-reference-04-benefits.png` | 参加メリット | `04-benefits.png` `y420:1580` | full-page `y8150:9750` |
+| `compare-reference-05-voices.png` | 利用者の声・主な機能 | `05-voices-features.png` `y0:1640` | full-page `y9750:12370` |
+| `compare-reference-06-faq.png` | FAQ・最終CTA・footer | `06-faq-footer.png` `y0:1846` | full-page `y12370:14622` |
+
+各cropはSharpのLanczos3、`fit: contain`、中央位置、白背景で390×844へaspectを維持して収めた。生成・装飾・テキスト追加はせず、referenceを左390px、implementationを右390pxへPNG raw RGBで機械連結している。縦横比の差による余白は白であり、黒帯ではない。
 
 | 比較画像 | 左reference raw SHA-256 | 右implementation raw SHA-256 |
 | --- | --- | --- |
-| `compare-reference-01-hero.png` | `4070084ac7c778e209e4edcb6c7d7ac95e52a48cffa891795328d693e5554518` | `87115e1b90d587cd436fe44106b520110b4d35303a51d22102897a30d1b96a5e` |
-| `compare-reference-02-pain.png` | `7aed31935ee628a8acb32f35a422a4d4180068a86c6b811bb937d029536bc9db` | `4d67a0b8d4fd6d4e870249bf527ac65e8ecf7d9e4328d7ed63dad95ea7c75bdf` |
-| `compare-reference-03-usage.png` | `fc8fa742653324518734e7160502ed17035fef4fb0f50216f9d69dc08bafd872` | `3cfc0d4f1a83bf64ffe9430d77a0e5f39171e54bf18f2cc19d96a030b7eeac3f` |
-| `compare-reference-04-benefits.png` | `8bd956dd38aa4c4d2208b6aeb58854e7d856590964f38416269f210cca180412` | `010260c29b58aaf5e8eb31e02ae8c4423d4124fb1f45786a6eeb74dba0c8d343` |
-| `compare-reference-05-voices.png` | `824ba658c48c5a51f357ccb82bb4181d8da1176e654f59aaf56aa5966218fd1c` | `485817ad3470da116702844dc2f8e02b8987964bb81d8e43ac60d0bcbb811ed7` |
-| `compare-reference-06-faq.png` | `dff4e297ac48746c70b8b6691534dce3d519677e09c628352ef40f9a3c8359e4` | `b8e4cb1e208a2dc0092aaf21b90367d262c7b2fcfac39c1450e3cd51c63210f6` |
+| `compare-reference-01-hero.png` | `bb43e4187a9293bf527a2d5484ea63c587d54adee31c6a59728db9203678875e` | `0a4e02c987ebaec557ace084dbe0de8bc2e5426387b1b1f8745798c18146637d` |
+| `compare-reference-02-pain.png` | `44e86c9976e5c70af86d300d3d9fd114b527f466fec669948cf19d84ff56b3c3` | `6bb644f845bea86e0242c2ca76a228922117ee9fec030ca583336a7b0bd5ecd4` |
+| `compare-reference-03-usage.png` | `ec984d72b59323d932abc353a20aca1fc7d193b03db4ee935ccb146b5219c9e3` | `542c8c89fc8ce245aec08cdab4750b23bf22de88cb19617eb010263e96fd4ea4` |
+| `compare-reference-04-benefits.png` | `5ac664e22a303dac002bef56c368c177e34ca3458f311dbb3e91ea6daedbd768` | `918f3142dab3bc5616ec569ebbb83f007c14c3e78cfa3d60c33ef8626de10d57` |
+| `compare-reference-05-voices.png` | `57eaeabc15adffc8b49119864c0e7973a8a0c845ec5563c4de9d5e15d3c37054` | `6d584c865d7b9834a6973eda71abc11eed6aca188c0c832a3412a40714f1bc07` |
+| `compare-reference-06-faq.png` | `f72591d553185856a392ee74513657e975d0d24bfa549b27d817f08b8c017bd0` | `6dd10dfb24d228ea5eaeff89eee799751219414c1923e00cb97508a9cd4ce689` |
 
-左referenceのraw hashは6/6で互いに異なり、再実行した対応sourceのresize結果と一致した。右側は6/6で対応implementationのraw RGBと一致した。12枚（A配色比較6枚 + 元構成参照比較6枚）を目視し、黒化とNext.js indicatorがないことを確認した。
+左右のraw hashは、記録cropから独立再計算した390×844 RGBと6/6で一致した。6枚のcontact sheetに加え、02課題と05利用者の声・主な機能を原寸で個別に開き、意味的な開始・終了、黒化なし、Next.js indicatorなしを確認した。A配色比較の `compare-*.png` 6枚は変更していない。
 
 実装単体の確認画像:
 
@@ -116,6 +120,6 @@ A案素材は旧 `compare-01-hero.jpg` の左半分だけを一度抽出し、6�
 - heroを含む10セクションの左右境界はviewport内、`document.documentElement.scrollWidth === 390` だった。
 - 1023pxではモバイルメニュー表示・デスクトップナビ非表示、1024pxではモバイルメニュー非表示・デスクトップナビ表示だった。両幅ともHeaderは高さ72px、`scrollHeight === clientHeight`、横あふれなしだった。
 - 実装画像はsection 10枚が390×844、full-page 1枚が390×14622のRGB PNG、比較画像6枚は780×844のRGB PNGへ更新した。比較画像左側のraw SHA-256は6/6でcanonicalの `9b89d146808fe08fa8f07c840f47726961b5907fcd8289933a311d32573da215` と一致し、右側も6/6で対応するimplementationのraw SHA-256と一致した。
-- `guards.spec.ts` の対象4ケースはREDでlocatorの曖昧さ2件を検出後、productionを変更せずlocatorを限定してGREENにした。指定grepはsetupを含め25/25 passed、`guards.spec.ts` 全体は28/28 passedだった。
+- `guards.spec.ts` はsetupを含め30/30 passedだった。390px・768px・1440pxでheroを含む全10セクションの境界、17画像の読み込み、主要CTA、横あふれを検証し、1023px・1024pxでは公開Headerのモバイル/デスクトップ切替も確認した。
 
 final result: passed

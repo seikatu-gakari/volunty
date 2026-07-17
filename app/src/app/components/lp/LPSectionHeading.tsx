@@ -13,7 +13,7 @@ interface LPSectionHeadingProps {
 export function LPSectionHeading({ eyebrow, title, description }: LPSectionHeadingProps) {
   return (
     <div className="mb-10 text-left sm:mb-12">
-      <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.14em] text-primary-dark">
+      <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.14em] text-text-dark">
         {eyebrow}
       </p>
       <h2 className="text-3xl font-black leading-tight tracking-tight text-text-dark sm:text-4xl">
