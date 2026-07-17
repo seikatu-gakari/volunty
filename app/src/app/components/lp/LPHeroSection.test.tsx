@@ -51,6 +51,19 @@ describe("LPHeroSection", () => {
 
     expect(image.getAttribute("src")).toBe("/lp/mobile/hero-cleanup.png");
     expect(image.getAttribute("data-priority")).toBe("true");
+
+    const mobileOrganicRadius =
+      "rounded-[42%_58%_46%_54%/24%_32%_68%_76%]";
+    const desktopOrganicRadius =
+      "lg:rounded-[34%_66%_40%_60%/30%_22%_78%_70%]";
+
+    expect(image.className).toContain(mobileOrganicRadius);
+    expect(image.className).toContain(desktopOrganicRadius);
+    expect(image.parentElement?.className).toContain(mobileOrganicRadius);
+    expect(image.parentElement?.className).toContain(desktopOrganicRadius);
+    expect(image.className).not.toContain(
+      "rounded-[2.15rem_2.15rem_2.15rem_0.75rem]",
+    );
   });
 
   it("モバイルLPの見出しとCTA導線を表示する", () => {

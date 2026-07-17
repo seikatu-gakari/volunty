@@ -36,10 +36,10 @@ export function LPHeroSection() {
         </div>
 
         <div className="relative lg:col-start-2 lg:row-span-3 lg:row-start-1">
-          <div className="overflow-hidden rounded-[2.5rem_2.5rem_2.5rem_1rem] bg-white p-1.5 shadow-xl ring-1 ring-card-border">
+          <div className="overflow-hidden rounded-[42%_58%_46%_54%/24%_32%_68%_76%] bg-white p-1.5 shadow-xl ring-1 ring-card-border lg:rounded-[34%_66%_40%_60%/30%_22%_78%_70%]">
             <Image
               alt={hero.alt}
-              className="aspect-[4/3] w-full object-cover rounded-[2.15rem_2.15rem_2.15rem_0.75rem]"
+              className="aspect-[4/3] w-full rounded-[42%_58%_46%_54%/24%_32%_68%_76%] object-cover lg:rounded-[34%_66%_40%_60%/30%_22%_78%_70%]"
               height={hero.height}
               priority
               sizes="(min-width: 1024px) 56vw, 100vw"
