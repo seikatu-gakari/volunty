@@ -116,6 +116,12 @@ test.describe("非LP未認証ヘッダー", () => {
     await page.goto("/login");
 
     await expect(page.locator('header a[href^="#"]')).toHaveCount(0);
+    for (const sectionId of LP_SECTION_IDS) {
+      await expect(page.locator(`#${sectionId}`)).toHaveCount(0);
+    }
+    await expect(
+      page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
+    ).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "モバイルナビゲーション" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "メニューを開く" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "ログイン", exact: true })).toBeVisible();
