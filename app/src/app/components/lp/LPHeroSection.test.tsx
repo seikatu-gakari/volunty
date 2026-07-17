@@ -85,5 +85,16 @@ describe("LPHeroSection", () => {
     expect(screen.getByText("登録・診断は無料")).toBeDefined();
     expect(screen.getByText("約2分でできる")).toBeDefined();
     expect(screen.getByText("スマホ・PC対応")).toBeDefined();
+
+    const orbit = screen.getByTestId("lp-hero-photo-orbit");
+    const trustItem = screen.getByText("登録・診断は無料");
+
+    expect(
+      primaryCTA.compareDocumentPosition(orbit) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      orbit.compareDocumentPosition(trustItem) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(screen.getAllByRole("img")).toHaveLength(5);
   });
 });

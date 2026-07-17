@@ -1,7 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Brain, CheckCircle2, Clock3, Smartphone } from "lucide-react";
-import { lpAssets } from "./lpAssets";
+import { HeroPhotoOrbit } from "./HeroPhotoOrbit";
 
 const TRUST_ITEMS = [
   { icon: CheckCircle2, text: "登録・診断は無料" },
@@ -10,8 +9,6 @@ const TRUST_ITEMS = [
 ] as const;
 
 export function LPHeroSection() {
-  const hero = lpAssets.heroCleanup;
-
   return (
     <section className="relative z-10 -mx-4 overflow-hidden bg-lp-cream px-4 py-8 sm:-mx-6 sm:px-6 sm:py-12 lg:mx-0 lg:rounded-[40px] lg:px-10 lg:py-16">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-x-12 lg:gap-y-7">
@@ -35,21 +32,6 @@ export function LPHeroSection() {
           </p>
         </div>
 
-        <div className="relative lg:col-start-2 lg:row-span-3 lg:row-start-1">
-          <div className="overflow-hidden rounded-[42%_58%_46%_54%/24%_32%_68%_76%] bg-white p-1.5 shadow-xl ring-1 ring-card-border lg:rounded-[34%_66%_40%_60%/30%_22%_78%_70%]">
-            <Image
-              alt={hero.alt}
-              className="aspect-[4/3] w-full rounded-[42%_58%_46%_54%/24%_32%_68%_76%] object-cover lg:rounded-[34%_66%_40%_60%/30%_22%_78%_70%]"
-              height={hero.height}
-              priority
-              sizes="(min-width: 1024px) 56vw, 100vw"
-              src={hero.src}
-              style={{ objectPosition: hero.objectPosition }}
-              width={hero.width}
-            />
-          </div>
-        </div>
-
         <div className="grid gap-3 sm:grid-cols-2 lg:col-start-1 lg:row-start-2">
           <Link
             href="/diagnosis/trial"
@@ -66,6 +48,8 @@ export function LPHeroSection() {
             <ArrowRight className="size-5" aria-hidden />
           </Link>
         </div>
+
+        <HeroPhotoOrbit />
 
         <div className="grid grid-cols-3 divide-x divide-card-border rounded-2xl bg-white/85 px-2 py-4 shadow-sm ring-1 ring-card-border lg:col-start-1 lg:row-start-3">
           {TRUST_ITEMS.map((item) => (

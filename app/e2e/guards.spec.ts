@@ -39,7 +39,10 @@ async function expectLandingPageIntegrity(
   }
 
   const images = page.locator("main img");
-  await expect(images).toHaveCount(17);
+  await expect(images).toHaveCount(21);
+
+  const photoOrbit = page.getByTestId("lp-hero-photo-orbit");
+  await expect(photoOrbit.locator("img")).toHaveCount(5);
   await expect
     .poll(() =>
       images.evaluateAll((elements) =>
@@ -102,6 +105,16 @@ test.describe("未ログインLP（モバイル）", () => {
     ).toBeVisible();
 
     await expectLandingPageIntegrity(page, 390);
+
+    const primaryCTA = page.getByRole("link", { name: "無料で簡易診断を試す" }).first();
+    const photoOrbit = page.getByTestId("lp-hero-photo-orbit");
+    const [ctaBox, orbitBox] = await Promise.all([
+      primaryCTA.boundingBox(),
+      photoOrbit.boundingBox(),
+    ]);
+    expect(ctaBox).not.toBeNull();
+    expect(orbitBox).not.toBeNull();
+    expect(ctaBox!.y + ctaBox!.height).toBeLessThanOrEqual(orbitBox!.y + 1);
 
     await page.getByRole("button", { name: "メニューを開く" }).click();
     const mobileNavigation = page.getByRole("navigation", { name: "モバイルナビゲーション" });
