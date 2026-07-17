@@ -132,7 +132,7 @@ crop座標は `y開始:y終了`（終了は含まない）で記録する。03�
 - `qa/implementation-hero-photo-orbit-390x844.png` は390×844、`qa/implementation-hero-photo-orbit-1024x844.png` は1024×844、`qa/compare-photo-orbit-390x844.png` は780×844のRGB PNGとして保存した。
 - モバイルで `main` 内の21画像が全件 `complete && naturalWidth > 0`、Photo Orbit内が5画像、`document.documentElement.scrollWidth === 390`、console error 0件であることを確認した。
 - 1024pxでは公開ヘッダーがデスクトップ表示へ切り替わり、Photo Orbitが左カラムやヘッダーへ重ならず、横方向のオーバーフローもないことを確認した。
-- 完了ゲートはUT 75ファイル・504件、lint、production build、`guards.spec.ts` 30/30件、`git diff --check` がすべて成功した。
+- 最終完了ゲートはUT 76ファイル・508件、lint、production build、`guards.spec.ts` 30/30件、`git diff --check` がすべて成功した。
 - 最終レビュー後、1024pxの見出しサイズを調整して「変わっていく。」が1行に収まることを実測し、`qa/implementation-hero-photo-orbit-1024x844.png` を更新した。あわせてPhoto Orbitの画像配信上限と重要注記3箇所のコントラストを改善した。
 
 final result: passed
