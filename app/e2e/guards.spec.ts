@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
 
+const LP_SECTION_IDS = [
+  "styles",
+  "kadai",
+  "usage",
+  "types",
+  "benefits",
+  "voices",
+  "features",
+  "faq",
+  "start",
+] as const;
+
 test.describe("認証・認可ガード", () => {
   test("G1: 未認証でランディングとログイン導線を表示する", async ({ page }) => {
     await page.goto("/");
@@ -23,36 +35,35 @@ test.describe("未ログインLP（モバイル）", () => {
   test("主要コンテンツと操作導線を一画面幅で利用できる", async ({ page }) => {
     await page.goto("/");
 
-    const sectionIds = [
-      "styles",
-      "kadai",
-      "usage",
-      "types",
-      "benefits",
-      "voices",
-      "features",
-      "faq",
-      "start",
-    ] as const;
-
     await expect(page.getByRole("link", { name: "ボランティー ホーム" })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toBeVisible();
 
-    for (const sectionId of sectionIds) {
-      const section = page.locator(`main > * #${sectionId}, main > #${sectionId}`).first();
-      await section.scrollIntoViewIfNeeded();
-      await expect(section).toBeVisible();
+    const sections = [
+      { name: "hero", locator: page.locator("main > section").first() },
+      ...LP_SECTION_IDS.map((sectionId) => ({
+        name: sectionId,
+        locator: page.locator(`#${sectionId}`),
+      })),
+    ];
+    expect(sections).toHaveLength(10);
 
-      const rect = await section.boundingBox();
-      expect(rect, `${sectionId} の境界を取得できる`).not.toBeNull();
-      expect(rect!.x, `${sectionId} の左端がviewport内`).toBeGreaterThanOrEqual(-1);
-      expect(rect!.x + rect!.width, `${sectionId} の右端がviewport内`).toBeLessThanOrEqual(391);
+    for (const section of sections) {
+      const { locator } = section;
+      await locator.scrollIntoViewIfNeeded();
+      await expect(locator).toBeVisible();
+
+      const rect = await locator.boundingBox();
+      expect(rect, `${section.name} の境界を取得できる`).not.toBeNull();
+      expect(rect!.x, `${section.name} の左端がviewport内`).toBeGreaterThanOrEqual(-1);
+      expect(rect!.x + rect!.width, `${section.name} の右端がviewport内`).toBeLessThanOrEqual(
+        391,
+      );
     }
 
     const images = page.locator("main img");
-    expect(await images.count()).toBeGreaterThan(0);
+    await expect(images).toHaveCount(17);
     await expect
       .poll(() =>
         images.evaluateAll((elements) =>
@@ -104,9 +115,7 @@ test.describe("非LP未認証ヘッダー", () => {
   test("/loginではLPアンカーとモバイルメニューを表示しない", async ({ page }) => {
     await page.goto("/login");
 
-    await expect(page.locator('header a[href="#kadai"]')).toHaveCount(0);
-    await expect(page.locator('header a[href="#usage"]')).toHaveCount(0);
-    await expect(page.locator('header a[href="#faq"]')).toHaveCount(0);
+    await expect(page.locator('header a[href^="#"]')).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "モバイルナビゲーション" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "メニューを開く" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "ログイン", exact: true })).toBeVisible();
@@ -120,10 +129,14 @@ test.describe("認証済みホームヘッダー", () => {
   test("参加者ホームではLP固有要素を表示せず認証済み導線を表示する", async ({ page }) => {
     await page.goto("/");
 
-    await expect(
-      page.locator("main section#styles, main section#kadai, main section#usage, main section#faq"),
-    ).toHaveCount(0);
+    await expect(page.locator('header a[href^="#"]')).toHaveCount(0);
+    await expect(page.locator(LP_SECTION_IDS.map((id) => `main #${id}`).join(", "))).toHaveCount(
+      0,
+    );
     await expect(page.locator('main a[href^="#"]')).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
+    ).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "モバイルナビゲーション" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "診断", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "おすすめ案件", exact: true })).toBeVisible();
@@ -167,6 +180,10 @@ test.describe("公開ヘッダーのブレークポイント", () => {
 
     await expect(page.getByRole("button", { name: "メニューを開く" })).toBeHidden();
     await expect(page.locator('header > div > nav a[href="#usage"]')).toBeVisible();
+    await expect(page.getByRole("link", { name: "無料で始める", exact: true })).toHaveAttribute(
+      "href",
+      "/signup",
+    );
     await expectHeaderFitsViewport(page);
   });
 });

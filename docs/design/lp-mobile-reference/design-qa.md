@@ -36,7 +36,7 @@ A案素材は旧 `compare-01-hero.jpg` の左半分だけを一度抽出し、6�
 - `qa/implementation-faq-390x844.png`
 - `qa/implementation-start-390x844.png`
 
-上記10枚と `qa/implementation-390x844.png` の計11枚は、`file` で `PNG image data` であることを確認した。
+上記10枚は390×844、`qa/implementation-390x844.png` はページ全体の390×14622で、計11枚すべてがRGB PNGであることを確認した。full-pageのfile SHA-256は `2790184cb4adb6578d0f3202ea56ade714a77e8ab6735e58215280c9e67035be`、heroのfile SHA-256は `e78e0918a4b02dc766683529edcb4f07c52e7d3cb9ac24cd78c8b83fe58f6f3f` で、同一画像ではない。
 
 ## チェック
 
@@ -75,18 +75,20 @@ A案素材は旧 `compare-01-hero.jpg` の左半分だけを一度抽出し、6�
 - [x] `main` 内の表示画像17点の読み込み失敗とブラウザーconsole errorが0件であることを確認した
 - [x] `document.documentElement.scrollWidth === 390` を確認した
 - [x] 実装画像11枚の実体がPNGであることを確認した
-- [x] 比較画像6枚を780×844のRGB PNGへ統一し、左canonicalの画素一致を確認した
+- [x] 比較画像6枚を780×844のRGB PNGへ統一し、左canonicalと右implementationの画素一致を確認した
 
 ## 2026-07-17 最終QA
 
 - Browser skillが選択したChromeで `http://localhost:3000/` を確認し、viewport overrideを使って390×844、1023×844、1024×844を実画面検査した。
+- Next.js Dev ToolsのPreferencesで `Hide Dev Tools for this session` を実行し、撮影DOM上のindicator表示を除去した。撮影直前の `indicatorVisible` はfalseで、contact sheetとfull-pageにもindicatorがないことを目視した。
 - 390×844でhero / styles / kadai / usage / types / benefits / voices / features / faq / startを再撮影した。濃色CTA、写真、見出し、カード、FAQ 2件目展開を確認した。
+- `qa/implementation-390x844.png` はsection画像の複製ではなく、実ページ全体を一度に撮影した390×14622のRGB PNGへ復元した。
 - モバイルメニューを開いて `#faq` へ遷移し、メニューが閉じることとFAQ 2件目を展開できることを確認した。
 - `main` 内の画像17点は全件 `complete && naturalWidth > 0`、ブラウザーconsole errorは0件だった。
 - 簡易診断CTAは2件とも `/diagnosis/trial`、活動CTAは2件とも `/opportunities`、ログインは `/login`、新規登録は `/signup` だった。
-- 9セクションの左右境界はviewport内、`document.documentElement.scrollWidth === 390` だった。
+- heroを含む10セクションの左右境界はviewport内、`document.documentElement.scrollWidth === 390` だった。
 - 1023pxではモバイルメニュー表示・デスクトップナビ非表示、1024pxではモバイルメニュー非表示・デスクトップナビ表示だった。両幅ともHeaderは高さ72px、`scrollHeight === clientHeight`、横あふれなしだった。
-- 実装画像11枚は390×844のRGB PNG、比較画像6枚は780×844のRGB PNGへ更新した。比較画像左側のraw SHA-256は6/6でcanonicalの `9b89d146808fe08fa8f07c840f47726961b5907fcd8289933a311d32573da215` と一致した。
+- 実装画像はsection 10枚が390×844、full-page 1枚が390×14622のRGB PNG、比較画像6枚は780×844のRGB PNGへ更新した。比較画像左側のraw SHA-256は6/6でcanonicalの `9b89d146808fe08fa8f07c840f47726961b5907fcd8289933a311d32573da215` と一致し、右側も6/6で対応するimplementationのraw SHA-256と一致した。
 - `guards.spec.ts` の対象4ケースはREDでlocatorの曖昧さ2件を検出後、productionを変更せずlocatorを限定してGREENにした。指定grepはsetupを含め25/25 passed、`guards.spec.ts` 全体は28/28 passedだった。
 
 final result: passed
