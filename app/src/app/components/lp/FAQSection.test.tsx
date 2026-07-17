@@ -13,6 +13,10 @@ describe("FAQSection", () => {
 
     expect(first.getAttribute("aria-expanded")).toBe("true");
     expect(second.getAttribute("aria-expanded")).toBe("false");
+    const firstQuestionLabel = first.querySelector("span > span");
+    expect(firstQuestionLabel).not.toBeNull();
+    expect(firstQuestionLabel?.className).toContain("bg-pop-coral-soft");
+    expect(firstQuestionLabel?.className).toContain("text-text-dark");
 
     fireEvent.click(second);
 

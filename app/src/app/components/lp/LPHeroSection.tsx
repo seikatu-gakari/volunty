@@ -60,7 +60,7 @@ export function LPHeroSection() {
           </Link>
           <Link
             href="/opportunities"
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5"
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5 hover:text-text-dark"
           >
             募集中の活動を見る
             <ArrowRight className="size-5" aria-hidden />

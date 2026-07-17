@@ -32,7 +32,7 @@ const FAQ_ITEMS = [
 ];
 
 const QUESTION_COLORS = [
-  "bg-pop-coral-soft text-primary-dark",
+  "bg-pop-coral-soft text-text-dark",
   "bg-pop-teal-soft text-secondary-dark",
   "bg-pop-purple-soft text-text-dark",
   "bg-pop-yellow-soft text-warning",
