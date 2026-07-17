@@ -12,6 +12,67 @@ const LP_SECTION_IDS = [
   "start",
 ] as const;
 
+async function expectLandingPageIntegrity(
+  page: import("@playwright/test").Page,
+  viewportWidth: number,
+) {
+  const sections = [
+    { name: "hero", locator: page.locator("main > section").first() },
+    ...LP_SECTION_IDS.map((sectionId) => ({
+      name: sectionId,
+      locator: page.locator(`#${sectionId}`),
+    })),
+  ];
+  expect(sections).toHaveLength(10);
+
+  for (const section of sections) {
+    const { locator } = section;
+    await locator.scrollIntoViewIfNeeded();
+    await expect(locator).toBeVisible();
+
+    const rect = await locator.boundingBox();
+    expect(rect, `${section.name} の境界を取得できる`).not.toBeNull();
+    expect(rect!.x, `${section.name} の左端がviewport内`).toBeGreaterThanOrEqual(-1);
+    expect(rect!.x + rect!.width, `${section.name} の右端がviewport内`).toBeLessThanOrEqual(
+      viewportWidth + 1,
+    );
+  }
+
+  const images = page.locator("main img");
+  await expect(images).toHaveCount(17);
+  await expect
+    .poll(() =>
+      images.evaluateAll((elements) =>
+        elements.every((element) => {
+          const image = element as HTMLImageElement;
+          return image.complete && image.naturalWidth > 0;
+        }),
+      ),
+    )
+    .toBe(true);
+
+  const trialLinks = page.getByRole("link", { name: "無料で簡易診断を試す" });
+  await expect(trialLinks).toHaveCount(2);
+  await expect(trialLinks.first()).toHaveAttribute("href", "/diagnosis/trial");
+  await expect(trialLinks.last()).toHaveAttribute("href", "/diagnosis/trial");
+
+  const opportunityLinks = page.getByRole("link", { name: "募集中の活動を見る" });
+  await expect(opportunityLinks).toHaveCount(2);
+  await expect(opportunityLinks.first()).toHaveAttribute("href", "/opportunities");
+  await expect(opportunityLinks.last()).toHaveAttribute("href", "/opportunities");
+
+  const styleLinks = page.getByRole("link", { name: "診断で詳しく見る" });
+  await expect(styleLinks).toHaveCount(4);
+  for (const link of await styleLinks.all()) {
+    await expect(link).toHaveAttribute("href", "/diagnosis/trial");
+  }
+
+  await expect(page.getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/login");
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true);
+}
+
 test.describe("認証・認可ガード", () => {
   test("G1: 未認証でランディングとログイン導線を表示する", async ({ page }) => {
     await page.goto("/");
@@ -40,52 +101,7 @@ test.describe("未ログインLP（モバイル）", () => {
       page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toBeVisible();
 
-    const sections = [
-      { name: "hero", locator: page.locator("main > section").first() },
-      ...LP_SECTION_IDS.map((sectionId) => ({
-        name: sectionId,
-        locator: page.locator(`#${sectionId}`),
-      })),
-    ];
-    expect(sections).toHaveLength(10);
-
-    for (const section of sections) {
-      const { locator } = section;
-      await locator.scrollIntoViewIfNeeded();
-      await expect(locator).toBeVisible();
-
-      const rect = await locator.boundingBox();
-      expect(rect, `${section.name} の境界を取得できる`).not.toBeNull();
-      expect(rect!.x, `${section.name} の左端がviewport内`).toBeGreaterThanOrEqual(-1);
-      expect(rect!.x + rect!.width, `${section.name} の右端がviewport内`).toBeLessThanOrEqual(
-        391,
-      );
-    }
-
-    const images = page.locator("main img");
-    await expect(images).toHaveCount(17);
-    await expect
-      .poll(() =>
-        images.evaluateAll((elements) =>
-          elements.every((element) => {
-            const image = element as HTMLImageElement;
-            return image.complete && image.naturalWidth > 0;
-          }),
-        ),
-      )
-      .toBe(true);
-
-    const trialLinks = page.getByRole("link", { name: "無料で簡易診断を試す" });
-    await expect(trialLinks).toHaveCount(2);
-    await expect(trialLinks.first()).toHaveAttribute("href", "/diagnosis/trial");
-    await expect(trialLinks.last()).toHaveAttribute("href", "/diagnosis/trial");
-
-    const opportunityLinks = page.getByRole("link", { name: "募集中の活動を見る" });
-    await expect(opportunityLinks).toHaveCount(2);
-    await expect(opportunityLinks.first()).toHaveAttribute("href", "/opportunities");
-    await expect(opportunityLinks.last()).toHaveAttribute("href", "/opportunities");
-
-    await expect(page.getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/login");
+    await expectLandingPageIntegrity(page, 390);
 
     await page.getByRole("button", { name: "メニューを開く" }).click();
     const mobileNavigation = page.getByRole("navigation", { name: "モバイルナビゲーション" });
@@ -102,13 +118,35 @@ test.describe("未ログインLP（モバイル）", () => {
     });
     await secondQuestion.click();
     await expect(secondQuestion).toHaveAttribute("aria-expanded", "true");
-
-    await expect
-      .poll(() =>
-        page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      )
-      .toBe(true);
   });
+});
+
+test.describe("未ログインLP（タブレット・デスクトップ）", () => {
+  for (const viewport of [
+    { width: 768, height: 1024, headerMode: "mobile" },
+    { width: 1440, height: 1000, headerMode: "desktop" },
+  ] as const) {
+    test(`${viewport.width}pxで全セクション・画像・主要導線を安定表示する`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto("/");
+
+      await expectLandingPageIntegrity(page, viewport.width);
+
+      const menuButton = page.getByRole("button", { name: "メニューを開く" });
+      const desktopNavigation = page.locator('header > div > nav a[href="#usage"]');
+      const desktopSignup = page.getByRole("link", { name: "無料で始める", exact: true });
+      if (viewport.headerMode === "mobile") {
+        await expect(menuButton).toBeVisible();
+        await expect(desktopNavigation).toBeHidden();
+        await expect(desktopSignup).toBeHidden();
+      } else {
+        await expect(menuButton).toBeHidden();
+        await expect(desktopNavigation).toBeVisible();
+        await expect(desktopSignup).toBeVisible();
+        await expect(desktopSignup).toHaveAttribute("href", "/signup");
+      }
+    });
+  }
 });
 
 test.describe("非LP未認証ヘッダー", () => {

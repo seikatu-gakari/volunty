@@ -10,6 +10,8 @@
 
 ## 比較結果
 
+### A. Balanced Pop 配色方向比較（6枚）
+
 承認済みA案と実装を同じ画像内で比較するため、以下の左右比較画像を作成した。各画像の左側は旧 `compare-01-hero.jpg` の正常な左半分（390×844）から抽出した単一canonical素材、右側は対応する390×844の実装画面である。旧構成参照6画像はレイアウト・画像クロップの確認に使用し、現在の `compare-*.png` の左側には使用していない。
 
 - `qa/compare-01-hero.png`: A案 / ヒーロー
@@ -22,6 +24,30 @@
 A案素材は旧 `compare-01-hero.jpg` の左半分だけを一度抽出し、6枚すべてへ同じpixel bufferを使用した。長尺ブラウザー撮影や分割撮影は再利用していない。比較画像はcanonical素材と実装画像を左右へ機械連結し、RGB PNGとして保存しただけで、生成・装飾・テキスト追加はしていない。最終PNGから再デコードした左半分のraw SHA-256は6/6で `9b89d146808fe08fa8f07c840f47726961b5907fcd8289933a311d32573da215` と一致した。各比較画像の左側だけで、ティールの「みつかる」、オレンジ・ティール・パープルの活動スタイルカード、オレンジ・ティール・イエロー・パープルの4色swatchを確認できる。
 
 比較画像6枚は `file` で `PNG image data, 780 x 844, 8-bit/color RGB, non-interlaced` であることを確認した。特に `compare-02-pain.png`、`compare-03-usage.png`、`compare-05-voices.png` は原寸で個別に開き、広い黒領域がなく、canonical左と実装右が正常に表示されることを確認した。
+
+### 元構成参照との構成比較（6枚）
+
+元の構成参照 `01-hero.png` 〜 `06-faq-footer.png` と、対応する実装section画像を同じ780×844画像内で比較するため、次の `compare-reference-*.png` を追加した。これらは上記のA. Balanced Pop配色方向比較とは別用途であり、左側へ単一A canonicalを再利用していない。
+
+- `qa/compare-reference-01-hero.png`: `01-hero.png` / `implementation-hero-390x844.png`
+- `qa/compare-reference-02-pain.png`: `02-pain-points.png` / `implementation-kadai-390x844.png`
+- `qa/compare-reference-03-usage.png`: `03-usage-types.png` / `implementation-usage-390x844.png`
+- `qa/compare-reference-04-benefits.png`: `04-benefits.png` / `implementation-benefits-390x844.png`
+- `qa/compare-reference-05-voices.png`: `05-voices-features.png` / `implementation-voices-390x844.png`
+- `qa/compare-reference-06-faq.png`: `06-faq-footer.png` / `implementation-faq-390x844.png`
+
+参照側はSharpのLanczos3、`fit: cover`、中央位置で390×844へaspectを維持して縮小した。852×1847の `04-benefits.png` は中央cropを伴い、ほかの852×1846画像も同じ決定的な処理を使用した。縮小後のreferenceと既存implementationをPNG raw RGBでデコードし、生成・装飾・テキスト追加をせず左右へ機械連結した。各sourceの状態とクロップは加工せず、referenceは左390px、implementationは右390pxへ配置している。
+
+| 比較画像 | 左reference raw SHA-256 | 右implementation raw SHA-256 |
+| --- | --- | --- |
+| `compare-reference-01-hero.png` | `4070084ac7c778e209e4edcb6c7d7ac95e52a48cffa891795328d693e5554518` | `87115e1b90d587cd436fe44106b520110b4d35303a51d22102897a30d1b96a5e` |
+| `compare-reference-02-pain.png` | `7aed31935ee628a8acb32f35a422a4d4180068a86c6b811bb937d029536bc9db` | `4d67a0b8d4fd6d4e870249bf527ac65e8ecf7d9e4328d7ed63dad95ea7c75bdf` |
+| `compare-reference-03-usage.png` | `fc8fa742653324518734e7160502ed17035fef4fb0f50216f9d69dc08bafd872` | `3cfc0d4f1a83bf64ffe9430d77a0e5f39171e54bf18f2cc19d96a030b7eeac3f` |
+| `compare-reference-04-benefits.png` | `8bd956dd38aa4c4d2208b6aeb58854e7d856590964f38416269f210cca180412` | `010260c29b58aaf5e8eb31e02ae8c4423d4124fb1f45786a6eeb74dba0c8d343` |
+| `compare-reference-05-voices.png` | `824ba658c48c5a51f357ccb82bb4181d8da1176e654f59aaf56aa5966218fd1c` | `485817ad3470da116702844dc2f8e02b8987964bb81d8e43ac60d0bcbb811ed7` |
+| `compare-reference-06-faq.png` | `dff4e297ac48746c70b8b6691534dce3d519677e09c628352ef40f9a3c8359e4` | `b8e4cb1e208a2dc0092aaf21b90367d262c7b2fcfac39c1450e3cd51c63210f6` |
+
+左referenceのraw hashは6/6で互いに異なり、再実行した対応sourceのresize結果と一致した。右側は6/6で対応implementationのraw RGBと一致した。12枚（A配色比較6枚 + 元構成参照比較6枚）を目視し、黒化とNext.js indicatorがないことを確認した。
 
 実装単体の確認画像:
 
@@ -76,6 +102,7 @@ A案素材は旧 `compare-01-hero.jpg` の左半分だけを一度抽出し、6�
 - [x] `document.documentElement.scrollWidth === 390` を確認した
 - [x] 実装画像11枚の実体がPNGであることを確認した
 - [x] 比較画像6枚を780×844のRGB PNGへ統一し、左canonicalと右implementationの画素一致を確認した
+- [x] A配色比較6枚と元構成参照比較6枚を分離し、後者の左referenceと右implementationの画素対応を確認した
 
 ## 2026-07-17 最終QA
 

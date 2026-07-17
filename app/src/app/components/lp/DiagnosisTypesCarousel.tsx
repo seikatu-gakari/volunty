@@ -1,39 +1,57 @@
 import Image from "next/image";
+import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import type { ActivityStyleId } from "@/lib/diagnosis-scale/types";
 import { lpAssets } from "./lpAssets";
+
+interface FeaturedStyle {
+  id: ActivityStyleId;
+  description: string;
+  image: (typeof lpAssets)[keyof typeof lpAssets];
+  accent: string;
+}
 
 const FEATURED_STYLES = [
   {
-    name: "サポーター・ケア傾向",
+    id: "supporter-care",
     description: "そっと寄り添い、誰かの安心を支える。",
     image: lpAssets.styleSupporter,
     accent: "bg-pop-coral-soft text-text-dark border-primary/20",
   },
   {
-    name: "アドベンチャー・エクスプローラー傾向",
+    id: "adventure-explorer",
     description: "新しい場所へ飛び込み、体験を楽しむ。",
     image: lpAssets.styleExplorer,
     accent: "bg-pop-teal-soft text-secondary-dark border-pop-teal/20",
   },
   {
-    name: "ハーモニー・メディエーター傾向",
+    id: "harmony-mediator",
     description: "対話をつなぎ、チームの空気を整える。",
     image: lpAssets.styleMediator,
     accent: "bg-pop-yellow-soft text-warning border-pop-yellow/30",
   },
   {
-    name: "クリエイティブ・ソロ傾向",
+    id: "creative-solo",
     description: "得意な表現で、静かに力を発揮する。",
     image: lpAssets.styleCreative,
     accent: "bg-pop-purple-soft text-text-dark border-pop-purple/20",
   },
-] as const;
+] as const satisfies readonly FeaturedStyle[];
+
+function getActivityStyleName(id: ActivityStyleId) {
+  const style = findStyleTypeById(id);
+  if (!style) {
+    throw new Error(`活動スタイルが見つかりません: ${id}`);
+  }
+  return style.name.replace(/タイプ$/, "傾向");
+}
 
 export function DiagnosisTypesCarousel() {
   return (
     <section id="styles" className="relative -mx-4 bg-pop-yellow-soft/60 px-4 py-20 sm:-mx-6 sm:px-6 sm:py-28 lg:mx-0 lg:rounded-[40px] lg:px-10">
       <div className="mb-8 max-w-2xl">
-        <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-primary">
+        <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-primary-dark">
           10の活動スタイル
         </p>
         <h2 className="text-3xl font-black tracking-tight text-text-dark sm:text-4xl">
@@ -46,11 +64,11 @@ export function DiagnosisTypesCarousel() {
 
       <div
         aria-label="代表的な活動スタイル"
-        className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4"
+        className="lp-carousel -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4"
       >
         {FEATURED_STYLES.map((style) => (
           <article
-            key={style.name}
+            key={style.id}
             className="lp-carousel-card w-[78vw] max-w-[300px] shrink-0 snap-center overflow-hidden rounded-[28px] border border-card-border bg-white shadow-sm sm:w-auto sm:max-w-none"
           >
             <div className="relative aspect-[4/3] overflow-hidden">
@@ -66,12 +84,17 @@ export function DiagnosisTypesCarousel() {
               <div className={`mb-4 inline-flex rounded-full border px-3 py-1.5 text-[11px] font-bold ${style.accent}`}>
                 活動スタイル
               </div>
-              <h3 className="min-h-12 text-base font-bold leading-6 text-text-dark">{style.name}</h3>
+              <h3 className="min-h-12 text-base font-bold leading-6 text-text-dark">
+                {getActivityStyleName(style.id)}
+              </h3>
               <p className="mt-2 text-sm leading-6 text-text-body">{style.description}</p>
-              <span className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-primary">
+              <Link
+                href="/diagnosis/trial"
+                className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-primary-dark"
+              >
                 診断で詳しく見る
                 <ArrowUpRight className="size-4" aria-hidden />
-              </span>
+              </Link>
             </div>
           </article>
         ))}

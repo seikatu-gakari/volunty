@@ -104,7 +104,7 @@ export function DiagnosisTypesGrid() {
               </span>
               <h3 className="text-base font-bold text-text-dark">{type.name}</h3>
               <div className="mt-4 flex items-center gap-1.5 rounded-xl bg-background px-3 py-2">
-                <span className="text-xs font-bold text-primary">活動例</span>
+                <span className="text-xs font-bold text-primary-dark">活動例</span>
                 <span className="text-xs font-medium text-text-body">
                   {type.activityExamples[0]}
                 </span>

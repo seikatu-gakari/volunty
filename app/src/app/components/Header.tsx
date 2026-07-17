@@ -127,7 +127,7 @@ export async function Header({ variant = "default" }: HeaderProps = {}) {
             <span
               className={
                 showLandingHeader
-                  ? "text-lg font-extrabold leading-7 text-primary sm:text-xl"
+                  ? "text-lg font-extrabold leading-7 text-primary-dark sm:text-xl"
                   : "text-lg font-medium leading-7 text-text-dark"
               }
             >
@@ -149,7 +149,7 @@ export async function Header({ variant = "default" }: HeaderProps = {}) {
               <a
                 key={item.href}
                 href={item.href}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-text-body transition-colors hover:bg-primary/10 hover:text-text-dark"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-text-body transition-colors hover:bg-primary/10 hover:text-primary-dark"
               >
                 {item.label}
               </a>

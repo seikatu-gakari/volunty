@@ -75,11 +75,11 @@ export function UsageSection() {
       <div className="mt-10 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <div className="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-card-border sm:p-8">
           <div className="mb-6 flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary-dark">
               <Sparkles className="size-5" aria-hidden />
             </span>
             <div>
-              <p className="text-xs font-bold tracking-[0.14em] text-primary">BIG FIVE</p>
+              <p className="text-xs font-bold tracking-[0.14em] text-primary-dark">BIG FIVE</p>
               <h3 className="mt-1 text-lg font-black text-text-dark">5つの性格傾向をわかりやすく</h3>
             </div>
           </div>
