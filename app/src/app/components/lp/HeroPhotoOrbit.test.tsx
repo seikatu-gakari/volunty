@@ -7,11 +7,13 @@ vi.mock("next/image", () => ({
     alt,
     className,
     priority,
+    sizes,
     src,
   }: {
     alt: string;
     className?: string;
     priority?: boolean;
+    sizes?: string;
     src: string;
   }) => (
     // eslint-disable-next-line @next/next/no-img-element
@@ -19,6 +21,7 @@ vi.mock("next/image", () => ({
       alt={alt}
       className={className}
       data-priority={priority ? "true" : "false"}
+      data-sizes={sizes}
       src={src}
     />
   ),
@@ -55,6 +58,20 @@ describe("HeroPhotoOrbit", () => {
 
     for (const image of screen.getAllByRole("img").slice(1)) {
       expect(image.getAttribute("data-priority")).toBe("false");
+    }
+  });
+
+  it("表示上限に合わせたレスポンシブ画像サイズを指定する", () => {
+    render(<HeroPhotoOrbit />);
+
+    const [mainImage, ...satelliteImages] = screen.getAllByRole("img");
+    expect(mainImage.getAttribute("data-sizes")).toBe(
+      "(min-width: 1280px) 510px, (min-width: 1024px) 38vw, 84vw",
+    );
+    for (const image of satelliteImages) {
+      expect(image.getAttribute("data-sizes")).toBe(
+        "(min-width: 1280px) 200px, (min-width: 1024px) 15vw, 31vw",
+      );
     }
   });
 });

@@ -20,7 +20,7 @@ export function LPHeroSection() {
 
           <h1
             aria-label="つながる、みつかる、変わっていく。"
-            className="text-[clamp(2.85rem,13vw,4.75rem)] leading-[1.2] font-black tracking-[-0.045em] text-text-dark lg:text-[4.5rem]"
+            className="text-[clamp(2.85rem,13vw,4.75rem)] leading-[1.2] font-black tracking-[-0.045em] text-text-dark lg:text-[clamp(3.25rem,4.5vw,4.5rem)]"
           >
             <span className="block">つながる<span className="text-primary">、</span></span>
             <span className="block">みつかる<span className="text-pop-teal">、</span></span>

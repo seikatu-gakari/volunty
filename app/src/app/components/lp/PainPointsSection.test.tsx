@@ -28,4 +28,13 @@ describe("PainPointsSection", () => {
     expect(screen.getByText(/ボランティーはひとつずつ解消/)).toBeDefined();
     expect(screen.queryByText(/Volunty/)).toBeNull();
   });
+
+  it("出典注記を本文色で読みやすく表示する", () => {
+    render(<PainPointsSection />);
+
+    const note = screen.getByText(/東京都生活文化スポーツ局/);
+    expect(note.className).toContain("text-text-body");
+    expect(note.className).not.toContain("text-text-body/70");
+    expect(note.className).not.toContain("opacity-70");
+  });
 });

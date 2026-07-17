@@ -114,7 +114,7 @@ export function DiagnosisTypesGrid() {
         })}
       </div>
 
-      <p className="mt-6 text-center text-xs text-text-body opacity-70">
+      <p className="mt-6 text-center text-xs text-text-body">
         ＊ 全50問の性格傾向チェック（約5〜8分）で、5つの性格特性のスコアと参考タイプを表示します。
       </p>
     </section>

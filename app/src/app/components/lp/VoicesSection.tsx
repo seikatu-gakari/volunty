@@ -61,7 +61,7 @@ export function VoicesSection() {
         ))}
       </div>
 
-      <p className="mt-6 text-xs leading-5 text-text-body/70">
+      <p className="mt-6 text-xs leading-5 text-text-body">
         ＊ 上記は利用シーンのイメージ例であり、実際のご利用者の声ではありません。
       </p>
     </section>

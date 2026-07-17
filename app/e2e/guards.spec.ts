@@ -242,6 +242,21 @@ test.describe("公開ヘッダーのブレークポイント", () => {
       "/signup",
     );
     await expectHeaderFitsViewport(page);
+
+    const thirdHeroLineMetrics = await page
+      .getByRole("heading", { name: "つながる、みつかる、変わっていく。" })
+      .locator(":scope > span")
+      .nth(2)
+      .evaluate((line) => {
+        const lineHeight = Number.parseFloat(getComputedStyle(line).lineHeight);
+        return {
+          height: line.getBoundingClientRect().height,
+          lineHeight,
+        };
+      });
+    expect(thirdHeroLineMetrics.height).toBeLessThanOrEqual(
+      thirdHeroLineMetrics.lineHeight * 1.1,
+    );
   });
 });
 

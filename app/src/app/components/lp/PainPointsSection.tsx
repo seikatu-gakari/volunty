@@ -64,7 +64,7 @@ export function PainPointsSection() {
         </div>
       </div>
 
-      <p className="mt-6 text-xs leading-5 text-text-body/70">
+      <p className="mt-6 text-xs leading-5 text-text-body">
         出典：東京都生活文化スポーツ局「都民のボランティア活動等に関する実態調査」を参考に構成
       </p>
     </section>
