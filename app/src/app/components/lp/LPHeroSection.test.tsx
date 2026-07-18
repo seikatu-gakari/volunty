@@ -76,12 +76,20 @@ describe("LPHeroSection", () => {
     expect(primaryCTA.getAttribute("href")).toBe("/diagnosis/trial");
     expect(primaryCTA.className).toContain("bg-primary-dark");
     expect(primaryCTA.className).toContain("hover:bg-text-dark");
+    expect(primaryCTA.className).toContain("lg:px-3");
+    expect(primaryCTA.className).toContain("lg:text-sm");
+    expect(primaryCTA.className).toContain("xl:px-6");
+    expect(primaryCTA.className).toContain("xl:text-base");
 
     const secondaryCTA = screen.getByRole("link", { name: /募集中の活動を見る/ });
     expect(secondaryCTA.getAttribute("href")).toBe("/opportunities");
     expect(secondaryCTA.className).toContain("border-primary-dark");
     expect(secondaryCTA.className).toContain("text-primary-dark");
     expect(secondaryCTA.className).toContain("hover:text-text-dark");
+    expect(secondaryCTA.className).toContain("lg:px-3");
+    expect(secondaryCTA.className).toContain("lg:text-sm");
+    expect(secondaryCTA.className).toContain("xl:px-6");
+    expect(secondaryCTA.className).toContain("xl:text-base");
     expect(screen.getByText("登録・診断は無料")).toBeDefined();
     expect(screen.getByText("約2分でできる")).toBeDefined();
     expect(screen.getByText("スマホ・PC対応")).toBeDefined();
