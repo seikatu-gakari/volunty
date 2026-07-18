@@ -1,10 +1,19 @@
 import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { LPPaperStage } from "./LPPaperStage";
 
 const VARIANTS = ["hero", "journey", "styles", "trust"] as const;
 
 describe("LPPaperStage", () => {
+  it("rail背景を外側へ広げて中央の読み取り面を保つ", () => {
+    const stylesheet = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8");
+    const backdropRule = stylesheet.match(/\.lp-paper-stage__backdrop\s*\{([\s\S]*?)\}/)?.[1];
+
+    expect(backdropRule).toContain("background-size: 100% auto, 140% auto, 100% auto;");
+  });
+
   it.each(VARIANTS)("%s variantの背景と子要素を描画する", (variant) => {
     render(
       <LPPaperStage variant={variant}>

@@ -133,7 +133,7 @@ body {
 .lp-paper-stage__backdrop {
   background-repeat: no-repeat, repeat-y, no-repeat;
   background-position: top center, center top, bottom center;
-  background-size: 100% auto, 100% auto, 100% auto;
+  background-size: 100% auto, 140% auto, 100% auto;
 }
 
 .lp-paper-stage--hero {
