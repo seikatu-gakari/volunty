@@ -20,6 +20,8 @@ describe("LPPaperStage", () => {
     expect(backdrop.className).toContain(`lp-paper-stage--${variant}`);
     expect(backdrop.getAttribute("aria-hidden")).toBe("true");
     expect(backdrop.className).toContain("pointer-events-none");
+    expect(backdrop.className).toContain("z-0");
+    expect(backdrop.className).not.toContain("-z-10");
     expect(screen.getByText(`${variant} content`)).toBeDefined();
   });
 });

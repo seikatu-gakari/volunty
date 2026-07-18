@@ -23,7 +23,7 @@ export function LPPaperStage({ variant, children }: LPPaperStageProps) {
     >
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-0 -z-10 lp-paper-stage__backdrop ${BACKDROP_CLASS_NAMES[variant]}`}
+        className={`pointer-events-none absolute inset-0 z-0 lp-paper-stage__backdrop ${BACKDROP_CLASS_NAMES[variant]}`}
         data-testid="lp-paper-backdrop"
       />
       <div className="relative z-10">{children}</div>
