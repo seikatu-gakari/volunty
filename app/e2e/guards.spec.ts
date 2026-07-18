@@ -146,6 +146,7 @@ test.describe("未ログインLP（モバイル）", () => {
 test.describe("未ログインLP（タブレット・デスクトップ）", () => {
   for (const viewport of [
     { width: 768, height: 1024, headerMode: "mobile" },
+    { width: 1024, height: 844, headerMode: "desktop" },
     { width: 1440, height: 1000, headerMode: "desktop" },
   ] as const) {
     test(`${viewport.width}pxで全セクション・画像・主要導線を安定表示する`, async ({ page }) => {
@@ -166,6 +167,35 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
         await expect(desktopNavigation).toBeVisible();
         await expect(desktopSignup).toBeVisible();
         await expect(desktopSignup).toHaveAttribute("href", "/signup");
+      }
+
+      if (viewport.width === 1024) {
+        const heroStage = page.locator('[data-testid="lp-paper-stage"][data-variant="hero"]');
+        const heroCTAs = [
+          heroStage.getByRole("link", { name: "無料で簡易診断を試す", exact: true }),
+          heroStage.getByRole("link", { name: "募集中の活動を見る", exact: true }),
+        ];
+
+        for (const cta of heroCTAs) {
+          const metrics = await cta.evaluate((element) => {
+            const textNode = Array.from(element.childNodes).find(
+              (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
+            );
+            const range = document.createRange();
+            if (textNode) {
+              range.selectNodeContents(textNode);
+            }
+
+            return {
+              clientWidth: element.clientWidth,
+              scrollWidth: element.scrollWidth,
+              textLineCount: textNode ? range.getClientRects().length : 0,
+            };
+          });
+
+          expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+          expect(metrics.textLineCount).toBe(1);
+        }
       }
     });
   }

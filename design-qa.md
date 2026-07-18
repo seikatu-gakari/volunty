@@ -18,7 +18,7 @@
   - `docs/design/lp-mobile-reference/qa/compare-paper-waves-desktop-text-focus.png`
   - `docs/design/lp-mobile-reference/qa/compare-paper-waves-desktop-photo-focus.png`
 - Mobile typography and CTA are readable at native size in the full `780x844` comparison, so an additional mobile crop was not needed.
-- Browser state: before every final capture, all `main img` elements were warmed and verified `21/21` complete with `naturalWidth>0`; each viewport then returned to `scrollY=0`. All four captures had no horizontal overflow or development overlay. Fresh 390px and 1440px loads had zero console errors.
+- Browser state: after the final production build, the development server was restarted before capture. All four viewports were opened fresh, every `main img` element was warmed and verified `21/21` complete with `naturalWidth>0`, and each viewport then returned to `scrollY=0`. All four captures had no horizontal overflow, issue badge, or development overlay. Fresh 390px and 1440px loads had zero console errors.
 
 ## Findings
 
@@ -46,14 +46,14 @@
 - FAQ question 2: opened (`aria-expanded=true`, answer visible) and closed (`aria-expanded=false`).
 - Hero CTA hrefs: `/diagnosis/trial` and `/opportunities`.
 - Background assets: Browser page-assets state downloaded mobile `3/3` and desktop `3/3`, failed `0`; direct HTTP verification returned `200` for all six URLs.
-- Console: fresh 390px and 1440px loads had `0` errors. A diagnostic same-tab resize produced one transient Next.js development hydration overlay; it was not reproducible on fresh navigation and is absent from every final capture.
+- Console: fresh 390px and 1440px loads had `0` errors. Running `next build` while the development server still used the same `.next` output briefly produced a stale hydration issue badge in QA; restarting the development server cleared it. The server restart preceded all final captures, and the badge is absent from every committed image.
 - Background abort fallback: `guards.spec.ts` aborts all paper WebP requests and confirms the Hero heading, both CTA hrefs, four stages, and width remain usable.
 
 ## Verification
 
 - `npm exec vitest run src/app/components/lp/LPPaperStage.test.tsx src/app/components/lp/HeroPhotoOrbit.test.tsx src/app/components/lp/LPHeroSection.test.tsx` — 14/14 passed.
 - `npm run lint` — passed; only the existing `baseline-browser-mapping` update notice was printed.
-- `npx playwright test e2e/guards.spec.ts --project=chromium` — 31/31 passed, including background-abort fallback and 1023/1024 header regression.
+- `npx playwright test e2e/guards.spec.ts --project=chromium` — 32/32 passed, including background-abort fallback, the 1023/1024 header regression, and a 1024px Hero CTA single-line assertion.
 - `npm run build` — passed; 32/32 pages generated. Existing caught dynamic-route cookie diagnostics were printed during static collection.
 
 final result: passed

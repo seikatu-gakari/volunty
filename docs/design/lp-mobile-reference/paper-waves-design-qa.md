@@ -29,7 +29,7 @@
 | 1024x844 | なし | desktop assetへ切替、外周と下端に展開 | なし。CTA 2件とも1行 | Hero 5枚表示、欠落なし | desktop |
 | 1440x1024 | なし | 横長dividerが下端へ広がる | なし | sourceと同じ5枚構成、伸長・haloなし | desktop |
 
-最終capture前に各幅で全`main img`をwarmupし、390/768/1024/1440のすべてで`21/21` completeかつ`naturalWidth>0`、failed `[]`を確認した。その後`scrollY=0`へ戻し、全幅で横あふれ`0`、開発overlayなし。fresh 390px / 1440px のconsole errorは `0`。同一dev tabを390pxから1440pxへresizeして再navigateした診断時のみNext.js hydration overlayを1回観測したが、fresh navigationでは再現せず、最終captureには含まれない。
+最終production build後にdevelopment serverを再起動し、各幅をfresh tabでcaptureした。capture前に全`main img`をwarmupし、390/768/1024/1440のすべてで`21/21` completeかつ`naturalWidth>0`、failed `[]`を確認した。その後`scrollY=0`へ戻し、全幅で横あふれ`0`、issue badge・開発overlayなし。fresh 390px / 1440px のconsole errorは `0`。途中で`next build`とdevelopment serverが同じ`.next`出力を使用したためstale hydration badgeを観測したが、server再起動後には再現せず、最終captureには含まれない。
 
 ## fidelity surfaces
 
@@ -77,11 +77,11 @@ Browserのpage-assets状態でmobile `3/3`、desktop `3/3` がdownloaded、faile
 | 区分 | 判定 | 追加・更新したテスト | RED/GREEN | 最終結果 |
 | --- | --- | --- | --- | --- |
 | UT | 必須 | `LPPaperStage.test.tsx`, `HeroPhotoOrbit.test.tsx`, `LPHeroSection.test.tsx` | 各visual bugでRED確認後GREEN | 14/14 passed |
-| E2E | 必須 | `guards.spec.ts`（fallback・responsive/header回帰を含む） | 768 image候補の途中失敗を修正後GREEN | 31/31 passed |
+| E2E | 必須 | `guards.spec.ts`（fallback・responsive/header回帰・1024px Hero CTA 1行表示を含む） | visual regressionの再現後、CTA幅補正と実ブラウザassertをGREEN | 32/32 passed |
 
 - `npm exec vitest run src/app/components/lp/LPPaperStage.test.tsx src/app/components/lp/HeroPhotoOrbit.test.tsx src/app/components/lp/LPHeroSection.test.tsx`: 3 files、14 tests passed。
 - `npm run lint`: exit 0。既存の`baseline-browser-mapping`更新案内のみ。
-- `npx playwright test e2e/guards.spec.ts --project=chromium`: 31/31 passed。
+- `npx playwright test e2e/guards.spec.ts --project=chromium`: 32/32 passed。background-abort fallback、1023/1024 Header切替、1024px Hero CTA 2件の1行表示を含む。
 - `npm run build`: exit 0、32/32 pages generated。dynamic routeのcookie利用に関する既存のcatch済み診断ログあり。
 
 ## 残りのpolish
