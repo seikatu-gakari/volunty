@@ -49,7 +49,7 @@ function getActivityStyleName(id: ActivityStyleId) {
 
 export function DiagnosisTypesCarousel() {
   return (
-    <section id="styles" className="relative -mx-4 bg-pop-yellow-soft/60 px-4 py-20 sm:-mx-6 sm:px-6 sm:py-28 lg:mx-0 lg:rounded-[40px] lg:px-10">
+    <section id="styles" className="relative -mx-4 bg-transparent px-4 py-20 sm:-mx-6 sm:px-6 sm:py-28 lg:mx-0 lg:rounded-[40px] lg:px-10">
       <div className="mb-8 max-w-2xl">
         <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-text-dark">
           10の活動スタイル

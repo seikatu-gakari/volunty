@@ -10,7 +10,7 @@ const TRUST_ITEMS = [
 
 export function LPHeroSection() {
   return (
-    <section className="relative z-10 -mx-4 overflow-hidden bg-lp-cream px-4 py-8 sm:-mx-6 sm:px-6 sm:py-12 lg:mx-0 lg:rounded-[40px] lg:px-10 lg:py-16">
+    <section className="relative z-10 -mx-4 bg-transparent px-4 py-8 sm:-mx-6 sm:px-6 sm:py-12 lg:mx-0 lg:rounded-[40px] lg:px-10 lg:py-16">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-x-12 lg:gap-y-7">
         <div className="relative z-10 lg:col-start-1 lg:row-start-1">
           <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-pop-teal/25 bg-pop-teal-soft px-4 py-2 text-xs font-bold text-text-dark shadow-sm sm:text-sm">

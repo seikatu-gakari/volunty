@@ -17,12 +17,21 @@ async function expectLandingPageIntegrity(
   viewportWidth: number,
 ) {
   const sections = [
-    { name: "hero", locator: page.locator("main > section").first() },
+    { name: "hero", locator: page.locator("main section").first() },
     ...LP_SECTION_IDS.map((sectionId) => ({
       name: sectionId,
       locator: page.locator(`#${sectionId}`),
     })),
   ];
+  const paperStages = page.getByTestId("lp-paper-stage");
+  await expect(paperStages).toHaveCount(4);
+  for (const [index, variant] of ["hero", "journey", "styles", "trust"].entries()) {
+    await expect(paperStages.nth(index)).toHaveAttribute("data-variant", variant);
+    await expect(paperStages.nth(index).getByTestId("lp-paper-backdrop")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+  }
   expect(sections).toHaveLength(10);
 
   for (const section of sections) {
@@ -162,6 +171,28 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
   }
 });
 
+test("紙背景の取得失敗時も主要情報と操作を維持する", async ({ page }) => {
+  await page.route("**/images/lp/paper-waves/*.webp", async (route) => {
+    await route.abort();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: /無料で簡易診断を試す/ }).first()).toHaveAttribute(
+    "href",
+    "/diagnosis/trial",
+  );
+  await expect(page.getByRole("link", { name: /活動を探す/ }).first()).toHaveAttribute(
+    "href",
+    "/opportunities",
+  );
+  await expect(page.getByTestId("lp-paper-stage")).toHaveCount(4);
+
+  const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(scrollWidth).toBeLessThanOrEqual(390);
+});
+
 test.describe("非LP未認証ヘッダー", () => {
   test("/loginではLPアンカーとモバイルメニューを表示しない", async ({ page }) => {
     await page.goto("/login");
@@ -191,6 +222,7 @@ test.describe("認証済みホームヘッダー", () => {
       0,
     );
     await expect(page.locator('main a[href^="#"]')).toHaveCount(0);
+    await expect(page.getByTestId("lp-paper-stage")).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toHaveCount(0);
