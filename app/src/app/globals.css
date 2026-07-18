@@ -143,6 +143,16 @@ body {
     url("/images/lp/paper-waves/divider-mobile.webp");
 }
 
+.lp-paper-stage--hero::after {
+  position: absolute;
+  top: 520px;
+  left: -20%;
+  width: 140%;
+  aspect-ratio: 8 / 3;
+  content: "";
+  background: url("/images/lp/paper-waves/divider-mobile.webp") center / 100% auto no-repeat;
+}
+
 .lp-paper-stage--journey {
   background-image:
     url("/images/lp/paper-waves/crown-mobile.webp"),
@@ -176,5 +186,13 @@ body {
       url("/images/lp/paper-waves/crown-desktop.webp"),
       url("/images/lp/paper-waves/rail-desktop.webp"),
       url("/images/lp/paper-waves/divider-desktop.webp");
+  }
+
+  .lp-paper-stage--hero::after {
+    top: 520px;
+    left: -5%;
+    width: 110%;
+    aspect-ratio: 6 / 1;
+    background-image: url("/images/lp/paper-waves/divider-desktop.webp");
   }
 }

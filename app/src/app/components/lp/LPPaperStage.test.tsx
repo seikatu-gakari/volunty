@@ -27,6 +27,14 @@ describe("LPPaperStage", () => {
     expect(variantRule).toContain(`background-position: ${backgroundPosition};`);
   });
 
+  it("heroのPhoto Orbit背面へdividerを流す", () => {
+    const stylesheet = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8");
+    const heroFlowRule = stylesheet.match(/\.lp-paper-stage--hero::after\s*\{([\s\S]*?)\}/)?.[1];
+
+    expect(heroFlowRule).toContain('url("/images/lp/paper-waves/divider-mobile.webp")');
+    expect(heroFlowRule).toContain("top: 520px;");
+  });
+
   it.each(VARIANTS)("%s variantの背景と子要素を描画する", (variant) => {
     render(
       <LPPaperStage variant={variant}>
