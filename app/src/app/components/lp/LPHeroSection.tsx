@@ -35,17 +35,17 @@ export function LPHeroSection() {
         <div className="grid gap-3 sm:grid-cols-2 lg:col-start-1 lg:row-start-2">
           <Link
             href="/diagnosis/trial"
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-primary-dark px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-text-dark lg:px-3 lg:text-sm xl:px-6 xl:text-base"
+            className="inline-flex h-14 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-primary-dark px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-text-dark lg:gap-1 lg:px-2 lg:text-[13px] xl:gap-2 xl:px-6 xl:text-base"
           >
             無料で簡易診断を試す
-            <ArrowRight className="size-5" aria-hidden />
+            <ArrowRight className="size-5 lg:size-4 xl:size-5" aria-hidden />
           </Link>
           <Link
             href="/opportunities"
-            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5 hover:text-text-dark lg:px-3 lg:text-sm xl:px-6 xl:text-base"
+            className="inline-flex h-14 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5 hover:text-text-dark lg:gap-1 lg:px-2 lg:text-[13px] xl:gap-2 xl:px-6 xl:text-base"
           >
             募集中の活動を見る
-            <ArrowRight className="size-5" aria-hidden />
+            <ArrowRight className="size-5 lg:size-4 xl:size-5" aria-hidden />
           </Link>
         </div>
 
