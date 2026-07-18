@@ -148,7 +148,7 @@ body {
     url("/images/lp/paper-waves/crown-mobile.webp"),
     url("/images/lp/paper-waves/rail-mobile.webp"),
     url("/images/lp/paper-waves/divider-mobile.webp");
-  background-position: top left, right top, bottom right;
+  background-position: top left, center top, bottom right;
 }
 
 .lp-paper-stage--styles {
@@ -156,7 +156,7 @@ body {
     url("/images/lp/paper-waves/crown-mobile.webp"),
     url("/images/lp/paper-waves/rail-mobile.webp"),
     url("/images/lp/paper-waves/divider-mobile.webp");
-  background-position: top right, left top, bottom left;
+  background-position: top right, center top, bottom left;
 }
 
 .lp-paper-stage--trust {
@@ -164,7 +164,7 @@ body {
     url("/images/lp/paper-waves/crown-mobile.webp"),
     url("/images/lp/paper-waves/rail-mobile.webp"),
     url("/images/lp/paper-waves/divider-mobile.webp");
-  background-position: top center, right top, bottom center;
+  background-position: top center, center top, bottom center;
 }
 
 @media (min-width: 1024px) {

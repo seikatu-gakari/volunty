@@ -46,7 +46,7 @@ export function HeroPhotoOrbit() {
           className="aspect-[4/3] w-full rounded-[42%_58%_46%_54%/24%_32%_68%_76%] object-cover lg:rounded-[34%_66%_40%_60%/30%_22%_78%_70%]"
           height={main.height}
           priority
-          sizes="(min-width: 1280px) 510px, (min-width: 1024px) 38vw, 84vw"
+          sizes="(min-width: 1280px) 510px, (min-width: 1024px) 38vw, (min-width: 640px) 576px, 84vw"
           src={main.src}
           style={{ objectPosition: main.objectPosition }}
           width={main.width}

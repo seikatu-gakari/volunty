@@ -14,6 +14,19 @@ describe("LPPaperStage", () => {
     expect(backdropRule).toContain("background-size: 100% auto, 140% auto, 100% auto;");
   });
 
+  it.each([
+    ["journey", "top left, center top, bottom right"],
+    ["styles", "top right, center top, bottom left"],
+    ["trust", "top center, center top, bottom center"],
+  ] as const)("%s variantのrail背景を中央に固定する", (variant, backgroundPosition) => {
+    const stylesheet = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8");
+    const variantRule = stylesheet.match(
+      new RegExp(`\\.lp-paper-stage--${variant}\\s*\\{([\\s\\S]*?)\\}`),
+    )?.[1];
+
+    expect(variantRule).toContain(`background-position: ${backgroundPosition};`);
+  });
+
   it.each(VARIANTS)("%s variantの背景と子要素を描画する", (variant) => {
     render(
       <LPPaperStage variant={variant}>
