@@ -179,14 +179,19 @@ test("紙背景の取得失敗時も主要情報と操作を維持する", async
   await page.goto("/");
 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByRole("link", { name: /無料で簡易診断を試す/ }).first()).toHaveAttribute(
-    "href",
-    "/diagnosis/trial",
-  );
-  await expect(page.getByRole("link", { name: /活動を探す/ }).first()).toHaveAttribute(
-    "href",
-    "/opportunities",
-  );
+  const heroStage = page.locator('[data-testid="lp-paper-stage"][data-variant="hero"]');
+  const primaryCTA = heroStage.getByRole("link", {
+    name: "無料で簡易診断を試す",
+    exact: true,
+  });
+  const secondaryCTA = heroStage.getByRole("link", {
+    name: "募集中の活動を見る",
+    exact: true,
+  });
+  await expect(primaryCTA).toBeVisible();
+  await expect(primaryCTA).toHaveAttribute("href", "/diagnosis/trial");
+  await expect(secondaryCTA).toBeVisible();
+  await expect(secondaryCTA).toHaveAttribute("href", "/opportunities");
   await expect(page.getByTestId("lp-paper-stage")).toHaveCount(4);
 
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
