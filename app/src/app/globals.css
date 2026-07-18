@@ -128,3 +128,53 @@ body {
 .lp-carousel::-webkit-scrollbar {
   display: none;
 }
+
+/* 未ログインLP: Layered Paper Waves */
+.lp-paper-stage__backdrop {
+  background-repeat: no-repeat, repeat-y, no-repeat;
+  background-position: top center, center top, bottom center;
+  background-size: 100% auto, 100% auto, 100% auto;
+}
+
+.lp-paper-stage--hero {
+  background-image:
+    url("/images/lp/paper-waves/crown-mobile.webp"),
+    url("/images/lp/paper-waves/rail-mobile.webp"),
+    url("/images/lp/paper-waves/divider-mobile.webp");
+}
+
+.lp-paper-stage--journey {
+  background-image:
+    url("/images/lp/paper-waves/crown-mobile.webp"),
+    url("/images/lp/paper-waves/rail-mobile.webp"),
+    url("/images/lp/paper-waves/divider-mobile.webp");
+  background-position: top left, right top, bottom right;
+}
+
+.lp-paper-stage--styles {
+  background-image:
+    url("/images/lp/paper-waves/crown-mobile.webp"),
+    url("/images/lp/paper-waves/rail-mobile.webp"),
+    url("/images/lp/paper-waves/divider-mobile.webp");
+  background-position: top right, left top, bottom left;
+}
+
+.lp-paper-stage--trust {
+  background-image:
+    url("/images/lp/paper-waves/crown-mobile.webp"),
+    url("/images/lp/paper-waves/rail-mobile.webp"),
+    url("/images/lp/paper-waves/divider-mobile.webp");
+  background-position: top center, right top, bottom center;
+}
+
+@media (min-width: 1024px) {
+  .lp-paper-stage--hero,
+  .lp-paper-stage--journey,
+  .lp-paper-stage--styles,
+  .lp-paper-stage--trust {
+    background-image:
+      url("/images/lp/paper-waves/crown-desktop.webp"),
+      url("/images/lp/paper-waves/rail-desktop.webp"),
+      url("/images/lp/paper-waves/divider-desktop.webp");
+  }
+}
