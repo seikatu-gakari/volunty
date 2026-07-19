@@ -17,12 +17,21 @@ async function expectLandingPageIntegrity(
   viewportWidth: number,
 ) {
   const sections = [
-    { name: "hero", locator: page.locator("main > section").first() },
+    { name: "hero", locator: page.locator("main section").first() },
     ...LP_SECTION_IDS.map((sectionId) => ({
       name: sectionId,
       locator: page.locator(`#${sectionId}`),
     })),
   ];
+  const paperStages = page.getByTestId("lp-paper-stage");
+  await expect(paperStages).toHaveCount(4);
+  for (const [index, variant] of ["hero", "journey", "styles", "trust"].entries()) {
+    await expect(paperStages.nth(index)).toHaveAttribute("data-variant", variant);
+    await expect(paperStages.nth(index).getByTestId("lp-paper-backdrop")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+  }
   expect(sections).toHaveLength(10);
 
   for (const section of sections) {
@@ -137,6 +146,7 @@ test.describe("未ログインLP（モバイル）", () => {
 test.describe("未ログインLP（タブレット・デスクトップ）", () => {
   for (const viewport of [
     { width: 768, height: 1024, headerMode: "mobile" },
+    { width: 1024, height: 844, headerMode: "desktop" },
     { width: 1440, height: 1000, headerMode: "desktop" },
   ] as const) {
     test(`${viewport.width}pxで全セクション・画像・主要導線を安定表示する`, async ({ page }) => {
@@ -158,8 +168,64 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
         await expect(desktopSignup).toBeVisible();
         await expect(desktopSignup).toHaveAttribute("href", "/signup");
       }
+
+      if (viewport.width === 1024) {
+        const heroStage = page.locator('[data-testid="lp-paper-stage"][data-variant="hero"]');
+        const heroCTAs = [
+          heroStage.getByRole("link", { name: "無料で簡易診断を試す", exact: true }),
+          heroStage.getByRole("link", { name: "募集中の活動を見る", exact: true }),
+        ];
+
+        for (const cta of heroCTAs) {
+          const metrics = await cta.evaluate((element) => {
+            const textNode = Array.from(element.childNodes).find(
+              (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
+            );
+            const range = document.createRange();
+            if (textNode) {
+              range.selectNodeContents(textNode);
+            }
+
+            return {
+              clientWidth: element.clientWidth,
+              scrollWidth: element.scrollWidth,
+              textLineCount: textNode ? range.getClientRects().length : 0,
+            };
+          });
+
+          expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+          expect(metrics.textLineCount).toBe(1);
+        }
+      }
     });
   }
+});
+
+test("紙背景の取得失敗時も主要情報と操作を維持する", async ({ page }) => {
+  await page.route("**/images/lp/paper-waves/*.webp", async (route) => {
+    await route.abort();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const heroStage = page.locator('[data-testid="lp-paper-stage"][data-variant="hero"]');
+  const primaryCTA = heroStage.getByRole("link", {
+    name: "無料で簡易診断を試す",
+    exact: true,
+  });
+  const secondaryCTA = heroStage.getByRole("link", {
+    name: "募集中の活動を見る",
+    exact: true,
+  });
+  await expect(primaryCTA).toBeVisible();
+  await expect(primaryCTA).toHaveAttribute("href", "/diagnosis/trial");
+  await expect(secondaryCTA).toBeVisible();
+  await expect(secondaryCTA).toHaveAttribute("href", "/opportunities");
+  await expect(page.getByTestId("lp-paper-stage")).toHaveCount(4);
+
+  const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(scrollWidth).toBeLessThanOrEqual(390);
 });
 
 test.describe("非LP未認証ヘッダー", () => {
@@ -191,6 +257,7 @@ test.describe("認証済みホームヘッダー", () => {
       0,
     );
     await expect(page.locator('main a[href^="#"]')).toHaveCount(0);
+    await expect(page.getByTestId("lp-paper-stage")).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toHaveCount(0);

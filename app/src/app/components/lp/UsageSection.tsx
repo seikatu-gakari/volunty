@@ -40,7 +40,7 @@ const TRAITS = [
 
 export function UsageSection() {
   return (
-    <section id="usage" className="rounded-[40px] bg-pop-teal-soft px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
+    <section id="usage" className="bg-transparent px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
       <LPSectionHeading
         eyebrow="HOW IT WORKS"
         title="はじめるのは、かんたん3ステップ。"
