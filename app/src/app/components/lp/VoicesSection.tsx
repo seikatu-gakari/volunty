@@ -30,7 +30,7 @@ const VOICES = [
 
 export function VoicesSection() {
   return (
-    <section id="voices" className="bg-transparent px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
+    <section id="voices" className="rounded-[40px] bg-pop-teal-soft px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
       <LPSectionHeading
         eyebrow="こんな使われ方"
         title="ひとりひとりの「ちょうどいい」参加へ。"

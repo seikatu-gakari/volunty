@@ -10,7 +10,7 @@ const TRUST_ITEMS = [
 
 export function LPHeroSection() {
   return (
-    <section className="relative z-10 -mx-4 bg-transparent px-4 py-8 sm:-mx-6 sm:px-6 sm:py-12 lg:mx-0 lg:rounded-[40px] lg:px-10 lg:py-16">
+    <section className="relative z-10 -mx-4 overflow-hidden bg-lp-cream px-4 py-8 sm:-mx-6 sm:px-6 sm:py-12 lg:mx-0 lg:rounded-[40px] lg:px-10 lg:py-16">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-x-12 lg:gap-y-7">
         <div className="relative z-10 lg:col-start-1 lg:row-start-1">
           <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-pop-teal/25 bg-pop-teal-soft px-4 py-2 text-xs font-bold text-text-dark shadow-sm sm:text-sm">
@@ -35,17 +35,17 @@ export function LPHeroSection() {
         <div className="grid gap-3 sm:grid-cols-2 lg:col-start-1 lg:row-start-2">
           <Link
             href="/diagnosis/trial"
-            className="inline-flex h-14 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-primary-dark px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-text-dark lg:gap-1 lg:px-2 lg:text-[13px] xl:gap-2 xl:px-6 xl:text-base"
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-primary-dark px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-text-dark"
           >
             無料で簡易診断を試す
-            <ArrowRight className="size-5 lg:size-4 xl:size-5" aria-hidden />
+            <ArrowRight className="size-5" aria-hidden />
           </Link>
           <Link
             href="/opportunities"
-            className="inline-flex h-14 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5 hover:text-text-dark lg:gap-1 lg:px-2 lg:text-[13px] xl:gap-2 xl:px-6 xl:text-base"
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5 hover:text-text-dark"
           >
             募集中の活動を見る
-            <ArrowRight className="size-5 lg:size-4 xl:size-5" aria-hidden />
+            <ArrowRight className="size-5" aria-hidden />
           </Link>
         </div>
 
