@@ -66,7 +66,7 @@ describe("HeroPhotoOrbit", () => {
 
     const [mainImage, ...satelliteImages] = screen.getAllByRole("img");
     expect(mainImage.getAttribute("data-sizes")).toBe(
-      "(min-width: 1280px) 510px, (min-width: 1024px) 38vw, (min-width: 640px) 576px, 84vw",
+      "(min-width: 1280px) 510px, (min-width: 1024px) 38vw, 84vw",
     );
     for (const image of satelliteImages) {
       expect(image.getAttribute("data-sizes")).toBe(

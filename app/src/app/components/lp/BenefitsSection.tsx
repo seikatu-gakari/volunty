@@ -30,7 +30,7 @@ export function BenefitsSection() {
   return (
     <section
       id="benefits"
-      className="-mx-4 bg-transparent px-4 py-20 sm:-mx-6 sm:px-6 sm:py-28 lg:mx-0 lg:rounded-[40px] lg:px-10"
+      className="-mx-4 bg-pop-purple-soft/70 px-4 py-20 sm:-mx-6 sm:px-6 sm:py-28 lg:mx-0 lg:rounded-[40px] lg:px-10"
     >
       <LPSectionHeading
         eyebrow="参加して、変わっていく"

@@ -3,7 +3,6 @@ import {
   AuthenticatedHome,
   type AuthenticatedHomeRole,
 } from "./components/AuthenticatedHome";
-import { LPPaperStage } from "./components/lp/LPPaperStage";
 import { Reveal } from "./components/lp/Reveal";
 import { LPHeroSection } from "./components/lp/LPHeroSection";
 import { DiagnosisTypesCarousel } from "./components/lp/DiagnosisTypesCarousel";
@@ -84,46 +83,54 @@ export default async function Home() {
 
       {!user && (
         <main className="mx-auto w-full max-w-7xl overflow-x-hidden px-4 pb-20 sm:px-6 lg:px-8">
-          <LPPaperStage variant="hero">
-            <LPHeroSection />
-            <Reveal>
-              <DiagnosisTypesCarousel />
-            </Reveal>
-          </LPPaperStage>
+          <LPHeroSection />
 
-          <LPPaperStage variant="journey">
-            <Reveal>
-              <PainPointsSection />
-            </Reveal>
-            <Reveal>
-              <UsageSection />
-            </Reveal>
-          </LPPaperStage>
+          {/* 診断タイプカルーセル */}
+          <Reveal>
+            <DiagnosisTypesCarousel />
+          </Reveal>
 
-          <LPPaperStage variant="styles">
-            <Reveal>
-              <DiagnosisTypesGrid />
-            </Reveal>
-            <Reveal>
-              <BenefitsSection />
-            </Reveal>
-          </LPPaperStage>
+          {/* 課題セクション */}
+          <Reveal>
+            <PainPointsSection />
+          </Reveal>
 
-          <LPPaperStage variant="trust">
-            <Reveal>
-              <VoicesSection />
-            </Reveal>
-            <Reveal>
-              <FeaturesSection />
-            </Reveal>
-            <Reveal>
-              <FAQSection />
-            </Reveal>
-          </LPPaperStage>
+          {/* 使い方（仕組みと統合） */}
+          <Reveal>
+            <UsageSection />
+          </Reveal>
 
+          {/* 10タイプグリッド */}
+          <Reveal>
+            <DiagnosisTypesGrid />
+          </Reveal>
+
+          {/* 参加メリット */}
+          <Reveal>
+            <BenefitsSection />
+          </Reveal>
+
+          {/* 利用イメージ（声） */}
+          <Reveal>
+            <VoicesSection />
+          </Reveal>
+
+          {/* 主な機能 */}
+          <Reveal>
+            <FeaturesSection />
+          </Reveal>
+
+          {/* FAQ */}
+          <Reveal>
+            <FAQSection />
+          </Reveal>
+
+          {/* ボトム CTA */}
           <Reveal>
             <LPBottomCTA />
           </Reveal>
+
+          {/* フッター */}
           <LPFooter />
         </main>
       )}
