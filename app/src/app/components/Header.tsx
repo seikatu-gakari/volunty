@@ -1,14 +1,21 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Heart, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { HeaderAuth } from "@/app/components/HeaderAuth";
+import { PublicHeaderNavigation } from "@/app/components/PublicHeaderNavigation";
+import { lpAssets } from "@/app/components/lp/lpAssets";
 
 /** ユーザーのロール・オンボーディング状態 */
 export interface HeaderUserState {
   role: "participant" | "organization" | null;
   onboardingCompleted: boolean;
   verified: boolean;
+}
+
+interface HeaderProps {
+  variant?: "default" | "landing";
 }
 
 /** verified フラグまたは reviewStatus === "approved" でチェック */
@@ -24,7 +31,7 @@ function isOrganizationVerified(profile: {
   );
 }
 
-export async function Header() {
+export async function Header({ variant = "default" }: HeaderProps = {}) {
   let user = null;
   let userState: HeaderUserState = {
     role: null,
@@ -78,16 +85,52 @@ export async function Header() {
     // Supabase未設定・接続エラー時はログインなしで表示
   }
 
+  const showLandingHeader = variant === "landing" && !user;
+
   return (
-    <header className="sticky top-0 z-10 border-b border-header-border bg-background/60 backdrop-blur-sm">
-      <div className="mx-auto flex h-[77px] max-w-7xl items-center justify-between px-8 pt-4 pb-px">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="relative">
-            <Heart className="size-8 text-primary" fill="#fb5b01" strokeWidth={0} />
-            <Sparkles className="absolute -top-1 -right-1 size-3.5 text-primary" />
-          </div>
+    <header
+      className={
+        showLandingHeader
+          ? "sticky top-0 z-50 border-b border-header-border bg-background/90 backdrop-blur-xl"
+          : "sticky top-0 z-10 border-b border-header-border bg-background/60 backdrop-blur-sm"
+      }
+    >
+      <div
+        className={
+          showLandingHeader
+            ? "mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8"
+            : "mx-auto flex h-[77px] max-w-7xl items-center justify-between px-8 pt-4 pb-px"
+        }
+      >
+        <Link
+          href="/"
+          className={
+            showLandingHeader ? "flex items-center gap-2.5" : "flex items-center gap-2"
+          }
+          aria-label={showLandingHeader ? "ボランティー ホーム" : undefined}
+        >
+          {showLandingHeader ? (
+            <Image
+              src={lpAssets.brandMark.src}
+              alt={lpAssets.brandMark.alt}
+              width={lpAssets.brandMark.width}
+              height={lpAssets.brandMark.height}
+              className="size-9 object-contain sm:size-10"
+            />
+          ) : (
+            <div className="relative">
+              <Heart className="size-8 text-primary" fill="currentColor" strokeWidth={0} />
+              <Sparkles className="absolute -top-1 -right-1 size-3.5 text-primary" />
+            </div>
+          )}
           <div className="flex flex-col">
-            <span className="text-lg font-medium leading-7 text-text-dark">
+            <span
+              className={
+                showLandingHeader
+                  ? "text-lg font-extrabold leading-7 text-primary-dark sm:text-xl"
+                  : "text-lg font-medium leading-7 text-text-dark"
+              }
+            >
               ボランティー
             </span>
             <span className="hidden text-xs leading-4 text-text-body sm:block">
@@ -95,13 +138,13 @@ export async function Header() {
             </span>
           </div>
         </Link>
-        {!user && (
-          <nav className="hidden items-center gap-1 md:flex">
+        {showLandingHeader && (
+          <nav className="hidden items-center gap-1 lg:flex">
             {[
-              { href: "#kadai", label: "課題" },
+              { href: "#kadai", label: "はじめられない理由" },
               { href: "#usage", label: "使い方" },
-              { href: "#types", label: "診断タイプ" },
-              { href: "#faq", label: "FAQ" },
+              { href: "#types", label: "活動スタイル" },
+              { href: "#faq", label: "よくある質問" },
             ].map((item) => (
               <a
                 key={item.href}
@@ -113,7 +156,11 @@ export async function Header() {
             ))}
           </nav>
         )}
-        <HeaderAuth user={user} userState={userState} />
+        {showLandingHeader ? (
+          <PublicHeaderNavigation />
+        ) : (
+          <HeaderAuth user={user} userState={userState} />
+        )}
       </div>
     </header>
   );

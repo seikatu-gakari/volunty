@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Heart, Sparkles } from "lucide-react";
+import { lpAssets } from "./lpAssets";
 
 const LINK_GROUPS = [
   {
@@ -17,39 +18,36 @@ const LINK_GROUPS = [
       { label: "よくある質問", href: "#faq" },
     ],
   },
-];
+] as const;
 
 export function LPFooter() {
   return (
-    <footer className="relative z-10 mt-20 border-t border-card-border pb-10 pt-12">
-      <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <Link href="/" className="mb-4 flex items-center gap-2">
-            <div className="relative">
-              <Heart className="size-7 text-primary" fill="#fb5b01" strokeWidth={0} />
-              <Sparkles className="absolute -top-1 -right-1 size-3 text-primary" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-base font-bold text-text-dark">Volunty</span>
-              <span className="text-xs text-text-body">ボランティー</span>
-            </div>
+    <footer className="mt-20 border-t border-card-border py-12">
+      <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]">
+        <div>
+          <Link href="/" className="inline-flex items-center gap-3" aria-label="ボランティー">
+            <Image
+              src={lpAssets.brandMark.src}
+              alt={lpAssets.brandMark.alt}
+              width={lpAssets.brandMark.width}
+              height={lpAssets.brandMark.height}
+              className="size-11 object-contain"
+            />
+            <span className="text-xl font-black tracking-tight text-text-dark">ボランティー</span>
           </Link>
-          <p className="text-xs leading-6 text-text-body">
+          <p className="mt-4 text-sm leading-7 text-text-body">
             つながる、みつかる、変わっていく。<br />
-            あなたにぴったりのボランティアが見つかる。
+            自分らしく続けられるボランティアとの出会いを。
           </p>
         </div>
 
         {LINK_GROUPS.map((group) => (
           <div key={group.heading}>
-            <p className="mb-3 text-sm font-bold text-text-dark">{group.heading}</p>
-            <ul className="space-y-2">
+            <p className="mb-4 text-sm font-black text-text-dark">{group.heading}</p>
+            <ul className="space-y-3">
               {group.links.map((link) => (
                 <li key={link.label}>
-                  <Link
-                    href={link.href}
-                    className="text-xs text-text-body transition-colors hover:text-text-dark"
-                  >
+                  <Link href={link.href} className="text-sm text-text-body transition-colors hover:text-secondary-dark">
                     {link.label}
                   </Link>
                 </li>
@@ -59,8 +57,8 @@ export function LPFooter() {
         ))}
       </div>
 
-      <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-card-border pt-6 sm:flex-row">
-        <p className="text-xs text-text-body">© 2025 Volunty. All rights reserved.</p>
+      <div className="mt-10 border-t border-card-border pt-6">
+        <p className="text-xs text-text-body">© 2026 ボランティー. All rights reserved.</p>
       </div>
     </footer>
   );

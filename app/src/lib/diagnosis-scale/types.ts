@@ -157,8 +157,20 @@ export interface QualityAssessment {
  * 心理測定の本体ではなく、結果を理解しやすくするための補助的なナラティブ。
  * 断定（「あなたはこのタイプです」）や適性保証には使用しない。
  */
+export type ActivityStyleId =
+  | 'innovator-leader'
+  | 'supporter-care'
+  | 'creative-solo'
+  | 'perfectionist-analyst'
+  | 'charisma-entertainer'
+  | 'strategist-planner'
+  | 'harmony-mediator'
+  | 'adventure-explorer'
+  | 'conservative-guardian'
+  | 'sensitive-artist'
+
 export interface ActivityStyleType {
-  id: string
+  id: ActivityStyleId
   name: string
   nameEn: string
   /** 傾向としての説明文（断定表現を含めない） */

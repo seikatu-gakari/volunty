@@ -1,91 +1,108 @@
-import { Users, Star, Lightbulb, Zap, Heart, BarChart2, MessageCircle, Handshake } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import type { ActivityStyleId } from "@/lib/diagnosis-scale/types";
+import { lpAssets } from "./lpAssets";
 
-const TYPES: {
-  name: string;
-  icon: LucideIcon;
-  iconBg: string;
-  scores: Record<string, number>;
-  activity: string;
-  match: number;
-  gradient: string;
+interface FeaturedStyle {
+  id: ActivityStyleId;
+  description: string;
+  image: (typeof lpAssets)[keyof typeof lpAssets];
   accent: string;
-}[] = [
-  { name: "縁の下の力持ちタイプ", icon: Users,         iconBg: "bg-primary/10 text-primary", scores: { 外向性: 32, 協調性: 70, 誠実性: 90, 開放性: 52 }, activity: "資料整理・受付サポート",       match: 91, gradient: "from-orange-50 to-amber-50",   accent: "#fb5b01" },
-  { name: "リーダータイプ",       icon: Star,          iconBg: "bg-red-100 text-red-600",       scores: { 外向性: 88, 協調性: 66, 誠実性: 74, 開放性: 70 }, activity: "地域イベントの運営スタッフ", match: 93, gradient: "from-red-50 to-orange-50",     accent: "#ef4444" },
-  { name: "アイデアマンタイプ",   icon: Lightbulb,     iconBg: "bg-purple-100 text-purple-600", scores: { 外向性: 78, 協調性: 86, 誠実性: 64, 開放性: 92 }, activity: "子ども向け工作ワークショップ", match: 94, gradient: "from-purple-50 to-violet-50", accent: "#8b5cf6" },
-  { name: "実行力タイプ",         icon: Zap,           iconBg: "bg-green-100 text-green-600",   scores: { 外向性: 70, 協調性: 58, 誠実性: 82, 開放性: 60 }, activity: "河川敷の清掃・緑化活動",       match: 90, gradient: "from-green-50 to-emerald-50", accent: "#10b981" },
-  { name: "サポータータイプ",     icon: Heart,         iconBg: "bg-blue-100 text-blue-600",     scores: { 外向性: 60, 協調性: 92, 誠実性: 76, 開放性: 58 }, activity: "イベント当日のチーム補助",     match: 92, gradient: "from-blue-50 to-sky-50",     accent: "#3b82f6" },
-  { name: "アナリストタイプ",     icon: BarChart2,     iconBg: "bg-indigo-100 text-indigo-600", scores: { 外向性: 40, 協調性: 54, 誠実性: 88, 開放性: 80 }, activity: "活動データの集計・分析",       match: 89, gradient: "from-indigo-50 to-blue-50",  accent: "#6366f1" },
-  { name: "コミュニケータータイプ", icon: MessageCircle, iconBg: "bg-yellow-100 text-yellow-600", scores: { 外向性: 90, 協調性: 80, 誠実性: 62, 開放性: 74 }, activity: "来場者の案内・多言語サポート", match: 93, gradient: "from-yellow-50 to-orange-50", accent: "#f59e0b" },
-  { name: "ケアギバータイプ",     icon: Handshake,     iconBg: "bg-pink-100 text-pink-600",     scores: { 外向性: 56, 協調性: 94, 誠実性: 78, 開放性: 66 }, activity: "高齢者の見守り・声かけ",       match: 95, gradient: "from-pink-50 to-rose-50",   accent: "#ec4899" },
-];
+}
 
-function DiagnosisTypeCards({ keyPrefix }: { keyPrefix: string }) {
-  return TYPES.map((type) => (
-    <div
-      key={`${keyPrefix}-${type.name}`}
-      className={`lp-carousel-card flex w-72 shrink-0 flex-col rounded-2xl bg-linear-to-br ${type.gradient} p-5 shadow-sm ring-1 ring-black/5`}
-    >
-      <div className="mb-4 flex items-center gap-3">
-        <div className={`flex size-12 items-center justify-center rounded-xl ${type.iconBg}`}>
-          <type.icon className="size-6" />
-        </div>
-        <div>
-          <p className="text-xs text-text-body">あなたの診断結果</p>
-          <p className="text-sm font-bold text-text-dark">{type.name}</p>
-        </div>
-      </div>
+const FEATURED_STYLES = [
+  {
+    id: "supporter-care",
+    description: "そっと寄り添い、誰かの安心を支える。",
+    image: lpAssets.styleSupporter,
+    accent: "bg-pop-coral-soft text-text-dark border-primary/20",
+  },
+  {
+    id: "adventure-explorer",
+    description: "新しい場所へ飛び込み、体験を楽しむ。",
+    image: lpAssets.styleExplorer,
+    accent: "bg-pop-teal-soft text-secondary-dark border-pop-teal/20",
+  },
+  {
+    id: "harmony-mediator",
+    description: "対話をつなぎ、チームの空気を整える。",
+    image: lpAssets.styleMediator,
+    accent: "bg-pop-yellow-soft text-warning border-pop-yellow/30",
+  },
+  {
+    id: "creative-solo",
+    description: "得意な表現で、静かに力を発揮する。",
+    image: lpAssets.styleCreative,
+    accent: "bg-pop-purple-soft text-text-dark border-pop-purple/20",
+  },
+] as const satisfies readonly FeaturedStyle[];
 
-      <div className="space-y-2">
-        {Object.entries(type.scores).map(([label, val]) => (
-          <div key={label} className="flex items-center gap-2">
-            <span className="w-12 text-xs text-text-body">{label}</span>
-            <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-black/10">
-              <div
-                className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
-                style={{ width: `${val}%`, background: type.accent }}
-              />
-            </div>
-            <span className="w-6 text-right text-xs font-bold" style={{ color: type.accent }}>{val}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 rounded-xl bg-white/70 p-3">
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-medium text-text-body">おすすめ活動</span>
-          <span className="font-bold" style={{ color: type.accent }}>相性 {type.match}%</span>
-        </div>
-        <p className="mt-1 text-sm font-bold text-text-dark">{type.activity}</p>
-      </div>
-    </div>
-  ));
+function getActivityStyleName(id: ActivityStyleId) {
+  const style = findStyleTypeById(id);
+  if (!style) {
+    throw new Error(`活動スタイルが見つかりません: ${id}`);
+  }
+  return style.name.replace(/タイプ$/, "傾向");
 }
 
 export function DiagnosisTypesCarousel() {
   return (
-    <div className="relative">
-      <div className="mb-6">
-        <p className="text-sm font-medium text-text-body">
-          <span className="mr-2 text-primary">✦</span>
-          診断すると、タイプごとにこんな結果が届きます
+    <section id="styles" className="relative -mx-4 bg-pop-yellow-soft/60 px-4 py-20 sm:-mx-6 sm:px-6 sm:py-28 lg:mx-0 lg:rounded-[40px] lg:px-10">
+      <div className="mb-8 max-w-2xl">
+        <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-text-dark">
+          10の活動スタイル
+        </p>
+        <h2 className="text-3xl font-black tracking-tight text-text-dark sm:text-4xl">
+          あなたらしい一歩のヒント。
+        </h2>
+        <p className="mt-4 text-sm leading-7 text-text-body sm:text-base">
+          性格傾向から、心地よく力を発揮しやすい活動スタイルを見つけます。
         </p>
       </div>
 
       <div
-        aria-label="診断タイプの連続カルーセル"
-        className="lp-carousel overflow-hidden pb-4"
+        aria-label="代表的な活動スタイル"
+        className="lp-carousel -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4"
       >
-        <div className="lp-carousel-track">
-          <div className="lp-carousel-card-group" data-carousel-card-group="primary">
-            <DiagnosisTypeCards keyPrefix="primary" />
-          </div>
-          <div className="lp-carousel-card-group" data-carousel-card-group="duplicate" aria-hidden="true">
-            <DiagnosisTypeCards keyPrefix="duplicate" />
-          </div>
-        </div>
+        {FEATURED_STYLES.map((style) => (
+          <article
+            key={style.id}
+            className="lp-carousel-card w-[78vw] max-w-[300px] shrink-0 snap-center overflow-hidden rounded-[28px] border border-card-border bg-white shadow-sm sm:w-auto sm:max-w-none"
+          >
+            <div className="relative aspect-[4/3] overflow-hidden">
+              <Image
+                src={style.image.src}
+                alt={style.image.alt}
+                fill
+                sizes="(max-width: 640px) 78vw, (max-width: 1024px) 45vw, 25vw"
+                className="object-cover transition-transform duration-500 hover:scale-[1.03]"
+              />
+            </div>
+            <div className="p-5">
+              <div className={`mb-4 inline-flex rounded-full border px-3 py-1.5 text-[11px] font-bold ${style.accent}`}>
+                活動スタイル
+              </div>
+              <h3 className="min-h-12 text-base font-bold leading-6 text-text-dark">
+                {getActivityStyleName(style.id)}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-text-body">{style.description}</p>
+              <Link
+                href="/diagnosis/trial"
+                className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-primary-dark"
+              >
+                診断で詳しく見る
+                <ArrowUpRight className="size-4" aria-hidden />
+              </Link>
+            </div>
+          </article>
+        ))}
       </div>
-    </div>
+
+      <p className="mt-5 text-xs leading-5 text-text-body">
+        ※ 表示されるスタイルは性格傾向をもとにした参考情報です。診断結果で可能性を限定するものではありません。
+      </p>
+    </section>
   );
 }

@@ -14,6 +14,16 @@
   --primary-dark: #c74700;
   --primary-light: #fb8a3c;
 
+  /* 未ログインLP: Balanced Pop */
+  --pop-teal: #12a4a1;
+  --pop-teal-soft: #dff5f1;
+  --pop-yellow: #f6c644;
+  --pop-yellow-soft: #fff3c9;
+  --pop-purple: #9370db;
+  --pop-purple-soft: #eee7ff;
+  --pop-coral-soft: #ffe4d5;
+  --lp-cream: #fff8ee;
+
   /* セカンダリー: オレンジの補色系（ティールブルー） */
   --secondary: #0e7490;
   --secondary-dark: #155e75;
@@ -43,6 +53,14 @@
   --color-primary: var(--primary);
   --color-primary-dark: var(--primary-dark);
   --color-primary-light: var(--primary-light);
+  --color-pop-teal: var(--pop-teal);
+  --color-pop-teal-soft: var(--pop-teal-soft);
+  --color-pop-yellow: var(--pop-yellow);
+  --color-pop-yellow-soft: var(--pop-yellow-soft);
+  --color-pop-purple: var(--pop-purple);
+  --color-pop-purple-soft: var(--pop-purple-soft);
+  --color-pop-coral-soft: var(--pop-coral-soft);
+  --color-lp-cream: var(--lp-cream);
   --color-secondary: var(--secondary);
   --color-secondary-dark: var(--secondary-dark);
   --color-success: var(--success);
@@ -60,24 +78,6 @@
   --color-input-border: var(--input-border);
   --color-divider-border: var(--divider-border);
   --font-sans: var(--font-noto-sans-jp);
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-@keyframes float-delayed {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
 }
 
 @keyframes fade-in-up {
@@ -120,32 +120,6 @@ body {
   transform: none;
 }
 
-/* グラデーション+ブラーの装飾 blob */
-.lp-blob {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(60px);
-  opacity: 0.55;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* ヒーロー画像コンテナの装飾 */
-@keyframes float-slow {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-14px) rotate(-1deg); }
-}
-.lp-hero-image {
-  animation: float-slow 8s ease-in-out infinite;
-}
-
-/* ガラスモーフィズム */
-.glass-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
 /* カルーセルのスクロールバー非表示 */
 .lp-carousel {
   scrollbar-width: none;
@@ -153,33 +127,4 @@ body {
 }
 .lp-carousel::-webkit-scrollbar {
   display: none;
-}
-
-@keyframes lp-carousel-marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.lp-carousel-track {
-  display: flex;
-  width: max-content;
-  animation: lp-carousel-marquee 44s linear infinite;
-  will-change: transform;
-}
-
-.lp-carousel-card-group {
-  display: flex;
-  gap: 1rem;
-  padding-right: 1rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lp-carousel-track {
-    animation: none;
-    transform: none;
-  }
 }

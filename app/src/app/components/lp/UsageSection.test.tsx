@@ -16,4 +16,14 @@ describe("UsageSection", () => {
 
     expect(container.querySelector("section#usage")).not.toBeNull();
   });
+
+  it("5つの性格傾向と参考情報である注記を表示する", () => {
+    render(<UsageSection />);
+
+    for (const label of ["外向性", "協調性", "誠実性", "情緒安定性", "知性・想像性"]) {
+      expect(screen.getByText(label)).toBeDefined();
+    }
+    expect(screen.getByText("結果は活動選びの参考情報です")).toBeDefined();
+    expect(screen.getByText("サポーター・ケア傾向")).toBeDefined();
+  });
 });

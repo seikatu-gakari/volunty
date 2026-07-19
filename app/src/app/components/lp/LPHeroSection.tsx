@@ -1,114 +1,64 @@
-import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Brain,
-  CheckCircle,
-  Clock,
-  Smartphone,
-  Sparkles,
-  Target,
-  Zap,
-} from "lucide-react";
-import { lpAppPreviewImage } from "./lpPreviewImage";
+import { ArrowRight, Brain, CheckCircle2, Clock3, Smartphone } from "lucide-react";
+import { HeroPhotoOrbit } from "./HeroPhotoOrbit";
 
 const TRUST_ITEMS = [
-  { icon: CheckCircle, text: "登録・診断は無料" },
-  { icon: Clock, text: "約2分でできる" },
+  { icon: CheckCircle2, text: "登録・診断は無料" },
+  { icon: Clock3, text: "約2分でできる" },
   { icon: Smartphone, text: "スマホ・PC対応" },
-] as const;
-
-const MATCH_POINTS = [
-  "あなたの強みを見える化",
-  "あなたに合う順に活動を提案",
-  "参加前の不安を減らす導線",
 ] as const;
 
 export function LPHeroSection() {
   return (
-    <section className="relative z-10 overflow-hidden py-10 sm:py-12 lg:py-14 animate-[fade-in-up_0.8s_ease-out_forwards]">
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)] lg:items-center lg:gap-x-10 lg:gap-y-0">
-        <div className="relative z-10 max-w-2xl lg:col-start-1 lg:row-start-1">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-bold text-primary-dark shadow-sm ring-1 ring-card-border">
-            <Brain className="size-4" />
+    <section className="relative z-10 -mx-4 overflow-hidden bg-lp-cream px-4 py-8 sm:-mx-6 sm:px-6 sm:py-12 lg:mx-0 lg:rounded-[40px] lg:px-10 lg:py-16">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-x-12 lg:gap-y-7">
+        <div className="relative z-10 lg:col-start-1 lg:row-start-1">
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-pop-teal/25 bg-pop-teal-soft px-4 py-2 text-xs font-bold text-text-dark shadow-sm sm:text-sm">
+            <Brain className="size-4 text-pop-teal" aria-hidden />
             性格傾向 × ボランティアマッチング
-          </div>
+          </p>
 
-          <div className="mb-6 flex flex-wrap gap-3">
-            <span className="inline-flex animate-[float_6s_ease-in-out_infinite] items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-primary-dark ring-1 ring-card-border">
-              <Brain className="size-4" /> 性格傾向チェック
-            </span>
-            <span className="inline-flex animate-[float_6s_ease-in-out_1s_infinite] items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-primary-dark ring-1 ring-card-border">
-              <Target className="size-4" /> おすすめ理由の見える化
-            </span>
-            <span className="inline-flex animate-[float_6s_ease-in-out_2s_infinite] items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-primary-dark ring-1 ring-card-border">
-              <Sparkles className="size-4" /> 興味×傾向マッチング
-            </span>
-          </div>
-
-          <h1 className="text-4xl font-extrabold tracking-tight text-text-dark sm:text-5xl lg:text-6xl">
-            <span className="block">つながる、</span>
-            <span className="block">みつかる、</span>
-            <span className="block bg-linear-to-r from-primary to-primary-dark bg-clip-text text-transparent">
-              変わっていく。
-            </span>
+          <h1
+            aria-label="つながる、みつかる、変わっていく。"
+            className="text-[clamp(2.85rem,13vw,4.75rem)] leading-[1.2] font-black tracking-[-0.045em] text-text-dark lg:text-[clamp(3.25rem,4.5vw,4.5rem)]"
+          >
+            <span className="block">つながる<span className="text-primary">、</span></span>
+            <span className="block">みつかる<span className="text-pop-teal">、</span></span>
+            <span className="block">変わっていく<span className="text-pop-purple">。</span></span>
           </h1>
-          <p className="mt-6 max-w-xl text-lg leading-8 text-text-body">
-            「何から始めればいい？」に寄り添うボランティアマッチング。約5〜8分の性格傾向チェックと興味分野で、あなたに合う活動を探しやすくします。
+
+          <p className="mt-5 max-w-xl text-base leading-8 font-medium text-text-body sm:text-lg">
+            約2分の簡易診断と興味分野から、あなたに合う活動を見つけよう。
           </p>
         </div>
 
-        <div className="relative lg:col-start-2 lg:row-span-4 lg:row-start-1">
-          <div className="absolute inset-x-10 -bottom-5 h-16 rounded-full bg-primary/20 blur-3xl" aria-hidden />
-          <div className="relative overflow-hidden rounded-[2rem] bg-white p-2 shadow-2xl ring-1 ring-card-border lp-hero-image">
-            <Image
-              alt={lpAppPreviewImage.alt}
-              className="h-auto w-full rounded-[1.5rem]"
-              height={lpAppPreviewImage.height}
-              priority
-              sizes="(min-width: 1024px) 54vw, 100vw"
-              src={lpAppPreviewImage.src}
-              width={lpAppPreviewImage.width}
-            />
-          </div>
-        </div>
-
-        <div className="relative z-10 grid gap-3 sm:max-w-xl sm:grid-cols-3 lg:col-start-1 lg:row-start-2">
-          {MATCH_POINTS.map((text) => (
-            <div
-              key={text}
-              className="rounded-2xl bg-white/80 px-4 py-3 text-sm font-bold leading-6 text-text-dark shadow-sm ring-1 ring-card-border"
-            >
-              <CheckCircle className="mb-2 size-4 text-primary" />
-              {text}
-            </div>
-          ))}
-        </div>
-
-        <div className="relative z-10 mt-4 flex flex-col gap-4 sm:flex-row sm:gap-5 lg:col-start-1 lg:row-start-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:col-start-1 lg:row-start-2">
           <Link
             href="/diagnosis/trial"
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-primary px-8 text-base font-bold text-white shadow-md transition-all hover:bg-primary-dark hover:shadow-lg sm:w-auto"
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-primary-dark px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-text-dark"
           >
-            <Zap className="size-5" />
-            <span className="whitespace-nowrap">登録前に簡易診断を試す</span>
-            <span className="ml-1 hidden text-xs font-normal opacity-75 2xl:inline">15問・約2分・無料</span>
-            <ArrowRight className="ml-1 size-5" />
+            無料で簡易診断を試す
+            <ArrowRight className="size-5" aria-hidden />
           </Link>
           <Link
             href="/opportunities"
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-white/75 px-8 text-base font-bold text-text-dark transition-all hover:bg-white sm:w-auto"
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5 hover:text-text-dark"
           >
-            <span className="whitespace-nowrap">募集中の活動を見る</span>
+            募集中の活動を見る
+            <ArrowRight className="size-5" aria-hidden />
           </Link>
         </div>
 
-        <div className="relative z-10 mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-text-body lg:col-start-1 lg:row-start-4">
+        <HeroPhotoOrbit />
+
+        <div className="grid grid-cols-3 divide-x divide-card-border rounded-2xl bg-white/85 px-2 py-4 shadow-sm ring-1 ring-card-border lg:col-start-1 lg:row-start-3">
           {TRUST_ITEMS.map((item) => (
-            <span key={item.text} className="inline-flex items-center gap-1.5">
-              <item.icon className="size-4 text-primary" />
-              {item.text}
-            </span>
+            <div key={item.text} className="flex min-w-0 flex-col items-center gap-1.5 px-1 text-center">
+              <item.icon className="size-5 text-text-body" aria-hidden />
+              <span className="text-[11px] leading-4 font-medium text-text-body sm:text-xs">
+                {item.text}
+              </span>
+            </div>
           ))}
         </div>
       </div>
