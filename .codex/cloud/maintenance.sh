@@ -9,6 +9,6 @@ if [ -z "$repo_root" ]; then
   exit 1
 fi
 
-# shellcheck source=common.sh
+# shellcheck disable=SC1091
 . "$script_dir/common.sh"
 codex_cloud_setup_dependencies "$repo_root"

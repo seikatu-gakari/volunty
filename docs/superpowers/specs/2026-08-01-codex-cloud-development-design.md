@@ -9,7 +9,7 @@ Volunty の設計、実装、検証、Pull Request 作成を Codex Cloud で完�
 
 - Codex Cloud がリポジトリをチェックアウトし、依存関係と Prisma Client を再現可能に準備できる。
 - Codex Cloud が設計書と実装計画を作成し、承認後に実装できる。
-- Codex Cloud が変更内容に応じて lint、UT、build を実行できる。
+- Codex Cloud が変更内容に応じて lint、UT、`npm run build -- --webpack` を実行できる。
 - Pull Request 上の GitHub Actions が lint、UT、build、E2E を実行できる。
 - Codex Cloud が feature ブランチから `main` 向け Pull Request を作成できる。
 - feature ブランチへの push で Vercel Preview が自動デプロイされる。
@@ -180,7 +180,7 @@ Codex Cloud の Secrets は setup phase 後にエージェント環境から除�
 
 - `cd app && npm run lint`
 - `cd app && npm test`
-- `cd app && npm run build`
+- `cd app && npm run build -- --webpack`
 - `make e2e`
 
 E2E は GitHub Actions での成功を最終判定とし、Codex Cloud 内で Docker が使えるかどうかに完了条件を依存させない。

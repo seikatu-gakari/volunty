@@ -14,6 +14,7 @@
 - 実装後に変更点、確認結果、残タスクをまとめる。
 - Codex Cloud の作業ブランチは `codex/<topic>`、Pull Request の base は `main` とする。`main` へのマージは人間が行う。
 - feature ブランチへの push で作成される Vercel Preview を確認し、CI と Codex Review が成功してから PR を完成扱いにする。
+- Codex Cloud のNext.js buildは `cd app && npm run build -- --webpack` を使用する。
 
 ## 基本方針
 

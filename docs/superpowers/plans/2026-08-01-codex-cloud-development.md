@@ -209,7 +209,7 @@
     working-directory: app
   - run: npm test
     working-directory: app
-  - run: npm run build
+  - run: npm run build -- --webpack
     working-directory: app
   ```
 
@@ -351,7 +351,7 @@
   bash -n .github/scripts/prepare-e2e-env.sh
   cd app && npm run lint
   cd app && npm test
-  cd app && npm run build
+  cd app && npm run build -- --webpack
   ```
 
 - [ ] **Step 5: E2Eを実行する**
