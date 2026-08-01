@@ -226,7 +226,7 @@
   - run: supabase start
   - run: supabase status -o env > "$RUNNER_TEMP/supabase.env"
   - run: bash .github/scripts/prepare-e2e-env.sh "$RUNNER_TEMP/supabase.env"
-  - run: supabase migration up --local
+  - run: supabase db reset --local
   - run: npm run test:e2e
     working-directory: app
   ```

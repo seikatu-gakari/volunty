@@ -190,6 +190,23 @@ CREATE POLICY "当事者は参加評価を閲覧可能"
   );
 
 -- ============================================
+-- PostgREST ロール権限（ローカル開発用）
+-- ============================================
+-- RLS は行単位の認可であり、PostgreSQL のテーブル権限を付与しないと
+-- anon / authenticated ロールから REST API を利用できない。
+-- 付与対象はアプリが Supabase クライアント経由で参照・更新するテーブルに限定する。
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
+GRANT SELECT ON public.m_user TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.m_participant_profile TO authenticated;
+GRANT SELECT ON public.t_diagnosis_result TO authenticated;
+
+GRANT SELECT ON public.m_organization_profile TO anon, authenticated;
+GRANT SELECT ON public.m_opportunity TO anon;
+GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.t_matching_candidate TO authenticated;
+
+-- ============================================
 -- テストデータ（ローカル開発専用）
 -- ============================================
 -- 固定 UUID を使用してリレーションの整合性を確保する。
