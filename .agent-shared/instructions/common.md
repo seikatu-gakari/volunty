@@ -12,6 +12,8 @@
 - テスト、lint、型チェックを可能な限り実行する。
 - 実装・修正・リファクタリング完了前に `volunty-test-completion-gate` で UT/E2E の追加要否を判定し、必要なテストを追加・実行する。
 - 実装後に変更点、確認結果、残タスクをまとめる。
+- Codex Cloud の作業ブランチは `codex/<topic>`、Pull Request の base は `main` とする。`main` へのマージは人間が行う。
+- feature ブランチへの push で作成される Vercel Preview を確認し、CI と Codex Review が成功してから PR を完成扱いにする。
 
 ## 基本方針
 
@@ -41,3 +43,4 @@
 1. タスクを始める前に上表から関係する skill を選び、必要なものだけ読む。
 2. 新しい恒久的なプロジェクト知識を追加する場合は、AGENTS.md へ長文を戻さず、該当 skill を更新する。
 3. 複数セクションにまたがる作業では、関係する skill を組み合わせて読む。
+4. Codex Cloud の設定・依頼手順は [docs/codex-cloud.md](docs/codex-cloud.md) を参照し、本番シークレットを Cloud に登録しない。
