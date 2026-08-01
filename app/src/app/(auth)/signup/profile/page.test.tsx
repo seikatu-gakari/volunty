@@ -26,7 +26,7 @@ vi.mock("@/lib/supabase/client", () => ({
 describe("SignupProfilePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://volunty.vercel.app/");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://volunty.jp/");
     sessionStorage.clear();
     sessionStorage.setItem(
       SIGNUP_TEMP_KEY,
@@ -62,9 +62,34 @@ describe("SignupProfilePage", () => {
         data: {
           full_name: "山田 太郎",
         },
-        emailRedirectTo: "https://volunty.vercel.app/auth/callback",
+        emailRedirectTo: "https://volunty.jp/auth/callback",
       },
     });
     expect(mocks.push).toHaveBeenCalledWith("/signup/complete");
+  });
+
+  it("本番URLが未設定でもvolunty.jpの認証コールバックURLを使用する", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", undefined);
+    vi.stubEnv("NODE_ENV", "production");
+
+    render(<SignupProfilePage />);
+
+    fireEvent.change(screen.getByLabelText("お名前"), {
+      target: { value: "山田 太郎" },
+    });
+    fireEvent.change(screen.getByLabelText("パスワード"), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "登録する" }));
+
+    await waitFor(() => expect(mocks.signUp).toHaveBeenCalled());
+
+    expect(mocks.signUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          emailRedirectTo: "https://volunty.jp/auth/callback",
+        }),
+      })
+    );
   });
 });

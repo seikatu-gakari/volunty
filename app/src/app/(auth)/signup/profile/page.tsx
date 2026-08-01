@@ -12,7 +12,7 @@ import { SIGNUP_TEMP_KEY } from "@/app/(auth)/signup/constants";
 
 /** ステップ数に基づくプログレスバー値 */
 const STEP2_PROGRESS = Math.round((2 / 3) * 100);
-const PRODUCTION_SITE_URL = "https://volunty.vercel.app";
+const PRODUCTION_SITE_URL = "https://volunty.jp";
 
 interface SignupTemp {
   email: string;
