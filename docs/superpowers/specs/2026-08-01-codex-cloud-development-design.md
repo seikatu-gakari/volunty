@@ -3,7 +3,7 @@
 ## 目的
 
 Volunty の設計、実装、検証、Pull Request 作成を Codex Cloud で完結できるようにする。
-`preview` および `main` へのマージは人間が GitHub 上で行い、Codex Cloud には本番環境の変更権限を与えない。
+`main` へのマージは人間が GitHub 上で行い、Codex Cloud には本番環境の変更権限を与えない。
 
 ## 成功条件
 
@@ -11,8 +11,9 @@ Volunty の設計、実装、検証、Pull Request 作成を Codex Cloud で完�
 - Codex Cloud が設計書と実装計画を作成し、承認後に実装できる。
 - Codex Cloud が変更内容に応じて lint、UT、build を実行できる。
 - Pull Request 上の GitHub Actions が lint、UT、build、E2E を実行できる。
-- Codex Cloud が feature ブランチから `preview` 向け Pull Request を作成できる。
-- Codex Cloud は `preview` または `main` をマージせず、`main` へ直接 push しない。
+- Codex Cloud が feature ブランチから `main` 向け Pull Request を作成できる。
+- feature ブランチへの push で Vercel Preview が自動デプロイされる。
+- Codex Cloud は `main` をマージせず、`main` へ直接 push しない。
 - 本番 Supabase、Vercel、本番データベースのシークレットを Codex Cloud に登録しない。
 
 ## 採用方式
@@ -21,10 +22,11 @@ Codex Cloud と GitHub Actions の分担方式を採用する。
 
 | 担当 | 責務 |
 | --- | --- |
-| Codex Cloud | 要件整理、設計、実装計画、実装、lint、UT、build、feature ブランチへの push、`preview` 向け Pull Request 作成 |
+| Codex Cloud | 要件整理、設計、実装計画、実装、lint、UT、build、feature ブランチへの push、`main` 向け Pull Request 作成 |
 | GitHub Actions | Pull Request ごとの lint、UT、build、ローカル Supabase を使った Playwright E2E |
 | Codex Code Review | Pull Request の自動レビューと重大な問題の指摘 |
-| 人間 | 設計・実装計画の承認、Pull Request レビュー、`preview` と `main` へのマージ判断 |
+| Vercel | feature ブランチへの push ごとの Preview デプロイ |
+| 人間 | 設計・実装計画の承認、Preview 確認、Pull Request レビュー、`main` へのマージ判断 |
 
 Codex Cloud の標準環境で Docker を利用できることに依存しない。Docker を必要とする Supabase E2E は GitHub-hosted runner で実行する。
 
@@ -37,11 +39,11 @@ Codex Cloud の標準環境で Docker を利用できることに依存しない
 5. 人間が実装計画を承認する。
 6. Codex Cloud が `codex/<topic>` ブランチで実装する。
 7. Codex Cloud が変更に必要な UT/E2E を判定し、Cloud 内で lint、UT、build を実行する。
-8. Codex Cloud が `preview` 向け Pull Request を作成する。
-9. GitHub Actions が lint、UT、build、E2E を実行し、Codex Code Review がレビューする。
-10. 不合格の場合、Codex Cloud が同じ Pull Request のブランチを修正する。
-11. 全必須チェックの成功後、人間が Pull Request を `preview` へマージする。
-12. プレビュー確認後、人間が `preview` から `main` への Pull Request をマージする。
+8. feature ブランチへの push を契機に、Vercel が Preview を自動デプロイする。
+9. Codex Cloud が `main` 向け Pull Request を作成する。
+10. GitHub Actions が lint、UT、build、E2E を実行し、Codex Code Review がレビューする。
+11. 不合格の場合、Codex Cloud が同じ Pull Request のブランチを修正する。
+12. 全必須チェックの成功と Preview の確認後、人間が Pull Request を `main` へマージする。
 
 ## リポジトリ変更
 
@@ -68,7 +70,7 @@ Codex Cloud の初回セットアップから呼び出す。
 
 ### `.github/workflows/ci.yml`
 
-`preview` または `main` 向け Pull Request で実行する。
+`main` 向け Pull Request で実行する。
 
 - Node.js 22 を使用する。
 - `app/package-lock.json` をキーに npm cache を利用する。
@@ -86,10 +88,19 @@ Codex Cloud の初回セットアップから呼び出す。
 
 - 複数段階の変更は、設計承認、実装計画承認、実装の順に進める。
 - 作業ブランチは `codex/<topic>` とする。
-- 開発 Pull Request の base は `preview` とする。
-- `preview` と `main` は人間だけがマージする。
+- 開発 Pull Request の base は `main` とする。
+- `main` は人間だけがマージする。
 - `main` への直接 push、production migration、本番シークレットの参照を禁止する。
 - `volunty-test-completion-gate` に基づく検証結果を Pull Request 本文へ記載する。
+
+### `docs/branch-workflow.md`
+
+現在の Vercel 設定と Codex Cloud 運用に合わせて更新する。
+
+- feature ブランチへの push でも Vercel Preview が自動デプロイされることを明記する。
+- 標準フローを `codex/<topic>` から `main` への Pull Request に変更する。
+- `preview` ブランチを必須の中継地点として扱わない。
+- `main` のマージは人間が行うことを維持する。
 
 ### `docs/codex-cloud.md`
 
@@ -101,7 +112,7 @@ Codex Cloud の初回セットアップから呼び出す。
 - setup script と maintenance script の登録コマンド
 - Agent internet access の最小権限
 - Codex Code Review と Automatic reviews の有効化
-- `preview` と `main` の branch protection および required checks
+- `main` の branch protection および required checks
 - Cloud へ渡してよい環境変数と、登録禁止の本番シークレット
 - 設計から Pull Request 作成までの依頼テンプレート
 - キャッシュリセットと失敗時の切り分け手順
@@ -128,7 +139,7 @@ Codex Cloud の Secrets は setup phase 後にエージェント環境から除�
 
 ### Branch protection
 
-`preview` と `main` に次を設定する。
+`main` に次を設定する。
 
 - Pull Request 経由の変更を必須にする。
 - CI の lint、UT、build、E2E を required checks にする。
@@ -145,7 +156,7 @@ Codex Cloud の Secrets は setup phase 後にエージェント環境から除�
 - E2E は GitHub Actions 内に作成したローカル Supabase のみを利用する。
 - fork 由来 Pull Request へ機密情報を渡さない。
 - Agent internet access は必要なタスクだけ個別に拡張し、無制限アクセスを既定にしない。
-- Codex Cloud に `preview`／`main` のマージや本番デプロイの責務を持たせない。
+- Codex Cloud に `main` のマージや本番デプロイの責務を持たせない。
 
 ## エラー処理
 
@@ -177,13 +188,14 @@ E2E は GitHub Actions での成功を最終判定とし、Codex Cloud 内で Do
 ### 運用確認
 
 - Codex Cloud から小さな検証ブランチを作成する。
-- `preview` 向け Pull Request を作成する。
+- feature ブランチへの push で Vercel Preview が作成されることを確認する。
+- `main` 向け Pull Request を作成する。
 - required checks と Codex Review が自動起動することを確認する。
-- Codex Cloud が `preview` または `main` をマージできない運用になっていることを確認する。
+- Codex Cloud が `main` をマージしない運用になっていることを確認する。
 
 ## 対象外
 
-- Codex Cloud による `preview` または `main` の自動マージ
+- Codex Cloud による `main` の自動マージ
 - 本番 DB migration の変更
 - Vercel の本番・Preview環境変数の変更
 - 本番 Supabase を使ったテスト
