@@ -1,0 +1,102 @@
+name: Pull Request CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pull-request-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit
+
+      - name: Generate Prisma Client
+        run: npm run db:generate
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run production build
+        run: npm run build
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v2
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci --no-audit
+
+      - name: Install Playwright Chromium
+        working-directory: app
+        run: npx playwright install --with-deps chromium
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Export local Supabase status
+        run: supabase status -o env > "$RUNNER_TEMP/supabase.env"
+
+      - name: Prepare E2E environment
+        run: bash .github/scripts/prepare-e2e-env.sh "$RUNNER_TEMP/supabase.env"
+
+      - name: Apply local migrations
+        run: supabase migration up --local
+
+      - name: Run Playwright E2E
+        working-directory: app
+        run: npm run test:e2e
+
+      - name: Upload Playwright artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            app/playwright-report
+            app/test-results
+          if-no-files-found: ignore
+
+      - name: Stop local Supabase
+        if: ${{ always() }}
+        run: supabase stop --no-backup

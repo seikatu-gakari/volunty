@@ -218,7 +218,7 @@
   E2E job は Node/npm、Supabase CLI、依存関係、Chromiumを準備し、次の順序で実行する。
 
   ```yaml
-  - uses: supabase/setup-cli@v1
+  - uses: supabase/setup-cli@v2
   - run: npm ci --no-audit
     working-directory: app
   - run: npx playwright install --with-deps chromium
