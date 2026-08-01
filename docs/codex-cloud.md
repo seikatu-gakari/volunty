@@ -25,6 +25,7 @@ Codex設定画面で `seikatu-gakari/volunty` 用Environmentを作成し、次�
 | Runtime | Node.js 22（22.12以上） |
 | Setup | `bash .codex/cloud/setup.sh` |
 | Maintenance | `bash .codex/cloud/maintenance.sh` |
+| `TZ` | `Asia/Tokyo`（`datetime-local` の解釈をCIと揃える） |
 | Agent internet access | 原則off。必要時だけ信頼できる依存関係ドメインのGET/HEAD/OPTIONS |
 
 Setupは `npm ci --no-audit` と `npm run db:generate`だけを実行する。Docker、Supabase local、開発サーバー、本番migrationは起動しない。

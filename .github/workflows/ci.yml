@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  TZ: Asia/Tokyo
+
 concurrency:
   group: pull-request-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true

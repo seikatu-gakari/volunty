@@ -123,6 +123,7 @@ Codex Cloud の初回セットアップから呼び出す。
 - Runtime: Node.js 22
 - Setup command: `bash .codex/cloud/setup.sh`
 - Maintenance command: `bash .codex/cloud/maintenance.sh`
+- Environment variable: `TZ=Asia/Tokyo`（`datetime-local` の解釈をローカルと揃える）
 - Agent internet access: 原則 off。タスク中の調査に必要な場合だけ、信頼できるドメインと `GET`、`HEAD`、`OPTIONS` に限定する。
 - Environment variables: テスト・build に必要な非秘密値だけを登録する。
 - Secrets: 依存関係の取得など setup phase だけで必要な資格情報に限定する。本番 Supabase、Vercel、本番 DB の資格情報は登録しない。
