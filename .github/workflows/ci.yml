@@ -19,6 +19,13 @@ jobs:
   quality:
     name: quality
     runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Tokyo
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:1
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:1/postgres
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:1/postgres
     defaults:
       run:
         working-directory: app

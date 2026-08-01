@@ -53,6 +53,8 @@ E2EはGitHub Actions上の一時Supabaseを使う。E2E用のservice role keyは
 - `quality`: npm install、Prisma生成、lint、UT、`npm run build -- --webpack`
 - `e2e`: Supabase CLIでlocal環境を起動、migration適用、Playwright E2E、結果artifact保存、Supabase停止
 
+`quality` のbuildは実サービスへ接続しないplaceholder環境変数をjob限定で使う。`e2e` はSupabase CLIが発行する一時環境変数を `.env.local` に設定する。
+
 `quality` と `e2e` を `main` のrequired checksに登録する。
 
 ### main branch protection
