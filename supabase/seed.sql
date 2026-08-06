@@ -164,50 +164,83 @@ CREATE POLICY "参加者は応募を作成可能"
   WITH CHECK (
     participant_id = auth.uid()
     AND status = 'applied'::public.matching_status
+    AND EXISTS (
+      SELECT 1
+      FROM public.m_opportunity AS opportunity
+      WHERE opportunity.id = public.t_matching_candidate.opportunity_id
+        AND opportunity.status = 'published'::public.opportunity_status
+        AND opportunity.published_at IS NOT NULL
+        AND opportunity.published_at <= CURRENT_TIMESTAMP
+        AND (
+          opportunity.end_date IS NULL
+          OR opportunity.end_date >= CURRENT_DATE
+        )
+    )
+    AND (
+      recommendation_log_id IS NULL
+      OR EXISTS (
+        SELECT 1
+        FROM public.t_recommendation_log AS recommendation_log
+        WHERE recommendation_log.id = public.t_matching_candidate.recommendation_log_id
+          AND recommendation_log.user_id = auth.uid()
+          AND recommendation_log.opportunity_id = public.t_matching_candidate.opportunity_id
+      )
+    )
   );
 
 -- 団体による応募ステータス変更は、画面で定義した遷移だけを許可する。
--- SECURITY DEFINER で更新前の行を参照し、authenticated ロールの直接更新で
--- applied → completed のような不正な遷移が成立しないようにする。
-CREATE OR REPLACE FUNCTION public.matching_candidate_status_update_allowed(
-  candidate_id uuid,
-  next_status public.matching_status
-)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
+-- RLSポリシーのスナップショットではなく、UPDATEのOLD/NEWを比較する
+-- BEFOREトリガーで競合時も遷移を再検証する。
+CREATE OR REPLACE FUNCTION public.matching_candidate_before_update()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.t_matching_candidate AS candidate
-    WHERE candidate.id = candidate_id
-      AND (
-        candidate.status = next_status
-        OR (
-          candidate.status = 'applied'::public.matching_status
-          AND next_status IN (
-            'accepted'::public.matching_status,
-            'declined'::public.matching_status
-          )
-        )
-        OR (
-          candidate.status = 'accepted'::public.matching_status
-          AND next_status = 'completed'::public.matching_status
-        )
+BEGIN
+  -- Prismaの直接接続（RLS対象外ロール）はE2E fixtureの状態投入を継続する。
+  IF current_user <> 'authenticated' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status = OLD.status THEN
+    IF NEW.status_changed_at IS DISTINCT FROM OLD.status_changed_at
+       OR NEW.updated_at IS DISTINCT FROM OLD.updated_at THEN
+      RAISE EXCEPTION '応募ステータスが変わらない更新では日時を変更できません'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NOT (
+    (
+      OLD.status = 'applied'::public.matching_status
+      AND NEW.status IN (
+        'accepted'::public.matching_status,
+        'declined'::public.matching_status
       )
-  );
+    )
+    OR (
+      OLD.status = 'accepted'::public.matching_status
+      AND NEW.status = 'completed'::public.matching_status
+    )
+  ) THEN
+    RAISE EXCEPTION '応募ステータスの遷移が許可されていません'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  NEW.status_changed_at := clock_timestamp();
+  NEW.updated_at := clock_timestamp();
+  RETURN NEW;
+END;
 $$;
 
-REVOKE ALL ON FUNCTION public.matching_candidate_status_update_allowed(
-  uuid,
-  public.matching_status
-) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.matching_candidate_status_update_allowed(
-  uuid,
-  public.matching_status
-) TO authenticated;
+REVOKE ALL ON FUNCTION public.matching_candidate_before_update() FROM PUBLIC;
+DROP TRIGGER IF EXISTS matching_candidate_before_update
+  ON public.t_matching_candidate;
+CREATE TRIGGER matching_candidate_before_update
+  BEFORE UPDATE ON public.t_matching_candidate
+  FOR EACH ROW
+  EXECUTE FUNCTION public.matching_candidate_before_update();
 
 CREATE POLICY "団体は応募ステータスを更新可能"
   ON public.t_matching_candidate FOR UPDATE
@@ -224,7 +257,6 @@ CREATE POLICY "団体は応募ステータスを更新可能"
       JOIN public.m_organization_profile org ON o.organization_id = org.id
       WHERE org.user_id = auth.uid()
     )
-    AND public.matching_candidate_status_update_allowed(id, status)
   );
 
 -- t_participation_feedback: 当事者（応募した参加者・対象案件の団体）のみ閲覧可能
@@ -258,9 +290,10 @@ GRANT SELECT ON public.t_diagnosis_result TO authenticated;
 GRANT SELECT ON public.m_organization_profile TO anon, authenticated;
 GRANT SELECT ON public.m_opportunity TO anon;
 GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
+GRANT SELECT ON public.t_recommendation_log TO authenticated;
 GRANT SELECT, INSERT ON public.t_matching_candidate TO authenticated;
 REVOKE UPDATE ON public.t_matching_candidate FROM authenticated;
-GRANT UPDATE (status, status_changed_at, updated_at)
+GRANT UPDATE (status)
   ON public.t_matching_candidate TO authenticated;
 
 -- ============================================

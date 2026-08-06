@@ -1125,12 +1125,10 @@ export async function updateApplicationStatus(
         : newStatus === "rejected"
           ? "declined"
           : "completed";
-    const now = new Date().toISOString();
-
     // ステータスを更新
     const { error: updateError } = await supabase
       .from("t_matching_candidate")
-      .update({ status: dbStatus, status_changed_at: now, updated_at: now })
+      .update({ status: dbStatus })
       .eq("id", applicationId);
 
     if (updateError) {
