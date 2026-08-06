@@ -161,7 +161,53 @@ CREATE POLICY "団体は自分の案件の応募を閲覧可能"
 
 CREATE POLICY "参加者は応募を作成可能"
   ON public.t_matching_candidate FOR INSERT
-  WITH CHECK (participant_id = auth.uid());
+  WITH CHECK (
+    participant_id = auth.uid()
+    AND status = 'applied'::public.matching_status
+  );
+
+-- 団体による応募ステータス変更は、画面で定義した遷移だけを許可する。
+-- SECURITY DEFINER で更新前の行を参照し、authenticated ロールの直接更新で
+-- applied → completed のような不正な遷移が成立しないようにする。
+CREATE OR REPLACE FUNCTION public.matching_candidate_status_update_allowed(
+  candidate_id uuid,
+  next_status public.matching_status
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.t_matching_candidate AS candidate
+    WHERE candidate.id = candidate_id
+      AND (
+        candidate.status = next_status
+        OR (
+          candidate.status = 'applied'::public.matching_status
+          AND next_status IN (
+            'accepted'::public.matching_status,
+            'declined'::public.matching_status
+          )
+        )
+        OR (
+          candidate.status = 'accepted'::public.matching_status
+          AND next_status = 'completed'::public.matching_status
+        )
+      )
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.matching_candidate_status_update_allowed(
+  uuid,
+  public.matching_status
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.matching_candidate_status_update_allowed(
+  uuid,
+  public.matching_status
+) TO authenticated;
 
 CREATE POLICY "団体は応募ステータスを更新可能"
   ON public.t_matching_candidate FOR UPDATE
@@ -171,6 +217,14 @@ CREATE POLICY "団体は応募ステータスを更新可能"
       JOIN public.m_organization_profile org ON o.organization_id = org.id
       WHERE org.user_id = auth.uid()
     )
+  )
+  WITH CHECK (
+    opportunity_id IN (
+      SELECT o.id FROM public.m_opportunity o
+      JOIN public.m_organization_profile org ON o.organization_id = org.id
+      WHERE org.user_id = auth.uid()
+    )
+    AND public.matching_candidate_status_update_allowed(id, status)
   );
 
 -- t_participation_feedback: 当事者（応募した参加者・対象案件の団体）のみ閲覧可能
@@ -204,7 +258,10 @@ GRANT SELECT ON public.t_diagnosis_result TO authenticated;
 GRANT SELECT ON public.m_organization_profile TO anon, authenticated;
 GRANT SELECT ON public.m_opportunity TO anon;
 GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.t_matching_candidate TO authenticated;
+GRANT SELECT, INSERT ON public.t_matching_candidate TO authenticated;
+REVOKE UPDATE ON public.t_matching_candidate FROM authenticated;
+GRANT UPDATE (status, status_changed_at, updated_at)
+  ON public.t_matching_candidate TO authenticated;
 
 -- ============================================
 -- テストデータ（ローカル開発専用）
