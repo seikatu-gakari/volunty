@@ -654,7 +654,11 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "approved");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "accepted" }); // UI: approved → DB: accepted
+    expect(mockUpdate).toHaveBeenCalledWith({
+      status: "accepted",
+      status_changed_at: expect.any(String),
+      updated_at: expect.any(String),
+    }); // UI: approved → DB: accepted
     expect(mockFrom).toHaveBeenCalledWith("t_matching_candidate");
   });
 
@@ -676,7 +680,11 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "rejected");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "declined" }); // UI: rejected → DB: declined
+    expect(mockUpdate).toHaveBeenCalledWith({
+      status: "declined",
+      status_changed_at: expect.any(String),
+      updated_at: expect.any(String),
+    }); // UI: rejected → DB: declined
   });
 
   it("承認済み応募を活動完了に更新できる", async () => {
@@ -697,7 +705,11 @@ describe("updateApplicationStatus", () => {
       await updateApplicationStatus("app-1", "completed");
 
     expect(result.success).toBe(true);
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "completed" });
+    expect(mockUpdate).toHaveBeenCalledWith({
+      status: "completed",
+      status_changed_at: expect.any(String),
+      updated_at: expect.any(String),
+    });
   });
 
   it("承認済み以外の応募は活動完了に更新できない", async () => {

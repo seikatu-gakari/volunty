@@ -166,6 +166,16 @@ CREATE POLICY "参加者は応募を作成可能"
     AND status = 'applied'::public.matching_status
     AND EXISTS (
       SELECT 1
+      FROM public.m_user AS participant_user
+      JOIN public.m_participant_profile AS participant_profile
+        ON participant_profile.user_id = participant_user.id
+      WHERE participant_user.id = public.t_matching_candidate.participant_id
+        AND participant_user.role = 'participant'::public.user_role
+        AND participant_user.is_active IS TRUE
+        AND participant_user.suspended_at IS NULL
+    )
+    AND EXISTS (
+      SELECT 1
       FROM public.m_opportunity AS opportunity
       WHERE opportunity.id = public.t_matching_candidate.opportunity_id
         AND opportunity.status = 'published'::public.opportunity_status
@@ -173,7 +183,8 @@ CREATE POLICY "参加者は応募を作成可能"
         AND opportunity.published_at <= CURRENT_TIMESTAMP
         AND (
           opportunity.end_date IS NULL
-          OR opportunity.end_date >= CURRENT_DATE
+          OR opportunity.end_date >=
+            (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date
         )
     )
     AND (
@@ -187,6 +198,34 @@ CREATE POLICY "参加者は応募を作成可能"
       )
     )
   );
+
+-- PostgREST経由のINSERTでクライアントが監査日時を偽装できないようにする。
+CREATE OR REPLACE FUNCTION public.matching_candidate_before_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  -- Prismaの直接接続（RLS対象外ロール）はE2E fixtureの状態投入を継続する。
+  IF current_user <> 'authenticated' THEN
+    RETURN NEW;
+  END IF;
+
+  NEW.applied_at := clock_timestamp();
+  NEW.status_changed_at := clock_timestamp();
+  NEW.created_at := clock_timestamp();
+  NEW.updated_at := clock_timestamp();
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.matching_candidate_before_insert() FROM PUBLIC;
+DROP TRIGGER IF EXISTS matching_candidate_before_insert
+  ON public.t_matching_candidate;
+CREATE TRIGGER matching_candidate_before_insert
+  BEFORE INSERT ON public.t_matching_candidate
+  FOR EACH ROW
+  EXECUTE FUNCTION public.matching_candidate_before_insert();
 
 -- 団体による応募ステータス変更は、画面で定義した遷移だけを許可する。
 -- RLSポリシーのスナップショットではなく、UPDATEのOLD/NEWを比較する
@@ -293,7 +332,7 @@ GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
 GRANT SELECT ON public.t_recommendation_log TO authenticated;
 GRANT SELECT, INSERT ON public.t_matching_candidate TO authenticated;
 REVOKE UPDATE ON public.t_matching_candidate FROM authenticated;
-GRANT UPDATE (status)
+GRANT UPDATE (status, status_changed_at, updated_at)
   ON public.t_matching_candidate TO authenticated;
 
 -- ============================================

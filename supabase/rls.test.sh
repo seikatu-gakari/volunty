@@ -120,6 +120,14 @@ INSERT INTO public.m_opportunity (
     'dddddddd-dddd-dddd-dddd-dddddddddddd',
     'RLS テスト締切済み案件',
     'published', NOW() - INTERVAL '2 days', CURRENT_DATE - 1, NOW(), NOW()
+  ),
+  (
+    'fc000000-0000-0000-0000-000000000000',
+    'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    'RLS テスト JST 境界案件',
+    'published', NOW() - INTERVAL '1 minute',
+    (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date - 1,
+    NOW(), NOW()
   );
 
 INSERT INTO public.t_recommendation_log (
@@ -144,6 +152,29 @@ INSERT INTO public.t_recommendation_log (
     'f2222222-2222-2222-2222-222222222222',
     1, 0.7, '{}'::jsonb, '[]'::jsonb, 'rls-test', NOW()
   );
+SQL
+
+# INSERT ポリシーが参照するユーザー状態・参加者プロフィールの境界を用意する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+INSERT INTO public.m_user (
+  id, role, is_active, suspended_at, created_at, updated_at
+) VALUES
+  (
+    '66666666-6666-6666-6666-666666666666',
+    'participant', true, NULL, NOW(), NOW()
+  ),
+  (
+    '77777777-7777-7777-7777-777777777777',
+    'participant', false, NOW(), NOW(), NOW()
+  );
+
+INSERT INTO public.m_participant_profile (
+  id, user_id, name, birthday, region, public_profile, created_at, updated_at
+) VALUES (
+  'dddddddd-7777-7777-7777-777777777777',
+  '77777777-7777-7777-7777-777777777777',
+  'RLS 無効参加者', '2000-01-01', '東京都', true, NOW(), NOW()
+);
 SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL'
@@ -277,6 +308,113 @@ BEGIN
 END;
 $$;
 
+SELECT set_config('request.jwt.claim.sub', '44444444-4444-4444-4444-444444444444', true);
+
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.t_matching_candidate (
+      id, participant_id, opportunity_id, status, message,
+      applied_at, status_changed_at, created_at, updated_at
+    ) VALUES (
+      '90000000-0000-0000-0000-000000000031',
+      '44444444-4444-4444-4444-444444444444',
+      'f8888888-8888-8888-8888-888888888888',
+      'applied', 'organization user',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00'
+    );
+    RAISE EXCEPTION 'organization user INSERT unexpectedly succeeded';
+  EXCEPTION
+    WHEN insufficient_privilege OR check_violation THEN
+      NULL;
+  END;
+END;
+$$;
+
+SELECT set_config('request.jwt.claim.sub', '66666666-6666-6666-6666-666666666666', true);
+
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.t_matching_candidate (
+      id, participant_id, opportunity_id, status, message,
+      applied_at, status_changed_at, created_at, updated_at
+    ) VALUES (
+      '90000000-0000-0000-0000-000000000032',
+      '66666666-6666-6666-6666-666666666666',
+      'f8888888-8888-8888-8888-888888888888',
+      'applied', 'participant without profile',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00'
+    );
+    RAISE EXCEPTION 'participant without profile INSERT unexpectedly succeeded';
+  EXCEPTION
+    WHEN insufficient_privilege OR check_violation THEN
+      NULL;
+  END;
+END;
+$$;
+
+SELECT set_config('request.jwt.claim.sub', '77777777-7777-7777-7777-777777777777', true);
+
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.t_matching_candidate (
+      id, participant_id, opportunity_id, status, message,
+      applied_at, status_changed_at, created_at, updated_at
+    ) VALUES (
+      '90000000-0000-0000-0000-000000000033',
+      '77777777-7777-7777-7777-777777777777',
+      'f8888888-8888-8888-8888-888888888888',
+      'applied', 'inactive participant',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00'
+    );
+    RAISE EXCEPTION 'inactive participant INSERT unexpectedly succeeded';
+  EXCEPTION
+    WHEN insufficient_privilege OR check_violation THEN
+      NULL;
+  END;
+END;
+$$;
+
+SELECT set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
+
+SET LOCAL TIME ZONE 'Asia/Tokyo';
+SELECT set_config('TimeZone', '-15:00', true);
+
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.t_matching_candidate (
+      id, participant_id, opportunity_id, status, message,
+      applied_at, status_changed_at, created_at, updated_at
+    ) VALUES (
+      '90000000-0000-0000-0000-000000000041',
+      '33333333-3333-3333-3333-333333333333',
+      'fc000000-0000-0000-0000-000000000000',
+      'applied', 'JST boundary',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00',
+      TIMESTAMP '2000-01-01 00:00:00+00'
+    );
+    RAISE EXCEPTION 'JST-expired opportunity INSERT unexpectedly succeeded';
+  EXCEPTION
+    WHEN insufficient_privilege OR check_violation THEN
+      NULL;
+  END;
+END;
+$$;
+
 INSERT INTO public.t_matching_candidate (
   id, participant_id, opportunity_id, recommendation_log_id,
   status, message, applied_at, status_changed_at, created_at, updated_at
@@ -295,9 +433,32 @@ INSERT INTO public.t_matching_candidate (
   '66666666-6666-6666-6666-666666666666',
   '33333333-3333-3333-3333-333333333333',
   'f2222222-2222-2222-2222-222222222222',
-  'applied', '正常な応募', NOW(), TIMESTAMP '2000-01-01 00:00:00+00',
-  TIMESTAMP '2000-01-01 00:00:00+00', TIMESTAMP '2000-01-01 00:00:00+00'
+  'applied', '正常な応募', TIMESTAMP '2000-01-01 00:00:00+00',
+  TIMESTAMP '2000-01-01 00:00:00+00', TIMESTAMP '2000-01-01 00:00:00+00',
+  TIMESTAMP '2000-01-01 00:00:00+00'
 );
+
+DO $$
+DECLARE
+  applied_at_value timestamptz;
+  status_changed_at_value timestamptz;
+  created_at_value timestamptz;
+  updated_at_value timestamptz;
+BEGIN
+  SELECT applied_at, status_changed_at, created_at, updated_at
+  INTO applied_at_value, status_changed_at_value, created_at_value, updated_at_value
+  FROM public.t_matching_candidate
+  WHERE id = '66666666-6666-6666-6666-666666666666';
+
+  IF applied_at_value IS NULL
+     OR applied_at_value <= TIMESTAMP '2020-01-01 00:00:00+00'
+     OR status_changed_at_value <= TIMESTAMP '2020-01-01 00:00:00+00'
+     OR created_at_value <= TIMESTAMP '2020-01-01 00:00:00+00'
+     OR updated_at_value <= TIMESTAMP '2020-01-01 00:00:00+00' THEN
+    RAISE EXCEPTION 'INSERT timestamps were not set by the database';
+  END IF;
+END;
+$$;
 
 SELECT set_config('request.jwt.claim.sub', '44444444-4444-4444-4444-444444444444', true);
 
@@ -335,7 +496,9 @@ DECLARE
   updated_at_value timestamptz;
 BEGIN
   UPDATE public.t_matching_candidate
-  SET status = 'accepted'
+  SET status = 'accepted',
+      status_changed_at = TIMESTAMP '2000-01-01 00:00:00+00',
+      updated_at = TIMESTAMP '2000-01-01 00:00:00+00'
   WHERE id = '66666666-6666-6666-6666-666666666666';
 
   SELECT status_changed_at, updated_at
@@ -377,7 +540,9 @@ BEGIN
   WHERE id = '66666666-6666-6666-6666-666666666666';
 
   UPDATE public.t_matching_candidate
-  SET status = 'completed'
+  SET status = 'completed',
+      status_changed_at = TIMESTAMP '2000-01-01 00:00:00+00',
+      updated_at = TIMESTAMP '2000-01-01 00:00:00+00'
   WHERE id = '66666666-6666-6666-6666-666666666666';
 
   SELECT status_changed_at
@@ -436,6 +601,26 @@ BEGIN
     'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'trigger function unexpectedly has authenticated EXECUTE';
+  END IF;
+  IF has_function_privilege(
+    'authenticated',
+    'public.matching_candidate_before_insert()',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'insert trigger function unexpectedly has authenticated EXECUTE';
+  END IF;
+  IF NOT has_column_privilege(
+    'authenticated',
+    'public.t_matching_candidate',
+    'status_changed_at',
+    'UPDATE'
+  ) OR NOT has_column_privilege(
+    'authenticated',
+    'public.t_matching_candidate',
+    'updated_at',
+    'UPDATE'
+  ) THEN
+    RAISE EXCEPTION 'Server Action timestamp columns lack authenticated UPDATE privilege';
   END IF;
 END;
 $$;
