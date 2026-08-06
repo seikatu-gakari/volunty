@@ -38,11 +38,16 @@ esac
 EOF
 chmod +x "$fake_bin/npm"
 
+codex_cloud_test_prepare_path() {
+  PATH="$fake_bin:/usr/bin:/bin"
+  export PATH
+}
+
 export CODEX_CLOUD_TEST_NPM_LOG="$test_tmp/npm.log"
 export CODEX_CLOUD_TEST_BIN="$fake_bin"
 export CODEX_CLOUD_TEST_CTX7_VERSION='0.5.7'
 export CODEX_CLOUD_TEST_VERCEL_VERSION='58.7.1'
-PATH="$fake_bin:$PATH"
+codex_cloud_test_prepare_path
 
 codex_cloud_setup_context7_cli
 
@@ -93,13 +98,14 @@ assert_no_mcpc_install
 write_existing_cli() {
   local command_name="$1"
   local version="$2"
-  cat >"$fake_bin/$command_name" <<EOF
+  local destination_bin="${3:-$fake_bin}"
+  cat >"$destination_bin/$command_name" <<EOF
 #!/usr/bin/env bash
 if [ "\${1:-}" = "--version" ]; then
   printf '%s\\n' '$version'
 fi
 EOF
-  chmod +x "$fake_bin/$command_name"
+  chmod +x "$destination_bin/$command_name"
 }
 
 test_reinstalls_mismatched_versions() {
@@ -148,5 +154,37 @@ test_rejects_wrong_post_install_version() {
 
 test_reinstalls_mismatched_versions
 test_rejects_wrong_post_install_version
+
+test_missing_cli_is_not_satisfied_by_host_cli() {
+  local host_cli_bin="$test_tmp/host-cli-bin"
+  mkdir -p "$host_cli_bin"
+
+  write_existing_cli ctx7 '0.5.7' "$host_cli_bin"
+  write_existing_cli vercel '58.7.1' "$host_cli_bin"
+
+  rm -f "$fake_bin/ctx7" "$fake_bin/vercel"
+  export CODEX_CLOUD_TEST_CTX7_VERSION='0.5.7'
+  export CODEX_CLOUD_TEST_VERCEL_VERSION='58.7.1'
+  : >"$CODEX_CLOUD_TEST_NPM_LOG"
+
+  (
+    PATH="$host_cli_bin:$PATH"
+    export PATH
+    [ "$(command -v ctx7)" = "$host_cli_bin/ctx7" ]
+    [ "$(command -v vercel)" = "$host_cli_bin/vercel" ]
+    codex_cloud_test_prepare_path
+    codex_cloud_setup_context7_cli
+    codex_cloud_setup_vercel_cli
+  )
+
+  expected=$'install --global --no-audit --no-fund ctx7@0.5.7\ninstall --global --no-audit --no-fund vercel@58.7.1'
+  actual="$(cat "$CODEX_CLOUD_TEST_NPM_LOG")"
+  if [ "$actual" != "$expected" ]; then
+    printf 'host CLI shadowed the missing fake CLI case\nexpected: %s\nactual:   %s\n' "$expected" "$actual" >&2
+    exit 1
+  fi
+}
+
+test_missing_cli_is_not_satisfied_by_host_cli
 
 printf 'ok: Codex Cloud installs pinned Context7 and Vercel CLIs without mcpc\n'
