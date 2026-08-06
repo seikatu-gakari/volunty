@@ -45,8 +45,10 @@ write_fake_commands() {
   local bin_dir="$1"
   local call_log="$2"
   local node_version="$3"
+  local cli_call_log="${call_log}.cli"
 
   mkdir -p "$bin_dir"
+  touch "$cli_call_log"
 
   cat > "$bin_dir/node" <<EOF
 #!/usr/bin/env bash
@@ -77,7 +79,25 @@ set -euo pipefail
 printf 'supabase %s\\n' "\$*" >> "$call_log"
 EOF
 
-  chmod +x "$bin_dir/node" "$bin_dir/npm" "$bin_dir/docker" "$bin_dir/supabase"
+  cat > "$bin_dir/ctx7" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'ctx7 %s\\n' "\$*" >> "$cli_call_log"
+if [ "\${1:-}" = "--version" ]; then
+  printf '0.5.7\\n'
+fi
+EOF
+
+  cat > "$bin_dir/vercel" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'vercel %s\\n' "\$*" >> "$cli_call_log"
+if [ "\${1:-}" = "--version" ]; then
+  printf '58.7.1\\n'
+fi
+EOF
+
+  chmod +x "$bin_dir/node" "$bin_dir/npm" "$bin_dir/docker" "$bin_dir/supabase" "$bin_dir/ctx7" "$bin_dir/vercel"
 }
 
 run_entrypoint() {
@@ -104,6 +124,10 @@ test_setup_runs_dependencies_in_order() {
   expected=$'node --version\nnpm ci --no-audit\nnpm run db:generate'
   actual="$(cat "$call_log")"
   [ "$actual" = "$expected" ] || fail "setup call order was unexpected"
+  assert_contains "${call_log}.cli" "ctx7 --version"
+  assert_contains "${call_log}.cli" "vercel --version"
+  assert_not_contains "$call_log" "npm install --global"
+  assert_not_contains "$call_log" "mcpc"
 }
 
 test_maintenance_runs_dependencies_in_order() {
@@ -122,6 +146,10 @@ test_maintenance_runs_dependencies_in_order() {
   expected=$'node --version\nnpm ci --no-audit\nnpm run db:generate'
   actual="$(cat "$call_log")"
   [ "$actual" = "$expected" ] || fail "maintenance call order was unexpected"
+  assert_contains "${call_log}.cli" "ctx7 --version"
+  assert_contains "${call_log}.cli" "vercel --version"
+  assert_not_contains "$call_log" "npm install --global"
+  assert_not_contains "$call_log" "mcpc"
 }
 
 test_rejects_unsupported_node_versions() {

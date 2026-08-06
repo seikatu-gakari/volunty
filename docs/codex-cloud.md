@@ -28,7 +28,39 @@ Codex設定画面で `seikatu-gakari/volunty` 用Environmentを作成し、次�
 | `TZ` | `Asia/Tokyo`（`datetime-local` の解釈をCIと揃える） |
 | Agent internet access | 原則off。必要時だけ信頼できる依存関係ドメインのGET/HEAD/OPTIONS |
 
-Setupは `npm ci --no-audit` と `npm run db:generate`だけを実行する。Docker、Supabase local、開発サーバー、本番migrationは起動しない。
+SetupとMaintenanceは固定バージョンのContext7 CLIとVercel CLIの導入、`npm ci --no-audit`、`npm run db:generate`だけを実行する。Docker、Supabase local、開発サーバー、本番migrationは起動しない。
+
+### CLI優先のツール構成
+
+ローカル環境では `.codex/config.toml` のネイティブMCP設定を維持する。Codex Cloudでは `mcpc` やネイティブMCPへ依存せず、次のCLIを直接使用する。
+
+| 用途 | Codex Cloudで使用するCLI・方法 |
+| --- | --- |
+| ドキュメント検索 | `ctx7 library` / `ctx7 docs` |
+| ブラウザ・E2E | `cd app && npx playwright` |
+| DB・Prisma | `cd app && npx prisma` |
+| UT | `cd app && npx vitest` |
+| lint | `cd app && npx eslint` |
+| 型チェック | `cd app && npx tsc` |
+| Vercel | `vercel` CLI |
+| コード検索 | `rg` / `git grep` |
+| GitHub操作・PR作成 | Codex Cloud標準のGitHub接続 |
+| Previewデプロイ | featureブランチへのpush |
+
+Context7はsetup/maintenanceで公式 `ctx7@0.5.7` CLIを導入する。Vercel CLIは `vercel@58.7.1` に固定する。
+
+```bash
+ctx7 library next.js 'App Routerのキャッシュ仕様'
+ctx7 docs /vercel/next.js 'App Routerのキャッシュ仕様'
+```
+
+Serena相当のコード調査は `rg`、`git grep`、TypeScript、既存テストで行う。Figma LocalはCloudコンテナから利用できないため使用しない。Context7を使う場合は、Agent internet accessで `context7.com` へのGET/HEAD/OPTIONSだけを許可する。
+
+### Vercel CLI
+
+SetupとMaintenanceは `vercel@58.7.1` を導入し、`vercel --version` でインストール結果を検証する。
+
+Vercel tokenや本番資格情報はCloudへ登録しないため、`vercel deploy`、`vercel env`、`vercel logs`などのアカウント認証を必要とする操作は行わない。Previewデプロイは従来どおりfeatureブランチへのpushで自動実行する。`.vercel/` はローカル生成物として追跡しない。
 
 ### 環境変数とSecret
 
