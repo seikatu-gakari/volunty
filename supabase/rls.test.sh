@@ -125,7 +125,7 @@ INSERT INTO public.m_opportunity (
     'fc000000-0000-0000-0000-000000000000',
     'dddddddd-dddd-dddd-dddd-dddddddddddd',
     'RLS テスト JST 境界案件',
-    'published', NOW() - INTERVAL '1 minute',
+    'published', TIMESTAMP '2000-01-01 00:00:00',
     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date - 1,
     NOW(), NOW()
   );
@@ -151,6 +151,12 @@ INSERT INTO public.t_recommendation_log (
     '33333333-3333-3333-3333-333333333333',
     'f2222222-2222-2222-2222-222222222222',
     1, 0.7, '{}'::jsonb, '[]'::jsonb, 'rls-test', NOW()
+  ),
+  (
+    'a4444444-4444-4444-4444-444444444444',
+    '33333333-3333-3333-3333-333333333333',
+    'fc000000-0000-0000-0000-000000000000',
+    1, 0.6, '{}'::jsonb, '[]'::jsonb, 'rls-test', NOW()
   );
 SQL
 
@@ -389,18 +395,75 @@ $$;
 SELECT set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
 
 SET LOCAL TIME ZONE 'Asia/Tokyo';
-SELECT set_config('TimeZone', '-15:00', true);
+SELECT set_config('TimeZone', '+15:00', true);
+
+DO $$
+DECLARE
+  boundary_opportunity record;
+  participant_is_valid boolean;
+  recommendation_is_valid boolean;
+BEGIN
+  SELECT status, published_at, end_date
+  INTO boundary_opportunity
+  FROM public.m_opportunity
+  WHERE id = 'fc000000-0000-0000-0000-000000000000';
+
+  IF boundary_opportunity.status <> 'published'::public.opportunity_status
+     OR boundary_opportunity.published_at IS NULL
+     OR boundary_opportunity.published_at > CURRENT_TIMESTAMP THEN
+    RAISE EXCEPTION 'JST boundary opportunity is not otherwise published and public';
+  END IF;
+  IF CURRENT_DATE <> boundary_opportunity.end_date THEN
+    RAISE EXCEPTION 'JST boundary precondition does not satisfy old CURRENT_DATE predicate';
+  END IF;
+  IF (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date
+       <= boundary_opportunity.end_date THEN
+    RAISE EXCEPTION 'JST boundary precondition is not expired in Asia/Tokyo';
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.m_user AS participant_user
+    JOIN public.m_participant_profile AS participant_profile
+      ON participant_profile.user_id = participant_user.id
+    WHERE participant_user.id = auth.uid()
+      AND participant_user.role = 'participant'::public.user_role
+      AND participant_user.is_active IS TRUE
+      AND participant_user.suspended_at IS NULL
+  )
+  INTO participant_is_valid;
+  IF NOT participant_is_valid THEN
+    RAISE EXCEPTION 'JST boundary participant/profile precondition is invalid';
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.t_recommendation_log AS recommendation_log
+    WHERE recommendation_log.id =
+        'a4444444-4444-4444-4444-444444444444'
+      AND recommendation_log.user_id = auth.uid()
+      AND recommendation_log.opportunity_id =
+        'fc000000-0000-0000-0000-000000000000'
+  )
+  INTO recommendation_is_valid;
+  IF NOT recommendation_is_valid THEN
+    RAISE EXCEPTION 'JST boundary recommendation precondition is invalid';
+  END IF;
+END;
+$$;
 
 DO $$
 BEGIN
   BEGIN
     INSERT INTO public.t_matching_candidate (
-      id, participant_id, opportunity_id, status, message,
+      id, participant_id, opportunity_id, recommendation_log_id,
+      status, message,
       applied_at, status_changed_at, created_at, updated_at
     ) VALUES (
       '90000000-0000-0000-0000-000000000041',
       '33333333-3333-3333-3333-333333333333',
       'fc000000-0000-0000-0000-000000000000',
+      'a4444444-4444-4444-4444-444444444444',
       'applied', 'JST boundary',
       TIMESTAMP '2000-01-01 00:00:00+00',
       TIMESTAMP '2000-01-01 00:00:00+00',
@@ -414,6 +477,8 @@ BEGIN
   END;
 END;
 $$;
+
+SELECT set_config('TimeZone', 'Asia/Tokyo', true);
 
 INSERT INTO public.t_matching_candidate (
   id, participant_id, opportunity_id, recommendation_log_id,
