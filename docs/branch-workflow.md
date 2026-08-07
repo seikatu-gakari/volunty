@@ -4,59 +4,58 @@
 
 ## ブランチ構成
 
-| ブランチ    | 用途                                     | Vercelデプロイ先       |
-| ----------- | ---------------------------------------- | ---------------------- |
-| `main`      | 本番運用専用。直接pushは禁止             | **Production**         |
-| `preview`   | プレビュー確認用。安定したらmainにマージ | **Preview**            |
-| `develop`   | 開発用。必要に応じてpreviewに統合        | なし（デプロイしない） |
-| `feature/*` | 機能開発用。PRでpreviewかmainに向ける    | なし（デプロイしない） |
+| ブランチ | 用途 | Vercelデプロイ先 |
+| --- | --- | --- |
+| `main` | 本番運用専用。直接pushは禁止 | **Production** |
+| `preview` | 既存のプレビュー確認用。標準フローの必須中継地点ではない | **Preview** |
+| `develop` | 既存の開発用ブランチ | **Preview** |
+| `feature/*` / `codex/*` | 機能開発用。`main` 向けPRを作成 | **Preview** |
 
 ## 日常のワークフロー
 
 ### 機能開発〜プレビュー確認
 
 ```bash
-# 1. developまたはfeature/* ブランチで作業
-git checkout develop
-git checkout -b feature/my-feature   # 任意
+# 1. mainからcodex/*またはfeature/*ブランチを作成
+git checkout main
+git checkout -b codex/my-feature   # 任意
 
 # 2. コードを変更してcommit
 git add .
 git commit -m "feat: ○○機能を追加"
 
 # 3. GitHubにpush → Vercelが自動でPreviewデプロイ
-git push origin feature/my-feature
+git push origin codex/my-feature
 
-# 4. GitHub上でPRを作成 → PRにVercelプレビューURLが自動コメントされる
+# 4. main向けPRを作成 → PRにVercelプレビューURLが表示される
 # 5. スマホブラウザでプレビューURLを開いてUIを確認
+# 6. GitHub ActionsとCodex Reviewの結果を確認
 ```
 
-### プレビュー確認OKのとき
+### mainへマージするとき
 
 ```bash
-# feature/* → preview → main の順でマージ
-# ① feature/* → preview にマージ（GitHub上でPR）
-# ② preview → main にマージ（GitHub上でPR） → Productionにデプロイ
+# codex/*またはfeature/* → main にマージ（GitHub上でPR）
+# mainへのマージは人間が行う → Productionにデプロイ
 ```
 
-### スマホからAI（Claude Code Web）で開発する場合
+### Codex Cloudで開発する場合
 
-1. [claude.ai/code](https://claude.ai/code) でリポジトリに接続
-2. プロンプトで指示（例:「○○画面を実装して、previewブランチにPRを作成して」）
-3. Claude Codeが自動でコードを書いてPRを作成
-4. VercelがPRを検知してプレビューデプロイ → URLが発行される
-5. スマホブラウザでUIを確認
-6. OKならGitHub上でPRをマージ
+1. Codex Cloudでリポジトリ `seikatu-gakari/volunty` と `main` を選択
+2. 設計案と実装計画を承認しながら実装を進める
+3. Codex Cloudが `codex/*` ブランチへpushし、main向けPRを作成
+4. Vercelがブランチpushを検知してプレビューデプロイ → URLが発行される
+5. スマホブラウザでPreview URLを開いてUIを確認
+6. GitHub ActionsとCodex Reviewが成功したら、人間がmainへマージ
 
 ## Vercelデプロイのトリガー
 
-`main` と `preview` ブランチのpushのみデプロイされます。それ以外はスキップ。
+現在のVercel設定では、`main` はProduction、それ以外のブランチpushはPreviewとしてデプロイされます。
 
-| イベント                       | デプロイ先                   |
-| ------------------------------ | ---------------------------- |
-| `main` へのpush/マージ         | Production                   |
-| `preview` へのpush             | Preview                      |
-| `develop` / `feature/*` のpush | **スキップ（デプロイなし）** |
+| イベント | デプロイ先 |
+| --- | --- |
+| `main` へのpush/マージ | Production |
+| `preview` / `develop` / `feature/*` / `codex/*` のpush | Preview |
 
 ## 本番DBマイグレーション
 
@@ -82,15 +81,9 @@ GitHub の `Repository` → `Settings` → `Secrets and variables` → `Actions`
 
 失敗時は GitHub の `Actions` → `Production DB Migration` でログを確認し、Secret や接続先を修正してから `Run workflow` で再実行します。
 
-### ブランチ制限の設定（初回のみ・Vercelダッシュボード）
+### Vercel設定の確認
 
-Vercel → プロジェクト → **Settings → Git → Ignored Build Step** に以下を入力して保存：
-
-```bash
-if [ "$VERCEL_GIT_COMMIT_REF" = "main" ] || [ "$VERCEL_GIT_COMMIT_REF" = "preview" ]; then exit 1; else exit 0; fi
-```
-
-> `exit 0` = ビルドをスキップ、`exit 1` = ビルドを実行（Vercelの仕様）
+Vercel → プロジェクト → **Settings → Git** で、feature/codexブランチのpushがPreviewデプロイ対象になっていることを確認する。main/preview以外をスキップするIgnored Build Stepは使用しない。
 
 ## 注意事項
 
