@@ -25,76 +25,86 @@ vi.mock("next/image", () => ({
     src,
     className,
     priority,
+    sizes,
   }: {
     alt: string;
     src: string;
     className?: string;
     priority?: boolean;
+    sizes?: string;
   }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       alt={alt}
       className={className}
       data-priority={priority ? "true" : "false"}
+      data-sizes={sizes}
       src={src}
     />
   ),
 }));
 
 describe("LPHeroSection", () => {
-  it("清掃ボランティアのヒーロー画像を優先表示する", () => {
+  it("単一のヒーロー写真を優先表示し、Photo Orbitを表示しない", () => {
     render(<LPHeroSection />);
 
+    const frame = screen.getByTestId("lp-hero-photo-frame");
     const image = screen.getByRole("img", {
-      name: "公園で清掃ボランティアに参加する若者たち",
+      name: "清掃活動を終えて笑顔でハイタッチするボランティア",
     });
 
-    expect(image.getAttribute("src")).toBe("/lp/mobile/hero-cleanup.png");
+    expect(image.getAttribute("src")).toBe("/lp/mobile/hero-high-five.png");
     expect(image.getAttribute("data-priority")).toBe("true");
-
-    const mobileOrganicRadius =
-      "rounded-[42%_58%_46%_54%/24%_32%_68%_76%]";
-    const desktopOrganicRadius =
-      "lg:rounded-[34%_66%_40%_60%/30%_22%_78%_70%]";
-
-    expect(image.className).toContain(mobileOrganicRadius);
-    expect(image.className).toContain(desktopOrganicRadius);
-    expect(image.parentElement?.className).toContain(mobileOrganicRadius);
-    expect(image.parentElement?.className).toContain(desktopOrganicRadius);
-    expect(image.className).not.toContain(
-      "rounded-[2.15rem_2.15rem_2.15rem_0.75rem]",
-    );
+    expect(image.getAttribute("data-sizes")).toContain("100vw");
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(frame.parentElement?.className).toContain("lg:col-start-2");
+    expect(screen.queryByTestId("lp-hero-photo-orbit")).toBeNull();
   });
 
-  it("モバイルLPの見出しとCTA導線を表示する", () => {
+  it("参照UIのコピーとCTA導線を表示する", () => {
     render(<LPHeroSection />);
 
     expect(
       screen.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toBeDefined();
-    const primaryCTA = screen.getByRole("link", { name: /無料で簡易診断を試す/ });
+    expect(
+      screen.getByText(
+        "約2分の簡易診断で、あなたらしく続けやすい活動のヒントを見つけよう。",
+      ),
+    ).toBeDefined();
+
+    const primaryCTA = screen.getByRole("link", {
+      name: "2分で自分の活動タイプを知る",
+    });
     expect(primaryCTA.getAttribute("href")).toBe("/diagnosis/trial");
     expect(primaryCTA.className).toContain("bg-primary-dark");
-    expect(primaryCTA.className).toContain("hover:bg-text-dark");
 
-    const secondaryCTA = screen.getByRole("link", { name: /募集中の活動を見る/ });
-    expect(secondaryCTA.getAttribute("href")).toBe("/opportunities");
+    const secondaryCTA = screen.getByRole("link", { name: "活動例を見る" });
+    expect(secondaryCTA.getAttribute("href")).toBe("#styles");
     expect(secondaryCTA.className).toContain("border-primary-dark");
     expect(secondaryCTA.className).toContain("text-primary-dark");
-    expect(secondaryCTA.className).toContain("hover:text-text-dark");
-    expect(screen.getByText("登録・診断は無料")).toBeDefined();
-    expect(screen.getByText("約2分でできる")).toBeDefined();
-    expect(screen.getByText("スマホ・PC対応")).toBeDefined();
+  });
 
-    const orbit = screen.getByTestId("lp-hero-photo-orbit");
+  it("モバイルの写真からCTA、安心情報までを指定順で配置する", () => {
+    render(<LPHeroSection />);
+
+    const frame = screen.getByTestId("lp-hero-photo-frame");
+    const primaryCTA = screen.getByRole("link", {
+      name: "2分で自分の活動タイプを知る",
+    });
+    const secondaryCTA = screen.getByRole("link", { name: "活動例を見る" });
     const trustItem = screen.getByText("登録・診断は無料");
 
     expect(
-      primaryCTA.compareDocumentPosition(orbit) & Node.DOCUMENT_POSITION_FOLLOWING,
+      frame.compareDocumentPosition(primaryCTA) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).not.toBe(0);
     expect(
-      orbit.compareDocumentPosition(trustItem) & Node.DOCUMENT_POSITION_FOLLOWING,
+      primaryCTA.compareDocumentPosition(secondaryCTA) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).not.toBe(0);
-    expect(screen.getAllByRole("img")).toHaveLength(5);
+    expect(
+      secondaryCTA.compareDocumentPosition(trustItem) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(screen.getByText("スマホ対応")).toBeDefined();
+    expect(screen.getByText("スマホ・PC対応")).toBeDefined();
   });
 });
