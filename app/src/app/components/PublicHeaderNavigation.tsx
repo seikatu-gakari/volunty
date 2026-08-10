@@ -43,7 +43,7 @@ export function PublicHeaderNavigation() {
       </button>
 
       {menuOpen && (
-        <div className="absolute top-full right-4 left-4 mt-2 overflow-hidden rounded-3xl border border-card-border bg-background p-3 shadow-xl lg:hidden">
+        <div className="absolute top-full right-0 left-auto mt-2 w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border border-card-border bg-background p-3 shadow-xl lg:hidden">
           <nav aria-label="モバイルナビゲーション" className="grid gap-1">
             {MOBILE_LINKS.map((item) => (
               <a

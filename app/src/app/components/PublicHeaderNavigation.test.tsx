@@ -53,6 +53,10 @@ describe("PublicHeaderNavigation", () => {
     const mobileNavigation = screen.getByRole("navigation", {
       name: "モバイルナビゲーション",
     });
+    const mobileMenu = mobileNavigation.parentElement;
+    expect(mobileMenu?.className).toContain("w-[calc(100vw-2rem)]");
+    expect(mobileMenu?.className).toContain("right-0");
+    expect(mobileMenu?.className).toContain("left-auto");
     expect(mobileNavigation.querySelector('a[href="/login"]')).not.toBeNull();
     expect(mobileNavigation.querySelector('a[href="/signup"]')).not.toBeNull();
     expect(mobileNavigation.querySelector('a[href="#usage"]')).not.toBeNull();
