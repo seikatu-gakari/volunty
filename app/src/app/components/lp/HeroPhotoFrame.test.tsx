@@ -68,10 +68,10 @@ describe("HeroPhotoFrame", () => {
     expect(frame.className).toContain("shadow-xl");
     expect(frame.className).toContain("ring-1");
     expect(frame.className).toContain(
-      "rounded-[34%_66%_40%_60%/30%_22%_78%_70%]",
+      "rounded-[28%_34%_26%_31%/16%_18%_16%_20%]",
     );
     expect(image.className).toContain(
-      "rounded-[34%_66%_40%_60%/30%_22%_78%_70%]",
+      "rounded-[28%_34%_26%_31%/16%_18%_16%_20%]",
     );
     expect(decorations).toHaveLength(3);
     expect(Array.from(decorations).every((decoration) => decoration.className)).toBe(

@@ -37,7 +37,7 @@ export function PublicHeaderNavigation() {
         aria-expanded={menuOpen}
         aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
         onClick={() => setMenuOpen((open) => !open)}
-        className="inline-flex size-10 items-center justify-center rounded-xl border border-card-border bg-white text-text-dark transition-colors hover:bg-primary/5 lg:hidden"
+        className="inline-flex size-12 items-center justify-center rounded-xl border border-card-border bg-white text-text-dark transition-colors hover:bg-primary/5 lg:hidden"
       >
         {menuOpen ? <X className="size-6" aria-hidden /> : <Menu className="size-6" aria-hidden />}
       </button>
