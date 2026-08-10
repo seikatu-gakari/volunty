@@ -19,7 +19,7 @@ export function HeroPhotoFrame() {
           className={`aspect-[6/5] w-full object-cover lg:aspect-[11/10] ${PHOTO_RADIUS}`}
           height={photo.height}
           priority
-          sizes="(min-width: 1280px) 640px, (min-width: 1024px) 48vw, 100vw"
+          sizes="(min-width: 1280px) 768px, (min-width: 1024px) 48vw, 100vw"
           src={photo.src}
           style={{ objectPosition: photo.objectPosition }}
           width={photo.width}

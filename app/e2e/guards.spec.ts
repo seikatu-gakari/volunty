@@ -210,6 +210,42 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
   }
 });
 
+test.describe("未ログインLP（横向き短高）", () => {
+  test.use({ viewport: { width: 568, height: 320 } });
+
+  test("短いviewportでもモバイルメニュー最下部CTAへ到達できる", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "メニューを開く" }).click();
+
+    const mobileNavigation = page.getByRole("navigation", {
+      name: "モバイルナビゲーション",
+    });
+    const mobileMenu = mobileNavigation.locator("xpath=..");
+    const signup = mobileNavigation.getByRole("link", { name: "無料で始める" });
+    await expect(mobileNavigation).toBeVisible();
+
+    const menuMetrics = await mobileMenu.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        overflowY: style.overflowY,
+      };
+    });
+    expect(menuMetrics.overflowY).toBe("auto");
+    expect(menuMetrics.scrollHeight).toBeGreaterThan(menuMetrics.clientHeight);
+
+    await signup.scrollIntoViewIfNeeded();
+    const signupBox = await signup.boundingBox();
+    expect(signupBox).not.toBeNull();
+    expect(signupBox!.y).toBeGreaterThanOrEqual(0);
+    expect(signupBox!.y + signupBox!.height).toBeLessThanOrEqual(321);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+      .toBe(true);
+  });
+});
+
 test.describe("非LP未認証ヘッダー", () => {
   test("/loginではLPアンカーとモバイルメニューを表示しない", async ({ page }) => {
     await page.goto("/login");

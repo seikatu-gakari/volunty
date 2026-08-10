@@ -41,7 +41,7 @@ describe("HeroPhotoFrame", () => {
     expect(image.getAttribute("src")).toBe("/lp/mobile/hero-high-five.png");
     expect(image.getAttribute("data-priority")).toBe("true");
     expect(image.getAttribute("data-sizes")).toBe(
-      "(min-width: 1280px) 640px, (min-width: 1024px) 48vw, 100vw",
+      "(min-width: 1280px) 768px, (min-width: 1024px) 48vw, 100vw",
     );
   });
 

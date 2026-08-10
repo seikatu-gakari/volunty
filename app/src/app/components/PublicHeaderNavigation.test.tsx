@@ -57,6 +57,8 @@ describe("PublicHeaderNavigation", () => {
     expect(mobileMenu?.className).toContain("w-[calc(100vw-2rem)]");
     expect(mobileMenu?.className).toContain("right-0");
     expect(mobileMenu?.className).toContain("left-auto");
+    expect(mobileMenu?.className).toContain("max-h-[calc(100dvh-5rem)]");
+    expect(mobileMenu?.className).toContain("overflow-y-auto");
     expect(mobileNavigation.querySelector('a[href="/login"]')).not.toBeNull();
     expect(mobileNavigation.querySelector('a[href="/signup"]')).not.toBeNull();
     expect(mobileNavigation.querySelector('a[href="#usage"]')).not.toBeNull();
