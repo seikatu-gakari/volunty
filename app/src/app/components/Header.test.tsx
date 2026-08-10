@@ -44,6 +44,9 @@ describe("Header", () => {
     render(await Header());
 
     expect(screen.getByRole("link", { name: /ボランティー/ })).toBeDefined();
+    expect(screen.getByText("あなたにぴったりの活動を見つけよう").className).toContain(
+      "hidden",
+    );
     expect(screen.queryByRole("link", { name: "使い方" })).toBeNull();
     expect(screen.queryByRole("button", { name: "メニューを開く" })).toBeNull();
     expect(screen.getByText("認証済みナビゲーション")).toBeDefined();
@@ -56,7 +59,10 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: "使い方" }).getAttribute("href")).toBe(
       "#usage",
     );
-    expect(screen.getByRole("link", { name: "ログイン" })).toBeDefined();
+    const landingSubtitle = screen.getByText("あなたにぴったりの活動を見つけよう");
+    expect(landingSubtitle.className).toContain("block");
+    expect(landingSubtitle.className).not.toContain("hidden");
+    expect(screen.getByRole("link", { name: "ログイン" }).className).toContain("hidden");
     expect(screen.getByRole("button", { name: "メニューを開く" })).toBeDefined();
     expect(screen.queryByText("認証済みナビゲーション")).toBeNull();
   });

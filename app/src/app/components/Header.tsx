@@ -133,7 +133,13 @@ export async function Header({ variant = "default" }: HeaderProps = {}) {
             >
               ボランティー
             </span>
-            <span className="hidden text-xs leading-4 text-text-body sm:block">
+            <span
+              className={
+                showLandingHeader
+                  ? "block text-xs leading-4 text-text-body"
+                  : "hidden text-xs leading-4 text-text-body sm:block"
+              }
+            >
               あなたにぴったりの活動を見つけよう
             </span>
           </div>
