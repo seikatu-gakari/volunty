@@ -83,6 +83,11 @@ describe("LPHeroSection", () => {
     expect(secondaryCTA.getAttribute("href")).toBe("#styles");
     expect(secondaryCTA.className).toContain("border-primary-dark");
     expect(secondaryCTA.className).toContain("text-primary-dark");
+
+    const ctaGroup = primaryCTA.parentElement;
+    expect(ctaGroup?.className).toContain("lg:flex");
+    expect(ctaGroup?.className).toContain("lg:flex-row");
+    expect(ctaGroup?.className).toContain("lg:items-stretch");
   });
 
   it("モバイルの写真からCTA、安心情報までを指定順で配置する", () => {

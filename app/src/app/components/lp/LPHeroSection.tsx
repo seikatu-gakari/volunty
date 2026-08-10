@@ -11,7 +11,7 @@ const TRUST_ITEMS = [
 export function LPHeroSection() {
   return (
     <section className="relative z-10 -mx-4 overflow-hidden bg-lp-cream px-6 py-3 sm:-mx-6 sm:px-8 sm:py-8 lg:mx-0 lg:rounded-none lg:px-4 lg:pt-10 lg:pb-16 xl:-mx-8 xl:px-[10px]">
-      <div className="grid gap-2 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:items-center lg:gap-x-32 lg:gap-y-7">
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center lg:gap-x-16 lg:gap-y-7 xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] xl:gap-x-32">
         <p className="relative top-0 mb-1 inline-flex w-fit items-center gap-2 self-start rounded-full border border-pop-teal/25 bg-pop-teal-soft px-3 py-1.5 text-xs font-bold text-text-dark shadow-sm sm:text-sm lg:col-start-1 lg:row-start-1 lg:mb-4 lg:top-8 lg:px-5">
           <Brain className="size-4 text-pop-teal" aria-hidden />
           性格傾向 × ボランティアマッチング
@@ -40,17 +40,17 @@ export function LPHeroSection() {
           <HeroPhotoFrame />
         </div>
 
-        <div className="relative top-0 grid w-full gap-1.5 lg:col-start-1 lg:row-start-4 lg:top-12 lg:grid-cols-1 lg:items-center lg:gap-3 xl:flex xl:gap-4 xl:justify-start">
+        <div className="relative top-0 grid w-full gap-1.5 lg:col-start-1 lg:row-start-4 lg:top-12 lg:flex lg:flex-row lg:items-stretch lg:gap-3 lg:justify-start xl:gap-4">
           <Link
             href="/diagnosis/trial"
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary-dark px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-text-dark lg:h-12 lg:w-full lg:flex-none lg:whitespace-nowrap xl:h-14 xl:w-[320px]"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary-dark px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-text-dark lg:h-12 lg:w-auto lg:flex-[2_1_0%] lg:min-w-0 lg:px-3 lg:text-sm lg:whitespace-nowrap xl:h-14 xl:w-[320px] xl:flex-none xl:px-6 xl:text-base"
           >
             2分で自分の活動タイプを知る
             <ArrowRight className="size-5" aria-hidden />
           </Link>
           <Link
             href="#styles"
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5 hover:text-text-dark lg:h-12 lg:w-full lg:flex-none lg:whitespace-nowrap xl:h-14 xl:w-[220px]"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border-2 border-primary-dark bg-white px-6 text-base font-bold text-primary-dark transition-colors hover:bg-primary/5 hover:text-text-dark lg:h-12 lg:w-auto lg:flex-1 lg:min-w-0 lg:px-3 lg:text-sm lg:whitespace-nowrap xl:h-14 xl:w-[220px] xl:flex-none xl:px-6 xl:text-base"
           >
             活動例を見る
             <ArrowRight className="size-5" aria-hidden />

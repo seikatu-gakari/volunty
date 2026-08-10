@@ -305,6 +305,34 @@ test.describe("公開ヘッダーのブレークポイント", () => {
     expect(thirdHeroLineMetrics.height).toBeLessThanOrEqual(
       thirdHeroLineMetrics.lineHeight * 1.1,
     );
+
+    const heroBox = await page.locator("main > section").first().boundingBox();
+    const [primaryBox, secondaryBox, frameBox] = await Promise.all([
+      page.getByRole("link", { name: "2分で自分の活動タイプを知る" }).boundingBox(),
+      page.getByRole("link", { name: "活動例を見る" }).boundingBox(),
+      page.getByTestId("lp-hero-photo-frame").boundingBox(),
+    ]);
+    expect(heroBox).not.toBeNull();
+    expect(primaryBox).not.toBeNull();
+    expect(secondaryBox).not.toBeNull();
+    expect(frameBox).not.toBeNull();
+    expect(Math.abs(primaryBox!.y - secondaryBox!.y)).toBeLessThanOrEqual(1);
+    expect(primaryBox!.x).toBeLessThan(secondaryBox!.x);
+    for (const [name, box] of [
+      ["primary CTA", primaryBox!],
+      ["secondary CTA", secondaryBox!],
+    ] as const) {
+      expect(box.x, `${name} の左端がhero内`).toBeGreaterThanOrEqual(heroBox!.x - 1);
+      expect(box.x + box.width, `${name} の右端がhero内`).toBeLessThanOrEqual(
+        heroBox!.x + heroBox!.width + 1,
+      );
+      expect(box.x + box.width, `${name} が写真と重ならない`).toBeLessThanOrEqual(
+        frameBox!.x + 1,
+      );
+    }
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+      .toBe(true);
   });
 });
 
