@@ -39,10 +39,10 @@ async function expectLandingPageIntegrity(
   }
 
   const images = page.locator("main img");
-  await expect(images).toHaveCount(21);
+  await expect(images).toHaveCount(17);
 
-  const photoOrbit = page.getByTestId("lp-hero-photo-orbit");
-  await expect(photoOrbit.locator("img")).toHaveCount(5);
+  const photoFrame = page.getByTestId("lp-hero-photo-frame");
+  await expect(photoFrame.locator("img")).toHaveCount(1);
   await expect
     .poll(() =>
       images.evaluateAll((elements) =>
@@ -54,15 +54,21 @@ async function expectLandingPageIntegrity(
     )
     .toBe(true);
 
-  const trialLinks = page.getByRole("link", { name: "無料で簡易診断を試す" });
-  await expect(trialLinks).toHaveCount(2);
-  await expect(trialLinks.first()).toHaveAttribute("href", "/diagnosis/trial");
-  await expect(trialLinks.last()).toHaveAttribute("href", "/diagnosis/trial");
+  const heroTrialLink = page.getByRole("link", { name: "2分で自分の活動タイプを知る" });
+  await expect(heroTrialLink).toHaveCount(1);
+  await expect(heroTrialLink).toHaveAttribute("href", "/diagnosis/trial");
 
-  const opportunityLinks = page.getByRole("link", { name: "募集中の活動を見る" });
-  await expect(opportunityLinks).toHaveCount(2);
-  await expect(opportunityLinks.first()).toHaveAttribute("href", "/opportunities");
-  await expect(opportunityLinks.last()).toHaveAttribute("href", "/opportunities");
+  const bottomTrialLink = page.getByRole("link", { name: "無料で簡易診断を試す" });
+  await expect(bottomTrialLink).toHaveCount(1);
+  await expect(bottomTrialLink).toHaveAttribute("href", "/diagnosis/trial");
+
+  const heroStylesLink = page.getByRole("link", { name: "活動例を見る" });
+  await expect(heroStylesLink).toHaveCount(1);
+  await expect(heroStylesLink).toHaveAttribute("href", "#styles");
+
+  const bottomOpportunityLink = page.getByRole("link", { name: "募集中の活動を見る" });
+  await expect(bottomOpportunityLink).toHaveCount(1);
+  await expect(bottomOpportunityLink).toHaveAttribute("href", "/opportunities");
 
   const styleLinks = page.getByRole("link", { name: "診断で詳しく見る" });
   await expect(styleLinks).toHaveCount(4);
@@ -70,7 +76,9 @@ async function expectLandingPageIntegrity(
     await expect(link).toHaveAttribute("href", "/diagnosis/trial");
   }
 
-  await expect(page.getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/login");
+  if (viewportWidth >= 1024) {
+    await expect(page.getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/login");
+  }
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true);
@@ -106,15 +114,27 @@ test.describe("未ログインLP（モバイル）", () => {
 
     await expectLandingPageIntegrity(page, 390);
 
-    const primaryCTA = page.getByRole("link", { name: "無料で簡易診断を試す" }).first();
-    const photoOrbit = page.getByTestId("lp-hero-photo-orbit");
-    const [ctaBox, orbitBox] = await Promise.all([
+    const primaryCTA = page.getByRole("link", { name: "2分で自分の活動タイプを知る" });
+    const secondaryCTA = page.getByRole("link", { name: "活動例を見る" });
+    const photoFrame = page.getByTestId("lp-hero-photo-frame");
+    const trustItem = page.getByText("登録・診断は無料").first();
+    const [ctaBox, secondaryBox, frameBox, trustBox] = await Promise.all([
       primaryCTA.boundingBox(),
-      photoOrbit.boundingBox(),
+      secondaryCTA.boundingBox(),
+      photoFrame.boundingBox(),
+      trustItem.boundingBox(),
     ]);
     expect(ctaBox).not.toBeNull();
-    expect(orbitBox).not.toBeNull();
-    expect(ctaBox!.y + ctaBox!.height).toBeLessThanOrEqual(orbitBox!.y + 1);
+    expect(secondaryBox).not.toBeNull();
+    expect(frameBox).not.toBeNull();
+    expect(trustBox).not.toBeNull();
+    expect(frameBox!.y + frameBox!.height).toBeLessThanOrEqual(ctaBox!.y + 1);
+    expect(ctaBox!.y + ctaBox!.height).toBeLessThanOrEqual(secondaryBox!.y + 1);
+    expect(secondaryBox!.y + secondaryBox!.height).toBeLessThanOrEqual(trustBox!.y + 1);
+
+    await expect(page.getByText("スマホ対応")).toBeVisible();
+    await expect(page.getByText("スマホ・PC対応")).toBeHidden();
+    await expect(page.getByRole("link", { name: "ログイン" })).toBeHidden();
 
     await page.getByRole("button", { name: "メニューを開く" }).click();
     const mobileNavigation = page.getByRole("navigation", { name: "モバイルナビゲーション" });
@@ -122,6 +142,10 @@ test.describe("未ログインLP（モバイル）", () => {
     await expect(mobileNavigation.getByRole("link", { name: "無料で始める" })).toHaveAttribute(
       "href",
       "/signup",
+    );
+    await expect(mobileNavigation.getByRole("link", { name: "ログイン" })).toHaveAttribute(
+      "href",
+      "/login",
     );
     await mobileNavigation.getByRole("link", { name: "よくある質問" }).click();
     await expect(page).toHaveURL(/#faq$/);
@@ -157,9 +181,69 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
         await expect(desktopNavigation).toBeVisible();
         await expect(desktopSignup).toBeVisible();
         await expect(desktopSignup).toHaveAttribute("href", "/signup");
+
+        await expect(page.getByText("スマホ・PC対応")).toBeVisible();
+        await expect(page.getByText("スマホ対応")).toBeHidden();
+
+        const frameBox = await page.getByTestId("lp-hero-photo-frame").boundingBox();
+        const headingBox = await page
+          .getByRole("heading", { name: "つながる、みつかる、変わっていく。" })
+          .boundingBox();
+        const primaryBox = await page
+          .getByRole("link", { name: "2分で自分の活動タイプを知る" })
+          .boundingBox();
+        const trustBox = await page.getByText("登録・診断は無料").first().boundingBox();
+        const assuranceBox = await page.getByTestId("lp-hero-assurance").boundingBox();
+        const heroBox = await page.locator("main > section").first().boundingBox();
+        expect(frameBox).not.toBeNull();
+        expect(headingBox).not.toBeNull();
+        expect(primaryBox).not.toBeNull();
+        expect(trustBox).not.toBeNull();
+        expect(assuranceBox).not.toBeNull();
+        expect(heroBox).not.toBeNull();
+        expect(headingBox!.x + headingBox!.width).toBeLessThanOrEqual(frameBox!.x + 1);
+        expect(primaryBox!.x + primaryBox!.width).toBeLessThanOrEqual(frameBox!.x + 1);
+        expect(trustBox!.x + trustBox!.width).toBeLessThanOrEqual(frameBox!.x + 1);
+        expect(assuranceBox!.y + assuranceBox!.height).toBeLessThanOrEqual(heroBox!.y + heroBox!.height + 1);
       }
     });
   }
+});
+
+test.describe("未ログインLP（横向き短高）", () => {
+  test.use({ viewport: { width: 568, height: 320 } });
+
+  test("短いviewportでもモバイルメニュー最下部CTAへ到達できる", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "メニューを開く" }).click();
+
+    const mobileNavigation = page.getByRole("navigation", {
+      name: "モバイルナビゲーション",
+    });
+    const mobileMenu = mobileNavigation.locator("xpath=..");
+    const signup = mobileNavigation.getByRole("link", { name: "無料で始める" });
+    await expect(mobileNavigation).toBeVisible();
+
+    const menuMetrics = await mobileMenu.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        overflowY: style.overflowY,
+      };
+    });
+    expect(menuMetrics.overflowY).toBe("auto");
+    expect(menuMetrics.scrollHeight).toBeGreaterThan(menuMetrics.clientHeight);
+
+    await signup.scrollIntoViewIfNeeded();
+    const signupBox = await signup.boundingBox();
+    expect(signupBox).not.toBeNull();
+    expect(signupBox!.y).toBeGreaterThanOrEqual(0);
+    expect(signupBox!.y + signupBox!.height).toBeLessThanOrEqual(321);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+      .toBe(true);
+  });
 });
 
 test.describe("非LP未認証ヘッダー", () => {
@@ -257,6 +341,34 @@ test.describe("公開ヘッダーのブレークポイント", () => {
     expect(thirdHeroLineMetrics.height).toBeLessThanOrEqual(
       thirdHeroLineMetrics.lineHeight * 1.1,
     );
+
+    const heroBox = await page.locator("main > section").first().boundingBox();
+    const [primaryBox, secondaryBox, frameBox] = await Promise.all([
+      page.getByRole("link", { name: "2分で自分の活動タイプを知る" }).boundingBox(),
+      page.getByRole("link", { name: "活動例を見る" }).boundingBox(),
+      page.getByTestId("lp-hero-photo-frame").boundingBox(),
+    ]);
+    expect(heroBox).not.toBeNull();
+    expect(primaryBox).not.toBeNull();
+    expect(secondaryBox).not.toBeNull();
+    expect(frameBox).not.toBeNull();
+    expect(Math.abs(primaryBox!.y - secondaryBox!.y)).toBeLessThanOrEqual(1);
+    expect(primaryBox!.x).toBeLessThan(secondaryBox!.x);
+    for (const [name, box] of [
+      ["primary CTA", primaryBox!],
+      ["secondary CTA", secondaryBox!],
+    ] as const) {
+      expect(box.x, `${name} の左端がhero内`).toBeGreaterThanOrEqual(heroBox!.x - 1);
+      expect(box.x + box.width, `${name} の右端がhero内`).toBeLessThanOrEqual(
+        heroBox!.x + heroBox!.width + 1,
+      );
+      expect(box.x + box.width, `${name} が写真と重ならない`).toBeLessThanOrEqual(
+        frameBox!.x + 1,
+      );
+    }
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+      .toBe(true);
   });
 });
 

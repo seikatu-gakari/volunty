@@ -98,7 +98,7 @@ export async function Header({ variant = "default" }: HeaderProps = {}) {
       <div
         className={
           showLandingHeader
-            ? "mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8"
+            ? "mx-auto flex h-[60px] max-w-7xl items-center justify-between px-3 sm:h-[72px] sm:px-6 lg:h-[84px] lg:px-0"
             : "mx-auto flex h-[77px] max-w-7xl items-center justify-between px-8 pt-4 pb-px"
         }
       >
@@ -127,13 +127,19 @@ export async function Header({ variant = "default" }: HeaderProps = {}) {
             <span
               className={
                 showLandingHeader
-                  ? "text-lg font-extrabold leading-7 text-primary-dark sm:text-xl"
+                  ? "text-base font-extrabold leading-6 text-primary-dark sm:text-xl sm:leading-7"
                   : "text-lg font-medium leading-7 text-text-dark"
               }
             >
               ボランティー
             </span>
-            <span className="hidden text-xs leading-4 text-text-body sm:block">
+            <span
+              className={
+                showLandingHeader
+                  ? "block text-[10px] leading-3.5 text-text-body sm:text-xs sm:leading-4"
+                  : "hidden text-xs leading-4 text-text-body sm:block"
+              }
+            >
               あなたにぴったりの活動を見つけよう
             </span>
           </div>

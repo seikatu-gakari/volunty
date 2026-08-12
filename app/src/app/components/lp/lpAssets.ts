@@ -26,6 +26,13 @@ export const lpAssets = {
     height: 1086,
     objectPosition: "50% 46%",
   },
+  heroHighFive: {
+    src: "/lp/mobile/hero-high-five.png",
+    alt: "清掃活動を終えて笑顔でハイタッチするボランティア",
+    width: 1448,
+    height: 1086,
+    objectPosition: "50% 50%",
+  },
   styleSupporter: {
     src: "/lp/mobile/style-supporter.png",
     alt: "子どもの工作を支えるボランティア",
