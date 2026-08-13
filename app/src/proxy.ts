@@ -133,6 +133,12 @@ export async function proxy(request: NextRequest) {
 
   // --- 凍結チェック + 認可用ロール取得 ---
   let databaseRole: unknown;
+  let databaseRoleStatus:
+    | "unavailable"
+    | "error"
+    | "missing"
+    | "invalid"
+    | "valid" = "unavailable";
   {
     const supabaseUrl = getSupabaseServerUrl();
     const supabaseAnonKey = getSupabaseAnonKey();
@@ -151,12 +157,32 @@ export async function proxy(request: NextRequest) {
             },
           },
         });
-        const { data: account } = await supabase
+        const { data: account, error } = await supabase
           .from("m_user")
           .select("is_active,role")
           .eq("id", user.id)
           .maybeSingle();
-        databaseRole = account?.role;
+
+        if (error) {
+          databaseRoleStatus = "error";
+          console.error("[proxy] m_user lookup failed", {
+            code: "m_user_lookup_error",
+          });
+        } else if (!account) {
+          databaseRoleStatus = "missing";
+          console.error("[proxy] m_user role missing", {
+            code: "m_user_role_missing",
+          });
+        } else {
+          databaseRole = account.role;
+          databaseRoleStatus = isAppRole(account.role) ? "valid" : "invalid";
+          if (databaseRoleStatus === "invalid") {
+            console.error("[proxy] m_user role invalid", {
+              code: "m_user_role_invalid",
+            });
+          }
+        }
+
         if (account && account.is_active === false) {
           const url = request.nextUrl.clone();
           url.pathname = "/auth/signout";
@@ -164,8 +190,11 @@ export async function proxy(request: NextRequest) {
           url.searchParams.set("reason", "suspended");
           return redirectWithCookies(url, response);
         }
-      } catch (err) {
-        console.error("[proxy] 凍結チェックに失敗:", err);
+      } catch {
+        databaseRoleStatus = "error";
+        console.error("[proxy] m_user lookup failed", {
+          code: "m_user_lookup_error",
+        });
       }
     }
   }
@@ -177,12 +206,11 @@ export async function proxy(request: NextRequest) {
 
   // --- 保護ルート: ロール・オンボーディング状態チェック ---
   const metadata = user.user_metadata as Record<string, unknown>;
-  const rawRole = metadata.role;
 
   // 認可には自己更新可能な metadata ではなく DB のロールだけを使う
-  if (!isAppRole(databaseRole)) {
+  if (databaseRoleStatus !== "valid" || !isAppRole(databaseRole)) {
     const url = request.nextUrl.clone();
-    url.pathname = isAppRole(rawRole) ? "/forbidden" : "/onboarding/role";
+    url.pathname = "/forbidden";
     return redirectWithCookies(url, response);
   }
   const role = databaseRole;

@@ -39,9 +39,11 @@ CREATE TRIGGER on_auth_user_created
 -- m_user: 自分のレコードのみ読み取り・更新可能
 ALTER TABLE public.m_user ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "ユーザーは自分のデータを閲覧可能" ON public.m_user;
 CREATE POLICY "ユーザーは自分のデータを閲覧可能"
   ON public.m_user FOR SELECT
-  USING (auth.uid() = id);
+  TO authenticated
+  USING ((select auth.uid()) = id);
 
 CREATE POLICY "ユーザーは自分のデータを更新可能"
   ON public.m_user FOR UPDATE
@@ -322,7 +324,8 @@ CREATE POLICY "当事者は参加評価を閲覧可能"
 -- 付与対象はアプリが Supabase クライアント経由で参照・更新するテーブルに限定する。
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 
-GRANT SELECT ON public.m_user TO authenticated;
+REVOKE ALL ON TABLE public.m_user FROM anon, authenticated;
+GRANT SELECT (id, is_active, role, suspended_at) ON public.m_user TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.m_participant_profile TO authenticated;
 GRANT SELECT ON public.t_diagnosis_result TO authenticated;
 

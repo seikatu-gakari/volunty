@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { proxy } from "./proxy";
 
 const mocks = vi.hoisted(() => ({
@@ -58,6 +58,10 @@ function mockAuthenticatedSession(
 }
 
 describe("proxy", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     mocks.updateSession.mockReset();
     mocks.createServerClient.mockReset();
@@ -232,12 +236,13 @@ describe("proxy", () => {
   });
 
   it.each([
-    ["取得不能", null],
-    ["不正値", { is_active: true, role: "owner" }],
-  ])("DB role が%sなら /admin の権限を付与しない", async (_label, account) => {
+    ["取得不能", null, "m_user_role_missing"],
+    ["不正値", { is_active: true, role: "owner" }, "m_user_role_invalid"],
+  ] as const)("DB role が%sなら /admin の権限を付与しない", async (_label, account, expectedCode) => {
     const request = createRequest("/admin");
     mockAuthenticatedSession(request, "admin-1", "admin");
     mocks.maybeSingle.mockResolvedValueOnce({ data: account });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     const response = await proxy(request);
     const location = new URL(
@@ -246,6 +251,76 @@ describe("proxy", () => {
     );
 
     expect(location.pathname).toBe("/forbidden");
+    expect(errorSpy).toHaveBeenCalledWith(
+      expectedCode === "m_user_role_missing"
+        ? "[proxy] m_user role missing"
+        : "[proxy] m_user role invalid",
+      { code: expectedCode },
+    );
+  });
+
+  it("m_user の Data API エラーは metadata にフォールバックせず、PII なしで記録する", async () => {
+    const request = createRequest("/mypage");
+    mockAuthenticatedSession(request, "permission-denied-1", "participant");
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "42501",
+        message: "permission denied for table m_user",
+      },
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url,
+    );
+
+    expect(location.pathname).toBe("/forbidden");
+    expect(errorSpy).toHaveBeenCalledWith("[proxy] m_user lookup failed", {
+      code: "m_user_lookup_error",
+    });
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("permission-denied-1");
+  });
+
+  it("m_user の本人行が無い場合はロール未登録として記録し、拒否する", async () => {
+    const request = createRequest("/mypage");
+    mockAuthenticatedSession(request, "missing-account-1", "participant");
+    mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url,
+    );
+
+    expect(location.pathname).toBe("/forbidden");
+    expect(errorSpy).toHaveBeenCalledWith("[proxy] m_user role missing", {
+      code: "m_user_role_missing",
+    });
+  });
+
+  it("m_user の不正ロールは不正値として記録し、拒否する", async () => {
+    const request = createRequest("/mypage");
+    mockAuthenticatedSession(request, "invalid-role-1", "participant");
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { is_active: true, role: "owner" },
+      error: null,
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url,
+    );
+
+    expect(location.pathname).toBe("/forbidden");
+    expect(errorSpy).toHaveBeenCalledWith("[proxy] m_user role invalid", {
+      code: "m_user_role_invalid",
+    });
   });
 
   it.each([
