@@ -90,6 +90,7 @@ SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260704000000_init.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260708000000_add_message_templates.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260813004154_issue199_m_user_data_api_authz.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/seed.sql" >/dev/null
 
 # 応募 RLS の公開条件・推薦ログ所有条件を検証するための一時案件・ログ。
@@ -189,6 +190,45 @@ BEGIN;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+
+DO $$
+DECLARE
+  own_count integer;
+  other_count integer;
+  own_role public.user_role;
+BEGIN
+  SELECT count(*), max(role)
+  INTO own_count, own_role
+  FROM public.m_user
+  WHERE id = auth.uid();
+
+  SELECT count(*)
+  INTO other_count
+  FROM public.m_user
+  WHERE id = '22222222-2222-2222-2222-222222222222';
+
+  IF own_count <> 1 OR own_role <> 'participant'::public.user_role THEN
+    RAISE EXCEPTION 'authenticated user cannot read own m_user role';
+  END IF;
+  IF other_count <> 0 THEN
+    RAISE EXCEPTION 'authenticated user can read another m_user row';
+  END IF;
+  IF NOT has_column_privilege(
+    'authenticated', 'public.m_user', 'id', 'SELECT'
+  ) OR NOT has_column_privilege(
+    'authenticated', 'public.m_user', 'is_active', 'SELECT'
+  ) OR NOT has_column_privilege(
+    'authenticated', 'public.m_user', 'role', 'SELECT'
+  ) OR NOT has_column_privilege(
+    'authenticated', 'public.m_user', 'suspended_at', 'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'm_user authorization columns lack SELECT privilege';
+  END IF;
+  IF has_column_privilege('authenticated', 'public.m_user', 'name', 'SELECT') THEN
+    RAISE EXCEPTION 'm_user PII column unexpectedly has SELECT privilege';
+  END IF;
+END;
+$$;
 
 DO $$
 BEGIN
