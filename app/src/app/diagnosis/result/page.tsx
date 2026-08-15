@@ -23,6 +23,7 @@ const DOMAIN_COLORS: Record<Big5Domain, string> = {
 /** scaleCode ごとの表示名・注記（新しい尺度を追加する場合はここに登録する） */
 const SCALE_DISPLAY_INFO: Record<string, { label: string; briefNotice?: string }> = {
   "ipip-bfm-50-ja": { label: "性格傾向チェック（全50問）による診断" },
+  "legacy-big5": { label: "旧版の性格診断による診断" },
   "ipip-bfm-50-ja-brief15": {
     label: "性格傾向チェック（簡易15問）による診断",
     briefNotice:

@@ -90,7 +90,367 @@ SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260704000000_init.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260708000000_add_message_templates.sql" >/dev/null
+
+# 本番相当の public schema 権限・参加者プロフィール列なし状態から、
+# 追跡 migration だけでアプリの前提schemaを復元できることを検証する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+INSERT INTO public.m_user (id, role, created_at, updated_at)
+VALUES (
+  '88888888-1111-1111-1111-111111111111',
+  'participant', NOW(), NOW()
+);
+INSERT INTO public.t_diagnosis_result (
+  id, user_id, scale_code, scale_version, scoring_algorithm_version,
+  style_type_version, quality_rule_version, raw_scores, scaled_scores,
+  style_type_id, quality_flags, answered_at, created_at
+) VALUES (
+  '88888888-2222-2222-2222-222222222222',
+  '88888888-1111-1111-1111-111111111111',
+  'legacy', '1', '1', '1', '1', '{}'::jsonb, '{}'::jsonb,
+  'supporter-care', '[]'::jsonb,
+  TIMESTAMP '2026-01-02 00:00:00', TIMESTAMP '2026-01-02 00:00:00'
+);
+INSERT INTO public.m_participant_profile (
+  id, user_id, name, birthday, region, latest_diagnosis_result_id,
+  created_at, updated_at
+) VALUES (
+  '88888888-3333-3333-3333-333333333333',
+  '88888888-1111-1111-1111-111111111111',
+  '旧診断済み参加者', DATE '2000-01-01', '東京都',
+  '88888888-2222-2222-2222-222222222222', NOW(), NOW()
+);
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE USAGE ON SCHEMA public FROM anon, authenticated;
+
+-- 未適用baseline以前の本番診断schemaを再現する。
+ALTER TABLE public.t_diagnosis_result
+  ADD COLUMN personality_type_id UUID,
+  ADD COLUMN big5_scores JSONB,
+  ADD COLUMN closest_type_distance DOUBLE PRECISION,
+  ADD COLUMN concluded_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN updated_at TIMESTAMP(3),
+  ADD COLUMN diagnosis_mode VARCHAR(50) NOT NULL DEFAULT 'brief';
+UPDATE public.t_diagnosis_result
+SET big5_scores = '{
+      "extraversion": 65,
+      "agreeableness": 70,
+      "conscientiousness": 75,
+      "neuroticism": 35,
+      "openness": 80
+    }'::jsonb,
+    updated_at = created_at;
+ALTER TABLE public.t_diagnosis_result
+  ALTER COLUMN big5_scores SET NOT NULL,
+  ALTER COLUMN updated_at SET NOT NULL;
+
+DROP TABLE public.t_diagnosis_response;
+
+-- Supabase本番の既定権限を再現し、migrationの明示REVOKEを検証する。
+GRANT ALL PRIVILEGES ON TABLE public.t_diagnosis_result
+  TO anon, authenticated;
+GRANT ALL PRIVILEGES ON TABLE
+  public.m_message_template,
+  public.t_recommendation_log,
+  public.t_engagement_event,
+  public.t_participation_feedback,
+  public.t_approach,
+  public.t_certificate
+  TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated;
+
+ALTER TABLE public.m_participant_profile
+  DROP COLUMN latest_diagnosis_result_id;
+ALTER TABLE public.t_diagnosis_result
+  DROP COLUMN scale_code,
+  DROP COLUMN scale_version,
+  DROP COLUMN scoring_algorithm_version,
+  DROP COLUMN norms_version,
+  DROP COLUMN style_type_version,
+  DROP COLUMN quality_rule_version,
+  DROP COLUMN raw_scores,
+  DROP COLUMN scaled_scores,
+  DROP COLUMN style_type_id,
+  DROP COLUMN quality_flags,
+  DROP COLUMN total_duration_ms,
+  DROP COLUMN resumed_count,
+  DROP COLUMN answered_at;
+SQL
+
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260813004154_issue199_m_user_data_api_authz.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815025554_issue199_public_schema_usage.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815025856_issue199_participant_profile_schema_repair.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815030247_issue199_mypage_diagnosis_summary_schema_repair.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815075346_issue199_diagnosis_write_schema_repair.sql" >/dev/null
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+DO $$
+BEGIN
+  IF NOT has_schema_privilege('authenticated', 'public', 'USAGE') THEN
+    RAISE EXCEPTION 'authenticated lacks USAGE on public schema';
+  END IF;
+  IF NOT has_schema_privilege('anon', 'public', 'USAGE') THEN
+    RAISE EXCEPTION 'anon lacks USAGE on public schema';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'm_message_template',
+      't_diagnosis_response',
+      't_recommendation_log',
+      't_engagement_event',
+      't_participation_feedback',
+      't_approach',
+      't_certificate'
+    ]) AS protected_table(table_name)
+    WHERE has_table_privilege(
+      'anon',
+      format('public.%I', protected_table.table_name),
+      'SELECT'
+    )
+      OR has_table_privilege(
+        'authenticated',
+        format('public.%I', protected_table.table_name),
+        'SELECT'
+      )
+      OR has_table_privilege(
+        'authenticated',
+        format('public.%I', protected_table.table_name),
+        'INSERT'
+      )
+      OR has_table_privilege(
+        'authenticated',
+        format('public.%I', protected_table.table_name),
+        'UPDATE'
+      )
+      OR has_table_privilege(
+        'authenticated',
+        format('public.%I', protected_table.table_name),
+        'DELETE'
+      )
+  ) THEN
+    RAISE EXCEPTION 'server-only table remains exposed through Data API';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'm_participant_profile'
+      AND column_name = 'latest_diagnosis_result_id'
+  ) THEN
+    RAISE EXCEPTION 'm_participant_profile.latest_diagnosis_result_id is missing';
+  END IF;
+  IF to_regclass(
+    'public.m_participant_profile_latest_diagnosis_result_id_key'
+  ) IS NULL THEN
+    RAISE EXCEPTION 'latest diagnosis result unique index is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.m_participant_profile'::regclass
+      AND conname = 'm_participant_profile_latest_diagnosis_result_id_fkey'
+  ) THEN
+    RAISE EXCEPTION 'latest diagnosis result foreign key is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 't_diagnosis_result'
+      AND column_name = 'style_type_id'
+  ) THEN
+    RAISE EXCEPTION 't_diagnosis_result.style_type_id is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 't_diagnosis_result'
+      AND column_name = 'answered_at'
+      AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 't_diagnosis_result.answered_at is missing or nullable';
+  END IF;
+  IF to_regclass('public.t_diagnosis_result_answered_at_idx') IS NULL THEN
+    RAISE EXCEPTION 'diagnosis answered_at index is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.m_participant_profile
+    WHERE user_id = '88888888-1111-1111-1111-111111111111'
+      AND latest_diagnosis_result_id =
+        '88888888-2222-2222-2222-222222222222'
+  ) THEN
+    RAISE EXCEPTION 'latest diagnosis result was not backfilled';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 't_diagnosis_result'
+      AND column_name IN (
+        'scale_code', 'scale_version', 'scoring_algorithm_version',
+        'style_type_version', 'quality_rule_version', 'raw_scores',
+        'scaled_scores', 'quality_flags', 'resumed_count'
+      )
+      AND is_nullable = 'NO'
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 9
+  ) THEN
+    RAISE EXCEPTION 'current diagnosis write columns are missing or nullable';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 't_diagnosis_result'
+      AND column_name IN ('big5_scores', 'updated_at')
+      AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 'legacy-only diagnosis columns still block current writes';
+  END IF;
+  IF to_regclass('public.t_diagnosis_response') IS NULL THEN
+    RAISE EXCEPTION 't_diagnosis_response is missing';
+  END IF;
+  IF to_regclass('public.t_diagnosis_response_diagnosis_result_id_idx') IS NULL THEN
+    RAISE EXCEPTION 'diagnosis response lookup index is missing';
+  END IF;
+  IF to_regclass(
+    'public.t_diagnosis_response_diagnosis_result_id_item_code_key'
+  ) IS NULL THEN
+    RAISE EXCEPTION 'diagnosis response unique index is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.t_diagnosis_response'::regclass
+      AND conname = 't_diagnosis_response_diagnosis_result_id_fkey'
+  ) THEN
+    RAISE EXCEPTION 'diagnosis response foreign key is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class
+    WHERE oid = 'public.t_diagnosis_result'::regclass
+      AND relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'diagnosis result RLS is disabled';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class
+    WHERE oid = 'public.t_diagnosis_response'::regclass
+      AND relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'diagnosis response RLS is disabled';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 't_diagnosis_result'
+      AND policyname = '参加者は自分の診断結果を閲覧可能'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 't_diagnosis_response'
+      AND policyname = '参加者は自分の生回答を閲覧可能'
+  ) THEN
+    RAISE EXCEPTION 'diagnosis RLS policies are missing';
+  END IF;
+  IF has_table_privilege('anon', 'public.t_diagnosis_result', 'SELECT')
+    OR has_table_privilege('anon', 'public.t_diagnosis_result', 'INSERT')
+    OR has_table_privilege('authenticated', 'public.t_diagnosis_result', 'INSERT')
+    OR has_table_privilege('authenticated', 'public.t_diagnosis_result', 'UPDATE')
+    OR has_table_privilege('authenticated', 'public.t_diagnosis_result', 'DELETE')
+    OR NOT has_table_privilege(
+      'authenticated',
+      'public.t_diagnosis_result',
+      'SELECT'
+    )
+  THEN
+    RAISE EXCEPTION 'diagnosis result Data API privileges are not minimal';
+  END IF;
+  IF has_table_privilege('anon', 'public.t_diagnosis_response', 'SELECT')
+    OR has_table_privilege('anon', 'public.t_diagnosis_response', 'INSERT')
+    OR has_table_privilege(
+      'authenticated',
+      'public.t_diagnosis_response',
+      'SELECT'
+    )
+    OR has_table_privilege(
+      'authenticated',
+      'public.t_diagnosis_response',
+      'INSERT'
+    )
+  THEN
+    RAISE EXCEPTION 'diagnosis response Data API privileges are not revoked';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.t_diagnosis_result
+    WHERE id = '88888888-2222-2222-2222-222222222222'
+      AND raw_scores = '{
+        "extraversion": 36,
+        "agreeableness": 38,
+        "conscientiousness": 40,
+        "emotionalStability": 36,
+        "intellect": 42
+      }'::jsonb
+      AND scaled_scores = '{
+        "extraversion": 65,
+        "agreeableness": 70,
+        "conscientiousness": 75,
+        "emotionalStability": 65,
+        "intellect": 80
+      }'::jsonb
+      AND scale_code = 'legacy-big5'
+      AND answered_at = TIMESTAMP '2026-01-02 00:00:00'
+  ) THEN
+    RAISE EXCEPTION 'legacy diagnosis data was not preserved and backfilled';
+  END IF;
+END;
+$$;
+
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '88888888-1111-1111-1111-111111111111',
+  false
+);
+DO $$
+BEGIN
+  IF (SELECT COUNT(*) FROM public.t_diagnosis_result) <> 1 THEN
+    RAISE EXCEPTION 'diagnosis result RLS leaked another user row';
+  END IF;
+END;
+$$;
+RESET ROLE;
+
+WITH inserted_result AS (
+  INSERT INTO public.t_diagnosis_result (
+    user_id, scale_code, scale_version, scoring_algorithm_version,
+    style_type_version, quality_rule_version, raw_scores, scaled_scores,
+    style_type_id, quality_flags, total_duration_ms, resumed_count
+  ) VALUES (
+    '88888888-1111-1111-1111-111111111111',
+    'ipip-bfm-50-ja', '1', '1', '1', '1',
+    '{"extraversion": 34}'::jsonb,
+    '{"extraversion": 60}'::jsonb,
+    'supporter-care', '[]'::jsonb, 120000, 0
+  )
+  RETURNING id
+)
+INSERT INTO public.t_diagnosis_response (
+  diagnosis_result_id, item_code, value, elapsed_ms, changed_count
+)
+SELECT id, 'IPIP-BFM-01', 4, 1200, 0
+FROM inserted_result;
+SQL
+
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/seed.sql" >/dev/null
 
 # 応募 RLS の公開条件・推薦ログ所有条件を検証するための一時案件・ログ。

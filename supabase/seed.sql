@@ -110,10 +110,14 @@ CREATE POLICY "団体は自分の案件を更新可能"
 -- t_diagnosis_result: 本人のみ閲覧・作成可能（生スコアは他者へ開示しない）
 ALTER TABLE public.t_diagnosis_result ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "参加者は自分の診断結果を閲覧可能"
+  ON public.t_diagnosis_result;
 CREATE POLICY "参加者は自分の診断結果を閲覧可能"
   ON public.t_diagnosis_result FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "参加者は自分の診断結果を作成可能"
+  ON public.t_diagnosis_result;
 CREATE POLICY "参加者は自分の診断結果を作成可能"
   ON public.t_diagnosis_result FOR INSERT
   WITH CHECK (user_id = auth.uid());
@@ -121,6 +125,8 @@ CREATE POLICY "参加者は自分の診断結果を作成可能"
 -- t_diagnosis_response: 本人のみ閲覧可能（同意ベースの生回答）
 ALTER TABLE public.t_diagnosis_response ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "参加者は自分の生回答を閲覧可能"
+  ON public.t_diagnosis_response;
 CREATE POLICY "参加者は自分の生回答を閲覧可能"
   ON public.t_diagnosis_response FOR SELECT
   USING (
@@ -325,6 +331,8 @@ CREATE POLICY "当事者は参加評価を閲覧可能"
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 
 REVOKE ALL ON TABLE public.m_user FROM anon, authenticated;
+REVOKE ALL ON TABLE public.t_diagnosis_result FROM anon, authenticated;
+REVOKE ALL ON TABLE public.t_diagnosis_response FROM anon, authenticated;
 GRANT SELECT (id, is_active, role, suspended_at) ON public.m_user TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.m_participant_profile TO authenticated;
 GRANT SELECT ON public.t_diagnosis_result TO authenticated;
