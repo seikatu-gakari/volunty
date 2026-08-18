@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import {
   Building2,
   Clock,
@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { createClient } from "@/lib/supabase/server";
 import { fetchOpportunityDetail } from "@/lib/opportunities/actions";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
@@ -25,6 +24,7 @@ import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
 import { ApplicationStatusDate } from "./ApplicationStatusDate";
 import { OpportunityPublicationDate } from "./OpportunityPublicationDate";
+import { fetchMyBookmarks } from "@/lib/bookmarks/actions";
 
 /** 応募ステータスに応じたラベル・アイコン・カラー */
 function statusDisplay(status: ApplicationStatus) {
@@ -65,22 +65,8 @@ export default async function OpportunityDetailPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const viewSource = query?.from === "rec" ? "recommendation" : "direct";
+  const viewSource = query?.from === "rec" ? "recommendation" : query?.from === "search" ? "search" : "direct";
   const recommendationLogId = query?.rlog ?? null;
-
-  // 認証チェック
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
-  } catch {
-    // Supabase 未設定時
-  }
-
-  if (!isAuthenticated) {
-    redirect("/login");
-  }
 
   const { opportunity, existingApplication, isParticipant } =
     await fetchOpportunityDetail(id, viewSource);
@@ -94,6 +80,15 @@ export default async function OpportunityDetailPage({
   // 応募フォーム表示条件: 参加者 かつ 未応募 かつ 募集中
   const showApplyForm =
     isParticipant && !existingApplication && !isClosed;
+  const showLoginToApply = !isParticipant && !isClosed;
+  const backHref =
+    viewSource === "recommendation" ? "/recommendations" : "/opportunities";
+  const backLabel =
+    viewSource === "recommendation" ? "おすすめ案件に戻る" : "活動一覧に戻る";
+  const { bookmarks } = isParticipant
+    ? await fetchMyBookmarks()
+    : { bookmarks: [] };
+  const isBookmarked = bookmarks.some((bookmark) => bookmark.id === opportunity.id);
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -102,11 +97,11 @@ export default async function OpportunityDetailPage({
       <main className="mx-auto max-w-3xl px-6 py-8">
         {/* 戻るリンク */}
         <Link
-          href="/recommendations"
+          href={backHref}
           className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
           <ArrowLeft className="size-4" />
-          おすすめ案件に戻る
+          {backLabel}
         </Link>
 
         {/* 募集終了メッセージ */}
@@ -122,7 +117,12 @@ export default async function OpportunityDetailPage({
             {opportunity.title}
           </h1>
           <OpportunityPublicationDate createdAt={opportunity.created_at} />
-          {isParticipant && <BookmarkButton opportunityId={opportunity.id} />}
+          {isParticipant && (
+            <BookmarkButton
+              opportunityId={opportunity.id}
+              initialBookmarked={isBookmarked}
+            />
+          )}
         </div>
 
         {/* 案件説明 */}
@@ -363,6 +363,26 @@ export default async function OpportunityDetailPage({
                 opportunityId={opportunity.id}
                 recommendationLogId={recommendationLogId}
               />
+            </CardContent>
+          </Card>
+        )}
+        {showLoginToApply && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-lg font-bold text-text-dark">
+                この案件に応募する
+              </h2>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-sm leading-6 text-text-body">
+                応募にはログインが必要です。
+              </p>
+              <Link
+                href={`/login?next=${encodeURIComponent(`/opportunities/${opportunity.id}`)}`}
+                className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark"
+              >
+                ログインして応募する
+              </Link>
             </CardContent>
           </Card>
         )}

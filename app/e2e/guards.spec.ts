@@ -99,6 +99,28 @@ test.describe("認証・認可ガード", () => {
 
     await expect(page).toHaveURL(/\/login(?:\?|$)/);
   });
+
+  test("未ログインでもLPから簡易診断と公開募集一覧へ進める", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "2分で自分の活動タイプを知る" }).click();
+
+    await expect(page).toHaveURL(/\/diagnosis\/trial$/);
+    await expect(page.getByRole("heading", { name: "簡易診断を試す" })).toBeVisible();
+    await expect(page.getByText("質問 1 / 15")).toBeVisible();
+
+    await page.goto("/");
+    await page.getByRole("link", { name: "募集中の活動を見る" }).click();
+
+    await expect(page).toHaveURL(/\/opportunities$/);
+    await expect(page.getByRole("heading", { name: "活動を探す" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "詳細を見る" }).first()).toBeVisible();
+  });
+
+  test("未ログインの本診断はログインへ戻す", async ({ page }) => {
+    await page.goto("/diagnosis");
+
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  });
 });
 
 test.describe("未ログインLP（モバイル）", () => {

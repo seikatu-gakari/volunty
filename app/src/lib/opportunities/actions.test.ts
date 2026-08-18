@@ -76,18 +76,46 @@ describe("fetchOpportunityDetail", () => {
     vi.clearAllMocks();
   });
 
-  it("未認証の場合、空のデータを返す", async () => {
+  it("未認証でも公開中の案件詳細を返し、閲覧イベントは記録しない", async () => {
     mockGetUser.mockReturnValue({
       data: { user: null },
       error: { message: "Not authenticated" },
+    });
+    mockSingle.mockReturnValue({
+      data: {
+        id: "opp-1",
+        title: "環境保全ボランティア",
+        description: "森林保全活動です",
+        activity_style_tags: ["talk-with-new-people"],
+        required_qualifications: ["普通自動車免許"],
+        min_age: 18,
+        max_age: null,
+        status: "published",
+        published_at: "2026-01-01T00:00:00Z",
+        created_at: "2026-01-01T00:00:00Z",
+        location: "渋谷区",
+        start_date: "2026-07-01T00:00:00.000Z",
+        end_date: "2026-07-10",
+        capacity: 10,
+        current_applicants: 3,
+        category: "環境保全",
+        participation_mode: "offline",
+        m_organization_profile: {
+          id: "org-1",
+          organization_name: "NPO法人テスト",
+          description: "テスト団体です",
+        },
+      },
+      error: null,
     });
 
     const result: OpportunityDetailResult =
       await fetchOpportunityDetail("opp-1");
 
-    expect(result.opportunity).toBeNull();
+    expect(result.opportunity?.title).toBe("環境保全ボランティア");
     expect(result.existingApplication).toBeNull();
     expect(result.isParticipant).toBe(false);
+    expect(mockEngagementCreate).not.toHaveBeenCalled();
   });
 
   it("案件が存在しない場合、opportunity が null を返す", async () => {

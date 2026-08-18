@@ -324,6 +324,36 @@ describe("proxy", () => {
   });
 
   it.each([
+    ["/diagnosis/trial"],
+    ["/opportunities"],
+    ["/opportunities/opp-1"],
+  ] as const)("未認証でも公開ルート %s を通過する", async (pathname) => {
+    const request = createRequest(pathname);
+    mockGuestSession(request);
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("未認証の本診断はログインへリダイレクトする", async () => {
+    const request = createRequest("/diagnosis");
+    mockGuestSession(request);
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url
+    );
+
+    expect(response.status).toBe(307);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("next")).toBe("/diagnosis");
+  });
+
+  it.each([
     ["participant", "/dashboard"],
     ["participant", "/admin"],
     ["organization", "/mypage"],

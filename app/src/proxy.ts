@@ -14,9 +14,6 @@ import {
 /** 認証チェックを完全にスキップするパス */
 const AUTH_CALLBACK = "/auth/callback";
 
-/** パブリックルート（認証不要、リダイレクトなし） */
-const PUBLIC_PATHS = new Set(["/"]);
-
 /** 認証必須ルートの prefix */
 const PROTECTED_PATH_PREFIXES = [
   "/admin",
@@ -24,7 +21,6 @@ const PROTECTED_PATH_PREFIXES = [
   "/diagnosis",
   "/mypage",
   "/onboarding",
-  "/opportunities",
   "/organizations",
   "/recommendations",
 ];
@@ -35,7 +31,6 @@ const ROLE_PATH_PREFIXES: Record<AppRole, readonly string[]> = {
   participant: [
     "/diagnosis",
     "/mypage",
-    "/opportunities",
     "/organizations",
     "/recommendations",
   ],
@@ -65,10 +60,18 @@ function isAuthPath(pathname: string): boolean {
   return pathname === "/login" || pathname.startsWith("/signup");
 }
 
+/** パブリックルート（認証不要、リダイレクトなし） */
+function isPublicPath(pathname: string): boolean {
+  if (pathname === "/" || pathname === "/diagnosis/trial") {
+    return true;
+  }
+  return matchesPrefix(pathname, "/opportunities");
+}
+
 /** 認証必須ルートかどうか */
 function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_PATH_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  return PROTECTED_PATH_PREFIXES.some((prefix) =>
+    matchesPrefix(pathname, prefix)
   );
 }
 
@@ -113,8 +116,8 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // --- パブリック（/）: 認証状態に関係なくスルー ---
-  if (PUBLIC_PATHS.has(pathname)) {
+  // --- パブリック: 認証状態に関係なくスルー ---
+  if (isPublicPath(pathname)) {
     return response;
   }
 

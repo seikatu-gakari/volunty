@@ -36,14 +36,6 @@ export async function fetchOpportunityDetail(
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      return {
-        opportunity: null,
-        existingApplication: null,
-        isParticipant: false,
-      };
-    }
-
     // 案件データを取得（m_organization_profile JOIN）
     const { data: oppData, error: oppError } = await supabase
       .from("m_opportunity")
@@ -149,6 +141,14 @@ export async function fetchOpportunityDetail(
       }
     } catch (err) {
       console.error("[fetchOpportunityDetail] 応募者数の集計に失敗:", err);
+    }
+
+    if (!user) {
+      return {
+        opportunity,
+        existingApplication: null,
+        isParticipant: false,
+      };
     }
 
     // 参加者判定
