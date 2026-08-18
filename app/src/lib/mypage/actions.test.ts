@@ -143,6 +143,7 @@ describe("fetchMyPageData", () => {
         supabaseErrorDetail: null,
       },
     });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     const result: MyPageData = await fetchMyPageData();
 
@@ -155,6 +156,8 @@ describe("fetchMyPageData", () => {
       diagnosis_answered_at: "2026-07-01T00:00:00.000Z",
     });
     expect(result.alert).toBeNull();
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("応募データがある場合、応募一覧を返す", async () => {
