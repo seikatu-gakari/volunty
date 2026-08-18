@@ -117,7 +117,7 @@ test.describe("未ログインLP導線", () => {
       await page.getByRole("button", { name: "どちらともいえない" }).click();
     }
 
-    await expect(page.getByText("お試し結果")).toBeVisible();
+    await expect(page.getByText("お試し結果", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("link", { name: "登録して結果を活用する" })
     ).toBeVisible();
