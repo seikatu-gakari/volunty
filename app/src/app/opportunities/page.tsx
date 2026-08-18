@@ -11,6 +11,8 @@ import {
   CATEGORY_OPTIONS,
   PARTICIPATION_MODE_OPTIONS,
 } from "@/lib/opportunities/constants";
+import { fetchMyBookmarks } from "@/lib/bookmarks/actions";
+import { createClient } from "@/lib/supabase/server";
 
 type OpportunitiesPageProps = {
   searchParams?: Promise<{
@@ -54,6 +56,15 @@ export default async function OpportunitiesPage({
   const params = await searchParams;
   const filters = toFilters(params);
   const opportunities = await fetchPublicOpportunities(filters);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const bookmarkResult = user ? await fetchMyBookmarks() : { bookmarks: [], error: "ログインが必要です" };
+  const canBookmark = bookmarkResult.error === undefined;
+  const bookmarkedIds = new Set(
+    bookmarkResult.bookmarks.map((bookmark) => bookmark.id)
+  );
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -204,7 +215,12 @@ export default async function OpportunitiesPage({
                       詳細を見る
                       <ArrowRight className="size-4" />
                     </Link>
-                    <BookmarkButton opportunityId={opportunity.id} />
+                    {canBookmark && (
+                      <BookmarkButton
+                        opportunityId={opportunity.id}
+                        initialBookmarked={bookmarkedIds.has(opportunity.id)}
+                      />
+                    )}
                   </div>
                 </div>
               </div>

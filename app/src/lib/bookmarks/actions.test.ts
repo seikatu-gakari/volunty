@@ -33,6 +33,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
 const { addBookmark, fetchMyBookmarks, removeBookmark } = await import(
   "./actions"
 );

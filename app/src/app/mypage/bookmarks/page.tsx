@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, Bookmark, ChevronRight } from "lucide-react";
+import { ArrowLeft, Bookmark } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { fetchMyBookmarks } from "@/lib/bookmarks/actions";
+import { BookmarkList } from "./BookmarkList";
 
 export default async function MyBookmarksPage() {
   const { bookmarks, error } = await fetchMyBookmarks();
@@ -39,31 +40,7 @@ export default async function MyBookmarksPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {bookmarks.length === 0 ? (
-              <p className="py-8 text-center text-sm text-text-body">
-                後で見る案件はまだありません。
-              </p>
-            ) : (
-              <div className="flex flex-col divide-y divide-card-border">
-                {bookmarks.map((bookmark) => (
-                  <Link
-                    key={bookmark.id}
-                    href={`/opportunities/${bookmark.id}`}
-                    className="flex items-center justify-between gap-4 py-4"
-                  >
-                    <div>
-                      <h2 className="text-sm font-bold text-text-dark">
-                        {bookmark.title}
-                      </h2>
-                      <p className="mt-1 text-xs text-text-body">
-                        {bookmark.organizationName}
-                      </p>
-                    </div>
-                    <ChevronRight className="size-4 text-text-body" />
-                  </Link>
-                ))}
-              </div>
-            )}
+            <BookmarkList bookmarks={bookmarks} />
           </CardContent>
         </Card>
       </main>

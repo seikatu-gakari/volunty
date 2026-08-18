@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 
@@ -81,6 +82,8 @@ export async function addBookmark(
       select: { id: true },
     });
 
+    revalidatePath("/mypage/bookmarks");
+    revalidatePath("/opportunities");
     return { success: true };
   } catch (err) {
     console.error("[addBookmark] 予期しないエラー:", err);
@@ -103,6 +106,8 @@ export async function removeBookmark(
       },
     });
 
+    revalidatePath("/mypage/bookmarks");
+    revalidatePath("/opportunities");
     return { success: true };
   } catch (err) {
     console.error("[removeBookmark] 予期しないエラー:", err);
