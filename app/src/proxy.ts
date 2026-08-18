@@ -14,8 +14,8 @@ import {
 /** 認証チェックを完全にスキップするパス */
 const AUTH_CALLBACK = "/auth/callback";
 
-/** パブリックルート（認証不要、リダイレクトなし） */
-const PUBLIC_PATHS = new Set(["/"]);
+/** パブリックルート（認証不要、リダイレクトなし。完全一致のみ） */
+const PUBLIC_PATHS = new Set(["/", "/diagnosis/trial", "/opportunities"]);
 
 /** 認証必須ルートの prefix */
 const PROTECTED_PATH_PREFIXES = [
