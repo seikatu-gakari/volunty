@@ -49,6 +49,45 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();
   });
 
+  test("ブックマーク: 案件詳細で登録→マイページで確認→解除→消える", async ({
+    page,
+  }) => {
+    await page.goto("/opportunities");
+    await page
+      .getByRole("link", { name: new RegExp(FILTER_OPPORTUNITY_TITLE) })
+      .first()
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: FILTER_OPPORTUNITY_TITLE })
+    ).toBeVisible();
+
+    const bookmarkButton = page.getByRole("button", { name: /後で見る/ });
+    await expect(bookmarkButton).toBeVisible();
+    await bookmarkButton.click();
+
+    await expect(page.getByRole("button", { name: /保存済み/ })).toBeVisible();
+
+    await page.goto("/mypage/bookmarks");
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
+
+    await page
+      .getByText(FILTER_OPPORTUNITY_TITLE)
+      .locator("xpath=../../..")
+      .getByRole("button", { name: /リストから外す/ })
+      .click();
+
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toHaveCount(0);
+
+    await page.goto("/opportunities");
+    await page
+      .getByRole("link", { name: new RegExp(FILTER_OPPORTUNITY_TITLE) })
+      .first()
+      .click();
+
+    await expect(page.getByRole("button", { name: /後で見る/ })).toBeVisible();
+  });
+
   test("P-7/P-8: メッセージ付きで応募し、応募詳細で内容を確認できる", async ({
     page,
   }) => {
