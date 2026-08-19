@@ -85,6 +85,9 @@ test.describe.serial("参加者の案件探索と応募", () => {
       .first()
       .click();
 
+    await expect(
+      page.getByRole("heading", { name: FILTER_OPPORTUNITY_TITLE })
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: /後で見る/ })).toBeVisible();
   });
 
