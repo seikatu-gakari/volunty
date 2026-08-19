@@ -76,8 +76,12 @@ describe("LPHeroSection", () => {
     const primaryCTA = screen.getByRole("link", {
       name: "2分で自分の活動タイプを知る",
     });
+    const primaryCTAClasses = primaryCTA.className.split(/\s+/);
     expect(primaryCTA.getAttribute("href")).toBe("/diagnosis/trial");
-    expect(primaryCTA.className).toContain("bg-primary-dark");
+    expect(primaryCTAClasses).toContain("bg-primary");
+    expect(primaryCTAClasses).toContain("hover:bg-primary-dark");
+    expect(primaryCTAClasses).not.toContain("hover:bg-text-dark");
+    expect(primaryCTAClasses).toContain("hover:-translate-y-0.5");
 
     const secondaryCTA = screen.getByRole("link", { name: "活動例を見る" });
     expect(secondaryCTA.getAttribute("href")).toBe("#styles");
