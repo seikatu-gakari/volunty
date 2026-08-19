@@ -26,7 +26,7 @@ export function PublicHeaderNavigation() {
 
       <Link
         href="/signup"
-        className="hidden h-10 items-center gap-2 rounded-xl bg-primary-dark px-4 text-sm font-bold text-white transition-colors hover:bg-text-dark lg:inline-flex"
+        className="hidden h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary-dark lg:inline-flex"
       >
         <UserPlus className="size-4" aria-hidden />
         無料で始める
@@ -66,7 +66,7 @@ export function PublicHeaderNavigation() {
             <Link
               href="/signup"
               onClick={() => setMenuOpen(false)}
-              className="mt-2 inline-flex h-12 items-center justify-center rounded-2xl bg-primary-dark px-4 text-sm font-bold text-white transition-colors hover:bg-text-dark"
+              className="mt-2 inline-flex h-12 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary-dark"
             >
               無料で始める
             </Link>

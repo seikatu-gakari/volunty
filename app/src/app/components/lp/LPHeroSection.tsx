@@ -43,7 +43,7 @@ export function LPHeroSection() {
         <div className="relative top-0 grid w-full gap-1.5 lg:col-start-1 lg:row-start-4 lg:top-12 lg:flex lg:flex-row lg:items-stretch lg:gap-3 lg:justify-start xl:gap-4">
           <Link
             href="/diagnosis/trial"
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary-dark px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-text-dark lg:h-12 lg:w-auto lg:flex-[2_1_0%] lg:min-w-0 lg:px-3 lg:text-sm lg:whitespace-nowrap xl:h-14 xl:w-[320px] xl:flex-none xl:px-6 xl:text-base"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-primary-dark lg:h-12 lg:w-auto lg:flex-[2_1_0%] lg:min-w-0 lg:px-3 lg:text-sm lg:whitespace-nowrap xl:h-14 xl:w-[320px] xl:flex-none xl:px-6 xl:text-base"
           >
             2分で自分の活動タイプを知る
             <ArrowRight className="size-5" aria-hidden />

@@ -36,9 +36,11 @@ describe("PublicHeaderNavigation", () => {
     expect(trigger.className).toContain("border-card-border");
 
     const desktopSignup = screen.getByRole("link", { name: "無料で始める" });
+    const desktopSignupClasses = desktopSignup.className.split(/\s+/);
     expect(desktopSignup.className).toContain("lg:inline-flex");
-    expect(desktopSignup.className).toContain("bg-primary-dark");
-    expect(desktopSignup.className).toContain("hover:bg-text-dark");
+    expect(desktopSignupClasses).toContain("bg-primary");
+    expect(desktopSignupClasses).toContain("hover:bg-primary-dark");
+    expect(desktopSignupClasses).not.toContain("hover:bg-text-dark");
     expect(screen.queryByRole("navigation", { name: "モバイルナビゲーション" })).toBeNull();
   });
 
@@ -62,6 +64,14 @@ describe("PublicHeaderNavigation", () => {
     expect(mobileNavigation.querySelector('a[href="/login"]')).not.toBeNull();
     expect(mobileNavigation.querySelector('a[href="/signup"]')).not.toBeNull();
     expect(mobileNavigation.querySelector('a[href="#usage"]')).not.toBeNull();
+
+    const mobileSignup = within(mobileNavigation).getByRole("link", {
+      name: "無料で始める",
+    });
+    const mobileSignupClasses = mobileSignup.className.split(/\s+/);
+    expect(mobileSignupClasses).toContain("bg-primary");
+    expect(mobileSignupClasses).toContain("hover:bg-primary-dark");
+    expect(mobileSignupClasses).not.toContain("hover:bg-text-dark");
   });
 
   it("メニュー内リンクを選ぶとメニューを閉じる", () => {
