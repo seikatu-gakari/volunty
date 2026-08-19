@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { fetchMyBookmarks } from "@/lib/bookmarks/actions";
+import { RemoveBookmarkButton } from "./RemoveBookmarkButton";
 
 export default async function MyBookmarksPage() {
   const { bookmarks, error } = await fetchMyBookmarks();
@@ -46,21 +47,26 @@ export default async function MyBookmarksPage() {
             ) : (
               <div className="flex flex-col divide-y divide-card-border">
                 {bookmarks.map((bookmark) => (
-                  <Link
+                  <div
                     key={bookmark.id}
-                    href={`/opportunities/${bookmark.id}`}
                     className="flex items-center justify-between gap-4 py-4"
                   >
-                    <div>
-                      <h2 className="text-sm font-bold text-text-dark">
-                        {bookmark.title}
-                      </h2>
-                      <p className="mt-1 text-xs text-text-body">
-                        {bookmark.organizationName}
-                      </p>
-                    </div>
-                    <ChevronRight className="size-4 text-text-body" />
-                  </Link>
+                    <Link
+                      href={`/opportunities/${bookmark.id}`}
+                      className="flex min-w-0 flex-1 items-center gap-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <h2 className="text-sm font-bold text-text-dark">
+                          {bookmark.title}
+                        </h2>
+                        <p className="mt-1 text-xs text-text-body">
+                          {bookmark.organizationName}
+                        </p>
+                      </div>
+                      <ChevronRight className="size-4 shrink-0 text-text-body" />
+                    </Link>
+                    <RemoveBookmarkButton opportunityId={bookmark.id} />
+                  </div>
                 ))}
               </div>
             )}

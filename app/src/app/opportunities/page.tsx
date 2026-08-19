@@ -3,6 +3,7 @@ import { ArrowRight, Calendar, Search, X } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { BookmarkButton } from "./[id]/components/BookmarkButton";
+import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/actions";
 import {
   fetchPublicOpportunities,
   type PublicOpportunityFilters,
@@ -54,6 +55,9 @@ export default async function OpportunitiesPage({
   const params = await searchParams;
   const filters = toFilters(params);
   const opportunities = await fetchPublicOpportunities(filters);
+  const bookmarkedIds = await fetchBookmarkedOpportunityIds(
+    opportunities.map((o) => o.id)
+  );
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -204,7 +208,10 @@ export default async function OpportunitiesPage({
                       詳細を見る
                       <ArrowRight className="size-4" />
                     </Link>
-                    <BookmarkButton opportunityId={opportunity.id} />
+                    <BookmarkButton
+                      opportunityId={opportunity.id}
+                      initialBookmarked={bookmarkedIds.has(opportunity.id)}
+                    />
                   </div>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 
@@ -81,6 +82,7 @@ export async function addBookmark(
       select: { id: true },
     });
 
+    revalidatePath("/mypage/bookmarks");
     return { success: true };
   } catch (err) {
     console.error("[addBookmark] 予期しないエラー:", err);
@@ -103,10 +105,43 @@ export async function removeBookmark(
       },
     });
 
+    revalidatePath("/mypage/bookmarks");
     return { success: true };
   } catch (err) {
     console.error("[removeBookmark] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
+  }
+}
+
+export async function fetchBookmarkedOpportunityIds(
+  opportunityIds: string[]
+): Promise<Set<string>> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return new Set();
+
+    const participant = await prisma.participantProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    if (!participant) return new Set();
+
+    const favorites = await prisma.engagementEvent.findMany({
+      where: {
+        userId: user.id,
+        opportunityId: { in: opportunityIds },
+        event: "favorite",
+      },
+      select: { opportunityId: true },
+    });
+
+    return new Set(favorites.map((f) => f.opportunityId));
+  } catch (err) {
+    console.error("[fetchBookmarkedOpportunityIds] 予期しないエラー:", err);
+    return new Set();
   }
 }
 

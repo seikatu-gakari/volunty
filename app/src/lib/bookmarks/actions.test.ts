@@ -7,6 +7,11 @@ const mockFindFavorite = vi.fn();
 const mockCreateFavorite = vi.fn();
 const mockDeleteFavorites = vi.fn();
 const mockFindFavorites = vi.fn();
+const mockRevalidatePath = vi.fn();
+
+vi.mock("next/cache", () => ({
+  revalidatePath: (path: string) => mockRevalidatePath(path),
+}));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -33,9 +38,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { addBookmark, fetchMyBookmarks, removeBookmark } = await import(
-  "./actions"
-);
+const {
+  addBookmark,
+  fetchBookmarkedOpportunityIds,
+  fetchMyBookmarks,
+  removeBookmark,
+} = await import("./actions");
 
 describe("bookmark actions", () => {
   beforeEach(() => {
@@ -93,6 +101,54 @@ describe("bookmark actions", () => {
         event: "favorite",
       },
     });
+  });
+
+  it("addBookmark 後に revalidatePath を呼ぶ", async () => {
+    mockFindFavorite.mockResolvedValue(null);
+    mockCreateFavorite.mockResolvedValue({ id: "favorite-1" });
+
+    await addBookmark("opp-1");
+
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/mypage/bookmarks");
+  });
+
+  it("removeBookmark 後に revalidatePath を呼ぶ", async () => {
+    mockDeleteFavorites.mockResolvedValue({ count: 1 });
+
+    await removeBookmark("opp-1");
+
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/mypage/bookmarks");
+  });
+
+  it("指定した案件 ID のお気に入り済み ID セットを返す", async () => {
+    mockFindFavorites.mockResolvedValue([
+      { opportunityId: "opp-1" },
+      { opportunityId: "opp-3" },
+    ]);
+
+    const result = await fetchBookmarkedOpportunityIds([
+      "opp-1",
+      "opp-2",
+      "opp-3",
+    ]);
+
+    expect(result).toEqual(new Set(["opp-1", "opp-3"]));
+    expect(mockFindFavorites).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        opportunityId: { in: ["opp-1", "opp-2", "opp-3"] },
+        event: "favorite",
+      },
+      select: { opportunityId: true },
+    });
+  });
+
+  it("未ログイン時は空セットを返す", async () => {
+    mockGetUser.mockReturnValue({ data: { user: null } });
+
+    const result = await fetchBookmarkedOpportunityIds(["opp-1"]);
+
+    expect(result).toEqual(new Set());
   });
 
   it("本人のお気に入り一覧を取得できる", async () => {
