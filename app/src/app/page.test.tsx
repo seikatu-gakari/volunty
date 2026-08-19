@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   eq: vi.fn(),
   maybeSingle: vi.fn(),
+  header: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -27,7 +28,10 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("./components/Header", () => ({
-  Header: () => <header>ヘッダー</header>,
+  Header: (props: { onboardingCompleted?: boolean; variant?: string }) => {
+    mocks.header(props);
+    return <header>ヘッダー</header>;
+  },
 }));
 
 vi.mock("./components/AuthenticatedHome", () => ({
@@ -107,6 +111,15 @@ describe("Home", () => {
   });
 
   it("participantプロフィール登録済みなら既存の認証済みホームを表示する", async () => {
+    mocks.getUser.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: "user-1",
+          email: "user@example.com",
+          user_metadata: { role: "participant", onboarding_completed: false },
+        },
+      },
+    });
     mocks.maybeSingle.mockReset();
     mocks.maybeSingle
       .mockResolvedValueOnce({ data: { role: "participant" }, error: null })
@@ -115,6 +128,10 @@ describe("Home", () => {
     render(await Home());
 
     expect(screen.getByText("認証済みホーム:participant")).toBeDefined();
+    expect(mocks.header).toHaveBeenCalledWith({
+      variant: "landing",
+      onboardingCompleted: true,
+    });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
@@ -138,6 +155,10 @@ describe("Home", () => {
     render(await Home());
 
     expect(screen.getByText("認証済みホーム:organization")).toBeDefined();
+    expect(mocks.header).toHaveBeenCalledWith({
+      variant: "landing",
+      onboardingCompleted: true,
+    });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 

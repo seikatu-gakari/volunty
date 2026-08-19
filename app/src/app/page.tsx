@@ -35,6 +35,7 @@ export default async function Home() {
   let role: AuthenticatedHomeRole = null;
   let organizationVerified = false;
   let shouldRedirectToRoleSelection = false;
+  let onboardingCompletedForHeader = false;
 
   try {
     const supabase = await createClient();
@@ -67,6 +68,7 @@ export default async function Home() {
         if (profileError) {
           console.error("[Home] 参加者プロフィール照会に失敗:", profileError);
         } else {
+          onboardingCompletedForHeader = !!participantProfile;
           shouldRedirectToRoleSelection = needsRoleSelection({
             role: databaseRole,
             hasParticipantProfile: !!participantProfile,
@@ -82,6 +84,7 @@ export default async function Home() {
         if (profileError) {
           console.error("[Home] 団体プロフィール照会に失敗:", profileError);
         } else {
+          onboardingCompletedForHeader = !!organizationProfile;
           organizationVerified = isOrganizationApproved(organizationProfile);
           shouldRedirectToRoleSelection = needsRoleSelection({
             role: databaseRole,
@@ -101,7 +104,10 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header variant="landing" />
+      <Header
+        variant="landing"
+        onboardingCompleted={onboardingCompletedForHeader}
+      />
 
       {user && (
         <AuthenticatedHome

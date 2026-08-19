@@ -16,6 +16,7 @@ export interface HeaderUserState {
 
 interface HeaderProps {
   variant?: "default" | "landing";
+  onboardingCompleted?: boolean;
 }
 
 /** verified フラグまたは reviewStatus === "approved" でチェック */
@@ -31,7 +32,10 @@ function isOrganizationVerified(profile: {
   );
 }
 
-export async function Header({ variant = "default" }: HeaderProps = {}) {
+export async function Header({
+  variant = "default",
+  onboardingCompleted,
+}: HeaderProps = {}) {
   let user = null;
   let userState: HeaderUserState = {
     role: null,
@@ -51,7 +55,7 @@ export async function Header({ variant = "default" }: HeaderProps = {}) {
       // role と onboardingCompleted は user_metadata から取得（Prisma 不要）
       userState = {
         role: role === "participant" || role === "organization" ? role : null,
-        onboardingCompleted: !!metadata.onboarding_completed,
+        onboardingCompleted: onboardingCompleted ?? !!metadata.onboarding_completed,
         verified: false,
       };
 
