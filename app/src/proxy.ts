@@ -205,8 +205,6 @@ export async function proxy(request: NextRequest) {
   }
 
   // --- 保護ルート: ロール・オンボーディング状態チェック ---
-  const metadata = user.user_metadata as Record<string, unknown>;
-
   // 認可には自己更新可能な metadata ではなく DB のロールだけを使う
   if (databaseRoleStatus !== "valid" || !isAppRole(databaseRole)) {
     const url = request.nextUrl.clone();
@@ -215,13 +213,62 @@ export async function proxy(request: NextRequest) {
   }
   const role = databaseRole;
 
-  // オンボーディング未完了 → /onboarding/{role}
-  if (role !== "admin" && !metadata.onboarding_completed) {
+  // 現在のDBロールに対応するプロフィールがなければロール選択から再開する
+  let profileStatus: "error" | "missing" | "present" = "error";
+  if (role !== "admin") {
+    const supabaseUrl = getSupabaseServerUrl();
+    const supabaseAnonKey = getSupabaseAnonKey();
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+          cookieOptions: {
+            name: SUPABASE_AUTH_COOKIE_NAME,
+          },
+          cookies: {
+            getAll: () => request.cookies.getAll(),
+            setAll: (cookiesToSet) => {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                response.cookies.set(name, value, options)
+              );
+            },
+          },
+        });
+        const profileTable =
+          role === "organization"
+            ? "m_organization_profile"
+            : "m_participant_profile";
+        const { data: profile, error } = await supabase
+          .from(profileTable)
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error("[proxy] プロフィール照会に失敗", {
+            code: "profile_lookup_error",
+          });
+        } else {
+          profileStatus = profile ? "present" : "missing";
+        }
+      } catch {
+        console.error("[proxy] プロフィール照会に失敗", {
+          code: "profile_lookup_error",
+        });
+      }
+    }
+  } else {
+    profileStatus = "present";
+  }
+
+  if (profileStatus === "error") {
     const url = request.nextUrl.clone();
-    url.pathname =
-      role === "organization"
-        ? "/onboarding/organization"
-        : "/onboarding/participant";
+    url.pathname = "/forbidden";
+    return redirectWithCookies(url, response);
+  }
+
+  if (profileStatus === "missing") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/onboarding/role";
     return redirectWithCookies(url, response);
   }
 

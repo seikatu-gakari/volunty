@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { parseOnboardingRole } from "@/lib/onboarding/role";
 import { RoleSelectionClient } from "./RoleSelectionClient";
 
 export default async function OnboardingRolePage() {
@@ -13,21 +14,45 @@ export default async function OnboardingRolePage() {
     redirect("/login");
   }
 
-  const metadata = user.user_metadata as Record<string, unknown>;
-  const role = metadata.role as string | undefined;
-  const onboardingCompleted = metadata.onboarding_completed as boolean | undefined;
+  const { data: account, error: accountError } = await supabase
+    .from("m_user")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  // オンボーディング完了済みの場合はトップページへ
-  if (onboardingCompleted) {
+  if (accountError) {
+    console.error("[OnboardingRolePage] m_user照会に失敗:", accountError);
+    return <RoleSelectionClient />;
+  }
+
+  const role = parseOnboardingRole(account?.role);
+
+  // 管理者とプロフィール登録済みユーザーはロール選択の対象外
+  if (role === "admin") {
     redirect("/");
   }
 
-  // 既にロール設定済みの場合は次のオンボーディングステップへ
-  if (role === "participant") {
-    redirect("/onboarding/participant");
+  if (!role) {
+    return <RoleSelectionClient />;
   }
-  if (role === "organization") {
-    redirect("/onboarding/organization");
+
+  const profileTable =
+    role === "participant"
+      ? "m_participant_profile"
+      : "m_organization_profile";
+  const { data: profile, error: profileError } = await supabase
+    .from(profileTable)
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("[OnboardingRolePage] プロフィール照会に失敗:", profileError);
+    return <RoleSelectionClient />;
+  }
+
+  if (profile) {
+    redirect("/");
   }
 
   return <RoleSelectionClient />;

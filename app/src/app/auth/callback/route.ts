@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureUserRecord } from "@/lib/auth/ensure-user-record";
+import { needsRoleSelection } from "@/lib/onboarding/role";
 import { createClient } from "@/lib/supabase/server";
 
 function normalizeOrigin(origin: string) {
@@ -7,7 +8,12 @@ function normalizeOrigin(origin: string) {
 }
 
 function getSafeNextPath(next: string | null) {
-  if (next && next.startsWith("/") && !next.startsWith("//")) {
+  if (
+    next &&
+    next.startsWith("/") &&
+    !next.startsWith("//") &&
+    !next.includes("\\")
+  ) {
     return next;
   }
 
@@ -16,6 +22,12 @@ function getSafeNextPath(next: string | null) {
 
 function buildLoginSuccessUrl(origin: string, next: string | null) {
   const redirectUrl = new URL(getSafeNextPath(next), origin);
+  redirectUrl.searchParams.set("toast", "login-success");
+  return redirectUrl.toString();
+}
+
+function buildRoleSelectionUrl(origin: string) {
+  const redirectUrl = new URL("/onboarding/role", origin);
   redirectUrl.searchParams.set("toast", "login-success");
   return redirectUrl.toString();
 }
@@ -57,7 +69,10 @@ export async function GET(request: Request) {
       }
 
       try {
-        await ensureUserRecord(user);
+        const onboardingState = await ensureUserRecord(user);
+        if (needsRoleSelection(onboardingState)) {
+          return NextResponse.redirect(buildRoleSelectionUrl(origin));
+        }
       } catch (err) {
         console.error("[AuthCallback] m_user同期エラー:", err);
         return NextResponse.redirect(buildLoginErrorUrl(origin, "user-sync"));

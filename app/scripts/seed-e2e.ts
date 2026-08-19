@@ -543,6 +543,24 @@ export async function seedE2eUsers(): Promise<void> {
   // アカウント削除E2Eで診断データの連鎖削除を検証するため、診断結果を付与する
   await ensureDiagnosisResult(deleteId);
 
+  // 凍結・解除E2Eは、通常利用可能な参加者として再ログインできる状態を維持する。
+  await prisma.participantProfile.upsert({
+    where: { userId: suspendableId },
+    update: {
+      name: "E2E 凍結対象参加者",
+      birthday: new Date("1997-09-08"),
+      region: "東京都",
+      publicProfile: false,
+    },
+    create: {
+      userId: suspendableId,
+      name: "E2E 凍結対象参加者",
+      birthday: new Date("1997-09-08"),
+      region: "東京都",
+      publicProfile: false,
+    },
+  });
+
   const organizationProfileDetails = {
     representativeName: "E2E 代表者",
     activityAreas: ["東京都"],

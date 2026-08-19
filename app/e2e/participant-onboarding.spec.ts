@@ -4,7 +4,17 @@ test.describe("参加者オンボーディング", () => {
   test.use({ storageState: "playwright/.auth/participant-fresh.json" });
 
   test("P-2: 参加者ロールを選びプロフィールを登録できる", async ({ page }) => {
-    await page.goto("/onboarding/role");
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/onboarding\/role$/);
+
+    await page
+      .getByRole("button", { name: /ボランティアに参加する/ })
+      .click();
+    await page.getByRole("button", { name: "次へ" }).click();
+    await expect(page).toHaveURL(/\/onboarding\/participant$/);
+
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/onboarding\/role$/);
 
     await page
       .getByRole("button", { name: /ボランティアに参加する/ })

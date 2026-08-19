@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   BadgeCheck,
   Brain,
-  Building2,
   FileCheck2,
   Heart,
   History,
@@ -23,7 +22,6 @@ export type AuthenticatedHomeRole = "participant" | "organization" | "admin" | n
 interface AuthenticatedHomeProps {
   user: User;
   role: AuthenticatedHomeRole;
-  onboardingCompleted: boolean;
   organizationVerified?: boolean;
 }
 
@@ -139,11 +137,10 @@ const ADMIN_LINKS: FeatureLink[] = [
 
 function getDashboardContent({
   role,
-  onboardingCompleted,
   organizationVerified,
 }: Pick<
   AuthenticatedHomeProps,
-  "role" | "onboardingCompleted" | "organizationVerified"
+  "role" | "organizationVerified"
 >): HomeDashboardContent {
   if (role === "admin") {
     return {
@@ -154,22 +151,6 @@ function getDashboardContent({
   }
 
   if (role === "organization") {
-    if (!onboardingCompleted) {
-      return {
-        title: "団体登録を完了してください",
-        description: "募集機能を使うには、団体プロフィールの登録が必要です。",
-        links: [
-          {
-            href: "/onboarding/organization",
-            label: "団体プロフィールを登録",
-            description: "団体情報を入力して審査へ進みます。",
-            icon: Building2,
-            primary: true,
-          },
-        ],
-      };
-    }
-
     if (!organizationVerified) {
       return {
         title: "団体審査の状況",
@@ -194,22 +175,6 @@ function getDashboardContent({
   }
 
   if (role === "participant") {
-    if (!onboardingCompleted) {
-      return {
-        title: "応募者登録を完了してください",
-        description: "応募機能を使うには、参加者プロフィールの登録が必要です。",
-        links: [
-          {
-            href: "/onboarding/participant",
-            label: "参加者プロフィールを登録",
-            description: "希望地域などを入力して利用を開始します。",
-            icon: UserIcon,
-            primary: true,
-          },
-        ],
-      };
-    }
-
     return {
       title: "応募者メニュー",
       description: "応募者として使える機能へ移動できます。",
@@ -235,14 +200,12 @@ function getDashboardContent({
 export function AuthenticatedHome({
   user,
   role,
-  onboardingCompleted,
   organizationVerified = false,
 }: AuthenticatedHomeProps) {
   const displayName =
     user.user_metadata?.full_name ?? user.email ?? "ゲスト";
   const dashboardContent = getDashboardContent({
     role,
-    onboardingCompleted,
     organizationVerified,
   });
 

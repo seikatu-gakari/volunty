@@ -38,7 +38,11 @@ describe("ensureUserRecord", () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
     vi.clearAllMocks();
-    mockPrismaUserUpsert.mockResolvedValue({});
+    mockPrismaUserUpsert.mockResolvedValue({
+      role: "participant",
+      participantProfile: null,
+      organizationProfile: null,
+    });
   });
 
   afterEach(() => {
@@ -72,6 +76,11 @@ describe("ensureUserRecord", () => {
         avatarUrl: "https://example.com/avatar.png",
         lastLoginAt: now,
       },
+      select: {
+        role: true,
+        participantProfile: { select: { id: true } },
+        organizationProfile: { select: { id: true } },
+      },
     });
   });
 
@@ -96,6 +105,11 @@ describe("ensureUserRecord", () => {
         name: null,
         avatarUrl: null,
         lastLoginAt: now,
+      },
+      select: {
+        role: true,
+        participantProfile: { select: { id: true } },
+        organizationProfile: { select: { id: true } },
       },
     });
   });
@@ -125,6 +139,11 @@ describe("ensureUserRecord", () => {
         lastLoginAt: now,
         role: "organization",
       },
+      select: {
+        role: true,
+        participantProfile: { select: { id: true } },
+        organizationProfile: { select: { id: true } },
+      },
     });
   });
 
@@ -141,7 +160,30 @@ describe("ensureUserRecord", () => {
       expect.objectContaining({
         update: expect.objectContaining({ role: "admin" }),
         create: expect.objectContaining({ role: "admin" }),
+        select: {
+          role: true,
+          participantProfile: { select: { id: true } },
+          organizationProfile: { select: { id: true } },
+        },
       })
     );
+  });
+
+  it("upsert結果からDBロールと両プロフィールの有無を返す", async () => {
+    mockPrismaUserUpsert.mockResolvedValueOnce({
+      role: "organization",
+      participantProfile: { id: "participant-profile-1" },
+      organizationProfile: null,
+    });
+
+    const result = await ensureUserRecord(
+      createSupabaseUser({ id: "user-state" }),
+    );
+
+    expect(result).toEqual({
+      role: "organization",
+      hasParticipantProfile: true,
+      hasOrganizationProfile: false,
+    });
   });
 });

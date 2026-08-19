@@ -97,6 +97,11 @@ describe("selectRole", () => {
         lastLoginAt: expect.any(Date),
         role: "participant",
       }),
+      select: {
+        role: true,
+        participantProfile: { select: { id: true } },
+        organizationProfile: { select: { id: true } },
+      },
     });
     expect(mockRedirect).toHaveBeenCalledWith("/onboarding/participant");
   });
