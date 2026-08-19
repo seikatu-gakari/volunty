@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   eq: vi.fn(),
   maybeSingle: vi.fn(),
+  roleSelectionClient: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -27,7 +28,16 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("./RoleSelectionClient", () => ({
-  RoleSelectionClient: () => <div>ロール選択UI</div>,
+  RoleSelectionClient: () => {
+    mocks.roleSelectionClient();
+    return <div>ロール選択UI</div>;
+  },
+}));
+
+vi.mock("@/app/components/ui/CommonErrorDisplay", () => ({
+  CommonErrorDisplay: ({ title }: { title?: string }) => (
+    <div role="alert">{title ?? "エラー画面"}</div>
+  ),
 }));
 
 import OnboardingRolePage from "./page";
@@ -119,9 +129,24 @@ describe("OnboardingRolePage", () => {
 
     expect(mocks.redirect).toHaveBeenCalledWith("/");
     expect(mocks.from).toHaveBeenCalledTimes(1);
+    expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
   });
 
-  it("プロフィール照会エラー時は自動転送せずロール選択UIを表示する", async () => {
+  it("m_user照会エラー時はロール選択UIを表示せずエラー画面を表示する", async () => {
+    mocks.maybeSingle.mockReset().mockResolvedValueOnce({
+      data: null,
+      error: { message: "permission denied" },
+    });
+
+    render(await OnboardingRolePage());
+
+    expect(screen.queryByText("ロール選択UI")).toBeNull();
+    expect(screen.getByRole("alert")).toBeDefined();
+    expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("プロフィール照会エラー時はロール選択UIを表示せずエラー画面を表示する", async () => {
     mocks.maybeSingle.mockReset();
     mocks.maybeSingle
       .mockResolvedValueOnce({ data: { role: "participant" }, error: null })
@@ -132,7 +157,9 @@ describe("OnboardingRolePage", () => {
 
     render(await OnboardingRolePage());
 
-    expect(screen.getByText("ロール選択UI")).toBeDefined();
+    expect(screen.queryByText("ロール選択UI")).toBeNull();
+    expect(screen.getByRole("alert")).toBeDefined();
+    expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 

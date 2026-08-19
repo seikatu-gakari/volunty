@@ -1,7 +1,15 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { parseOnboardingRole } from "@/lib/onboarding/role";
+import { CommonErrorDisplay } from "@/app/components/ui/CommonErrorDisplay";
 import { RoleSelectionClient } from "./RoleSelectionClient";
+
+const onboardingRoleLoadError = (
+  <CommonErrorDisplay
+    title="オンボーディング情報を読み込めませんでした"
+    description="一時的な問題が発生した可能性があります。時間をおいて再度お試しください。"
+  />
+);
 
 export default async function OnboardingRolePage() {
   const supabase = await createClient();
@@ -22,7 +30,7 @@ export default async function OnboardingRolePage() {
 
   if (accountError) {
     console.error("[OnboardingRolePage] m_user照会に失敗:", accountError);
-    return <RoleSelectionClient />;
+    return onboardingRoleLoadError;
   }
 
   const role = parseOnboardingRole(account?.role);
@@ -48,7 +56,7 @@ export default async function OnboardingRolePage() {
 
   if (profileError) {
     console.error("[OnboardingRolePage] プロフィール照会に失敗:", profileError);
-    return <RoleSelectionClient />;
+    return onboardingRoleLoadError;
   }
 
   if (profile) {

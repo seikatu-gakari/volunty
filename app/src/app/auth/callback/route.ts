@@ -7,21 +7,29 @@ function normalizeOrigin(origin: string) {
   return origin.replace("//0.0.0.0:", "//localhost:");
 }
 
-function getSafeNextPath(next: string | null) {
+function getSafeNextPath(next: string | null, origin: string) {
   if (
     next &&
     next.startsWith("/") &&
     !next.startsWith("//") &&
-    !next.includes("\\")
+    !next.includes("\\") &&
+    !/[\u0000-\u001f]/.test(next)
   ) {
-    return next;
+    try {
+      const resolvedNext = new URL(next, origin);
+      if (resolvedNext.origin === origin) {
+        return `${resolvedNext.pathname}${resolvedNext.search}${resolvedNext.hash}`;
+      }
+    } catch {
+      // 不正な next はトップへフォールバックする。
+    }
   }
 
   return "/";
 }
 
 function buildLoginSuccessUrl(origin: string, next: string | null) {
-  const redirectUrl = new URL(getSafeNextPath(next), origin);
+  const redirectUrl = new URL(getSafeNextPath(next, origin), origin);
   redirectUrl.searchParams.set("toast", "login-success");
   return redirectUrl.toString();
 }

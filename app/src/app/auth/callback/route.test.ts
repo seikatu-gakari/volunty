@@ -207,4 +207,21 @@ describe("auth callback route", () => {
       "http://localhost:3000/?toast=login-success"
     );
   });
+
+  it.each(["/%09/evil.example", "/%0A/evil.example", "/%0D/evil.example"])(
+    "プロフィール完了済みでもC0制御文字入りnext=%sはトップへフォールバックする",
+    async (next) => {
+      mocks.exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+
+      const response = await GET(
+        new Request(
+          `http://0.0.0.0:3000/auth/callback?code=ok&next=${next}`
+        )
+      );
+
+      expect(response.headers.get("location")).toBe(
+        "http://localhost:3000/?toast=login-success"
+      );
+    }
+  );
 });
