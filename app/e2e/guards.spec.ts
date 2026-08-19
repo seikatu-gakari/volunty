@@ -101,6 +101,56 @@ test.describe("認証・認可ガード", () => {
   });
 });
 
+test.describe("未ログインLP導線", () => {
+  test("LPから簡易診断を完走できる", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "2分で自分の活動タイプを知る" }).click();
+
+    await expect(page).toHaveURL(/\/diagnosis\/trial$/);
+    await expect(
+      page.getByRole("heading", { name: "簡易診断を試す" })
+    ).toBeVisible();
+    await expect(page.getByText("質問 1 / 15")).toBeVisible();
+
+    for (let question = 1; question <= 15; question += 1) {
+      await expect(page.getByText(`質問 ${question} / 15`)).toBeVisible();
+      await page.getByRole("button", { name: "どちらともいえない" }).click();
+    }
+
+    await expect(page.getByText("お試し結果", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "登録して結果を活用する" })
+    ).toBeVisible();
+  });
+
+  test("LPから公開募集一覧を閲覧でき、詳細はログインへ送る", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "募集中の活動を見る" }).click();
+
+    await expect(page).toHaveURL(/\/opportunities$/);
+    await expect(
+      page.getByRole("heading", { name: "活動を探す" })
+    ).toBeVisible();
+    await expect(page.getByText("E2E 応募対象案件")).toBeVisible();
+
+    await page.getByRole("link", { name: "E2E 応募対象案件" }).click();
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === "/login" &&
+        (url.searchParams.get("next")?.startsWith("/opportunities/") ?? false)
+    );
+  });
+
+  test("未認証の本診断はログインへ戻す", async ({ page }) => {
+    await page.goto("/diagnosis");
+
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === "/login" && url.searchParams.get("next") === "/diagnosis"
+    );
+  });
+});
+
 test.describe("未ログインLP（モバイル）", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
