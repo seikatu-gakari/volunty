@@ -36,13 +36,13 @@ cleanup() {
 trap cleanup EXIT
 
 initdb -D "$data_dir" --no-locale --encoding=UTF8 --auth=trust >/dev/null
-pg_ctl -D "$data_dir" -o "-p $port" -l "$test_tmp/postgres.log" -w start >/dev/null
+pg_ctl -D "$data_dir" -o "-p $port -k $test_tmp" -l "$test_tmp/postgres.log" -w start >/dev/null
 
 createdb_command="$(command -v createdb || true)"
 if [ -z "$createdb_command" ]; then
   psql "$database_url" -v ON_ERROR_STOP=1 -X -c "CREATE DATABASE $database_name" >/dev/null
 else
-  "$createdb_command" -p "$port" "$database_name" >/dev/null
+  "$createdb_command" -h 127.0.0.1 -p "$port" "$database_name" >/dev/null
 fi
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
