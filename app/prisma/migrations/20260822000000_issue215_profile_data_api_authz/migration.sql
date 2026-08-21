@@ -29,4 +29,27 @@ GRANT SELECT ON TABLE public.m_participant_profile TO authenticated;
 
 REVOKE ALL ON TABLE public.m_organization_profile
   FROM anon, authenticated;
-GRANT SELECT ON TABLE public.m_organization_profile TO anon, authenticated;
+REVOKE SELECT (
+  id, user_id, organization_name, representative_name, contact_email,
+  activity_areas, description, activity_categories, website_url, logo_url,
+  contact_line_id, contact_line_url, review_status, review_comment,
+  reviewed_at, reviewed_by, verified, profile_completeness, created_at,
+  updated_at
+)
+  ON TABLE public.m_organization_profile
+  FROM anon, authenticated;
+
+-- Data API consumerが必要とする公開・判定列だけを匿名ロールへ公開する。
+GRANT SELECT (
+  id, organization_name, description, verified, review_status
+)
+  ON TABLE public.m_organization_profile
+  TO anon;
+
+-- 認証済みの所有者照会と参加者向け案件表示に必要な列だけを許可する。
+GRANT SELECT (
+  id, user_id, organization_name, description, verified, review_status,
+  contact_line_id, reviewed_at, profile_completeness
+)
+  ON TABLE public.m_organization_profile
+  TO authenticated;

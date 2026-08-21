@@ -226,6 +226,8 @@ psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
 DO $$
+DECLARE
+  profile_column_name text;
 BEGIN
   IF NOT has_schema_privilege('authenticated', 'public', 'USAGE') THEN
     RAISE EXCEPTION 'authenticated lacks USAGE on public schema';
@@ -298,15 +300,48 @@ BEGIN
     OR has_table_privilege(
       'authenticated', 'public.m_organization_profile', 'DELETE'
     )
-    OR NOT has_table_privilege(
-      'anon', 'public.m_organization_profile', 'SELECT'
-    )
-    OR NOT has_table_privilege(
-      'authenticated', 'public.m_organization_profile', 'SELECT'
-    )
   THEN
     RAISE EXCEPTION 'organization profile Data API privileges are not minimal';
   END IF;
+  FOREACH profile_column_name IN ARRAY ARRAY[
+    'id', 'organization_name', 'description', 'verified', 'review_status'
+  ] LOOP
+    IF NOT has_column_privilege(
+      'anon', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) THEN
+      RAISE EXCEPTION 'anon cannot select public organization column: %', profile_column_name;
+    END IF;
+  END LOOP;
+  FOREACH profile_column_name IN ARRAY ARRAY[
+    'id', 'user_id', 'organization_name', 'description', 'verified',
+    'review_status', 'contact_line_id', 'reviewed_at', 'profile_completeness'
+  ] LOOP
+    IF NOT has_column_privilege(
+      'authenticated', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) THEN
+      RAISE EXCEPTION 'authenticated cannot select organization column: %', profile_column_name;
+    END IF;
+  END LOOP;
+  FOREACH profile_column_name IN ARRAY ARRAY[
+    'representative_name', 'contact_email', 'activity_areas',
+    'activity_categories', 'website_url', 'logo_url', 'contact_line_url',
+    'review_comment', 'reviewed_by', 'created_at', 'updated_at'
+  ] LOOP
+    IF has_column_privilege(
+      'anon', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) OR has_column_privilege(
+      'authenticated', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) THEN
+      RAISE EXCEPTION 'private organization column is exposed through Data API: %', profile_column_name;
+    END IF;
+  END LOOP;
+  FOREACH profile_column_name IN ARRAY ARRAY['user_id', 'contact_line_id'] LOOP
+    IF has_column_privilege(
+      'anon', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) THEN
+      RAISE EXCEPTION 'anon can select authenticated-only organization column: %', profile_column_name;
+    END IF;
+  END LOOP;
   IF EXISTS (
     SELECT 1
     FROM unnest(ARRAY[

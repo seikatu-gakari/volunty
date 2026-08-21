@@ -355,7 +355,27 @@ GRANT SELECT (id, is_active, role, suspended_at) ON public.m_user TO authenticat
 GRANT SELECT ON public.m_participant_profile TO authenticated;
 GRANT SELECT ON public.t_diagnosis_result TO authenticated;
 
-GRANT SELECT ON public.m_organization_profile TO anon, authenticated;
+REVOKE ALL ON TABLE public.m_organization_profile FROM anon, authenticated;
+REVOKE SELECT (
+  id, user_id, organization_name, representative_name, contact_email,
+  activity_areas, description, activity_categories, website_url, logo_url,
+  contact_line_id, contact_line_url, review_status, review_comment,
+  reviewed_at, reviewed_by, verified, profile_completeness, created_at,
+  updated_at
+)
+  ON TABLE public.m_organization_profile
+  FROM anon, authenticated;
+GRANT SELECT (
+  id, organization_name, description, verified, review_status
+)
+  ON public.m_organization_profile
+  TO anon;
+GRANT SELECT (
+  id, user_id, organization_name, description, verified, review_status,
+  contact_line_id, reviewed_at, profile_completeness
+)
+  ON public.m_organization_profile
+  TO authenticated;
 GRANT SELECT ON public.m_opportunity TO anon;
 GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
 GRANT SELECT ON public.t_recommendation_log TO authenticated;
