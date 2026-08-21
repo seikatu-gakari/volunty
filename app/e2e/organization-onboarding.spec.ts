@@ -4,7 +4,8 @@ test.describe("団体オンボーディング", () => {
   test.use({ storageState: "playwright/.auth/organization-fresh.json" });
 
   test("O-E1: 団体ロールを選び審査を申請できる", async ({ page }) => {
-    await page.goto("/onboarding/role");
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/onboarding\/role$/);
 
     await page.getByRole("button", { name: /ボランティアを募集する/ }).click();
     await page.getByRole("button", { name: "次へ" }).click();

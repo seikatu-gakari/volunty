@@ -15,6 +15,8 @@ import { FeaturesSection } from "./components/lp/FeaturesSection";
 import { FAQSection } from "./components/lp/FAQSection";
 import { LPBottomCTA } from "./components/lp/LPBottomCTA";
 import { LPFooter } from "./components/lp/LPFooter";
+import { redirect } from "next/navigation";
+import { needsRoleSelection, parseOnboardingRole } from "@/lib/onboarding/role";
 import { createClient } from "@/lib/supabase/server";
 
 function isAuthenticatedHomeRole(value: unknown): value is Exclude<AuthenticatedHomeRole, null> {
@@ -31,8 +33,9 @@ function isOrganizationApproved(profile: {
 export default async function Home() {
   let user = null;
   let role: AuthenticatedHomeRole = null;
-  let onboardingCompleted = false;
   let organizationVerified = false;
+  let shouldRedirectToRoleSelection = false;
+  let onboardingCompletedForHeader = false;
 
   try {
     const supabase = await createClient();
@@ -40,43 +43,76 @@ export default async function Home() {
     user = data.user;
 
     if (user) {
-      const metadata = user.user_metadata as Record<string, unknown>;
-      onboardingCompleted = !!metadata.onboarding_completed;
-
-      const { data: account } = await supabase
+      const { data: account, error: accountError } = await supabase
         .from("m_user")
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (isAuthenticatedHomeRole(account?.role)) {
-        role = account.role;
-      } else if (isAuthenticatedHomeRole(metadata.role)) {
-        role = metadata.role;
+      const databaseRole = accountError
+        ? null
+        : parseOnboardingRole(account?.role);
+      if (accountError) {
+        console.error("[Home] m_user照会に失敗:", accountError);
+      } else if (databaseRole && isAuthenticatedHomeRole(databaseRole)) {
+        role = databaseRole;
       }
 
-      if (role === "organization") {
-        const { data: organizationProfile } = await supabase
-          .from("m_organization_profile")
-          .select("verified, review_status")
+      if (databaseRole === "participant") {
+        const { data: participantProfile, error: profileError } = await supabase
+          .from("m_participant_profile")
+          .select("id")
           .eq("user_id", user.id)
           .maybeSingle();
-        organizationVerified = isOrganizationApproved(organizationProfile);
+
+        if (profileError) {
+          console.error("[Home] 参加者プロフィール照会に失敗:", profileError);
+        } else {
+          onboardingCompletedForHeader = !!participantProfile;
+          shouldRedirectToRoleSelection = needsRoleSelection({
+            role: databaseRole,
+            hasParticipantProfile: !!participantProfile,
+            hasOrganizationProfile: false,
+          });
+        }
+      } else if (databaseRole === "organization") {
+        const { data: organizationProfile, error: profileError } = await supabase
+          .from("m_organization_profile")
+          .select("id, verified, review_status")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (profileError) {
+          console.error("[Home] 団体プロフィール照会に失敗:", profileError);
+        } else {
+          onboardingCompletedForHeader = !!organizationProfile;
+          organizationVerified = isOrganizationApproved(organizationProfile);
+          shouldRedirectToRoleSelection = needsRoleSelection({
+            role: databaseRole,
+            hasParticipantProfile: false,
+            hasOrganizationProfile: !!organizationProfile,
+          });
+        }
       }
     }
   } catch {
     // Supabase未設定・接続エラー時はログインなしで表示
   }
 
+  if (shouldRedirectToRoleSelection) {
+    redirect("/onboarding/role");
+  }
+
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header variant="landing" />
+      <Header
+        variant="landing"
+        onboardingCompleted={onboardingCompletedForHeader}
+      />
 
       {user && (
         <AuthenticatedHome
           user={user}
           role={role}
-          onboardingCompleted={onboardingCompleted}
           organizationVerified={organizationVerified}
         />
       )}

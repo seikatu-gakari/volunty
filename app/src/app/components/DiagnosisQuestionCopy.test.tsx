@@ -45,7 +45,6 @@ describe("診断設問数コピー", () => {
       <AuthenticatedHome
         user={user}
         role="participant"
-        onboardingCompleted
       />,
     );
 
@@ -59,7 +58,6 @@ describe("診断設問数コピー", () => {
       <AuthenticatedHome
         user={user}
         role="participant"
-        onboardingCompleted
       />,
     );
 
@@ -80,7 +78,6 @@ describe("診断設問数コピー", () => {
       <AuthenticatedHome
         user={user}
         role="participant"
-        onboardingCompleted
       />,
     );
 
@@ -92,7 +89,6 @@ describe("診断設問数コピー", () => {
       <AuthenticatedHome
         user={user}
         role="organization"
-        onboardingCompleted
         organizationVerified
       />,
     );
@@ -114,7 +110,6 @@ describe("診断設問数コピー", () => {
       <AuthenticatedHome
         user={user}
         role="admin"
-        onboardingCompleted
       />,
     );
 
@@ -128,6 +123,30 @@ describe("診断設問数コピー", () => {
       screen.getByRole("link", { name: /ユーザー管理/ }).getAttribute("href"),
     ).toBe("/admin/users");
     expect(screen.queryByRole("link", { name: /マイページ/ })).toBeNull();
+  });
+
+  it("参加者プロフィール未登録カードを表示しない", () => {
+    render(
+      <AuthenticatedHome
+        user={user}
+        role="participant"
+      />,
+    );
+
+    expect(screen.queryByText("応募者登録を完了してください")).toBeNull();
+    expect(screen.getByRole("link", { name: /マイページ/ })).toBeDefined();
+  });
+
+  it("団体プロフィール未登録カードを表示しない", () => {
+    render(
+      <AuthenticatedHome
+        user={user}
+        role="organization"
+      />,
+    );
+
+    expect(screen.queryByText("団体登録を完了してください")).toBeNull();
+    expect(screen.getByRole("link", { name: /審査状況を確認/ })).toBeDefined();
   });
 
   it("LPの診断説明で簡易15問・全50問の2モード診断仕様を表示する", () => {

@@ -1,11 +1,14 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { UserRole } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { OnboardingProfileState } from "@/lib/onboarding/role";
 
 type EnsureUserRecordOptions = {
   role?: UserRole;
   updateRole?: boolean;
 };
+
+export type EnsureUserRecordResult = OnboardingProfileState;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -28,13 +31,13 @@ function readStringMetadata(
 export async function ensureUserRecord(
   user: SupabaseUser,
   options: EnsureUserRecordOptions = {}
-): Promise<void> {
+): Promise<EnsureUserRecordResult> {
   const metadata = isRecord(user.user_metadata) ? user.user_metadata : {};
   const name = readStringMetadata(metadata, ["full_name", "name", "display_name"]);
   const avatarUrl = readStringMetadata(metadata, ["avatar_url", "picture"]);
   const lastLoginAt = new Date();
 
-  await prisma.user.upsert({
+  const record = await prisma.user.upsert({
     where: { id: user.id },
     update: {
       email: user.email ?? null,
@@ -51,5 +54,16 @@ export async function ensureUserRecord(
       lastLoginAt,
       ...(options.role ? { role: options.role } : {}),
     },
+    select: {
+      role: true,
+      participantProfile: { select: { id: true } },
+      organizationProfile: { select: { id: true } },
+    },
   });
+
+  return {
+    role: record.role,
+    hasParticipantProfile: record.participantProfile !== null,
+    hasOrganizationProfile: record.organizationProfile !== null,
+  };
 }

@@ -472,6 +472,17 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
+    expect(mocks.participantProfileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: personaId("user-suspendable") },
+        update: expect.objectContaining({
+          name: "E2E 凍結対象参加者",
+          birthday: new Date("1997-09-08"),
+          region: "東京都",
+          publicProfile: false,
+        }),
+      })
+    );
     expect(mocks.diagnosisResultUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID },

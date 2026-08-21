@@ -236,12 +236,13 @@ describe("proxy", () => {
     expect(response.headers.get("location")).toBeNull();
   });
 
-  it("DB が participant なら metadata が admin でも未完了時は participant オンボーディングへ送る", async () => {
+  it("DB が participant なら metadata が admin でもプロフィール未登録時はロール選択へ送る", async () => {
     const request = createRequest("/mypage");
     mockAuthenticatedSession(request, "participant-1", "admin", false);
     mocks.maybeSingle.mockResolvedValueOnce({
       data: { is_active: true, role: "participant" },
     });
+    mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
     const response = await proxy(request);
     const location = new URL(
@@ -249,15 +250,16 @@ describe("proxy", () => {
       request.url
     );
 
-    expect(location.pathname).toBe("/onboarding/participant");
+    expect(location.pathname).toBe("/onboarding/role");
   });
 
-  it("DB が organization なら metadata が participant でも organization オンボーディングへ送る", async () => {
+  it("DB が organization なら metadata が participant でもプロフィール未登録時はロール選択へ送る", async () => {
     const request = createRequest("/dashboard");
     mockAuthenticatedSession(request, "organization-1", "participant", false);
     mocks.maybeSingle.mockResolvedValueOnce({
       data: { is_active: true, role: "organization" },
     });
+    mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
     const response = await proxy(request);
     const location = new URL(
@@ -265,7 +267,68 @@ describe("proxy", () => {
       request.url
     );
 
-    expect(location.pathname).toBe("/onboarding/organization");
+    expect(location.pathname).toBe("/onboarding/role");
+  });
+
+  it("metadata完了済みでも対応プロフィールがなければロール選択へ戻す", async () => {
+    const request = createRequest("/mypage");
+    mockAuthenticatedSession(request, "participant-incomplete-1", "participant", true);
+    mocks.maybeSingle
+      .mockResolvedValueOnce({
+        data: { is_active: true, role: "participant" },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url,
+    );
+
+    expect(location.pathname).toBe("/onboarding/role");
+  });
+
+  it("対応プロフィールがあればmetadataにかかわらず保護ルートを通過する", async () => {
+    const request = createRequest("/mypage");
+    mockAuthenticatedSession(request, "participant-complete-1", "participant", false);
+    mocks.maybeSingle
+      .mockResolvedValueOnce({
+        data: { is_active: true, role: "participant" },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: { id: "participant-profile-1" }, error: null });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("プロフィール照会エラーは未完了と誤認せずfail closedする", async () => {
+    const request = createRequest("/mypage");
+    mockAuthenticatedSession(request, "profile-error-1", "participant");
+    mocks.maybeSingle
+      .mockResolvedValueOnce({
+        data: { is_active: true, role: "participant" },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "42501", message: "permission denied" },
+      });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await proxy(request);
+    const location = new URL(
+      response.headers.get("location") ?? "",
+      request.url,
+    );
+
+    expect(location.pathname).toBe("/forbidden");
+    expect(errorSpy).toHaveBeenCalledWith("[proxy] プロフィール照会に失敗", {
+      code: "profile_lookup_error",
+    });
   });
 
   it.each([

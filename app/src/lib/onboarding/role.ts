@@ -1,5 +1,26 @@
 export type OnboardingRole = "participant" | "organization" | "admin";
 
+export interface OnboardingProfileState {
+  role: OnboardingRole;
+  hasParticipantProfile: boolean;
+  hasOrganizationProfile: boolean;
+}
+
+/** 現在のDBロールに対応するプロフィールがない場合だけロール選択へ戻す */
+export function needsRoleSelection({
+  role,
+  hasParticipantProfile,
+  hasOrganizationProfile,
+}: OnboardingProfileState): boolean {
+  if (role === "admin") {
+    return false;
+  }
+
+  return role === "participant"
+    ? !hasParticipantProfile
+    : !hasOrganizationProfile;
+}
+
 /** DB と Auth metadata の role 値を安全にオンボーディング用 role へ変換する */
 export function parseOnboardingRole(role: unknown): OnboardingRole | null {
   if (role === "participant" || role === "organization" || role === "admin") {
