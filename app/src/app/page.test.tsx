@@ -201,6 +201,21 @@ describe("Home", () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
+  it("participantプロフィール照会エラー時は参加者ホームを表示せずエラーを送出する", async () => {
+    mocks.maybeSingle.mockReset();
+    mocks.maybeSingle
+      .mockResolvedValueOnce({ data: { role: "participant" }, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "permission denied" },
+      });
+
+    await expect(Home()).rejects.toThrow("プロフィールの照会に失敗しました");
+
+    expect(screen.queryByText("認証済みホーム:participant")).toBeNull();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
   it("未認証ユーザーにはゲストLPを表示する", async () => {
     mocks.getUser.mockResolvedValueOnce({ data: { user: null } });
 
