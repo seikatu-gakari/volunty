@@ -53,3 +53,30 @@ GRANT SELECT (
 )
   ON TABLE public.m_organization_profile
   TO authenticated;
+
+-- m_opportunityの公開一覧は団体プロフィールの非公開列を参照せず、
+-- 団体所有案件の参照だけを認証済みロールに限定する。
+ALTER TABLE public.m_opportunity ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "公開済み案件は全員閲覧可能"
+  ON public.m_opportunity;
+DROP POLICY IF EXISTS "団体は自分の案件を閲覧可能"
+  ON public.m_opportunity;
+
+CREATE POLICY "公開済み案件は全員閲覧可能"
+  ON public.m_opportunity
+  FOR SELECT
+  TO anon, authenticated
+  USING (status = 'published'::public.opportunity_status);
+
+CREATE POLICY "団体は自分の案件を閲覧可能"
+  ON public.m_opportunity
+  FOR SELECT
+  TO authenticated
+  USING (
+    organization_id IN (
+      SELECT id
+      FROM public.m_organization_profile
+      WHERE user_id = (select auth.uid())
+    )
+  );

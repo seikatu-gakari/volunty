@@ -726,6 +726,12 @@ INSERT INTO public.m_opportunity (
     'published', TIMESTAMP '2000-01-01 00:00:00',
     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date - 1,
     NOW(), NOW()
+  ),
+  (
+    'fd000000-0000-0000-0000-000000000000',
+    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    'RLS テスト他団体下書き案件',
+    'draft', NULL, CURRENT_DATE + 7, NOW(), NOW()
   );
 
 INSERT INTO public.t_recommendation_log (
@@ -756,6 +762,69 @@ INSERT INTO public.t_recommendation_log (
     'fc000000-0000-0000-0000-000000000000',
     1, 0.6, '{}'::jsonb, '[]'::jsonb, 'rls-test', NOW()
   );
+SQL
+
+# 匿名の案件一覧は公開済み案件だけを返し、団体プロフィールの非公開列に依存せず読めることを検証する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE anon;
+SELECT set_config('request.jwt.claim.sub', '', false);
+DO $$
+DECLARE
+  published_count integer;
+  visible_count integer;
+BEGIN
+  SELECT COUNT(*)
+  INTO published_count
+  FROM public.m_opportunity
+  WHERE status = 'published'::public.opportunity_status;
+
+  SELECT COUNT(*)
+  INTO visible_count
+  FROM public.m_opportunity;
+
+  IF visible_count <> published_count THEN
+    RAISE EXCEPTION 'anon can read non-published opportunity';
+  END IF;
+END;
+$$;
+RESET ROLE;
+SQL
+
+# 認証済み団体は自団体の非公開案件だけを参照でき、他団体の非公開案件は参照できない。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '44444444-4444-4444-4444-444444444444',
+  true
+);
+DO $$
+DECLARE
+  own_private_count integer;
+  other_private_count integer;
+BEGIN
+  SELECT COUNT(*)
+  INTO own_private_count
+  FROM public.m_opportunity
+  WHERE organization_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+    AND status <> 'published'::public.opportunity_status;
+
+  SELECT COUNT(*)
+  INTO other_private_count
+  FROM public.m_opportunity
+  WHERE organization_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+    AND status <> 'published'::public.opportunity_status;
+
+  IF own_private_count = 0 THEN
+    RAISE EXCEPTION 'organization owner cannot read own private opportunity';
+  END IF;
+  IF other_private_count <> 0 THEN
+    RAISE EXCEPTION 'organization owner can read another organization private opportunity';
+  END IF;
+END;
+$$;
+COMMIT;
 SQL
 
 # INSERT ポリシーが参照するユーザー状態・参加者プロフィールの境界を用意する。
