@@ -771,10 +771,20 @@ BEGIN
   ) <> 1 THEN
     RAISE EXCEPTION 'authenticated user cannot read approved organization profile';
   END IF;
+END;
+$$;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-2222-2222-2222-222222222222',
+  false
+);
+DO $$
+BEGIN
   IF (
     SELECT COUNT(*)
     FROM public.m_organization_profile
-    WHERE user_id = '99999999-2222-2222-2222-222222222222'
+    WHERE user_id = '99999999-1111-1111-1111-111111111111'
       AND review_status = 'pending'
   ) <> 0 THEN
     RAISE EXCEPTION 'authenticated user can read another pending organization profile';
