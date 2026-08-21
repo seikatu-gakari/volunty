@@ -6,6 +6,9 @@ test.describe("参加者オンボーディング", () => {
   test("P-2: 参加者ロールを選びプロフィールを登録できる", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/onboarding\/role$/);
+    await expect(
+      page.getByRole("heading", { name: "利用方法を選択" })
+    ).toBeVisible();
 
     await page
       .getByRole("button", { name: /ボランティアに参加する/ })

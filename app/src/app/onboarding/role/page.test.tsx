@@ -34,12 +34,6 @@ vi.mock("./RoleSelectionClient", () => ({
   },
 }));
 
-vi.mock("@/app/components/ui/CommonErrorDisplay", () => ({
-  CommonErrorDisplay: ({ title }: { title?: string }) => (
-    <div role="alert">{title ?? "エラー画面"}</div>
-  ),
-}));
-
 import OnboardingRolePage from "./page";
 
 describe("OnboardingRolePage", () => {
@@ -132,21 +126,21 @@ describe("OnboardingRolePage", () => {
     expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
   });
 
-  it("m_user照会エラー時はロール選択UIを表示せずエラー画面を表示する", async () => {
+  it("m_user照会エラー時はロール選択UIを表示せずroute errorへ送出する", async () => {
     mocks.maybeSingle.mockReset().mockResolvedValueOnce({
       data: null,
       error: { message: "permission denied" },
     });
 
-    render(await OnboardingRolePage());
+    await expect(OnboardingRolePage()).rejects.toThrow(
+      "m_userの照会に失敗しました"
+    );
 
-    expect(screen.queryByText("ロール選択UI")).toBeNull();
-    expect(screen.getByRole("alert")).toBeDefined();
     expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
-  it("プロフィール照会エラー時はロール選択UIを表示せずエラー画面を表示する", async () => {
+  it("プロフィール照会エラー時はロール選択UIを表示せずroute errorへ送出する", async () => {
     mocks.maybeSingle.mockReset();
     mocks.maybeSingle
       .mockResolvedValueOnce({ data: { role: "participant" }, error: null })
@@ -155,10 +149,10 @@ describe("OnboardingRolePage", () => {
         error: { message: "permission denied" },
       });
 
-    render(await OnboardingRolePage());
+    await expect(OnboardingRolePage()).rejects.toThrow(
+      "プロフィールの照会に失敗しました"
+    );
 
-    expect(screen.queryByText("ロール選択UI")).toBeNull();
-    expect(screen.getByRole("alert")).toBeDefined();
     expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
     expect(mocks.redirect).not.toHaveBeenCalled();
   });

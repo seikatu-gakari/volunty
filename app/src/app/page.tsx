@@ -54,6 +54,7 @@ export default async function Home() {
         : parseOnboardingRole(account?.role);
       if (accountError) {
         console.error("[Home] m_user照会に失敗:", accountError);
+        throw new Error("m_userの照会に失敗しました");
       } else if (databaseRole && isAuthenticatedHomeRole(databaseRole)) {
         role = databaseRole;
       }
@@ -67,6 +68,7 @@ export default async function Home() {
 
         if (profileError) {
           console.error("[Home] 参加者プロフィール照会に失敗:", profileError);
+          throw new Error("プロフィールの照会に失敗しました");
         } else {
           onboardingCompletedForHeader = !!participantProfile;
           shouldRedirectToRoleSelection = needsRoleSelection({
@@ -83,6 +85,7 @@ export default async function Home() {
           .maybeSingle();
         if (profileError) {
           console.error("[Home] 団体プロフィール照会に失敗:", profileError);
+          throw new Error("プロフィールの照会に失敗しました");
         } else {
           onboardingCompletedForHeader = !!organizationProfile;
           organizationVerified = isOrganizationApproved(organizationProfile);
@@ -94,7 +97,11 @@ export default async function Home() {
         }
       }
     }
-  } catch {
+  } catch (error) {
+    if (user) {
+      throw error;
+    }
+
     // Supabase未設定・接続エラー時はログインなしで表示
   }
 

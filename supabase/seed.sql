@@ -49,32 +49,50 @@ CREATE POLICY "ユーザーは自分のデータを更新可能"
   ON public.m_user FOR UPDATE
   USING (auth.uid() = id);
 
--- m_participant_profile: 自分のプロフィールのみ CRUD 可能
+-- m_participant_profile: Data APIは自分のプロフィールのみ参照可能
+-- 書き込みはserver-side Prisma経由で行う。
 ALTER TABLE public.m_participant_profile ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "参加者は自分のプロフィールを閲覧可能"
+  ON public.m_participant_profile;
 CREATE POLICY "参加者は自分のプロフィールを閲覧可能"
   ON public.m_participant_profile FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "参加者は自分のプロフィールを作成可能"
+  ON public.m_participant_profile;
 CREATE POLICY "参加者は自分のプロフィールを作成可能"
   ON public.m_participant_profile FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "参加者は自分のプロフィールを更新可能"
+  ON public.m_participant_profile;
 CREATE POLICY "参加者は自分のプロフィールを更新可能"
   ON public.m_participant_profile FOR UPDATE
   USING (user_id = auth.uid());
 
--- m_organization_profile: 自分の団体プロフィールのみ CRUD + 公開情報は全員閲覧可能
+-- m_organization_profile: 承認済みまたは本人のプロフィールのみ参照可能
+-- 書き込みはserver-side Prisma経由で行う。
 ALTER TABLE public.m_organization_profile ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "認証済み団体は全員閲覧可能"
+  ON public.m_organization_profile;
 CREATE POLICY "認証済み団体は全員閲覧可能"
   ON public.m_organization_profile FOR SELECT
-  USING (verified = true OR user_id = auth.uid());
+  USING (
+    review_status = 'approved'
+    OR verified = true
+    OR (select auth.uid()) = user_id
+  );
 
+DROP POLICY IF EXISTS "団体は自分のプロフィールを作成可能"
+  ON public.m_organization_profile;
 CREATE POLICY "団体は自分のプロフィールを作成可能"
   ON public.m_organization_profile FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "団体は自分のプロフィールを更新可能"
+  ON public.m_organization_profile;
 CREATE POLICY "団体は自分のプロフィールを更新可能"
   ON public.m_organization_profile FOR UPDATE
   USING (user_id = auth.uid());
@@ -334,7 +352,7 @@ REVOKE ALL ON TABLE public.m_user FROM anon, authenticated;
 REVOKE ALL ON TABLE public.t_diagnosis_result FROM anon, authenticated;
 REVOKE ALL ON TABLE public.t_diagnosis_response FROM anon, authenticated;
 GRANT SELECT (id, is_active, role, suspended_at) ON public.m_user TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.m_participant_profile TO authenticated;
+GRANT SELECT ON public.m_participant_profile TO authenticated;
 GRANT SELECT ON public.t_diagnosis_result TO authenticated;
 
 GRANT SELECT ON public.m_organization_profile TO anon, authenticated;

@@ -119,6 +119,41 @@ INSERT INTO public.m_participant_profile (
   '旧診断済み参加者', DATE '2000-01-01', '東京都',
   '88888888-2222-2222-2222-222222222222', NOW(), NOW()
 );
+INSERT INTO public.m_user (id, role, created_at, updated_at)
+VALUES
+  (
+    '99999999-1111-1111-1111-111111111111',
+    'organization', NOW(), NOW()
+  ),
+  (
+    '99999999-2222-2222-2222-222222222222',
+    'organization', NOW(), NOW()
+  );
+INSERT INTO public.m_organization_profile (
+  id, user_id, organization_name, review_status, verified, created_at, updated_at
+) VALUES
+  (
+    '99999999-3333-3333-3333-333333333333',
+    '99999999-1111-1111-1111-111111111111',
+    '未承認のRLS団体', 'pending', false, NOW(), NOW()
+  ),
+  (
+    '99999999-4444-4444-4444-444444444444',
+    '99999999-2222-2222-2222-222222222222',
+    '承認済みのRLS団体', 'approved', true, NOW(), NOW()
+  );
+INSERT INTO public.m_user (id, role, created_at, updated_at)
+VALUES (
+  '88888888-5555-5555-5555-555555555555',
+  'participant', NOW(), NOW()
+);
+INSERT INTO public.m_participant_profile (
+  id, user_id, name, birthday, region, created_at, updated_at
+) VALUES (
+  '88888888-6666-6666-6666-666666666666',
+  '88888888-5555-5555-5555-555555555555',
+  '別ユーザーのRLS参加者', DATE '2000-01-01', '東京都', NOW(), NOW()
+);
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 REVOKE USAGE ON SCHEMA public FROM anon, authenticated;
@@ -157,6 +192,10 @@ GRANT ALL PRIVILEGES ON TABLE
   public.t_approach,
   public.t_certificate
   TO anon, authenticated;
+GRANT ALL PRIVILEGES ON TABLE
+  public.m_participant_profile,
+  public.m_organization_profile
+  TO anon, authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated;
 
@@ -183,6 +222,7 @@ psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815025856_issue199_participant_profile_schema_repair.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815030247_issue199_mypage_diagnosis_summary_schema_repair.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815075346_issue199_diagnosis_write_schema_repair.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260822000000_issue215_profile_data_api_authz.sql" >/dev/null
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
 DO $$
@@ -192,6 +232,80 @@ BEGIN
   END IF;
   IF NOT has_schema_privilege('anon', 'public', 'USAGE') THEN
     RAISE EXCEPTION 'anon lacks USAGE on public schema';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class
+    WHERE oid = 'public.m_participant_profile'::regclass
+      AND relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'm_participant_profile RLS is disabled';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class
+    WHERE oid = 'public.m_organization_profile'::regclass
+      AND relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'm_organization_profile RLS is disabled';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'm_participant_profile'
+      AND policyname = '参加者は自分のプロフィールを閲覧可能'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'm_organization_profile'
+      AND policyname = '認証済み団体は全員閲覧可能'
+  ) THEN
+    RAISE EXCEPTION 'profile RLS policies are missing';
+  END IF;
+  IF has_table_privilege('anon', 'public.m_participant_profile', 'SELECT')
+    OR has_table_privilege(
+      'authenticated', 'public.m_participant_profile', 'INSERT'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_participant_profile', 'UPDATE'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_participant_profile', 'DELETE'
+    )
+    OR NOT has_table_privilege(
+      'authenticated', 'public.m_participant_profile', 'SELECT'
+    )
+  THEN
+    RAISE EXCEPTION 'participant profile Data API privileges are not minimal';
+  END IF;
+  IF has_table_privilege(
+      'anon', 'public.m_organization_profile', 'INSERT'
+    )
+    OR has_table_privilege(
+      'anon', 'public.m_organization_profile', 'UPDATE'
+    )
+    OR has_table_privilege(
+      'anon', 'public.m_organization_profile', 'DELETE'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_organization_profile', 'INSERT'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_organization_profile', 'UPDATE'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_organization_profile', 'DELETE'
+    )
+    OR NOT has_table_privilege(
+      'anon', 'public.m_organization_profile', 'SELECT'
+    )
+    OR NOT has_table_privilege(
+      'authenticated', 'public.m_organization_profile', 'SELECT'
+    )
+  THEN
+    RAISE EXCEPTION 'organization profile Data API privileges are not minimal';
   END IF;
   IF EXISTS (
     SELECT 1
@@ -449,6 +563,94 @@ INSERT INTO public.t_diagnosis_response (
 )
 SELECT id, 'IPIP-BFM-01', 4, 1200, 0
 FROM inserted_result;
+SQL
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '88888888-1111-1111-1111-111111111111',
+  false
+);
+DO $$
+BEGIN
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_participant_profile
+  ) <> 1 THEN
+    RAISE EXCEPTION 'participant owner cannot read own profile or RLS leaked a row';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_participant_profile
+    WHERE user_id = '88888888-5555-5555-5555-555555555555'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'participant can read another user profile';
+  END IF;
+END;
+$$;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-1111-1111-1111-111111111111',
+  false
+);
+DO $$
+BEGIN
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_participant_profile
+  ) <> 0 THEN
+    RAISE EXCEPTION 'participant profile RLS leaked another user row';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE user_id = auth.uid()
+      AND review_status = 'pending'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'organization owner cannot read own pending profile';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE review_status = 'approved'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'authenticated user cannot read approved organization profile';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE user_id = '99999999-2222-2222-2222-222222222222'
+      AND review_status = 'pending'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'authenticated user can read another pending organization profile';
+  END IF;
+END;
+$$;
+RESET ROLE;
+
+SET ROLE anon;
+SELECT set_config('request.jwt.claim.sub', '', false);
+DO $$
+BEGIN
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE review_status = 'approved'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'anon cannot read approved organization profile';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE review_status = 'pending'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'anon can read pending organization profile';
+  END IF;
+END;
+$$;
+RESET ROLE;
 SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/seed.sql" >/dev/null

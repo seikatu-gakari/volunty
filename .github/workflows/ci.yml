@@ -55,6 +55,22 @@ jobs:
       - name: Run production build
         run: npm run build -- --webpack
 
+  rls:
+    name: rls
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql
+          echo "$(pg_config --bindir)" >> "$GITHUB_PATH"
+
+      - name: Run migration-only RLS contract
+        run: bash supabase/rls.test.sh
+
   e2e:
     name: e2e
     runs-on: ubuntu-latest
