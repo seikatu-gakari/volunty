@@ -196,6 +196,10 @@ GRANT ALL PRIVILEGES ON TABLE
   public.m_participant_profile,
   public.m_organization_profile
   TO anon, authenticated;
+-- m_opportunityの既存Data API DML権限を再現し、Issue #215 migrationの
+-- RLS policy有無をGRANT不足と分離して検証する。
+GRANT SELECT ON public.m_opportunity TO anon;
+GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated;
 
@@ -223,6 +227,120 @@ psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815030247_issue199_mypage_diagnosis_summary_schema_repair.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815075346_issue199_diagnosis_write_schema_repair.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260822000000_issue215_profile_data_api_authz.sql" >/dev/null
+
+# seedなしのmigration-only契約: ownerの案件作成・更新がData APIロールで成立する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+INSERT INTO public.m_opportunity (
+  id, organization_id, title, created_at, updated_at
+) VALUES (
+  '99999999-5555-5555-5555-555555555555',
+  '99999999-3333-3333-3333-333333333333',
+  'migration-only owner opportunity', NOW(), NOW()
+);
+
+DO $$
+BEGIN
+  IF NOT has_table_privilege(
+    'authenticated', 'public.m_opportunity', 'INSERT'
+  ) OR NOT has_table_privilege(
+    'authenticated', 'public.m_opportunity', 'UPDATE'
+  ) THEN
+    RAISE EXCEPTION 'migration-only fixture lacks m_opportunity DML grants';
+  END IF;
+END;
+$$;
+SQL
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-1111-1111-1111-111111111111',
+  false
+);
+
+INSERT INTO public.m_opportunity (
+  id, organization_id, title, created_at, updated_at
+) VALUES (
+  '99999999-6666-6666-6666-666666666666',
+  '99999999-3333-3333-3333-333333333333',
+  'owner-created opportunity', NOW(), NOW()
+);
+
+UPDATE public.m_opportunity
+SET title = 'owner-updated opportunity'
+WHERE id = '99999999-6666-6666-6666-666666666666';
+
+RESET ROLE;
+SQL
+
+# 所有者以外の団体は作成・更新できず、所有者もorganization_idを付け替えられない。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-2222-2222-2222-222222222222',
+  false
+);
+DO $$
+DECLARE
+  insert_denied boolean := false;
+  updated_count integer;
+BEGIN
+  BEGIN
+    INSERT INTO public.m_opportunity (
+      id, organization_id, title, created_at, updated_at
+    ) VALUES (
+      '99999999-7777-7777-7777-777777777777',
+      '99999999-3333-3333-3333-333333333333',
+      'other-owner opportunity', NOW(), NOW()
+    );
+  EXCEPTION
+    WHEN insufficient_privilege OR check_violation THEN
+      insert_denied := true;
+  END;
+
+  IF NOT insert_denied THEN
+    RAISE EXCEPTION 'other organization owner can create opportunity';
+  END IF;
+
+  UPDATE public.m_opportunity
+  SET title = 'other-owner update'
+  WHERE id = '99999999-6666-6666-6666-666666666666';
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  IF updated_count <> 0 THEN
+    RAISE EXCEPTION 'other organization owner can update opportunity';
+  END IF;
+END;
+$$;
+RESET ROLE;
+
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-1111-1111-1111-111111111111',
+  false
+);
+DO $$
+DECLARE
+  reassignment_denied boolean := false;
+BEGIN
+  BEGIN
+    UPDATE public.m_opportunity
+    SET organization_id = '99999999-4444-4444-4444-444444444444'
+    WHERE id = '99999999-6666-6666-6666-666666666666';
+  EXCEPTION
+    WHEN insufficient_privilege OR check_violation THEN
+      reassignment_denied := true;
+  END;
+
+  IF NOT reassignment_denied THEN
+    RAISE EXCEPTION 'organization owner can reassign opportunity';
+  END IF;
+END;
+$$;
+RESET ROLE;
+SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
 DO $$
