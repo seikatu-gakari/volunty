@@ -173,20 +173,20 @@ describe("Home", () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
-  it("DB role照会エラー時は未完了と誤判定してリダイレクトしない", async () => {
+  it("DB role照会エラー時は認証済みホームを表示せずエラーを送出する", async () => {
     mocks.maybeSingle.mockReset();
     mocks.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: { message: "permission denied" },
     });
 
-    render(await Home());
+    await expect(Home()).rejects.toThrow("m_userの照会に失敗しました");
 
-    expect(screen.getByText("認証済みホーム:none")).toBeDefined();
+    expect(screen.queryByText("認証済みホーム:none")).toBeNull();
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
-  it("プロフィール照会エラー時は未登録と誤判定してリダイレクトしない", async () => {
+  it("プロフィール照会エラー時はロール別ホームを表示せずエラーを送出する", async () => {
     mocks.maybeSingle.mockReset();
     mocks.maybeSingle
       .mockResolvedValueOnce({ data: { role: "organization" }, error: null })
@@ -195,9 +195,24 @@ describe("Home", () => {
         error: { message: "permission denied" },
       });
 
-    render(await Home());
+    await expect(Home()).rejects.toThrow("プロフィールの照会に失敗しました");
 
-    expect(screen.getByText("認証済みホーム:organization")).toBeDefined();
+    expect(screen.queryByText("認証済みホーム:organization")).toBeNull();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("participantプロフィール照会エラー時は参加者ホームを表示せずエラーを送出する", async () => {
+    mocks.maybeSingle.mockReset();
+    mocks.maybeSingle
+      .mockResolvedValueOnce({ data: { role: "participant" }, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "permission denied" },
+      });
+
+    await expect(Home()).rejects.toThrow("プロフィールの照会に失敗しました");
+
+    expect(screen.queryByText("認証済みホーム:participant")).toBeNull();
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 

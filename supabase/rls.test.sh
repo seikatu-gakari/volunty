@@ -36,13 +36,13 @@ cleanup() {
 trap cleanup EXIT
 
 initdb -D "$data_dir" --no-locale --encoding=UTF8 --auth=trust >/dev/null
-pg_ctl -D "$data_dir" -o "-p $port" -l "$test_tmp/postgres.log" -w start >/dev/null
+pg_ctl -D "$data_dir" -o "-p $port -k $test_tmp" -l "$test_tmp/postgres.log" -w start >/dev/null
 
 createdb_command="$(command -v createdb || true)"
 if [ -z "$createdb_command" ]; then
   psql "$database_url" -v ON_ERROR_STOP=1 -X -c "CREATE DATABASE $database_name" >/dev/null
 else
-  "$createdb_command" -p "$port" "$database_name" >/dev/null
+  "$createdb_command" -h 127.0.0.1 -p "$port" "$database_name" >/dev/null
 fi
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
@@ -119,6 +119,41 @@ INSERT INTO public.m_participant_profile (
   '旧診断済み参加者', DATE '2000-01-01', '東京都',
   '88888888-2222-2222-2222-222222222222', NOW(), NOW()
 );
+INSERT INTO public.m_user (id, role, created_at, updated_at)
+VALUES
+  (
+    '99999999-1111-1111-1111-111111111111',
+    'organization', NOW(), NOW()
+  ),
+  (
+    '99999999-2222-2222-2222-222222222222',
+    'organization', NOW(), NOW()
+  );
+INSERT INTO public.m_organization_profile (
+  id, user_id, organization_name, review_status, verified, created_at, updated_at
+) VALUES
+  (
+    '99999999-3333-3333-3333-333333333333',
+    '99999999-1111-1111-1111-111111111111',
+    '未承認のRLS団体', 'pending', false, NOW(), NOW()
+  ),
+  (
+    '99999999-4444-4444-4444-444444444444',
+    '99999999-2222-2222-2222-222222222222',
+    '承認済みのRLS団体', 'approved', true, NOW(), NOW()
+  );
+INSERT INTO public.m_user (id, role, created_at, updated_at)
+VALUES (
+  '88888888-5555-5555-5555-555555555555',
+  'participant', NOW(), NOW()
+);
+INSERT INTO public.m_participant_profile (
+  id, user_id, name, birthday, region, created_at, updated_at
+) VALUES (
+  '88888888-6666-6666-6666-666666666666',
+  '88888888-5555-5555-5555-555555555555',
+  '別ユーザーのRLS参加者', DATE '2000-01-01', '東京都', NOW(), NOW()
+);
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 REVOKE USAGE ON SCHEMA public FROM anon, authenticated;
@@ -157,6 +192,14 @@ GRANT ALL PRIVILEGES ON TABLE
   public.t_approach,
   public.t_certificate
   TO anon, authenticated;
+GRANT ALL PRIVILEGES ON TABLE
+  public.m_participant_profile,
+  public.m_organization_profile
+  TO anon, authenticated;
+-- m_opportunityの既存Data API DML権限を再現し、Issue #215 migrationの
+-- RLS policy有無をGRANT不足と分離して検証する。
+GRANT SELECT ON public.m_opportunity TO anon;
+GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated;
 
@@ -183,9 +226,126 @@ psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815025856_issue199_participant_profile_schema_repair.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815030247_issue199_mypage_diagnosis_summary_schema_repair.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815075346_issue199_diagnosis_write_schema_repair.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260822000000_issue215_profile_data_api_authz.sql" >/dev/null
+
+# seedなしのmigration-only契約: ownerの案件作成・更新がData APIロールで成立する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+INSERT INTO public.m_opportunity (
+  id, organization_id, title, created_at, updated_at
+) VALUES (
+  '99999999-5555-5555-5555-555555555555',
+  '99999999-3333-3333-3333-333333333333',
+  'migration-only owner opportunity', NOW(), NOW()
+);
+
+DO $$
+BEGIN
+  IF NOT has_table_privilege(
+    'authenticated', 'public.m_opportunity', 'INSERT'
+  ) OR NOT has_table_privilege(
+    'authenticated', 'public.m_opportunity', 'UPDATE'
+  ) THEN
+    RAISE EXCEPTION 'migration-only fixture lacks m_opportunity DML grants';
+  END IF;
+END;
+$$;
+SQL
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-1111-1111-1111-111111111111',
+  false
+);
+
+INSERT INTO public.m_opportunity (
+  id, organization_id, title, created_at, updated_at
+) VALUES (
+  '99999999-6666-6666-6666-666666666666',
+  '99999999-3333-3333-3333-333333333333',
+  'owner-created opportunity', NOW(), NOW()
+);
+
+UPDATE public.m_opportunity
+SET title = 'owner-updated opportunity'
+WHERE id = '99999999-6666-6666-6666-666666666666';
+
+RESET ROLE;
+SQL
+
+# 所有者以外の団体は作成・更新できず、所有者もorganization_idを付け替えられない。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-2222-2222-2222-222222222222',
+  false
+);
+DO $$
+DECLARE
+  insert_denied boolean := false;
+  updated_count integer;
+BEGIN
+  BEGIN
+    INSERT INTO public.m_opportunity (
+      id, organization_id, title, created_at, updated_at
+    ) VALUES (
+      '99999999-7777-7777-7777-777777777777',
+      '99999999-3333-3333-3333-333333333333',
+      'other-owner opportunity', NOW(), NOW()
+    );
+  EXCEPTION
+    WHEN insufficient_privilege OR check_violation THEN
+      insert_denied := true;
+  END;
+
+  IF NOT insert_denied THEN
+    RAISE EXCEPTION 'other organization owner can create opportunity';
+  END IF;
+
+  UPDATE public.m_opportunity
+  SET title = 'other-owner update'
+  WHERE id = '99999999-6666-6666-6666-666666666666';
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  IF updated_count <> 0 THEN
+    RAISE EXCEPTION 'other organization owner can update opportunity';
+  END IF;
+END;
+$$;
+RESET ROLE;
+
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-1111-1111-1111-111111111111',
+  false
+);
+DO $$
+DECLARE
+  reassignment_denied boolean := false;
+BEGIN
+  BEGIN
+    UPDATE public.m_opportunity
+    SET organization_id = '99999999-4444-4444-4444-444444444444'
+    WHERE id = '99999999-6666-6666-6666-666666666666';
+  EXCEPTION
+    WHEN insufficient_privilege OR check_violation THEN
+      reassignment_denied := true;
+  END;
+
+  IF NOT reassignment_denied THEN
+    RAISE EXCEPTION 'organization owner can reassign opportunity';
+  END IF;
+END;
+$$;
+RESET ROLE;
+SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
 DO $$
+DECLARE
+  profile_column_name text;
 BEGIN
   IF NOT has_schema_privilege('authenticated', 'public', 'USAGE') THEN
     RAISE EXCEPTION 'authenticated lacks USAGE on public schema';
@@ -193,6 +353,113 @@ BEGIN
   IF NOT has_schema_privilege('anon', 'public', 'USAGE') THEN
     RAISE EXCEPTION 'anon lacks USAGE on public schema';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class
+    WHERE oid = 'public.m_participant_profile'::regclass
+      AND relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'm_participant_profile RLS is disabled';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class
+    WHERE oid = 'public.m_organization_profile'::regclass
+      AND relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'm_organization_profile RLS is disabled';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'm_participant_profile'
+      AND policyname = '参加者は自分のプロフィールを閲覧可能'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'm_organization_profile'
+      AND policyname = '認証済み団体は全員閲覧可能'
+  ) THEN
+    RAISE EXCEPTION 'profile RLS policies are missing';
+  END IF;
+  IF has_table_privilege('anon', 'public.m_participant_profile', 'SELECT')
+    OR has_table_privilege(
+      'authenticated', 'public.m_participant_profile', 'INSERT'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_participant_profile', 'UPDATE'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_participant_profile', 'DELETE'
+    )
+    OR NOT has_table_privilege(
+      'authenticated', 'public.m_participant_profile', 'SELECT'
+    )
+  THEN
+    RAISE EXCEPTION 'participant profile Data API privileges are not minimal';
+  END IF;
+  IF has_table_privilege(
+      'anon', 'public.m_organization_profile', 'INSERT'
+    )
+    OR has_table_privilege(
+      'anon', 'public.m_organization_profile', 'UPDATE'
+    )
+    OR has_table_privilege(
+      'anon', 'public.m_organization_profile', 'DELETE'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_organization_profile', 'INSERT'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_organization_profile', 'UPDATE'
+    )
+    OR has_table_privilege(
+      'authenticated', 'public.m_organization_profile', 'DELETE'
+    )
+  THEN
+    RAISE EXCEPTION 'organization profile Data API privileges are not minimal';
+  END IF;
+  FOREACH profile_column_name IN ARRAY ARRAY[
+    'id', 'organization_name', 'description', 'verified', 'review_status'
+  ] LOOP
+    IF NOT has_column_privilege(
+      'anon', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) THEN
+      RAISE EXCEPTION 'anon cannot select public organization column: %', profile_column_name;
+    END IF;
+  END LOOP;
+  FOREACH profile_column_name IN ARRAY ARRAY[
+    'id', 'user_id', 'organization_name', 'description', 'verified',
+    'review_status', 'contact_line_id', 'reviewed_at', 'profile_completeness'
+  ] LOOP
+    IF NOT has_column_privilege(
+      'authenticated', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) THEN
+      RAISE EXCEPTION 'authenticated cannot select organization column: %', profile_column_name;
+    END IF;
+  END LOOP;
+  FOREACH profile_column_name IN ARRAY ARRAY[
+    'representative_name', 'contact_email', 'activity_areas',
+    'activity_categories', 'website_url', 'logo_url', 'contact_line_url',
+    'review_comment', 'reviewed_by', 'created_at', 'updated_at'
+  ] LOOP
+    IF has_column_privilege(
+      'anon', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) OR has_column_privilege(
+      'authenticated', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) THEN
+      RAISE EXCEPTION 'private organization column is exposed through Data API: %', profile_column_name;
+    END IF;
+  END LOOP;
+  FOREACH profile_column_name IN ARRAY ARRAY['user_id', 'contact_line_id'] LOOP
+    IF has_column_privilege(
+      'anon', 'public.m_organization_profile', profile_column_name, 'SELECT'
+    ) THEN
+      RAISE EXCEPTION 'anon can select authenticated-only organization column: %', profile_column_name;
+    END IF;
+  END LOOP;
   IF EXISTS (
     SELECT 1
     FROM unnest(ARRAY[
@@ -451,6 +718,104 @@ SELECT id, 'IPIP-BFM-01', 4, 1200, 0
 FROM inserted_result;
 SQL
 
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '88888888-1111-1111-1111-111111111111',
+  false
+);
+DO $$
+BEGIN
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_participant_profile
+  ) <> 1 THEN
+    RAISE EXCEPTION 'participant owner cannot read own profile or RLS leaked a row';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_participant_profile
+    WHERE user_id = '88888888-5555-5555-5555-555555555555'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'participant can read another user profile';
+  END IF;
+END;
+$$;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-1111-1111-1111-111111111111',
+  false
+);
+DO $$
+BEGIN
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_participant_profile
+  ) <> 0 THEN
+    RAISE EXCEPTION 'participant profile RLS leaked another user row';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE user_id = auth.uid()
+      AND review_status = 'pending'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'organization owner cannot read own pending profile';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE review_status = 'approved'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'authenticated user cannot read approved organization profile';
+  END IF;
+END;
+$$;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '99999999-2222-2222-2222-222222222222',
+  false
+);
+DO $$
+BEGIN
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE user_id = '99999999-1111-1111-1111-111111111111'
+      AND review_status = 'pending'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'authenticated user can read another pending organization profile';
+  END IF;
+END;
+$$;
+RESET ROLE;
+
+SET ROLE anon;
+SELECT set_config('request.jwt.claim.sub', '', false);
+DO $$
+BEGIN
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE review_status = 'approved'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'anon cannot read approved organization profile';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_organization_profile
+    WHERE review_status = 'pending'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'anon can read pending organization profile';
+  END IF;
+END;
+$$;
+RESET ROLE;
+SQL
+
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/seed.sql" >/dev/null
 
 # 応募 RLS の公開条件・推薦ログ所有条件を検証するための一時案件・ログ。
@@ -489,6 +854,12 @@ INSERT INTO public.m_opportunity (
     'published', TIMESTAMP '2000-01-01 00:00:00',
     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date - 1,
     NOW(), NOW()
+  ),
+  (
+    'fd000000-0000-0000-0000-000000000000',
+    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+    'RLS テスト他団体下書き案件',
+    'draft', NULL, CURRENT_DATE + 7, NOW(), NOW()
   );
 
 INSERT INTO public.t_recommendation_log (
@@ -519,6 +890,69 @@ INSERT INTO public.t_recommendation_log (
     'fc000000-0000-0000-0000-000000000000',
     1, 0.6, '{}'::jsonb, '[]'::jsonb, 'rls-test', NOW()
   );
+SQL
+
+# 匿名の案件一覧は公開済み案件だけを返し、団体プロフィールの非公開列に依存せず読めることを検証する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE anon;
+SELECT set_config('request.jwt.claim.sub', '', false);
+DO $$
+DECLARE
+  published_count integer;
+  visible_count integer;
+BEGIN
+  SELECT COUNT(*)
+  INTO published_count
+  FROM public.m_opportunity
+  WHERE status = 'published'::public.opportunity_status;
+
+  SELECT COUNT(*)
+  INTO visible_count
+  FROM public.m_opportunity;
+
+  IF visible_count <> published_count THEN
+    RAISE EXCEPTION 'anon can read non-published opportunity';
+  END IF;
+END;
+$$;
+RESET ROLE;
+SQL
+
+# 認証済み団体は自団体の非公開案件だけを参照でき、他団体の非公開案件は参照できない。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '44444444-4444-4444-4444-444444444444',
+  true
+);
+DO $$
+DECLARE
+  own_private_count integer;
+  other_private_count integer;
+BEGIN
+  SELECT COUNT(*)
+  INTO own_private_count
+  FROM public.m_opportunity
+  WHERE organization_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+    AND status <> 'published'::public.opportunity_status;
+
+  SELECT COUNT(*)
+  INTO other_private_count
+  FROM public.m_opportunity
+  WHERE organization_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+    AND status <> 'published'::public.opportunity_status;
+
+  IF own_private_count = 0 THEN
+    RAISE EXCEPTION 'organization owner cannot read own private opportunity';
+  END IF;
+  IF other_private_count <> 0 THEN
+    RAISE EXCEPTION 'organization owner can read another organization private opportunity';
+  END IF;
+END;
+$$;
+COMMIT;
 SQL
 
 # INSERT ポリシーが参照するユーザー状態・参加者プロフィールの境界を用意する。

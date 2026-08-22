@@ -49,32 +49,50 @@ CREATE POLICY "ユーザーは自分のデータを更新可能"
   ON public.m_user FOR UPDATE
   USING (auth.uid() = id);
 
--- m_participant_profile: 自分のプロフィールのみ CRUD 可能
+-- m_participant_profile: Data APIは自分のプロフィールのみ参照可能
+-- 書き込みはserver-side Prisma経由で行う。
 ALTER TABLE public.m_participant_profile ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "参加者は自分のプロフィールを閲覧可能"
+  ON public.m_participant_profile;
 CREATE POLICY "参加者は自分のプロフィールを閲覧可能"
   ON public.m_participant_profile FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "参加者は自分のプロフィールを作成可能"
+  ON public.m_participant_profile;
 CREATE POLICY "参加者は自分のプロフィールを作成可能"
   ON public.m_participant_profile FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "参加者は自分のプロフィールを更新可能"
+  ON public.m_participant_profile;
 CREATE POLICY "参加者は自分のプロフィールを更新可能"
   ON public.m_participant_profile FOR UPDATE
   USING (user_id = auth.uid());
 
--- m_organization_profile: 自分の団体プロフィールのみ CRUD + 公開情報は全員閲覧可能
+-- m_organization_profile: 承認済みまたは本人のプロフィールのみ参照可能
+-- 書き込みはserver-side Prisma経由で行う。
 ALTER TABLE public.m_organization_profile ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "認証済み団体は全員閲覧可能"
+  ON public.m_organization_profile;
 CREATE POLICY "認証済み団体は全員閲覧可能"
   ON public.m_organization_profile FOR SELECT
-  USING (verified = true OR user_id = auth.uid());
+  USING (
+    review_status = 'approved'
+    OR verified = true
+    OR (select auth.uid()) = user_id
+  );
 
+DROP POLICY IF EXISTS "団体は自分のプロフィールを作成可能"
+  ON public.m_organization_profile;
 CREATE POLICY "団体は自分のプロフィールを作成可能"
   ON public.m_organization_profile FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "団体は自分のプロフィールを更新可能"
+  ON public.m_organization_profile;
 CREATE POLICY "団体は自分のプロフィールを更新可能"
   ON public.m_organization_profile FOR UPDATE
   USING (user_id = auth.uid());
@@ -82,28 +100,56 @@ CREATE POLICY "団体は自分のプロフィールを更新可能"
 -- m_opportunity: 公開済み案件は全員閲覧可能 + 団体は自分の案件を CRUD
 ALTER TABLE public.m_opportunity ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "公開済み案件は全員閲覧可能"
+  ON public.m_opportunity;
 CREATE POLICY "公開済み案件は全員閲覧可能"
   ON public.m_opportunity FOR SELECT
+  TO anon, authenticated
+  USING (status = 'published'::public.opportunity_status);
+
+DROP POLICY IF EXISTS "団体は自分の案件を閲覧可能"
+  ON public.m_opportunity;
+CREATE POLICY "団体は自分の案件を閲覧可能"
+  ON public.m_opportunity FOR SELECT
+  TO authenticated
   USING (
-    status = 'published'
-    OR organization_id IN (
-      SELECT id FROM public.m_organization_profile WHERE user_id = auth.uid()
+    organization_id IN (
+      SELECT id
+      FROM public.m_organization_profile
+      WHERE user_id = (select auth.uid())
     )
   );
 
+DROP POLICY IF EXISTS "団体は自分の案件を作成可能"
+  ON public.m_opportunity;
 CREATE POLICY "団体は自分の案件を作成可能"
   ON public.m_opportunity FOR INSERT
+  TO authenticated
   WITH CHECK (
     organization_id IN (
-      SELECT id FROM public.m_organization_profile WHERE user_id = auth.uid()
+      SELECT id
+      FROM public.m_organization_profile
+      WHERE user_id = (select auth.uid())
     )
   );
 
+DROP POLICY IF EXISTS "団体は自分の案件を更新可能"
+  ON public.m_opportunity;
 CREATE POLICY "団体は自分の案件を更新可能"
   ON public.m_opportunity FOR UPDATE
+  TO authenticated
   USING (
     organization_id IN (
-      SELECT id FROM public.m_organization_profile WHERE user_id = auth.uid()
+      SELECT id
+      FROM public.m_organization_profile
+      WHERE user_id = (select auth.uid())
+    )
+  )
+  WITH CHECK (
+    organization_id IN (
+      SELECT id
+      FROM public.m_organization_profile
+      WHERE user_id = (select auth.uid())
     )
   );
 
@@ -334,10 +380,30 @@ REVOKE ALL ON TABLE public.m_user FROM anon, authenticated;
 REVOKE ALL ON TABLE public.t_diagnosis_result FROM anon, authenticated;
 REVOKE ALL ON TABLE public.t_diagnosis_response FROM anon, authenticated;
 GRANT SELECT (id, is_active, role, suspended_at) ON public.m_user TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.m_participant_profile TO authenticated;
+GRANT SELECT ON public.m_participant_profile TO authenticated;
 GRANT SELECT ON public.t_diagnosis_result TO authenticated;
 
-GRANT SELECT ON public.m_organization_profile TO anon, authenticated;
+REVOKE ALL ON TABLE public.m_organization_profile FROM anon, authenticated;
+REVOKE SELECT (
+  id, user_id, organization_name, representative_name, contact_email,
+  activity_areas, description, activity_categories, website_url, logo_url,
+  contact_line_id, contact_line_url, review_status, review_comment,
+  reviewed_at, reviewed_by, verified, profile_completeness, created_at,
+  updated_at
+)
+  ON TABLE public.m_organization_profile
+  FROM anon, authenticated;
+GRANT SELECT (
+  id, organization_name, description, verified, review_status
+)
+  ON public.m_organization_profile
+  TO anon;
+GRANT SELECT (
+  id, user_id, organization_name, description, verified, review_status,
+  contact_line_id, reviewed_at, profile_completeness
+)
+  ON public.m_organization_profile
+  TO authenticated;
 GRANT SELECT ON public.m_opportunity TO anon;
 GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
 GRANT SELECT ON public.t_recommendation_log TO authenticated;
