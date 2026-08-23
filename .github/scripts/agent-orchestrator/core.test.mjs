@@ -46,7 +46,7 @@ test('CI retry markerを厳密にparseする', () => {
   assert.equal(parseRetryMarker('<!-- agent:ci-retry:v1 run_id=42 retry=3 head_sha=abc -->'), null);
 });
 
-test('startはoperator、dependency、dispatch markerとterminal stateをguardする', () => {
+test('startはすべての開始guardを満たすIssueだけをdispatchする', () => {
   const context = {
     isOperator: true,
     isOpen: true,
@@ -60,8 +60,13 @@ test('startはoperator、dependency、dispatch markerとterminal stateをguard�
   const cases = [
     { name: '開始可能', changes: {}, want: { kind: 'dispatch' } },
     { name: 'operator違反', changes: { isOperator: false }, want: { kind: 'skip', reason: 'unauthorized-operator' } },
+    { name: 'closed Issue', changes: { isOpen: false }, want: { kind: 'skip', reason: 'issue-not-open' } },
+    { name: 'ready labelなし', changes: { hasReadyLabel: false }, want: { kind: 'skip', reason: 'ready-label-missing' } },
+    { name: 'Backlog以外', changes: { status: 'In Progress' }, want: { kind: 'skip', reason: 'invalid-status' } },
     { name: 'open dependency', changes: { hasOpenDependencies: true }, want: { kind: 'skip', reason: 'open-dependencies' } },
     { name: 'dispatch済み', changes: { hasDispatchMarker: true }, want: { kind: 'skip', reason: 'already-dispatched' } },
+    { name: '管理済みPRあり', changes: { hasManagedPullRequest: true }, want: { kind: 'skip', reason: 'managed-pr-exists' } },
+    { name: 'cancel labelあり', changes: { hasCancelLabel: true }, want: { kind: 'skip', reason: 'terminal' } },
     { name: 'terminal state', changes: { status: 'Done' }, want: { kind: 'skip', reason: 'terminal' } },
   ];
 
@@ -70,7 +75,7 @@ test('startはoperator、dependency、dispatch markerとterminal stateをguard�
   }
 });
 
-test('Draft PR ACKは管理対象のDraft PRだけをIn Progressへ移す', () => {
+test('Draft PR ACKはすべてのACK guardを満たすPRだけをIn Progressへ移す', () => {
   const context = {
     status: 'Backlog',
     isOpen: true,
@@ -84,8 +89,15 @@ test('Draft PR ACKは管理対象のDraft PRだけをIn Progressへ移す', () =
   };
   const cases = [
     { name: 'ACK', changes: {}, want: { kind: 'transition', status: 'In Progress' } },
+    { name: 'Backlog以外', changes: { status: 'In Progress' }, want: { kind: 'skip', reason: 'invalid-status' } },
+    { name: 'closed Issue', changes: { isOpen: false }, want: { kind: 'skip', reason: 'issue-not-open' } },
     { name: 'non-Draft', changes: { isDraft: false }, want: { kind: 'skip', reason: 'pr-not-draft' } },
+    { name: 'default branch以外', changes: { isDefaultBranch: false }, want: { kind: 'skip', reason: 'invalid-base' } },
+    { name: 'cursor branch以外', changes: { hasCursorBranch: false }, want: { kind: 'skip', reason: 'invalid-branch' } },
     { name: '複数Issue', changes: { closingIssueCount: 2 }, want: { kind: 'skip', reason: 'invalid-closing-issues' } },
+    { name: 'ready labelなし', changes: { hasReadyLabel: false }, want: { kind: 'skip', reason: 'ready-label-missing' } },
+    { name: 'dispatch markerなし', changes: { hasDispatchMarker: false }, want: { kind: 'skip', reason: 'dispatch-marker-missing' } },
+    { name: 'cancel済み', changes: { cancelled: true }, want: { kind: 'skip', reason: 'terminal' } },
     { name: 'terminal', changes: { status: 'Cancelled' }, want: { kind: 'skip', reason: 'terminal' } },
   ];
 
