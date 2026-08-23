@@ -158,9 +158,9 @@ git commit -m "feat: Agent Orchestratorの状態モデルを追加"
 - Produces: `client.read(path, options)`, `client.write(path, options)`, `client.graphql(query, variables)`
 - Produces: `ProjectStore({client, config})`
 - Produces: `resolveProject(): {projectId, statusFieldId, optionIdsByName}`
-- Produces: `ensureIssueItem(issueNodeId): ProjectItem`
-- Produces: `getIssueStatus(issueNodeId): string | null`
-- Produces: `transitionIssue(issueNodeId, target, allowedFrom): Promise<'changed'|'unchanged'>`
+- Produces: `ensureIssueItem(issueId): ProjectItem`
+- Produces: `getIssueStatus(issueId): string | null`
+- Produces: `transitionIssue(issueId, target, allowedFrom): Promise<'changed'|'unchanged'>`
 
 - [ ] **Step 1: Write failing HTTP boundary tests**
 
@@ -197,7 +197,7 @@ Add pagination using `Link` headers, GraphQL error validation, JSON/non-JSON err
 
 - [ ] **Step 4: Implement ProjectStore with dynamic IDs**
 
-Resolve organization Project `#2`, list fields, require exactly one `Status` field and all eight option names, list/filter item by Issue node ID, add item idempotently, and PATCH the Status field only after re-reading current status. Treat `Done`/`Cancelled` as terminal and reject a transition not included in `allowedFrom`.
+Resolve organization Project `#2`, list fields, require exactly one `Status` field and all eight option names, list/filter item by the REST Issue integer `id`, add item idempotently, and PATCH the Status field only after re-reading current status. Treat `Done`/`Cancelled` as terminal and reject a transition not included in `allowedFrom`.
 
 - [ ] **Step 5: Verify error and idempotency cases**
 
