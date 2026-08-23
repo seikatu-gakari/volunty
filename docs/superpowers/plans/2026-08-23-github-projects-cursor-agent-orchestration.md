@@ -160,7 +160,7 @@ git commit -m "feat: Agent Orchestratorの状態モデルを追加"
 - Produces: `resolveProject(): {projectId, statusFieldId, optionIdsByName}`
 - Produces: `ensureIssueItem(issueId): ProjectItem`
 - Produces: `getIssueStatus(issueId): string | null`
-- Produces: `transitionIssue(issueId, target, allowedFrom): Promise<'changed'|'unchanged'>`
+- Produces: `transitionIssue(issueId, target, allowedFrom: (string | null)[]): Promise<'changed'|'unchanged'>`; `null` means an existing Project item whose Status is unset
 
 - [ ] **Step 1: Write failing HTTP boundary tests**
 
@@ -197,7 +197,7 @@ Add pagination using `Link` headers, GraphQL error validation, JSON/non-JSON err
 
 - [ ] **Step 4: Implement ProjectStore with dynamic IDs**
 
-Resolve organization Project `#2`, list fields, require exactly one `Status` field and all eight option names, list/filter item by the REST Issue integer `id`, add item idempotently, and PATCH the Status field only after re-reading current status. Treat `Done`/`Cancelled` as terminal and reject a transition not included in `allowedFrom`.
+Resolve organization Project `#2`, list fields, require exactly one `Status` field and all eight option names, list/filter item by the REST Issue integer `id`, add item idempotently, and PATCH the Status field only after re-reading the current item ID and status together. Treat `Done`/`Cancelled` as terminal, make same-target redelivery unchanged, and reject a transition not included in `allowedFrom`; use explicit `null` only for the unset-to-`Backlog` transition.
 
 - [ ] **Step 5: Verify error and idempotency cases**
 
