@@ -36,7 +36,7 @@ Issue #${number} を担当してください。まず \`${branch}\` branch を�
 
 重要な判断が必要なら、PR に \`<!-- agent:human-input -->\` を含め、判断事項・理由・選択肢・Pros/Cons・推奨案・求める回答を投稿して停止してください（Human Input protocol）。
 
-実装、必要なテスト、セルフレビュー、lint / UT / build を行い、current SHA を含む \`<!-- agent:ready-for-review -->\` と \`<!-- agent:ready-for-review:v1 head_sha=... -->\` を PR に投稿してから \`gh pr ready\` を実行してください。
+実装、必要なテスト、セルフレビュー、lint / UT / build を行ってから \`gh pr ready\` を実行し、最後に current SHA を含む \`<!-- agent:ready-for-review -->\` と \`<!-- agent:ready-for-review:v1 head_sha=... -->\` を PR に投稿してください。
 
 \`main\` へ merge しないでください。GitHub Project Status、\`agent-ready\`、\`agent-cancel\` は変更しないでください。`;
 }
@@ -51,6 +51,10 @@ function report(summary, line) {
 /** @param {{repository: any, project: any, config: any, summary?: unknown}} options */
 export function createHandlers({ repository, project, config, summary }) {
   const dispatchMarker = (number) => `<!-- agent:dispatch:v1 issue=${number} -->`;
+  const hasTrustedDispatchMarker = (comments, number) => comments.some((comment) => comment.author === config.operator && hasExactMarker(comment.body, dispatchMarker(number)));
+  const isManagedPullRequest = (pullRequest) => pullRequest.state === 'open'
+    && pullRequest.baseRefName === config.defaultBranch
+    && pullRequest.headRefName.startsWith(config.cursorBranchPrefix);
 
   async function readStart(number) {
     const current = await repository.getIssue(number);
@@ -68,20 +72,27 @@ export function createHandlers({ repository, project, config, summary }) {
       hasCancelLabel: hasLabel(current.labels, config.labels.cancel),
       status,
       hasOpenDependencies: dependencies.some((dependency) => dependency.state === 'open'),
-      hasDispatchMarker: comments.some((comment) => hasExactMarker(comment.body, dispatchMarker(number))),
-      hasManagedPullRequest: pullRequests.length > 0,
+      hasDispatchMarker: hasTrustedDispatchMarker(comments, number),
+      hasManagedPullRequest: pullRequests.some(isManagedPullRequest),
     });
     return {
       issue: current,
-      decision: baseDecision.kind === 'dispatch' && status !== 'Backlog'
-        ? { kind: 'skip', reason: 'invalid-status' }
-        : baseDecision,
+      status,
+      decision: baseDecision,
     };
   }
 
   async function dispatch(number) {
     const first = await readStart(number);
     if (first.decision.kind !== 'dispatch') return first.decision;
+    if (first.status === null) {
+      const beforeInitialization = await readStart(number);
+      if (beforeInitialization.decision.kind !== 'dispatch' || beforeInitialization.status !== null) return beforeInitialization.decision;
+      await project.ensureIssueItem(beforeInitialization.issue.id);
+      const beforeTransition = await readStart(number);
+      if (beforeTransition.decision.kind !== 'dispatch' || beforeTransition.status !== null) return beforeTransition.decision;
+      await project.transitionIssue(beforeTransition.issue.id, 'Backlog', [null]);
+    }
     const current = await readStart(number);
     if (current.decision.kind !== 'dispatch') return current.decision;
     await repository.postComment(number, dispatchComment(number, current.issue.title));
@@ -89,10 +100,11 @@ export function createHandlers({ repository, project, config, summary }) {
     return current.decision;
   }
 
-  async function handleStart(event) {
+  /** @param {unknown} event @param {{eventName?: string}} [context] */
+  async function handleStart(event, { eventName } = {}) {
     if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
     const action = event?.action;
-    if (action === 'workflow_dispatch') {
+    if (eventName === 'workflow_dispatch') {
       const resolved = await project.resolveProject();
       report(summary, `Read-only preflight: project=${resolved.projectId}, statusField=${resolved.statusFieldId}`);
       return { kind: 'preflight' };
@@ -126,26 +138,37 @@ export function createHandlers({ repository, project, config, summary }) {
     const pullRequest = await repository.getPullRequest(number);
     const closingIssues = await repository.findClosingIssues(number);
     if (closingIssues.length !== 1) {
-      return { decision: { kind: 'skip', reason: 'invalid-closing-issues' }, pullRequest, issue: null };
+      return { decision: { kind: 'skip', reason: 'invalid-closing-issues' }, pullRequest, issue: null, status: null };
     }
     const current = await repository.getIssue(closingIssues[0].number);
     const [comments, status] = await Promise.all([
       repository.listComments(current.number),
       project.getIssueStatus(current.id),
     ]);
+    if (hasLabel(current.labels, config.labels.cancel) || isTerminalStatus(status)) return { pullRequest, issue: current, status, decision: { kind: 'skip', reason: 'terminal' } };
+    if (pullRequest.state !== 'open') return { pullRequest, issue: current, status, decision: { kind: 'skip', reason: 'pr-not-open' } };
+    if (current.state !== 'open') return { pullRequest, issue: current, status, decision: { kind: 'skip', reason: 'issue-not-open' } };
+    if (!pullRequest.draft) return { pullRequest, issue: current, status, decision: { kind: 'skip', reason: 'pr-not-draft' } };
+    if (pullRequest.base.ref !== config.defaultBranch) return { pullRequest, issue: current, status, decision: { kind: 'skip', reason: 'invalid-base' } };
+    if (!pullRequest.head.ref.startsWith(config.cursorBranchPrefix)) return { pullRequest, issue: current, status, decision: { kind: 'skip', reason: 'invalid-branch' } };
+    if (!hasTrustedDispatchMarker(comments, current.number)) return { pullRequest, issue: current, status, decision: { kind: 'skip', reason: 'dispatch-marker-missing' } };
+    if (status === 'In Progress' && !hasLabel(current.labels, config.labels.ready)) return { pullRequest, issue: current, status, decision: { kind: 'unchanged' } };
+    if (status === 'In Progress' && hasLabel(current.labels, config.labels.ready)) return { pullRequest, issue: current, status, decision: { kind: 'label-pending' } };
+    if (status === 'Backlog' && !hasLabel(current.labels, config.labels.ready)) return { pullRequest, issue: current, status, decision: { kind: 'skip', reason: 'ready-label-missing' } };
     return {
       pullRequest,
       issue: current,
+      status,
       decision: evaluatePrAck({
         status,
-        isOpen: current.state === 'open',
+        isOpen: true,
         isDraft: pullRequest.draft,
         isDefaultBranch: pullRequest.base.ref === config.defaultBranch,
         hasCursorBranch: pullRequest.head.ref.startsWith(config.cursorBranchPrefix),
         closingIssueCount: closingIssues.length,
-        hasReadyLabel: hasLabel(current.labels, config.labels.ready),
-        hasDispatchMarker: comments.some((comment) => hasExactMarker(comment.body, dispatchMarker(current.number))),
-        cancelled: hasLabel(current.labels, config.labels.cancel),
+        hasReadyLabel: true,
+        hasDispatchMarker: true,
+        cancelled: false,
       }),
     };
   }
@@ -156,21 +179,19 @@ export function createHandlers({ repository, project, config, summary }) {
     const number = eventNumber(event?.number ?? event?.pull_request?.number);
     if (number === null) return { kind: 'skip', reason: 'invalid-pull-request' };
     const first = await readPrAck(number);
-    if (first.decision.kind !== 'transition') return first.decision;
+    if (!['transition', 'label-pending'].includes(first.decision.kind)) return first.decision;
     const current = await readPrAck(number);
-    if (current.decision.kind !== 'transition' || current.issue === null) return current.decision;
-
-    await repository.removeLabel(current.issue.number, config.labels.ready);
-    const afterIssue = await repository.getIssue(current.issue.number);
-    const afterStatus = await project.getIssueStatus(afterIssue.id);
-    if (afterIssue.state !== 'open' || hasLabel(afterIssue.labels, config.labels.cancel) || isTerminalStatus(afterStatus)) {
-      throw new Error('Draft PR ACK partially mutated before status transition');
+    if (!['transition', 'label-pending'].includes(current.decision.kind) || current.issue === null) return current.decision;
+    if (current.decision.kind === 'transition') {
+      await project.transitionIssue(current.issue.id, 'In Progress', ['Backlog']);
     }
-    if (afterStatus === 'Backlog') {
-      await project.transitionIssue(afterIssue.id, 'In Progress', ['Backlog']);
-    } else if (afterStatus !== 'In Progress') {
-      throw new Error('Draft PR ACK partially mutated with stale status');
+    const beforeLabelRemoval = await readPrAck(number);
+    if (beforeLabelRemoval.decision.kind !== 'label-pending' || beforeLabelRemoval.issue === null) {
+      throw new Error('Draft PR ACK partially mutated before label removal');
     }
+    await repository.removeLabel(beforeLabelRemoval.issue.number, config.labels.ready);
+    const completed = await readPrAck(number);
+    if (completed.decision.kind !== 'unchanged') throw new Error('Draft PR ACK partially mutated after label removal');
     report(summary, `PR #${number}: Draft ACK completed`);
     return { kind: 'transition', status: 'In Progress' };
   }

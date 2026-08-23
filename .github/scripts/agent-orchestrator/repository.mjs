@@ -44,10 +44,34 @@ function requireRestIssue(value, field, repositoryUrl) {
   return {
     id: requirePositiveInteger(issue.id, `${field}.id`),
     number: requirePositiveInteger(issue.number, `${field}.number`),
-    state: requireString(issue.state, `${field}.state`),
+    state: requireIssueState(requireString(issue.state, `${field}.state`), `${field}.state`),
     labels: requireLabels(issue.labels, `${field}.labels`),
     title: requireString(issue.title, `${field}.title`),
   };
+}
+
+/** @param {string} state @param {string} field */
+function requireIssueState(state, field) {
+  if (!['open', 'closed'].includes(state)) throw new Error(`${field} must be open or closed`);
+  return state;
+}
+
+/** @param {string} state @param {string} field */
+function normalizeGraphqlIssueState(state, field) {
+  if (!['OPEN', 'CLOSED'].includes(state)) throw new Error(`${field} must be OPEN or CLOSED`);
+  return state.toLowerCase();
+}
+
+/** @param {string} state @param {string} field */
+function normalizeGraphqlPullRequestState(state, field) {
+  if (!['OPEN', 'CLOSED', 'MERGED'].includes(state)) throw new Error(`${field} must be OPEN, CLOSED, or MERGED`);
+  return state.toLowerCase();
+}
+
+/** @param {string} state @param {string} field */
+function requireRestPullRequestState(state, field) {
+  if (!['open', 'closed'].includes(state)) throw new Error(`${field} must be open or closed`);
+  return state;
 }
 
 /** @param {unknown} value @param {string} field @param {string} owner @param {string} repository */
@@ -64,7 +88,7 @@ function requireGraphqlReference(value, field, owner, repository) {
   return {
     id: requireString(reference.id, `${field}.id`),
     number: requirePositiveInteger(reference.number, `${field}.number`),
-    state: requireString(reference.state, `${field}.state`),
+    state: normalizeGraphqlIssueState(requireString(reference.state, `${field}.state`), `${field}.state`),
   };
 }
 
@@ -133,7 +157,8 @@ export class AgentRepository {
     const values = requireArray(await this.client.read(`${this.#issuePath(number)}/comments`, { paginate: true }), 'issue comments');
     return values.map((value, index) => {
       const comment = requireObject(value, `issue comments[${index}]`);
-      return { id: requirePositiveInteger(comment.id, `issue comments[${index}].id`), body: requireString(comment.body, `issue comments[${index}].body`) };
+      const user = requireObject(comment.user, `issue comments[${index}].user`);
+      return { id: requirePositiveInteger(comment.id, `issue comments[${index}].id`), body: requireString(comment.body, `issue comments[${index}].body`), author: requireString(user.login, `issue comments[${index}].user.login`) };
     });
   }
 
@@ -164,38 +189,71 @@ export class AgentRepository {
     if (returnedNumber !== requestedNumber) throw new Error('pull request.number must match requested pull request number');
     return {
       number: returnedNumber,
-      state: requireString(pr.state, 'pull request.state'),
+      state: requireRestPullRequestState(requireString(pr.state, 'pull request.state'), 'pull request.state'),
       draft: typeof pr.draft === 'boolean' ? pr.draft : (() => { throw new Error('pull request.draft must be a boolean'); })(),
       base: { ref: requireString(base.ref, 'pull request.base.ref') },
       head: { ref: requireString(head.ref, 'pull request.head.ref') },
     };
   }
 
-  /** @param {'pullRequest' | 'issue'} type @param {number} number @param {'closingIssuesReferences' | 'closedByPullRequestsReferences'} relation */
-  async #findReferences(type, number, relation) {
-    const query = `query AgentRelation($owner: String!, $repository: String!, $number: Int!) {
+  /** @param {number} number */
+  async findClosingIssues(number) {
+    const query = `query AgentRelation($owner: String!, $repository: String!, $number: Int!, $after: String) {
       repository(owner: $owner, name: $repository) {
-        ${type}(number: $number) {
-          ${relation}(first: 10) { nodes { id number state repository { name owner { login } } } }
+        pullRequest(number: $number) {
+          closingIssuesReferences(first: 100, after: $after) { nodes { id number state repository { name owner { login } } } pageInfo { hasNextPage endCursor } }
         }
       }
     }`;
-    const data = requireObject(await this.client.graphql(query, { owner: this.owner, repository: this.repository, number: requirePositiveInteger(number, 'reference number') }), 'GraphQL data');
-    const repo = requireObject(data.repository, 'GraphQL repository');
-    const subject = requireObject(repo[type], `GraphQL repository.${type}`);
-    const connection = requireObject(subject[relation], `GraphQL ${relation}`);
-    const nodes = requireArray(connection.nodes, `GraphQL ${relation}.nodes`);
-    if (nodes.length > 1) throw new Error(`GraphQL ${relation} must contain at most one relation`);
-    return nodes.map((node, index) => requireGraphqlReference(node, `GraphQL ${relation}.nodes[${index}]`, this.owner, this.repository));
-  }
-
-  /** @param {number} pullRequestNumber */
-  async findClosingIssues(pullRequestNumber) {
-    return this.#findReferences('pullRequest', pullRequestNumber, 'closingIssuesReferences');
+    return this.#readConnection(query, number, 'pullRequest', 'closingIssuesReferences', (node, field) => requireGraphqlReference(node, field, this.owner, this.repository));
   }
 
   /** @param {number} issueNumber */
   async findClosingPullRequests(issueNumber) {
-    return this.#findReferences('issue', issueNumber, 'closedByPullRequestsReferences');
+    const query = `query AgentReverseRelation($owner: String!, $repository: String!, $number: Int!, $after: String) {
+      repository(owner: $owner, name: $repository) {
+        issue(number: $number) {
+          closedByPullRequestsReferences(first: 100, after: $after) { nodes { id number state isDraft baseRefName headRefName repository { name owner { login } } headRepository { name owner { login } } } pageInfo { hasNextPage endCursor } }
+        }
+      }
+    }`;
+    return this.#readConnection(query, issueNumber, 'issue', 'closedByPullRequestsReferences', (value, field) => {
+      const reference = requireObject(value, field);
+      const relationRepository = requireObject(reference.repository, `${field}.repository`);
+      if (requireString(relationRepository.name, `${field}.repository.name`) !== this.repository) {
+        throw new Error(`${field}.repository must match configured repository`);
+      }
+      const relationOwner = requireObject(relationRepository.owner, `${field}.repository.owner`);
+      if (requireString(relationOwner.login, `${field}.repository.owner.login`) !== this.owner) {
+        throw new Error(`${field}.repository must match configured repository`);
+      }
+      const headRepository = requireObject(reference.headRepository, `${field}.headRepository`);
+      const headOwner = requireObject(headRepository.owner, `${field}.headRepository.owner`);
+      if (requireString(headRepository.name, `${field}.headRepository.name`) !== this.repository || requireString(headOwner.login, `${field}.headRepository.owner.login`) !== this.owner) throw new Error(`${field}.headRepository must match configured repository`);
+      if (typeof reference.isDraft !== 'boolean') throw new Error(`${field}.isDraft must be a boolean`);
+      return { id: requireString(reference.id, `${field}.id`), number: requirePositiveInteger(reference.number, `${field}.number`), state: normalizeGraphqlPullRequestState(requireString(reference.state, `${field}.state`), `${field}.state`), isDraft: reference.isDraft, baseRefName: requireString(reference.baseRefName, `${field}.baseRefName`), headRefName: requireString(reference.headRefName, `${field}.headRefName`) };
+    });
+  }
+
+  async #readConnection(query, number, type, relation, mapNode) {
+    const referenceNumber = requirePositiveInteger(number, 'reference number');
+    const values = [];
+    let after = null;
+    do {
+      const data = requireObject(await this.client.graphql(query, { owner: this.owner, repository: this.repository, number: referenceNumber, after }), 'GraphQL data');
+      const repo = requireObject(data.repository, 'GraphQL repository');
+      const subject = requireObject(repo[type], `GraphQL repository.${type}`);
+      const connection = requireObject(subject[relation], `GraphQL ${relation}`);
+      const nodes = requireArray(connection.nodes, `GraphQL ${relation}.nodes`);
+      values.push(...nodes.map((node, index) => mapNode(node, `GraphQL ${relation}.nodes[${index}]`)));
+      const pageInfo = requireObject(connection.pageInfo, `GraphQL ${relation}.pageInfo`);
+      if (typeof pageInfo.hasNextPage !== 'boolean') throw new Error(`GraphQL ${relation}.pageInfo.hasNextPage must be a boolean`);
+      if (pageInfo.hasNextPage) {
+        after = requireString(pageInfo.endCursor, `GraphQL ${relation}.pageInfo.endCursor`);
+      } else if (pageInfo.endCursor !== null && pageInfo.endCursor !== undefined && typeof pageInfo.endCursor !== 'string') {
+        throw new Error(`GraphQL ${relation}.pageInfo.endCursor must be a string or null`);
+      } else after = null;
+    } while (after !== null);
+    return values;
   }
 }
