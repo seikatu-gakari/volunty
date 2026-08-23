@@ -54,6 +54,21 @@ async function parseSuccess(response) {
   }
 }
 
+/** @param {unknown} document */
+function requireQueryDocument(document) {
+  if (typeof document !== 'string') throw new Error('GitHub GraphQL query must be a string');
+  let index = 0;
+  while (index < document.length) {
+    while (index < document.length && /\s/u.test(document[index])) index += 1;
+    if (document[index] !== '#') break;
+    const newline = document.indexOf('\n', index);
+    index = newline === -1 ? document.length : newline + 1;
+  }
+  if (document[index] === '{') return;
+  const operation = document.slice(index).match(/^[_A-Za-z][_0-9A-Za-z]*/u)?.[0];
+  if (operation !== 'query') throw new Error('GitHub GraphQL is query-only');
+}
+
 export class GitHubClient {
   /**
    * @param {{readToken: string, writeToken?: string, fetchImpl?: typeof fetch, apiVersion?: string}} options
@@ -67,11 +82,14 @@ export class GitHubClient {
 
   /**
    * @param {string} path
-   * @param {{method?: string, headers?: HeadersInit, body?: unknown, signal?: AbortSignal, paginate?: boolean}} [options]
+   * @param {{headers?: HeadersInit, signal?: AbortSignal, paginate?: boolean}} [options]
    * @returns {Promise<unknown>}
    */
-  read(path, options = {}) {
-    return this.#request(path, { ...options, token: this.readToken });
+  async read(path, options = {}) {
+    if ((options.method !== undefined && options.method.toUpperCase() !== 'GET') || options.body !== undefined) {
+      throw new Error('GitHub read is GET-only');
+    }
+    return this.#request(path, { ...options, method: 'GET', token: this.readToken });
   }
 
   /**
@@ -89,6 +107,7 @@ export class GitHubClient {
    * @returns {Promise<unknown>}
    */
   async graphql(query, variables = {}) {
+    requireQueryDocument(query);
     const response = await this.#fetch('/graphql', {
       method: 'POST',
       body: { query, variables },

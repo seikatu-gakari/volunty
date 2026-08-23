@@ -49,6 +49,17 @@ test('readはGITHUB_TOKEN、API version、timeoutを使いLinkを辿る', async 
   assert.equal(fake.calls[0].signal.aborted, false);
 });
 
+test('readはGET以外のmethodまたはbodyをfetch前に拒否する', async () => {
+  const fake = queueFetch([jsonResponse([])]);
+  const client = new GitHubClient({ readToken: 'read-token', writeToken: 'write-token', fetchImpl: fake.fetch });
+
+  await assert.rejects(() => client.read('/issues', { method: 'DELETE' }), /GET-only/);
+  await assert.rejects(() => client.read('/issues', { body: { state: 'closed' } }), /GET-only/);
+  assert.deepEqual(await client.read('/issues', { method: 'GET' }), []);
+  assert.equal(fake.calls.length, 1);
+  assert.equal(fake.calls[0].method, 'GET');
+});
+
 test('writeはPATでJSON mutationを送る', async () => {
   const fake = queueFetch([jsonResponse({ ok: true }, { status: 201 })]);
   const client = new GitHubClient({ readToken: 'read-token', writeToken: 'write-token', fetchImpl: fake.fetch });
@@ -56,8 +67,10 @@ test('writeはPATでJSON mutationを送る', async () => {
   const result = await client.write('/items', { method: 'POST', body: { type: 'Issue', id: 10 } });
 
   assert.deepEqual(result, { ok: true });
+  assert.equal(fake.calls[0].url, 'https://api.github.com/items');
   assert.equal(fake.calls[0].method, 'POST');
   assert.equal(fake.calls[0].headers.get('authorization'), 'Bearer write-token');
+  assert.equal(fake.calls[0].headers.get('x-github-api-version'), '2026-03-10');
   assert.equal(fake.calls[0].headers.get('content-type'), 'application/json');
   assert.equal(fake.calls[0].body, '{"type":"Issue","id":10}');
 });
@@ -104,4 +117,18 @@ test('graphqlはread tokenだけを使いGraphQL errorを拒否する', async ()
   assert.equal(fake.calls[0].headers.get('authorization'), 'Bearer read-token');
   assert.equal(fake.calls[0].body, '{"query":"query Viewer { viewer { login } }","variables":{"id":1}}');
   await assert.rejects(() => client.graphql('query Broken { viewer { login } }'), /GraphQL errors/);
+});
+
+test('graphqlはコメント付きqueryとshorthand queryだけをfetchし、mutationとsubscriptionを拒否する', async () => {
+  const fake = queueFetch([
+    jsonResponse({ data: { viewer: { login: 'octo' } } }),
+    jsonResponse({ data: { viewer: { login: 'hubot' } } }),
+  ]);
+  const client = new GitHubClient({ readToken: 'read-token', writeToken: 'write-token', fetchImpl: fake.fetch });
+
+  assert.deepEqual(await client.graphql('\n # fixed query\n query Viewer($id: ID!) { viewer { login } }', { id: 1 }), { viewer: { login: 'octo' } });
+  assert.deepEqual(await client.graphql('\n # shorthand\n { viewer { login } }'), { viewer: { login: 'hubot' } });
+  await assert.rejects(() => client.graphql('\n# do not mutate\n mutation Close { closeIssue(input: {}) { clientMutationId } }'), /query-only/);
+  await assert.rejects(() => client.graphql(' # do not subscribe\n subscription Updates { issueComment { id } }'), /query-only/);
+  assert.equal(fake.calls.length, 2);
 });
