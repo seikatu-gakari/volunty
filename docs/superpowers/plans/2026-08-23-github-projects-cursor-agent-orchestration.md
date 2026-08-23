@@ -228,17 +228,17 @@ git commit -m "feat: GitHub Project APIアダプターを追加"
 - Produces: `AgentRepository({client, config})`
 - Produces: `listIssueDependencies(number)`, `listBlockedBy(number)`, `findClosingIssues(prNumber)`, `findClosingPullRequests(issueNumber)`, `listComments(number)`, `postComment(number, body)`, `removeLabel(number, label)`
 - Produces: `createHandlers({repository, project, config, summary})`
-- Produces: `handleStart(event)`, `handlePrCreated(event)`
+- Produces: `handleStart(event, {eventName})`, `handlePrCreated(event)`; `eventName` is the trusted workflow runtime event name, not payload data
 
 - [ ] **Step 1: Write failing start and ACK behavior tests**
 
 Create in-memory repository/project fakes that expose domain behavior, not mock call counts. Assert observable final status/comments/labels for:
 
 - Issue opened -> project item `Backlog`
-- authorized `agent-ready` + closed dependencies -> one dispatch comment
+- authorized `agent-ready` + closed dependencies -> one operator-authored dispatch comment
 - open dependency -> no comment, label retained
 - latest label event by another actor -> no dispatch
-- rerun with dispatch marker -> no duplicate
+- rerun with operator-authored dispatch marker -> no duplicate; another actor's forged marker is ignored
 - Draft `cursor/*` PR + exactly one closing Issue -> label removed + `In Progress`
 - non-Draft, wrong base, no dispatch marker, multiple closing Issues -> unchanged
 
@@ -250,7 +250,7 @@ Expected: FAIL because handlers do not exist.
 
 - [ ] **Step 3: Implement Repository gateway**
 
-Use REST issue-dependency endpoints, issue events for latest label actor, issue comments for markers/commands, and GraphQL `closingIssuesReferences` / `closedByPullRequestsReferences`. Validate every returned object before use and reject cross-repository relationships.
+Use REST issue-dependency endpoints, issue events for latest label actor, issue comments plus author for markers/commands, and paginated GraphQL `closingIssuesReferences` / `closedByPullRequestsReferences`. Validate every returned object and enum before use, reject closing-Issue cross-repository relationships, treat fork/human reverse PRs as non-managed, and reject cursor pagination cycles.
 
 - [ ] **Step 4: Implement start handler**
 
@@ -258,11 +258,11 @@ The dispatch comment must contain `<!-- agent:dispatch:v1 issue=N -->`, `@cursor
 
 On `issues.closed`, call `listBlockedBy(closedNumber)` and re-evaluate only open Issues still carrying `agent-ready`; verify the latest label actor from Issue events is `yuto90`.
 
-On `workflow_dispatch`, resolve config/project/status fields and issue a read-only summary without adding items, comments, labels or status.
+On trusted runtime `workflow_dispatch`, resolve config/project/status fields and issue a read-only summary without adding items, comments, labels or status. If start Status is unset after all other guards, initialize it to `Backlog` and require a confirming re-read before dispatch.
 
 - [ ] **Step 5: Implement PR ACK handler**
 
-Validate base, Draft, branch prefix, one closing Issue, open state, label, dispatch marker and non-terminal status; then remove `agent-ready` and transition `Backlog -> In Progress`. Re-read terminal/status before each mutation.
+Validate open PR, base, Draft, branch prefix, one closing open Issue, label, operator-authored dispatch marker and non-terminal status; then transition `Backlog -> In Progress` and remove `agent-ready`. Re-read terminal/status before each mutation and let `In Progress + agent-ready` redelivery finish the partial ACK.
 
 - [ ] **Step 6: Run tests and commit**
 

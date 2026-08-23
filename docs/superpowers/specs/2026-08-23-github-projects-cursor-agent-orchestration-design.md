@@ -283,10 +283,10 @@ Project history、label history、review、Actions run、commit は GitHub が�
 4. `agent-ready` があり、`agent-cancel` がない。
 5. Status が `Backlog` または未設定である。
 6. GitHub Issue dependencies がすべて closed である。
-7. dispatch marker がまだない。
-8. 対応する Agent-managed PR がまだない。
+7. `yuto90` が投稿した dispatch marker がまだない。他 actor の同形 marker は信頼しない。
+8. 対応する Agent-managed PR がまだない。Agent-managed は同一 repository、open、base `main`、head `cursor/` で判定し、通常 PR や fork PR は除外する。
 
-通過時だけ `CURSOR_AGENT_ORCHESTRATOR_PAT` を使って `yuto90` 名義の `@cursor` comment を一度投稿する。Status と `agent-ready` は Draft PR ACK まで変更しない。
+通過時だけ `CURSOR_AGENT_ORCHESTRATOR_PAT` を使って `yuto90` 名義の `@cursor` comment を一度投稿する。Status が未設定なら全 guard 通過後に `Backlog` へ初期化し、再取得で `Backlog` を確認してから投稿する。それ以外の Status と `agent-ready` は Draft PR ACK まで変更しない。
 
 dispatch comment は Cursor skill と同じ contract を明示する。
 
@@ -295,7 +295,7 @@ dispatch comment は Cursor skill と同じ contract を明示する。
 - PR base は `main`、本文に `Fixes #N` を入れる。
 - Project Status、`agent-ready`、`agent-cancel` を Agent が変更しない。
 - 重要判断は PR 上の Human Input protocol で停止する。
-- 実装、必要なテスト、セルフレビュー、ready marker、`gh pr ready` まで行う。
+- 実装、必要なテスト、セルフレビュー、`gh pr ready`、current-head ready marker の順に行う。
 - merge は行わない。
 
 未完了 dependency がある場合は comment せず、`agent-ready` を残す。dependency が close した `issues.closed` event で GitHub の reverse-dependency endpoint から対象 Issue を得て、同じ guard を再評価する。この再評価では Issue event/timeline から最新の `agent-ready` 付与者が `yuto90` であることを再確認する。定期 polling は行わない。
@@ -316,7 +316,9 @@ dispatch comment 後に Draft PR が作成されなくても自動 retry や tim
 6. Issue に Orchestrator の dispatch marker がある。
 7. Issue が `Cancelled` ではない。
 
-通過時だけ `agent-ready` を削除し、Project Status を `In Progress` にする。検証に失敗した PR は Agent session として ACK せず、Issue は `Backlog` のままにし、workflow summary に理由を記録する。
+通過時だけ Project Status を `In Progress` にしてから `agent-ready` を削除する。Status 更新だけ成功した `In Progress + agent-ready` は partial ACK として同じ検証を再実行し、redelivery で label 削除を完遂する。`In Progress + agent-ready なし` は完了済み ACK として mutation しない。検証に失敗した PR は Agent session として ACK せず、Issue は `Backlog` のままにし、workflow summary に理由を記録する。
+
+`workflow_dispatch` は payload の `action` ではなく、workflow runtime が渡す trusted `GITHUB_EVENT_NAME` で識別する。raw payload 由来の同名 field で read-only preflight を偽装できないようにする。
 
 `pull_request_target`、`workflow_run` などの privileged workflow は PR branch を checkout しない。共通 Orchestrator は必ず default branch の trusted ref から checkout し、PR の title、body、branch、comment を shell command に展開しない。
 
@@ -461,7 +463,7 @@ PAT の作成と Actions secret 保存は、`yuto90` 名義でコメント・Pro
 - GitHub Projects REST API の GA endpoint と API version `2026-03-10` を使用する。
 - organization、Project number、Status field、option 名から毎回 ID を解決する。
 - item がなければ一度だけ追加し、既に存在すれば同じ item を再利用する。
-- Status mutation 直前に current Status と terminal state を再取得する。
+- Status mutation 直前に current Status と terminal state を再取得する。複数 mutation の partial state は明示的に redelivery で収束させる。
 - Issue/PR closing reference の検証には GitHub GraphQL の正式 field を利用する。
 - API の rate limit、403、404、409、422 は分類し、部分成功を隠さず Actions summary に残す。
 
@@ -477,7 +479,7 @@ Project ID や option ID を secret または source code に固定しないた�
 - terminal state は上書きしない。
 - current PR head と異なる CI/review/comment event は無視する。
 - event 対象が Agent-managed Issue/PR でなければ何もしない。
-- workflow rerun、GitHub の event redelivery、API retry を前提にする。
+- workflow rerun、GitHub の event redelivery、API retry を前提にする。GraphQL pagination は cursor の前進を検証し、同一 cursor の循環を fail closed にする。
 
 workflow concurrency は repository と Issue/PR number を key にし、`cancel-in-progress: false` とする。別 workflow 間の完全な lock には依存せず、mutation 直前の再取得を最終防衛線にする。
 
