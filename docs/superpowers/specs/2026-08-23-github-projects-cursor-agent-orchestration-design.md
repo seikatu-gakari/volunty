@@ -349,11 +349,13 @@ GitHub Actions は comment を Cursor へ転送・複製せず、Status を `In 
 
 `agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ処理する。
 
-1. `workflow_run.pull_requests` から同一 repository の open PR を解決する。
+1. `workflow_run.repository` と公式 `pull-request-minimal` 形の `workflow_run.pull_requests` を検証し、同一 base repository の open PR を trusted REST API から再取得する。重複・欠損・異なる base repository が一件でも混在すれば event 全体を fail closed とし、fork head の human PR は有効な non-managed relation として除外する。
 2. Agent-managed PR か確認する。
 3. run の `head_sha` が現在の PR head SHA と一致するか確認する。
-4. 同じ head SHA の最新 run か確認する。
+4. 同じ head SHA の target workflow run を status に関係なく `(updated_at, id)` で並べ、最新 run か確認する。最新が queued / in_progress / unknown status なら gate を閉じ、`completed + success` または `completed + failure` のときだけ処理する。
 5. `Cancelled` または `Done` なら何もしない。
+
+Actions run 一覧は repository 全体ではなく、Issue ごとに一意な managed PR head branch と `pull_request` event に限定して取得する。GitHub の filtered search は最大 1,000 results のため、branch 内でも上限へ達した場合は不完全な履歴を使わず明示的に fail closed とする。object-envelope の全 page で `total_count`、重複 ID、page 数、公式 nullable / optional field を検証する。
 
 失敗時は、直近の成功 run より後にある retry marker を数える。
 
@@ -364,7 +366,7 @@ failure -> Retry 3 comment
 failure -> Blocked
 ```
 
-つまり自動修正依頼は最大 3 comments、4 回目の連続失敗で `Blocked` にする。run ID と head SHA の marker で rerun を重複処理しない。current-head CI が成功したら連続失敗 count は実質的に reset されるため、後の Rework は新しい failure cycle として扱う。
+つまり自動修正依頼は最大 3 comments、4 回目の連続失敗で `Blocked` にする。retry marker は `yuto90` author、既知 run ID、run と一致する head SHA、範囲内 retry number をすべて満たす場合だけ信頼し、rerun を重複処理しない。run 順は常に `(updated_at, id)` で比較する。current-head CI が成功したら連続失敗 count は実質的に reset されるため、後の Rework は新しい failure cycle として扱う一方、過去 cycle の Blocked / accepted resume は ready marker の invalidation 履歴として保持する。
 
 CI 修正 comment は `yuto90` 名義で対応 PR に投稿し、失敗した job と Actions run URL を案内する。Actions 自身は PR code、artifact、ログ本文を実行しない。
 
@@ -379,9 +381,9 @@ CI 修正 comment は `yuto90` 名義で対応 PR に投稿し、失敗した jo
 5. Status が `In Progress` または `Rework`。
 6. `agent-cancel` がない。
 
-ready marker が先でも CI success が先でも成立するよう、`agent-comments.yml` と `agent-ci.yml` の双方から同じ pure gate を評価する。Agent の `create-pr` skill は race を減らすため、local verification、push、`gh pr ready`、ready marker の順を要求する。
+ready marker が先でも CI success が先でも成立するよう、`agent-comments.yml` と `agent-ci.yml` の双方から同じ pure gate を評価する。mutation 直前には PR、Issue、Status、comments、reviews、runs を再取得し、同じ full gate をもう一度満たした場合だけ遷移する。Agent の `create-pr` skill は race を減らすため、local verification、push、`gh pr ready`、ready marker の順を要求する。
 
-CI Green だけ、PR Ready 化だけ、ready marker だけでは遷移しない。ready comment は直近の Human Input、accepted resume comment、changes requested review より後に投稿されたものだけを有効とし、過去の review cycle の marker を再利用しない。
+CI Green だけ、PR Ready 化だけ、ready marker だけでは遷移しない。ready comment は直近の Human Input、accepted resume comment、changes requested review より後に投稿されたものだけを有効とし、過去の review cycle の marker を再利用しない。公式 API 上で PENDING review の nullable user / 欠落 submitted timestamp は non-invalidator として扱うが、`yuto90` の `changes_requested` に usable timestamp がない場合は順序を証明できないため gate を fail closed とする。
 
 ## Review と Rework
 

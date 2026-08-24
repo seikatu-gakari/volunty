@@ -294,7 +294,7 @@ Assert that a new exact Human Input marker on a managed PR moves `In Progress` o
 
 - [ ] **Step 2: Write failing CI cycle tests**
 
-Use literal run fixtures to assert current-head latest-run selection, stale SHA ignore, retry comments 1/2/3, fourth failure -> `Blocked`, same run redelivery dedupe, cancelled ignore, success reset boundary, and both event orders for ready marker + CI success.
+Use literal official-shape run fixtures to assert current-head latest-run selection across queued / in-progress / completed states, stale SHA ignore, retry comments 1/2/3, fourth failure -> `Blocked`, same run redelivery dedupe, cancelled ignore, success reset boundary, all historical Blocked/resume invalidations, and both event orders for ready marker + CI success. Add independent exact-message cases for pagination drift, duplicate, overcount, maximum, premature end and expected-page guards.
 
 - [ ] **Step 3: Run tests and verify RED**
 
@@ -304,11 +304,11 @@ Expected: FAIL for missing handlers.
 
 - [ ] **Step 4: Implement comment handler**
 
-Resolve only PR comments (`event.issue.pull_request`), confirm Agent-managed closing Issue, inspect exact marker/author/current status, then perform one allowed transition. On ready comment call the shared Human Review gate using its SHA marker and invalidation timestamp from latest Human Input, accepted resume comment or changes-requested review.
+Resolve only PR comments (`event.issue.pull_request`), confirm Agent-managed closing Issue, inspect exact marker/author/current status, then perform one allowed transition. On ready comment call the shared Human Review gate using its SHA marker and invalidation timestamp from every relevant Human Input, accepted resume comment or changes-requested review. Re-read and re-evaluate the full gate immediately before mutation. A trusted `changes_requested` with unknown timestamp closes the gate rather than allowing an old ready marker.
 
 - [ ] **Step 5: Implement CI handler**
 
-Require workflow name `Pull Request CI`, `completed`, open same-repository PR, current head SHA and newest run. Count retry markers after the latest successful CI run. Post a `yuto90` comment with run URL and unique marker for retries 1-3; transition to `Blocked` on the next failure. On success evaluate Human Review gate.
+Validate the official `workflow_run.repository` / `pull-request-minimal` relation shape and resolve exactly one managed PR; reject duplicate, malformed or cross-base relations while tolerating a valid same-base fork-head human PR. Query run history by the unique managed branch so GitHub's 1,000-result filtered-search cap is not consumed by repository-wide history, and fail closed if that branch reaches the cap. Select the newest current-head target run by `(updated_at,id)` before checking status, so a newer queued/in-progress run blocks both Human Review and stale failure repair. Count trusted operator/run/SHA/range retry markers after the latest successful CI run. Post a `yuto90` comment with run URL and unique marker for retries 1-3; transition to `Blocked` on the next failure. On success evaluate Human Review gate.
 
 - [ ] **Step 6: Run tests and commit**
 
@@ -331,6 +331,12 @@ git commit -m "feat: Human InputとCI自動修正を追加"
 
 **Interfaces:**
 - Produces: `handleReview(event)`, `handleMerge(event)`, `handleCancel(event)`
+
+**Task 4 breaker rulings carried into this task:**
+- First, scope Actions run lookup to the unique managed PR branch and add an explicit 1,000-result search-cap guard.
+- Preserve head SHA / updated timestamp for every target run, choose the newest run before requiring `completed`, and close the gate while that newest run is pending or unknown.
+- Treat an operator `changes_requested` review with unknown `submitted_at` as a fail-closed Human Review invalidator; keep nullable PENDING reviews as non-invalidators.
+- Add focused regressions for all three rulings before implementing the new review / merge / cancel handlers.
 
 - [ ] **Step 1: Write failing review tests**
 
