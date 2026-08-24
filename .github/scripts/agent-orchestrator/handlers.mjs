@@ -1,4 +1,13 @@
-import { evaluatePrAck, evaluateStart, hasExactMarker, isTerminalStatus } from './core.mjs';
+import {
+  evaluateHumanReview,
+  evaluatePrAck,
+  evaluateStart,
+  hasExactMarker,
+  hasStandaloneCursorMention,
+  isTerminalStatus,
+  parseReadyHeadSha,
+  parseRetryMarker,
+} from './core.mjs';
 
 /** @param {unknown} value @returns {number | null} */
 function eventNumber(value) {
@@ -46,6 +55,26 @@ function report(summary, line) {
   if (summary && typeof summary === 'object' && typeof /** @type {Record<string, unknown>} */ (summary).add === 'function') {
     /** @type {{add: (line: string) => void}} */ (summary).add(line);
   }
+}
+
+/** @param {unknown} value @returns {number} */
+function timestamp(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return Number.NEGATIVE_INFINITY;
+}
+
+/** @param {unknown} value @returns {number | null} */
+function workflowRunId(value) {
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+/** @param {unknown} value @returns {string | null} */
+function stringValue(value) {
+  return typeof value === 'string' && value !== '' ? value : null;
 }
 
 /** @param {{repository: any, project: any, config: any, summary?: unknown}} options */
@@ -204,5 +233,214 @@ export function createHandlers({ repository, project, config, summary }) {
     return { kind: 'transition', status: 'In Progress' };
   }
 
-  return { handleStart, handlePrCreated };
+  const isManagedCurrentPullRequest = (pullRequest) => {
+    const headRepository = pullRequest?.head?.repository;
+    return pullRequest?.state === 'open'
+      && pullRequest?.base?.ref === config.defaultBranch
+      && typeof pullRequest?.head?.ref === 'string'
+      && pullRequest.head.ref.startsWith(config.cursorBranchPrefix)
+      && headRepository !== null
+      && typeof headRepository === 'object'
+      && headRepository.owner === config.owner
+      && headRepository.name === config.repository;
+  };
+
+  async function listTimedComments(number) {
+    if (typeof repository.listIssueComments === 'function') return repository.listIssueComments(number);
+    return repository.listComments(number);
+  }
+
+  async function getCurrentPullRequest(number) {
+    if (typeof repository.getCurrentPullRequest === 'function') return repository.getCurrentPullRequest(number);
+    return repository.getPullRequest(number);
+  }
+
+  async function currentHeadSha(pullRequest) {
+    if (typeof repository.getHeadCommit === 'function') {
+      const commit = await repository.getHeadCommit(pullRequest);
+      if (typeof commit?.sha !== 'string' || commit.sha === '') throw new Error('head commit must contain sha');
+      return commit.sha;
+    }
+    if (typeof pullRequest?.head?.sha !== 'string' || pullRequest.head.sha === '') throw new Error('pull request head must contain sha');
+    return pullRequest.head.sha;
+  }
+
+  async function readManagedSession(number) {
+    const pullRequest = await getCurrentPullRequest(number);
+    if (!isManagedCurrentPullRequest(pullRequest)) return { decision: { kind: 'skip', reason: 'not-managed-pr' }, pullRequest, issue: null, status: null, headSha: null };
+    const closingIssues = await repository.findClosingIssues(number);
+    if (!Array.isArray(closingIssues) || closingIssues.length !== 1) return { decision: { kind: 'skip', reason: 'invalid-closing-issues' }, pullRequest, issue: null, status: null, headSha: null };
+    const issue = await repository.getIssue(closingIssues[0].number);
+    const [status, issueComments, headSha] = await Promise.all([
+      project.getIssueStatus(issue.id),
+      listTimedComments(issue.number),
+      currentHeadSha(pullRequest),
+    ]);
+    if (issue.state !== 'open') return { decision: { kind: 'skip', reason: 'issue-not-open' }, pullRequest, issue, status, headSha };
+    if (hasLabel(issue.labels, config.labels.cancel) || isTerminalStatus(status)) return { decision: { kind: 'skip', reason: 'terminal' }, pullRequest, issue, status, headSha };
+    if (!hasTrustedDispatchMarker(issueComments, issue.number)) return { decision: { kind: 'skip', reason: 'dispatch-marker-missing' }, pullRequest, issue, status, headSha };
+    return { decision: { kind: 'managed' }, pullRequest, issue, status, headSha };
+  }
+
+  /** @param {Array<{author: string, body: string, createdAt?: number | string}>} comments */
+  function latestReady(comments) {
+    const matching = comments
+      .filter((comment) => config.agentActors.includes(comment.author))
+      .map((comment) => ({ headSha: parseReadyHeadSha(comment.body), createdAt: timestamp(comment.createdAt) }))
+      .filter((comment) => comment.headSha !== null && Number.isFinite(comment.createdAt));
+    matching.sort((left, right) => right.createdAt - left.createdAt);
+    return matching[0] ?? null;
+  }
+
+  /** @param {Array<{author: string, body: string, createdAt?: number | string}>} comments @param {Array<{author: string, state: string, submittedAt?: number | string}>} reviews */
+  function invalidatedAfter(comments, reviews) {
+    const commentTimes = comments
+      .filter((comment) => (config.agentActors.includes(comment.author) && hasExactMarker(comment.body, '<!-- agent:human-input -->'))
+        || (comment.author === config.operator && hasStandaloneCursorMention(comment.body)))
+      .map((comment) => timestamp(comment.createdAt));
+    const reviewTimes = reviews
+      .filter((review) => review.author === config.operator && review.state === 'changes_requested')
+      .map((review) => timestamp(review.submittedAt));
+    return Math.max(Number.NEGATIVE_INFINITY, ...commentTimes, ...reviewTimes);
+  }
+
+  /** @param {Array<any>} runs @param {string} headSha */
+  function newestCurrentHeadRun(runs, headSha) {
+    const candidates = runs.filter((run) => run.name === config.ciWorkflow && run.status === 'completed' && run.headSha === headSha);
+    candidates.sort((left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt) || right.id - left.id);
+    return candidates[0] ?? null;
+  }
+
+  async function maybeHumanReview(number) {
+    const session = await readManagedSession(number);
+    if (session.decision.kind !== 'managed') return session.decision;
+    const [comments, reviews, runs] = await Promise.all([
+      listTimedComments(number),
+      repository.listReviews(session.pullRequest),
+      repository.listCiRuns(session.pullRequest, config.ciWorkflow),
+    ]);
+    const currentRun = newestCurrentHeadRun(runs, session.headSha);
+    const decision = evaluateHumanReview({
+      status: session.status,
+      isDraft: session.pullRequest.draft,
+      isOpen: session.pullRequest.state === 'open',
+      headSha: session.headSha,
+      latestReady: latestReady(comments),
+      invalidatedAfter: invalidatedAfter(comments, reviews),
+      ciConclusion: currentRun?.conclusion ?? null,
+      cancelled: hasLabel(session.issue.labels, config.labels.cancel),
+    });
+    if (decision.kind !== 'transition') return decision;
+    const current = await readManagedSession(number);
+    if (current.decision.kind !== 'managed') return current.decision;
+    if (current.status !== session.status || current.headSha !== session.headSha) return { kind: 'skip', reason: 'stale-session' };
+    await project.transitionIssue(current.issue.id, 'Human Review', ['In Progress', 'Rework']);
+    return decision;
+  }
+
+  async function handleComment(event) {
+    if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
+    if (event?.action !== 'created') return { kind: 'skip', reason: 'unsupported-event' };
+    if (event?.issue?.pull_request === null || typeof event?.issue?.pull_request !== 'object') return { kind: 'skip', reason: 'not-pull-request-comment' };
+    const number = eventNumber(event?.issue?.number);
+    const author = stringValue(event?.comment?.user?.login);
+    const body = stringValue(event?.comment?.body);
+    if (number === null || author === null || body === null) return { kind: 'skip', reason: 'invalid-comment' };
+    const first = await readManagedSession(number);
+    if (first.decision.kind !== 'managed') return first.decision;
+
+    let target = null;
+    if (config.agentActors.includes(author) && hasExactMarker(body, '<!-- agent:human-input -->') && ['In Progress', 'Rework'].includes(first.status)) target = 'Human Input';
+    if (author === config.operator && hasStandaloneCursorMention(body) && ['Human Input', 'Blocked', 'Rework'].includes(first.status)) target = 'In Progress';
+    if (config.agentActors.includes(author) && parseReadyHeadSha(body) !== null) return maybeHumanReview(number);
+    if (target === null) return { kind: 'skip', reason: 'unmatched-comment' };
+
+    const current = await readManagedSession(number);
+    if (current.decision.kind !== 'managed') return current.decision;
+    if (current.status !== first.status || current.headSha !== first.headSha) return { kind: 'skip', reason: 'stale-session' };
+    const allowedFrom = target === 'Human Input' ? ['In Progress', 'Rework'] : ['Human Input', 'Blocked', 'Rework'];
+    await project.transitionIssue(current.issue.id, target, allowedFrom);
+    return { kind: 'transition', status: target };
+  }
+
+  /** @param {unknown} event @param {number} prNumber */
+  function eventReferencesPullRequest(event, prNumber) {
+    const references = event?.workflow_run?.pull_requests;
+    if (!Array.isArray(references)) return false;
+    return references.some((reference) => {
+      const baseRepository = reference?.base?.repo?.full_name;
+      return reference?.number === prNumber && baseRepository === `${config.owner}/${config.repository}`;
+    });
+  }
+
+  /** @param {unknown} event */
+  function eventRun(event) {
+    const run = event?.workflow_run;
+    const id = workflowRunId(run?.id);
+    const name = stringValue(run?.name);
+    const status = stringValue(run?.status);
+    const conclusion = run?.conclusion === null ? null : stringValue(run?.conclusion);
+    const headSha = stringValue(run?.head_sha ?? run?.headSha);
+    if (id === null || name === null || status === null || headSha === null || conclusion === null) return null;
+    return { id, name, status, conclusion, headSha };
+  }
+
+  /** @param {number} number @param {{id: number, headSha: string, url: string}} run @param {number} retry */
+  function retryComment(number, run, retry) {
+    return `@cursor\n\nPull Request CI が失敗しました。Actions run: ${run.url}\n\n<!-- agent:ci-retry:v1 run_id=${run.id} head_sha=${run.headSha} retry=${retry} -->`;
+  }
+
+  async function handleCi(event) {
+    if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
+    if (event?.action !== 'completed') return { kind: 'skip', reason: 'unsupported-event' };
+    const incoming = eventRun(event);
+    if (incoming === null || incoming.name !== config.ciWorkflow || incoming.status !== 'completed') return { kind: 'skip', reason: 'invalid-workflow-run' };
+    const pullRequests = event?.workflow_run?.pull_requests;
+    if (!Array.isArray(pullRequests) || pullRequests.length !== 1) return { kind: 'skip', reason: 'invalid-pull-requests' };
+    const number = eventNumber(pullRequests[0]?.number);
+    if (number === null || !eventReferencesPullRequest(event, number)) return { kind: 'skip', reason: 'invalid-pull-request' };
+    const first = await readManagedSession(number);
+    if (first.decision.kind !== 'managed') return first.decision;
+    if (incoming.headSha !== first.headSha) return { kind: 'skip', reason: 'stale-head' };
+    const runs = await repository.listCiRuns(first.pullRequest, config.ciWorkflow);
+    const newest = newestCurrentHeadRun(runs, first.headSha);
+    if (newest === null || newest.id !== incoming.id) return { kind: 'skip', reason: 'stale-run' };
+    if (newest.conclusion === 'cancelled') return { kind: 'skip', reason: 'cancelled-run' };
+    if (newest.conclusion === 'success') return maybeHumanReview(number);
+    if (newest.conclusion !== 'failure') return { kind: 'skip', reason: 'non-failure-run' };
+    if (!['In Progress', 'Rework'].includes(first.status)) return { kind: 'skip', reason: 'invalid-status' };
+
+    const comments = await listTimedComments(number);
+    if (comments.some((comment) => {
+      const marker = parseRetryMarker(comment.body);
+      return marker !== null && marker.runId === String(newest.id) && marker.headSha === newest.headSha;
+    })) return { kind: 'skip', reason: 'already-retried' };
+    const latestSuccess = [...runs].filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success')
+      .sort((left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt) || right.id - left.id)[0] ?? null;
+    const retriedRunIds = new Set(comments.map((comment) => parseRetryMarker(comment.body)).filter(Boolean)
+      .filter((marker) => {
+        const retried = runs.find((run) => String(run.id) === marker.runId);
+        return retried !== undefined && (latestSuccess === null || timestamp(retried.updatedAt) > timestamp(latestSuccess.updatedAt));
+      }).map((marker) => marker.runId));
+    const retry = retriedRunIds.size + 1;
+    const current = await readManagedSession(number);
+    if (current.decision.kind !== 'managed') return current.decision;
+    if (current.status !== first.status || current.headSha !== first.headSha) return { kind: 'skip', reason: 'stale-session' };
+    const currentRuns = await repository.listCiRuns(current.pullRequest, config.ciWorkflow);
+    const currentNewest = newestCurrentHeadRun(currentRuns, current.headSha);
+    if (currentNewest === null || currentNewest.id !== newest.id || currentNewest.conclusion !== 'failure') return { kind: 'skip', reason: 'stale-run' };
+    if (retry > config.ciRetryLimit) {
+      await project.transitionIssue(current.issue.id, 'Blocked', ['In Progress', 'Rework']);
+      return { kind: 'transition', status: 'Blocked' };
+    }
+    const currentComments = await listTimedComments(number);
+    if (currentComments.some((comment) => {
+      const marker = parseRetryMarker(comment.body);
+      return marker !== null && marker.runId === String(newest.id) && marker.headSha === newest.headSha;
+    })) return { kind: 'skip', reason: 'already-retried' };
+    await repository.postComment(number, retryComment(number, newest, retry));
+    return { kind: 'retry', retry };
+  }
+
+  return { handleStart, handlePrCreated, handleComment, handleCi };
 }

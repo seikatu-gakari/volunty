@@ -74,6 +74,43 @@ function requireRestPullRequestState(state, field) {
   return state;
 }
 
+/** @param {unknown} value @param {string} field @returns {number} */
+function requireTimestamp(value, field) {
+  const date = requireString(value, field);
+  const timestamp = Date.parse(date);
+  if (Number.isNaN(timestamp)) throw new Error(`${field} must be an ISO date`);
+  return timestamp;
+}
+
+/** @param {unknown} value @param {string} field @returns {string | null} */
+function requireNullableString(value, field) {
+  if (value === null) return null;
+  return requireString(value, field);
+}
+
+/** @param {unknown} value @param {string} field @returns {string | null} */
+function normalizeWorkflowConclusion(value, field) {
+  if (value === null) return null;
+  const conclusion = requireString(value, field);
+  if (!['success', 'failure', 'cancelled', 'skipped', 'timed_out', 'action_required', 'neutral', 'stale'].includes(conclusion)) {
+    throw new Error(`${field} must be a workflow conclusion`);
+  }
+  return conclusion;
+}
+
+/** @param {unknown} value @param {string} field @returns {number} */
+function requireNonNegativeInteger(value, field) {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${field} must be a non-negative integer`);
+  return value;
+}
+
+/** @param {unknown} value @param {string} field @returns {string} */
+function requireWorkflowStatus(value, field) {
+  const status = requireString(value, field);
+  if (!['queued', 'in_progress', 'completed', 'requested', 'waiting', 'pending'].includes(status)) throw new Error(`${field} must be a workflow status`);
+  return status;
+}
+
 /** @param {unknown} value @param {string} field @param {string} owner @param {string} repository */
 function requireGraphqlReference(value, field, owner, repository) {
   const reference = requireObject(value, field);
@@ -162,6 +199,21 @@ export class AgentRepository {
     });
   }
 
+  /** @param {number} number */
+  async listIssueComments(number) {
+    const values = requireArray(await this.client.read(`${this.#issuePath(number)}/comments`, { paginate: true }), 'issue comments');
+    return values.map((value, index) => {
+      const comment = requireObject(value, `issue comments[${index}]`);
+      const user = requireObject(comment.user, `issue comments[${index}].user`);
+      return {
+        id: requirePositiveInteger(comment.id, `issue comments[${index}].id`),
+        body: requireString(comment.body, `issue comments[${index}].body`),
+        author: requireString(user.login, `issue comments[${index}].user.login`),
+        createdAt: requireTimestamp(comment.created_at, `issue comments[${index}].created_at`),
+      };
+    });
+  }
+
   /** @param {number} number @param {string} body */
   async postComment(number, body) {
     await this.client.write(`${this.#issuePath(number)}/comments`, { method: 'POST', body: { body: requireString(body, 'comment body') } });
@@ -194,6 +246,101 @@ export class AgentRepository {
       base: { ref: requireString(base.ref, 'pull request.base.ref') },
       head: { ref: requireString(head.ref, 'pull request.head.ref') },
     };
+  }
+
+  /** @param {number} number */
+  async getCurrentPullRequest(number) {
+    const requestedNumber = requirePositiveInteger(number, 'pull request number');
+    const path = `/repos/${encode(this.owner)}/${encode(this.repository)}/pulls/${requestedNumber}`;
+    const pr = requireObject(await this.client.read(path), 'pull request');
+    const base = requireObject(pr.base, 'pull request.base');
+    const head = requireObject(pr.head, 'pull request.head');
+    const baseRepository = requireObject(base.repo, 'pull request.base.repo');
+    const headRepository = requireObject(head.repo, 'pull request.head.repo');
+    if (requireString(baseRepository.full_name, 'pull request.base.repo.full_name') !== `${this.owner}/${this.repository}`
+      || requireString(headRepository.full_name, 'pull request.head.repo.full_name') !== `${this.owner}/${this.repository}`) {
+      throw new Error('pull request repositories must match configured repository');
+    }
+    const returnedNumber = requirePositiveInteger(pr.number, 'pull request.number');
+    if (returnedNumber !== requestedNumber) throw new Error('pull request.number must match requested pull request number');
+    return {
+      number: returnedNumber,
+      state: requireRestPullRequestState(requireString(pr.state, 'pull request.state'), 'pull request.state'),
+      draft: typeof pr.draft === 'boolean' ? pr.draft : (() => { throw new Error('pull request.draft must be a boolean'); })(),
+      base: { ref: requireString(base.ref, 'pull request.base.ref') },
+      head: {
+        ref: requireString(head.ref, 'pull request.head.ref'),
+        sha: requireString(head.sha, 'pull request.head.sha'),
+        repository: { owner: this.owner, name: this.repository },
+      },
+    };
+  }
+
+  /** @param {{number: number}} pullRequest @param {string} workflowName */
+  async listCiRuns(pullRequest, workflowName) {
+    const pr = requirePositiveInteger(pullRequest?.number, 'pull request number');
+    const expectedWorkflow = requireString(workflowName, 'workflow name');
+    const data = requireObject(await this.client.read(`/repos/${encode(this.owner)}/${encode(this.repository)}/actions/runs?event=pull_request&per_page=100`, { paginate: false }), 'workflow runs');
+    const runs = requireArray(data.workflow_runs, 'workflow runs.workflow_runs');
+    if (requireNonNegativeInteger(data.total_count, 'workflow runs.total_count') > runs.length) {
+      throw new Error('workflow runs pagination is incomplete');
+    }
+    return runs.map((value, index) => {
+      const run = requireObject(value, `workflow runs[${index}]`);
+      const repository = requireObject(run.repository, `workflow runs[${index}].repository`);
+      if (requireString(repository.full_name, `workflow runs[${index}].repository.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs[${index}].repository must match configured repository`);
+      const pullRequests = requireArray(run.pull_requests, `workflow runs[${index}].pull_requests`).map((relation, relationIndex) => {
+        const reference = requireObject(relation, `workflow runs[${index}].pull_requests[${relationIndex}]`);
+        const base = requireObject(reference.base, `workflow runs[${index}].pull_requests[${relationIndex}].base`);
+        const baseRepository = requireObject(base.repo, `workflow runs[${index}].pull_requests[${relationIndex}].base.repo`);
+        if (requireString(baseRepository.full_name, `workflow runs[${index}].pull_requests[${relationIndex}].base.repo.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs[${index}].pull_requests[${relationIndex}] must match configured repository`);
+        return { number: requirePositiveInteger(reference.number, `workflow runs[${index}].pull_requests[${relationIndex}].number`) };
+      });
+      return {
+        id: requirePositiveInteger(run.id, `workflow runs[${index}].id`),
+        name: requireString(run.name, `workflow runs[${index}].name`),
+        status: requireWorkflowStatus(run.status, `workflow runs[${index}].status`),
+        conclusion: normalizeWorkflowConclusion(run.conclusion, `workflow runs[${index}].conclusion`),
+        headSha: requireString(run.head_sha, `workflow runs[${index}].head_sha`),
+        runStartedAt: requireTimestamp(run.run_started_at, `workflow runs[${index}].run_started_at`),
+        updatedAt: requireTimestamp(run.updated_at, `workflow runs[${index}].updated_at`),
+        url: requireString(run.html_url, `workflow runs[${index}].html_url`),
+        pullRequests,
+      };
+    }).filter((run) => run.name === expectedWorkflow && run.pullRequests.some((reference) => reference.number === pr));
+  }
+
+  /** @param {{number: number}} pullRequest @param {string} workflowName */
+  async getLatestCiRun(pullRequest, workflowName) {
+    const runs = await this.listCiRuns(pullRequest, workflowName);
+    return runs.sort((left, right) => right.updatedAt - left.updatedAt || right.id - left.id)[0] ?? null;
+  }
+
+  /** @param {{number: number}} pullRequest */
+  async listReviews(pullRequest) {
+    const number = requirePositiveInteger(pullRequest?.number, 'pull request number');
+    const values = requireArray(await this.client.read(`/repos/${encode(this.owner)}/${encode(this.repository)}/pulls/${number}/reviews`, { paginate: true }), 'reviews');
+    return values.map((value, index) => {
+      const review = requireObject(value, `reviews[${index}]`);
+      const user = requireObject(review.user, `reviews[${index}].user`);
+      const state = requireString(review.state, `reviews[${index}].state`).toLowerCase();
+      if (!['approved', 'changes_requested', 'commented', 'dismissed', 'pending'].includes(state)) throw new Error(`reviews[${index}].state must be a review state`);
+      return {
+        author: requireString(user.login, `reviews[${index}].user.login`),
+        state,
+        submittedAt: requireTimestamp(review.submitted_at, `reviews[${index}].submitted_at`),
+        commitId: requireNullableString(review.commit_id, `reviews[${index}].commit_id`),
+      };
+    });
+  }
+
+  /** @param {{head: {sha: string}}} pullRequest */
+  async getHeadCommit(pullRequest) {
+    const sha = requireString(pullRequest?.head?.sha, 'pull request.head.sha');
+    const commit = requireObject(await this.client.read(`/repos/${encode(this.owner)}/${encode(this.repository)}/commits/${encode(sha)}`), 'head commit');
+    const returnedSha = requireString(commit.sha, 'head commit.sha');
+    if (returnedSha !== sha) throw new Error('head commit.sha must match pull request.head.sha');
+    return { sha: returnedSha };
   }
 
   /** @param {number} number */

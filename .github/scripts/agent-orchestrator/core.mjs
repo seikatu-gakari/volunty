@@ -48,7 +48,9 @@ export function parseRetryMarker(body) {
     return null;
   }
 
-  return { runId: match[1], headSha: match[2], retry: Number(match[3]) };
+  const retry = Number(match[3]);
+  if (!Number.isSafeInteger(retry)) return null;
+  return { runId: match[1], headSha: match[2], retry };
 }
 
 /**
