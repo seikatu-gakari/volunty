@@ -2,7 +2,7 @@ name: Agent Orchestrator - CI
 
 on:
   workflow_run:
-    workflows: [Pull Request CI]
+    workflows: [Pull Request CI, Agent Review Signal]
     types: [completed]
 
 permissions:
@@ -16,8 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  orchestrate:
+  ci:
+    if: github.event.workflow_run.name == 'Pull Request CI'
     runs-on: ubuntu-latest
+    environment: agent-orchestrator
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,3 +32,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CURSOR_AGENT_ORCHESTRATOR_PAT: ${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}
+
+  review:
+    if: github.event.workflow_run.name == 'Agent Review Signal' && github.event.workflow_run.event == 'pull_request_review' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: agent-orchestrator
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download untrusted review signal
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-review-signal
+          path: ${{ runner.temp }}/agent-review-signal
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - run: node .github/scripts/agent-orchestrator/main.mjs review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CURSOR_AGENT_ORCHESTRATOR_PAT: ${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}
+          AGENT_REVIEW_EVENT_PATH: ${{ runner.temp }}/agent-review-signal/review-event.json

@@ -18,6 +18,7 @@ concurrency:
 jobs:
   orchestrate:
     runs-on: ubuntu-latest
+    environment: agent-orchestrator
     steps:
       - uses: actions/checkout@v4
         with:

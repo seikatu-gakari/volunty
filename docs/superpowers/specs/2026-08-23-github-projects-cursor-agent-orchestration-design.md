@@ -322,6 +322,8 @@ dispatch comment 後に Draft PR が作成されなくても自動 retry や tim
 
 `pull_request_target`、`workflow_run` などの privileged workflow は PR branch を checkout しない。共通 Orchestrator は必ず default branch の trusted ref から checkout し、PR の title、body、branch、comment を shell command に展開しない。
 
+`pull_request_review` は同一 repository の PR でも merge-ref 側の workflow を実行し得るため、`agent-review.yml` は `permissions: {}` で GitHub 生成 event JSON を短期 artifact `agent-review-signal` として保存するだけの unprivileged signal workflow とする。PAT、Environment、checkout、PR code 実行を一切含めない。`agent-ci.yml` の `workflow_run` consumer が default branch の Orchestrator を checkoutし、artifactを実行せず JSON data として読む。workflow名、event、conclusion、repository、公式PR relation、PR number/head、review IDを照合した後、review ID/author/state/commit/timestampをREST APIで二重確認してから既存review handlerへ渡す。
+
 ## Human Input と再開
 
 Agent は重要な判断が必要な場合、対応 PR に `<!-- agent:human-input -->` と次を投稿する。
@@ -447,7 +449,7 @@ permissions:
 
 ### `CURSOR_AGENT_ORCHESTRATOR_PAT`
 
-Actions secret に保存する `yuto90` の fine-grained PAT。resource owner と repository を限定し、有効期限を有限にする。
+GitHub Environment `agent-orchestrator` の secret に保存する `yuto90` の fine-grained PAT。resource owner と repository を限定し、有効期限を有限にする。Environment の deployment branch policy は selected branch `main` only とし、PR merge-ref がEnvironmentを追加してもsecretへ到達できないことをTask 10の導入時に確認する。
 
 必要権限は次に限定する。
 
@@ -460,7 +462,7 @@ PR comment は Issues comment API を使うため、初期版の Orchestrator �
 
 PAT は Orchestrator の API mutation にだけ渡し、Cursor Cloud Environment、PR branch、build、test、artifact、Vercel には渡さない。secret 値を log や workflow summary に出さない。
 
-PAT の作成と Actions secret 保存は、`yuto90` 名義でコメント・Project 更新を行える永続的な権限付与である。実行時に対象、権限、有効期限、影響を提示し、明示確認を得てから Chrome で設定する。
+PAT の作成と GitHub Environment secret 保存は、`yuto90` 名義でコメント・Project 更新を行える永続的な権限付与である。実行時に対象、権限、有効期限、`main` only policy、影響を提示し、明示確認を得てから Chrome で設定する。
 
 ## Project API
 
@@ -494,9 +496,10 @@ repository 全体を対象とする global concurrency limit は設けない。�
 - privileged workflow は default branch の Orchestrator だけを checkout する。
 - `pull_request_target` で PR head を checkout しない。
 - `workflow_run` で untrusted artifact や PR code を実行しない。
+- `pull_request_review` merge-ref workflow はsecretなしでevent artifactを作るだけとし、trusted `workflow_run` consumerが固定pathのJSONとして検証する。artifactをshell、Node module、実行ファイルとして扱わない。
 - Issue title/body、PR body、comment、branch 名を shell へ直接展開しない。
 - event payload は `GITHUB_EVENT_PATH` から Node.js で JSON として読む。
-- third-party Action を増やさず、`actions/checkout` と Node.js 標準 API を中心にする。
+- GitHub公式Actionは `actions/checkout@v4`、`actions/setup-node@v4`、review signal用の `actions/upload-artifact@v4` / `actions/download-artifact@v4` に限定し、処理はNode.js標準 API を中心にする。
 - workflow の `permissions` を job ごとに最小化する。
 - fork PR、別 repository、別 base branch は Agent-managed session として扱わない。
 

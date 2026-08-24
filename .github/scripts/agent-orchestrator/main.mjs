@@ -57,6 +57,94 @@ function readEvent(path) {
   return event;
 }
 
+/** @param {string} path */
+function readCapturedReviewEvent(path) {
+  let event;
+  try {
+    event = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    throw new Error('review signal artifact must contain valid JSON');
+  }
+  if (event === null || typeof event !== 'object' || Array.isArray(event)) {
+    throw new Error('review signal artifact must contain an object');
+  }
+  return event;
+}
+
+/** @param {unknown} value */
+function positiveInteger(value) {
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+/** @param {unknown} value */
+function nonEmptyString(value) {
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+function invalidReviewSignal() {
+  return new Error('review signal does not match the trusted workflow_run');
+}
+
+/**
+ * PR merge-ref 上で作られた artifact は untrusted data として扱い、trusted
+ * workflow_run metadata と同一 session だと証明できる場合だけ handler へ渡す。
+ * review ID のauthor/state/commit/timestampは handleReview がREST APIで二重確認する。
+ * @param {Record<string, unknown>} workflowEvent
+ * @param {Record<string, unknown>} signalEvent
+ * @param {import('./config.mjs').AgentConfig} config
+ * @param {string} eventName
+ */
+export function resolveReviewSignal(workflowEvent, signalEvent, config, eventName) {
+  const fail = () => { throw invalidReviewSignal(); };
+  const fullName = `${config.owner}/${config.repository}`;
+  const apiRepositoryUrl = `https://api.github.com/repos/${config.owner}/${config.repository}`;
+  const repository = workflowEvent?.repository;
+  const repositoryId = positiveInteger(repository?.id);
+  const run = workflowEvent?.workflow_run;
+  const runRepository = run?.repository;
+  if (eventName !== 'workflow_run' || workflowEvent?.action !== 'completed'
+    || repositoryId === null || repository?.full_name !== fullName
+    || positiveInteger(run?.id) === null || run?.name !== 'Agent Review Signal'
+    || run?.event !== 'pull_request_review' || run?.status !== 'completed' || run?.conclusion !== 'success'
+    || positiveInteger(runRepository?.id) !== repositoryId || runRepository?.full_name !== fullName) fail();
+
+  const references = run?.pull_requests;
+  if (!Array.isArray(references) || references.length !== 1) fail();
+  const reference = references[0];
+  const pullRequestNumber = positiveInteger(reference?.number);
+  const base = reference?.base;
+  const head = reference?.head;
+  const baseRepository = base?.repo;
+  const headRepository = head?.repo;
+  const baseSha = nonEmptyString(base?.sha);
+  const headSha = nonEmptyString(head?.sha);
+  if (positiveInteger(reference?.id) === null || pullRequestNumber === null
+    || reference?.url !== `${apiRepositoryUrl}/pulls/${pullRequestNumber}`
+    || base?.ref !== config.defaultBranch || baseSha === null
+    || nonEmptyString(head?.ref) === null || !head.ref.startsWith(config.cursorBranchPrefix) || headSha === null
+    || positiveInteger(baseRepository?.id) !== repositoryId || baseRepository?.url !== apiRepositoryUrl || baseRepository?.name !== config.repository
+    || positiveInteger(headRepository?.id) !== repositoryId || headRepository?.url !== apiRepositoryUrl || headRepository?.name !== config.repository) fail();
+
+  const signalRepository = signalEvent?.repository;
+  const pullRequest = signalEvent?.pull_request;
+  const signalBase = pullRequest?.base;
+  const signalHead = pullRequest?.head;
+  const review = signalEvent?.review;
+  const submittedAt = nonEmptyString(review?.submitted_at);
+  const reviewState = nonEmptyString(review?.state);
+  if (signalEvent?.action !== 'submitted'
+    || positiveInteger(signalRepository?.id) !== repositoryId || signalRepository?.full_name !== fullName
+    || positiveInteger(pullRequest?.number) !== pullRequestNumber
+    || signalBase?.ref !== config.defaultBranch || nonEmptyString(signalBase?.sha) === null
+    || positiveInteger(signalBase?.repo?.id) !== repositoryId || signalBase?.repo?.full_name !== fullName
+    || signalHead?.ref !== head.ref || signalHead?.sha !== headSha
+    || positiveInteger(signalHead?.repo?.id) !== repositoryId || signalHead?.repo?.full_name !== fullName
+    || positiveInteger(review?.id) === null || nonEmptyString(review?.user?.login) === null
+    || reviewState === null || !['approved', 'changes_requested', 'commented', 'dismissed', 'pending'].includes(reviewState.toLowerCase())
+    || review?.commit_id !== headSha || submittedAt === null || Number.isNaN(Date.parse(submittedAt))) fail();
+  return signalEvent;
+}
+
 /** @param {unknown} value */
 function safeReason(value) {
   if (typeof value !== 'string' || !/^[a-z0-9-]{1,80}$/u.test(value)) return '内部の安全確認で処理を見送りました';
@@ -118,6 +206,7 @@ export async function dispatchCommand(command, handlers, event, eventName) {
  *   env?: Record<string, string | undefined>,
  *   configPath?: string,
  *   fetchImpl?: typeof fetch,
+ *   handlersFactory?: typeof createHandlers,
  * }} [options]
  */
 export async function runMain({
@@ -125,6 +214,7 @@ export async function runMain({
   env = process.env,
   configPath = CONFIG_PATH,
   fetchImpl = fetch,
+  handlersFactory = createHandlers,
 } = {}) {
   if (!Array.isArray(args) || args.length !== 1) throw new Error('expected exactly one command');
   const command = args[0];
@@ -139,17 +229,25 @@ export async function runMain({
   const eventName = requireEnvironmentValue(env.GITHUB_EVENT_NAME, 'GITHUB_EVENT_NAME');
   const event = readEvent(eventPath);
   const config = loadConfig(configPath);
+  const commandEvent = command === 'review'
+    ? resolveReviewSignal(
+      event,
+      readCapturedReviewEvent(requireEnvironmentValue(env.AGENT_REVIEW_EVENT_PATH, 'AGENT_REVIEW_EVENT_PATH')),
+      config,
+      eventName,
+    )
+    : event;
   const client = new GitHubClient({ readToken, writeToken, fetchImpl });
   const repository = new AgentRepository({ client, config });
   const project = new ProjectStore({ client, config });
   const summaryLines = [];
-  const handlers = createHandlers({
+  const handlers = handlersFactory({
     repository,
     project,
     config,
     summary: { add: (line) => summaryLines.push(line) },
   });
-  const result = await dispatchCommand(command, handlers, event, eventName);
+  const result = await dispatchCommand(command, handlers, commandEvent, eventName);
   appendFileSync(summaryPath, renderSummary(summaryLines, result), 'utf8');
   return result;
 }
