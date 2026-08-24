@@ -412,12 +412,17 @@ export class AgentRepository {
   async listReviews(pullRequest) {
     const number = requirePositiveInteger(pullRequest?.number, 'pull request number');
     const values = requireArray(await this.client.read(`/repos/${encode(this.owner)}/${encode(this.repository)}/pulls/${number}/reviews`, { paginate: true }), 'reviews');
+    const seenIds = new Set();
     return values.map((value, index) => {
       const review = requireObject(value, `reviews[${index}]`);
+      const id = requirePositiveInteger(review.id, `reviews[${index}].id`);
+      if (seenIds.has(id)) throw new Error('reviews contains duplicate id');
+      seenIds.add(id);
       const user = review.user === null ? null : requireObject(review.user, `reviews[${index}].user`);
       const state = requireString(review.state, `reviews[${index}].state`).toLowerCase();
       if (!['approved', 'changes_requested', 'commented', 'dismissed', 'pending'].includes(state)) throw new Error(`reviews[${index}].state must be a review state`);
       return {
+        id,
         author: user === null ? null : requireString(user.login, `reviews[${index}].user.login`),
         state,
         submittedAt: review.submitted_at === null || review.submitted_at === undefined ? null : requireTimestamp(review.submitted_at, `reviews[${index}].submitted_at`),

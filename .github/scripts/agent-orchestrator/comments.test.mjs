@@ -122,6 +122,42 @@ test('operator changes_requestedのsubmittedAtが不明ならHuman Review gate�
   assert.equal(project.status, 'In Progress');
 });
 
+test('changes_requested後はReworkに新readyとgreenが揃ってもoperator resumeなしではHuman Reviewへ戻さない', async () => {
+  const { repository, project, handlers } = setup();
+  project.status = 'Rework';
+  const ready = '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->';
+  repository.reviews.push({ author: 'yuto90', state: 'changes_requested', submittedAt: 20, commitId: 'abcdef' });
+  repository.comments.push({ id: 2, author: 'cursor[bot]', createdAt: 30, body: ready });
+  repository.runs.push({ id: 7, name: 'Pull Request CI', status: 'completed', conclusion: 'success', headSha: 'abcdef', updatedAt: 31, url: 'https://ci/7' });
+
+  const result = await handlers.handleComment(event({ body: ready }));
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'review-resume-required' });
+  assert.equal(project.status, 'Rework');
+});
+
+test('dismissed reviewもresume/new readyの順序を満たすまでold evidenceを再利用しない', async () => {
+  for (const { name, submittedAt, readyAt, resumeAt, expected, reason } of [
+    { name: 'unknown-dismissed', submittedAt: null, readyAt: 30, resumeAt: null, expected: 'In Progress', reason: 'invalidated-ready-marker' },
+    { name: 'old-ready-after-resume', submittedAt: 20, readyAt: 10, resumeAt: 21, expected: 'Rework', reason: 'invalidated-ready-marker' },
+    { name: 'new-ready-after-resume', submittedAt: 20, readyAt: 22, resumeAt: 21, expected: 'Human Review', reason: null },
+  ]) {
+    const { repository, project, handlers } = setup();
+    project.status = name === 'unknown-dismissed' ? 'In Progress' : 'Rework';
+    const ready = '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->';
+    repository.reviews.push({ author: 'yuto90', state: 'dismissed', submittedAt, commitId: 'abcdef' });
+    repository.comments.push({ id: 2, author: 'cursor[bot]', createdAt: readyAt, body: ready });
+    if (resumeAt !== null) repository.comments.push({ id: 3, author: 'yuto90', createdAt: resumeAt, body: '@cursor\n修正を再開してください' });
+    repository.runs.push({ id: 7, name: 'Pull Request CI', status: 'completed', conclusion: 'success', headSha: 'abcdef', updatedAt: 31, url: 'https://ci/7' });
+
+    const result = await handlers.handleComment(event({ body: ready }));
+
+    if (reason === null) assert.deepEqual(result, { kind: 'transition', status: 'Human Review' }, name);
+    else assert.deepEqual(result, { kind: 'skip', reason }, name);
+    assert.equal(project.status, expected, name);
+  }
+});
+
 test('current headのnewest runがqueuedなら古いsuccessでHuman Reviewへ移さない', async () => {
   const { repository, project, handlers } = setup();
   const ready = '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->';

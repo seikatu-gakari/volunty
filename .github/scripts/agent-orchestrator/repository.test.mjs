@@ -43,6 +43,32 @@ test('dependency、comment、label gatewayはread/write経路とdomain dataを�
   ]);
 });
 
+test('review gatewayはpositive IDを保持しmissing/duplicate IDをfail closedする', async () => {
+  const review = (id) => ({ id, user: { login: 'yuto90' }, state: 'CHANGES_REQUESTED', submitted_at: '2026-08-24T00:01:00Z', commit_id: 'abcdef' });
+  const valid = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: { async read() { return [review(81)]; }, async write() {}, async graphql() {} },
+  });
+  assert.deepEqual(await valid.listReviews({ number: 30 }), [{
+    id: 81,
+    author: 'yuto90',
+    state: 'changes_requested',
+    submittedAt: Date.parse('2026-08-24T00:01:00Z'),
+    commitId: 'abcdef',
+  }]);
+
+  for (const [name, values] of [
+    ['missing', [{ ...review(81), id: undefined }]],
+    ['duplicate', [review(81), review(81)]],
+  ]) {
+    const repository = new AgentRepository({
+      config: { owner: 'octo-org', repository: 'widgets' },
+      client: { async read() { return values; }, async write() {}, async graphql() {} },
+    });
+    await assert.rejects(() => repository.listReviews({ number: 30 }), undefined, name);
+  }
+});
+
 test('GraphQL closing referenceはcross repositoryをfail closedし、全pageを返す', async () => {
   for (const nodes of [
     [{ ...relation(7), repository: { name: 'other', owner: { login: 'octo-org' } } }],

@@ -299,9 +299,29 @@ export function createHandlers({ repository, project, config, summary }) {
     return matching[0] ?? null;
   }
 
+  /** @param {Array<{author: string, body: string, createdAt?: number | string}>} comments @param {string} headSha */
+  function latestReadyForHead(comments, headSha) {
+    const matching = comments
+      .filter((comment) => config.agentActors.includes(comment.author))
+      .map((comment) => ({ headSha: parseReadyHeadSha(comment.body), createdAt: timestamp(comment.createdAt) }))
+      .filter((comment) => comment.headSha === headSha && Number.isFinite(comment.createdAt));
+    matching.sort((left, right) => right.createdAt - left.createdAt);
+    return matching[0] ?? null;
+  }
+
   /** @param {{updatedAt?: number | string, id: number}} left @param {{updatedAt?: number | string, id: number}} right */
   function compareRunOrder(left, right) {
     return timestamp(left.updatedAt) - timestamp(right.updatedAt) || left.id - right.id;
+  }
+
+  /** @param {{status?: string | null, conclusion?: string | null}} run */
+  function isCompletedFailure(run) {
+    return run.status === 'completed' && run.conclusion === 'failure';
+  }
+
+  /** @param {{status?: string | null, conclusion?: string | null}} run */
+  function isCompletedSuccess(run) {
+    return run.status === 'completed' && run.conclusion === 'success';
   }
 
   /** @param {Array<any>} runs @param {Array<{author: string, body: string}>} comments */
@@ -316,24 +336,32 @@ export function createHandlers({ repository, project, config, summary }) {
       const marker = parseRetryMarker(comment.body);
       if (marker === null || marker.retry < 1 || marker.retry > config.ciRetryLimit) return [];
       const matchingRuns = runsById.get(marker.runId) ?? [];
-      if (matchingRuns.length !== 1 || matchingRuns[0].headSha !== marker.headSha) return [];
+      if (matchingRuns.length !== 1 || matchingRuns[0].headSha !== marker.headSha || !isCompletedFailure(matchingRuns[0])) return [];
       return [{ ...marker, run: matchingRuns[0], createdAt: timestamp(comment.createdAt) }];
     });
   }
 
   /** @param {Array<{author: string, body: string, createdAt?: number | string}>} comments @param {Array<{author: string, state: string, submittedAt?: number | string}>} reviews @param {Array<any>} runs */
-  function invalidatedAfter(comments, reviews, runs) {
-    const hasUnknownChangesRequestedTime = reviews.some((review) => review.author === config.operator
-      && review.state === 'changes_requested' && !Number.isFinite(timestamp(review.submittedAt)));
-    if (hasUnknownChangesRequestedTime) return Number.POSITIVE_INFINITY;
+  function humanReviewTimeline(comments, reviews, runs) {
+    const reviewPauses = reviews.filter((review) => review.author === config.operator
+      && ['changes_requested', 'dismissed'].includes(review.state));
+    const hasUnknownReviewPauseTime = reviewPauses.some((review) => !Number.isFinite(timestamp(review.submittedAt)));
+    if (hasUnknownReviewPauseTime) {
+      return {
+        invalidatedAfter: Number.POSITIVE_INFINITY,
+        latestReviewPauseAt: Number.POSITIVE_INFINITY,
+        acceptedReviewResumeAt: null,
+      };
+    }
+    const reviewPauseTimes = reviewPauses.map((review) => timestamp(review.submittedAt));
     const pauseTimes = [
       ...comments.filter((comment) => config.agentActors.includes(comment.author) && hasExactMarker(comment.body, '<!-- agent:human-input -->')).map((comment) => timestamp(comment.createdAt)),
-      ...reviews.filter((review) => review.author === config.operator && review.state === 'changes_requested' && Number.isFinite(timestamp(review.submittedAt))).map((review) => timestamp(review.submittedAt)),
+      ...reviewPauseTimes,
     ];
     const retryMarkers = trustedRetryMarkers(comments, runs).sort((left, right) => compareRunOrder(left.run, right.run));
     const markerRunIds = new Set(retryMarkers.map((marker) => String(marker.run.id)));
-    const successfulRuns = runs.filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success');
-    for (const failure of runs.filter((run) => run.name === config.ciWorkflow && run.status === 'completed' && run.conclusion === 'failure' && !markerRunIds.has(String(run.id)))) {
+    const successfulRuns = runs.filter((run) => run.name === config.ciWorkflow && isCompletedSuccess(run));
+    for (const failure of runs.filter((run) => run.name === config.ciWorkflow && isCompletedFailure(run) && !markerRunIds.has(String(run.id)))) {
       const priorSuccess = successfulRuns.filter((success) => compareRunOrder(success, failure) < 0)
         .sort((left, right) => compareRunOrder(right, left))[0] ?? null;
       const cycleMarkerIds = new Set(retryMarkers
@@ -344,13 +372,22 @@ export function createHandlers({ repository, project, config, summary }) {
     const operatorMentions = comments
       .filter((comment) => comment.author === config.operator && hasStandaloneCursorMention(comment.body))
       .map((comment) => timestamp(comment.createdAt))
+      .filter(Number.isFinite)
       .sort((left, right) => left - right);
     const acceptedResumeTimes = [];
     for (const pause of pauseTimes.sort((left, right) => left - right)) {
       const resume = operatorMentions.find((mention) => mention > pause);
       if (resume !== undefined) acceptedResumeTimes.push(resume);
     }
-    return Math.max(Number.NEGATIVE_INFINITY, ...pauseTimes, ...acceptedResumeTimes);
+    const latestReviewPauseAt = reviewPauseTimes.length === 0 ? null : Math.max(...reviewPauseTimes);
+    const acceptedReviewResumeAt = latestReviewPauseAt === null
+      ? null
+      : operatorMentions.find((mention) => mention > latestReviewPauseAt) ?? null;
+    return {
+      invalidatedAfter: Math.max(Number.NEGATIVE_INFINITY, ...pauseTimes, ...acceptedResumeTimes),
+      latestReviewPauseAt,
+      acceptedReviewResumeAt,
+    };
   }
 
   /** @param {Array<any>} runs @param {string} headSha */
@@ -369,6 +406,7 @@ export function createHandlers({ repository, project, config, summary }) {
       repository.listCiRuns(session.pullRequest, config.ciWorkflow),
     ]);
     const currentRun = newestCurrentHeadRun(runs, session.headSha);
+    const timeline = humanReviewTimeline(comments, reviews, runs);
     return {
       session,
       decision: evaluateHumanReview({
@@ -377,7 +415,9 @@ export function createHandlers({ repository, project, config, summary }) {
         isOpen: session.pullRequest.state === 'open',
         headSha: session.headSha,
         latestReady: latestReady(comments),
-        invalidatedAfter: invalidatedAfter(comments, reviews, runs),
+        invalidatedAfter: timeline.invalidatedAfter,
+        latestReviewPauseAt: timeline.latestReviewPauseAt,
+        acceptedReviewResumeAt: timeline.acceptedReviewResumeAt,
         ciConclusion: currentRun?.status === 'completed' ? currentRun.conclusion : null,
         cancelled: hasLabel(session.issue.labels, config.labels.cancel),
       }),
@@ -478,6 +518,7 @@ export function createHandlers({ repository, project, config, summary }) {
     const runs = await repository.listCiRuns(first.pullRequest, config.ciWorkflow);
     const newest = newestCurrentHeadRun(runs, first.headSha);
     if (newest === null || newest.id !== incoming.id) return { kind: 'skip', reason: 'stale-run' };
+    if (newest.status !== 'completed') return { kind: 'skip', reason: 'stale-run' };
     if (newest.conclusion === 'cancelled') return { kind: 'skip', reason: 'cancelled-run' };
     if (newest.conclusion === 'success') return maybeHumanReview(number);
     if (newest.conclusion !== 'failure') return { kind: 'skip', reason: 'non-failure-run' };
@@ -486,7 +527,7 @@ export function createHandlers({ repository, project, config, summary }) {
     const comments = await listTimedComments(number);
     const trustedMarkers = trustedRetryMarkers(comments, runs);
     if (trustedMarkers.some((marker) => marker.runId === String(newest.id))) return { kind: 'skip', reason: 'already-retried' };
-    const latestSuccess = [...runs].filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success' && compareRunOrder(run, newest) <= 0)
+    const latestSuccess = [...runs].filter((run) => run.name === config.ciWorkflow && isCompletedSuccess(run) && compareRunOrder(run, newest) <= 0)
       .sort((left, right) => compareRunOrder(right, left))[0] ?? null;
     const retriedRunIds = new Set(trustedMarkers
       .filter((marker) => latestSuccess === null || compareRunOrder(marker.run, latestSuccess) > 0)
@@ -497,7 +538,7 @@ export function createHandlers({ repository, project, config, summary }) {
     if (current.status !== first.status || current.headSha !== first.headSha) return { kind: 'skip', reason: 'stale-session' };
     const currentRuns = await repository.listCiRuns(current.pullRequest, config.ciWorkflow);
     const currentNewest = newestCurrentHeadRun(currentRuns, current.headSha);
-    if (currentNewest === null || currentNewest.id !== newest.id || currentNewest.conclusion !== 'failure') return { kind: 'skip', reason: 'stale-run' };
+    if (currentNewest === null || currentNewest.id !== newest.id || !isCompletedFailure(currentNewest)) return { kind: 'skip', reason: 'stale-run' };
     if (retry > config.ciRetryLimit) {
       await project.transitionIssue(current.issue.id, 'Blocked', ['In Progress', 'Rework']);
       return { kind: 'transition', status: 'Blocked' };
@@ -508,11 +549,26 @@ export function createHandlers({ repository, project, config, summary }) {
     return { kind: 'retry', retry };
   }
 
-  /** @param {number} number @param {{author: string, state: string, commitId: string, submittedAt: number}} review */
-  async function readReviewDecision(number, review) {
+  /** @param {number} number @param {{id: number, author: string, state: string, commitId: string, submittedAt: number}} eventReview */
+  async function readReviewDecision(number, eventReview) {
     const session = await readManagedSession(number);
     if (session.decision.kind !== 'managed') return { session, decision: session.decision };
+    const [comments, reviews] = await Promise.all([
+      listTimedComments(number),
+      repository.listReviews(session.pullRequest),
+    ]);
+    const matching = reviews.filter((review) => review.id === eventReview.id);
+    if (matching.length !== 1) return { session, decision: { kind: 'skip', reason: 'review-evidence-missing' } };
+    const review = matching[0];
+    if (review.author !== eventReview.author || review.state !== eventReview.state
+      || review.commitId !== eventReview.commitId || review.submittedAt !== eventReview.submittedAt) {
+      return { session, decision: { kind: 'skip', reason: 'review-evidence-changed' } };
+    }
     if (review.commitId !== session.headSha) return { session, decision: { kind: 'skip', reason: 'stale-head' } };
+    if (!Number.isFinite(review.submittedAt)) return { session, decision: { kind: 'skip', reason: 'invalid-review-evidence' } };
+    const ready = latestReadyForHead(comments, session.headSha);
+    if (ready === null) return { session, decision: { kind: 'skip', reason: 'ready-marker-missing' } };
+    if (review.submittedAt <= ready.createdAt) return { session, decision: { kind: 'skip', reason: 'stale-review' } };
     return {
       session,
       decision: evaluateReview({
@@ -528,14 +584,15 @@ export function createHandlers({ repository, project, config, summary }) {
     if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
     if (event?.action !== 'submitted') return { kind: 'skip', reason: 'unsupported-event' };
     const number = eventNumber(event?.pull_request?.number ?? event?.number);
+    const id = eventNumber(event?.review?.id);
     const author = stringValue(event?.review?.user?.login);
     const stateValue = stringValue(event?.review?.state);
     const commitId = stringValue(event?.review?.commit_id);
     const submittedAt = timestamp(event?.review?.submitted_at);
-    if (number === null || author === null || stateValue === null || commitId === null || !Number.isFinite(submittedAt)) {
+    if (number === null || id === null || author === null || stateValue === null || commitId === null || !Number.isFinite(submittedAt)) {
       return { kind: 'skip', reason: 'invalid-review' };
     }
-    const review = { author, state: stateValue.toLowerCase(), commitId, submittedAt };
+    const review = { id, author, state: stateValue.toLowerCase(), commitId, submittedAt };
     const first = await readReviewDecision(number, review);
     if (first.decision.kind !== 'transition') return first.decision;
     const current = await readReviewDecision(number, review);

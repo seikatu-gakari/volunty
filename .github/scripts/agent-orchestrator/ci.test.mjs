@@ -83,6 +83,47 @@ test('current headのnewest runがpendingなら古いfailureをretryしない', 
   assert.equal(project.status, 'In Progress');
 });
 
+test('same id/headのrunがREST再読込時にin_progressへ戻ったraceではfailure evidenceにしない', async () => {
+  const { repository, project, handlers } = setup();
+  const failed = run(11, 'failure');
+  repository.runs.push(failed);
+  let reads = 0;
+  repository.listCiRuns = async () => {
+    reads += 1;
+    return [{ ...structuredClone(failed), status: reads === 1 ? 'completed' : 'in_progress' }];
+  };
+
+  const result = await handlers.handleCi(event(failed));
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'stale-run' });
+  assert.equal(reads, 2);
+  assert.equal(repository.comments.length, 1);
+  assert.equal(project.status, 'In Progress');
+});
+
+test('未完了failure runに対応するmarkerはtrusted retry evidenceに数えない', async () => {
+  const { repository, project, handlers } = setup();
+  repository.runs.push(
+    ...[11, 12, 13].map((id) => ({ ...run(id, 'failure'), status: id === 13 ? 'in_progress' : 'completed' })),
+  );
+  repository.comments.push(
+    ...[11, 12, 13].map((id, index) => ({
+      id: index + 2,
+      author: 'yuto90',
+      createdAt: id,
+      body: `<!-- agent:ci-retry:v1 run_id=${id} head_sha=abcdef retry=${index + 1} -->`,
+    })),
+  );
+  const current = run(14, 'failure');
+  repository.runs.push(current);
+
+  const result = await handlers.handleCi(event(current));
+
+  assert.deepEqual(result, { kind: 'retry', retry: 3 });
+  assert.equal(project.status, 'In Progress');
+  assert.match(repository.comments.at(-1).body, /run_id=14 head_sha=abcdef retry=3/);
+});
+
 test('success後のretry markerだけを数えるためpushでheadが変わっても3回上限をresetしない', async () => {
   const { repository, project, handlers } = setup();
   for (const id of [11, 12, 13]) { const failed = run(id, 'failure'); repository.runs.push(failed); await handlers.handleCi(event(failed)); }
@@ -138,6 +179,21 @@ test('same run redeliveryのtrusted markerだけをdedupeし、success後のfail
   assert.match(repository.comments.at(-1).body, /run_id=21 head_sha=abcdef retry=1/);
 });
 
+test('未完了success runのconclusionはretry cycleをresetしない', async () => {
+  const { repository, handlers } = setup();
+  const first = run(11, 'failure');
+  repository.runs.push(first);
+  await handlers.handleCi(event(first));
+  repository.runs.push({ ...run(20, 'success'), status: 'in_progress' });
+  const second = run(21, 'failure');
+  repository.runs.push(second);
+
+  const result = await handlers.handleCi(event(second));
+
+  assert.deepEqual(result, { kind: 'retry', retry: 2 });
+  assert.match(repository.comments.at(-1).body, /run_id=21 head_sha=abcdef retry=2/);
+});
+
 test('success境界と同時刻でもrun IDが後のfailure retry markerは次cycleに数える', async () => {
   const { repository, handlers } = setup();
   const success = run(12, 'success', { updatedAt: 20 });
@@ -178,6 +234,32 @@ test('marker 3件だけではBlocked evidenceではなく、4回目failureでBlo
   const stale = await blocked.handlers.handleCi(event(success));
   assert.deepEqual(stale, { kind: 'skip', reason: 'invalidated-ready-marker' });
   assert.equal(blocked.project.status, 'In Progress');
+});
+
+test('未完了success conclusionはBlocked cycleの境界にならずold readyをinvalidateする', async () => {
+  const { repository, project, handlers } = setup();
+  repository.comments.push(
+    { id: 2, author: 'cursor[bot]', createdAt: 5, body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->' },
+    ...[11, 12, 13].map((id, index) => ({
+      id: index + 3,
+      author: 'yuto90',
+      createdAt: id,
+      body: `<!-- agent:ci-retry:v1 run_id=${id} head_sha=abcdef retry=${index + 1} -->`,
+    })),
+  );
+  repository.runs.push(
+    run(11, 'failure'),
+    run(12, 'failure'),
+    run(13, 'failure'),
+    { ...run(20, 'success', { updatedAt: 13.5 }), status: 'in_progress' },
+    run(14, 'failure'),
+    run(15, 'success'),
+  );
+
+  const result = await handlers.handleCi(event(repository.runs.at(-1)));
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'invalidated-ready-marker' });
+  assert.equal(project.status, 'In Progress');
 });
 
 test('retry range外、multi-PR 0/2/duplicate/cross-repoはtrusted candidate境界を守る', async () => {
@@ -352,7 +434,7 @@ test('new repository readsはexact routeとauthor/timestamp/review enum/head SHA
         paths.push(path);
         if (path.endsWith('/pulls/30')) return pull;
         if (path.endsWith('/issues/30/comments')) return [{ id: 4, body: 'ready', user: { login: 'cursor[bot]' }, created_at: '2026-08-24T00:00:00Z' }];
-        if (path.endsWith('/pulls/30/reviews')) return [{ user: { login: 'yuto90' }, state: 'CHANGES_REQUESTED', submitted_at: '2026-08-24T00:01:00Z', commit_id: 'abcdef' }];
+        if (path.endsWith('/pulls/30/reviews')) return [{ id: 81, user: { login: 'yuto90' }, state: 'CHANGES_REQUESTED', submitted_at: '2026-08-24T00:01:00Z', commit_id: 'abcdef' }];
         if (path.endsWith('/commits/abcdef')) return { sha: 'abcdef' };
         throw new Error(`unexpected ${path}`);
       }, async write() {}, async graphql() {},
@@ -360,7 +442,7 @@ test('new repository readsはexact routeとauthor/timestamp/review enum/head SHA
   });
   const current = await repository.getCurrentPullRequest(30);
   assert.deepEqual(await repository.listIssueComments(30), [{ id: 4, author: 'cursor[bot]', body: 'ready', createdAt: Date.parse('2026-08-24T00:00:00Z') }]);
-  assert.deepEqual(await repository.listReviews(current), [{ author: 'yuto90', state: 'changes_requested', submittedAt: Date.parse('2026-08-24T00:01:00Z'), commitId: 'abcdef' }]);
+  assert.deepEqual(await repository.listReviews(current), [{ id: 81, author: 'yuto90', state: 'changes_requested', submittedAt: Date.parse('2026-08-24T00:01:00Z'), commitId: 'abcdef' }]);
   assert.deepEqual(await repository.getHeadCommit(current), { sha: 'abcdef' });
   assert.deepEqual(paths, [
     '/repos/octo-org/widgets/pulls/30',
@@ -376,12 +458,12 @@ test('official nullable workflow run/reviewは無関係なら停止せず、PEND
     config: { owner: 'octo-org', repository: 'widgets' },
     client: { async read(path) {
       if (path.includes('/actions/runs')) return { total_count: 1, workflow_runs: [optionalRun] };
-      if (path.endsWith('/reviews')) return [{ user: null, state: 'PENDING', submitted_at: undefined, commit_id: undefined }];
+      if (path.endsWith('/reviews')) return [{ id: 82, user: null, state: 'PENDING', submitted_at: undefined, commit_id: undefined }];
       throw new Error(`unexpected ${path}`);
     }, async write() {}, async graphql() {} },
   });
   assert.deepEqual(await repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task' } }, 'Pull Request CI'), []);
-  assert.deepEqual(await repository.listReviews({ number: 30 }), [{ author: null, state: 'pending', submittedAt: null, commitId: null }]);
+  assert.deepEqual(await repository.listReviews({ number: 30 }), [{ id: 82, author: null, state: 'pending', submittedAt: null, commitId: null }]);
 });
 
 test('nullable nameと未知statusのunrelated runは個別に非候補となり、target completedの欠落はexact rejectする', async () => {

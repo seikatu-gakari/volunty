@@ -131,13 +131,18 @@ export function evaluatePrAck(context) {
  *   headSha: string,
  *   latestReady: {headSha: string, createdAt: number} | null | undefined,
  *   invalidatedAfter: number,
+ *   latestReviewPauseAt: number | null,
+ *   acceptedReviewResumeAt: number | null,
  *   ciConclusion: string | null | undefined,
  *   cancelled: boolean,
  * }} context
  * @returns {Decision}
  */
 export function evaluateHumanReview(context) {
-  const { status, isDraft, isOpen, headSha, latestReady, invalidatedAfter, ciConclusion, cancelled } = context;
+  const {
+    status, isDraft, isOpen, headSha, latestReady, invalidatedAfter,
+    latestReviewPauseAt, acceptedReviewResumeAt, ciConclusion, cancelled,
+  } = context;
 
   if (cancelled || isTerminalStatus(status)) return skip('terminal');
   if (!['In Progress', 'Rework'].includes(status)) return skip('invalid-status');
@@ -145,6 +150,11 @@ export function evaluateHumanReview(context) {
   if (ciConclusion !== 'success') return skip('ci-not-green');
   if (!latestReady || latestReady.headSha !== headSha) return skip('stale-ready-marker');
   if (latestReady.createdAt <= invalidatedAfter) return skip('invalidated-ready-marker');
+  if (latestReviewPauseAt !== null) {
+    if (!Number.isFinite(latestReviewPauseAt) || !Number.isFinite(acceptedReviewResumeAt)
+      || acceptedReviewResumeAt <= latestReviewPauseAt) return skip('review-resume-required');
+    if (latestReady.createdAt <= acceptedReviewResumeAt) return skip('invalidated-ready-marker');
+  }
   return transition('Human Review');
 }
 

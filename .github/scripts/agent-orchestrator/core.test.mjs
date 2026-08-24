@@ -114,6 +114,8 @@ test('Human Review gateはready markerとCIの到着順に依存しない', () =
     headSha: 'current-head',
     latestReady: { headSha: 'current-head', createdAt: 20 },
     invalidatedAfter: 10,
+    latestReviewPauseAt: null,
+    acceptedReviewResumeAt: null,
     ciConclusion: 'success',
     cancelled: false,
   };
@@ -122,6 +124,21 @@ test('Human Review gateはready markerとCIの到着順に依存しない', () =
     { name: 'CI success後のready marker', changes: { trigger: 'ready' }, want: { kind: 'transition', status: 'Human Review' } },
     { name: 'stale SHA', changes: { latestReady: { headSha: 'old-head', createdAt: 20 } }, want: { kind: 'skip', reason: 'stale-ready-marker' } },
     { name: '無効化済みmarker', changes: { invalidatedAfter: 20 }, want: { kind: 'skip', reason: 'invalidated-ready-marker' } },
+    {
+      name: 'review pause後にoperator resumeなし',
+      changes: { status: 'Rework', latestReviewPauseAt: 10 },
+      want: { kind: 'skip', reason: 'review-resume-required' },
+    },
+    {
+      name: 'review resume以前のready',
+      changes: { status: 'Rework', latestReady: { headSha: 'current-head', createdAt: 15 }, latestReviewPauseAt: 10, acceptedReviewResumeAt: 20 },
+      want: { kind: 'skip', reason: 'invalidated-ready-marker' },
+    },
+    {
+      name: 'review resume後の新ready',
+      changes: { status: 'Rework', latestReady: { headSha: 'current-head', createdAt: 21 }, invalidatedAfter: 20, latestReviewPauseAt: 10, acceptedReviewResumeAt: 20 },
+      want: { kind: 'transition', status: 'Human Review' },
+    },
     { name: 'CI未成功', changes: { ciConclusion: 'failure' }, want: { kind: 'skip', reason: 'ci-not-green' } },
   ];
 
