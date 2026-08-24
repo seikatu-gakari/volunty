@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createHandlers } from './handlers.mjs';
+import { AgentRepository } from './repository.mjs';
 
 const config = {
   owner: 'octo-org', repository: 'widgets', operator: 'yuto90', agentActors: ['yuto90', 'cursor[bot]'],
@@ -15,7 +16,10 @@ class FakeRepository {
     this.pr = { number: 30, state: 'open', draft: false, base: { ref: 'main' }, head: { ref: 'cursor/issue-20-task', sha: 'abcdef', repository: { owner: 'octo-org', name: 'widgets' } } };
     this.comments = [{ id: 1, author: 'yuto90', body: dispatch, createdAt: 1 }]; this.runs = []; this.reviews = [];
   }
-  async getCurrentPullRequest() { return structuredClone(this.pr); }
+  async getCurrentPullRequest(number) {
+    if (number !== 30) return { ...structuredClone(this.pr), number, head: { ...structuredClone(this.pr.head), ref: 'human/fix' } };
+    return structuredClone(this.pr);
+  }
   async getPullRequest() { return structuredClone(this.pr); }
   async findClosingIssues() { return [structuredClone(this.issue)]; }
   async getIssue() { return structuredClone(this.issue); }
@@ -86,4 +90,120 @@ test('ready firstとCI success firstはいずれもcurrent headでHuman Review�
     else { repository.comments.push(ready); await handlers.handleComment({ action: 'created', repository: { full_name: 'octo-org/widgets' }, issue: { number: 30, pull_request: {} }, comment: { user: { login: 'cursor[bot]' }, body: ready.body } }); }
     assert.equal(project.status, 'Human Review', order);
   }
+});
+
+test('untrusted・unknown・SHA不一致・duplicate IDのretry markerはdedupeもcycle countもしない', async () => {
+  const { repository, handlers } = setup();
+  const failed = run(11, 'failure');
+  repository.runs.push(failed, { ...failed, name: 'Other CI' });
+  repository.comments.push(
+    { id: 2, author: 'attacker', createdAt: 2, body: '<!-- agent:ci-retry:v1 run_id=11 head_sha=abcdef retry=1 -->' },
+    { id: 3, author: 'yuto90', createdAt: 3, body: '<!-- agent:ci-retry:v1 run_id=999 head_sha=abcdef retry=1 -->' },
+    { id: 4, author: 'yuto90', createdAt: 4, body: '<!-- agent:ci-retry:v1 run_id=11 head_sha=deadbeef retry=1 -->' },
+  );
+
+  const result = await handlers.handleCi(event(failed));
+
+  assert.deepEqual(result, { kind: 'retry', retry: 1 });
+  assert.equal(repository.comments.filter((comment) => comment.body.includes('agent:ci-retry')).length, 4);
+});
+
+test('same run redeliveryのtrusted markerだけをdedupeし、success後のfailureはretry 1へresetする', async () => {
+  const { repository, handlers } = setup();
+  const first = run(11, 'failure'); repository.runs.push(first);
+  await handlers.handleCi(event(first));
+  const redelivery = await handlers.handleCi(event(first));
+  const success = run(20, 'success'); repository.runs.push(success);
+  const second = run(21, 'failure'); repository.runs.push(second);
+  const result = await handlers.handleCi(event(second));
+
+  assert.deepEqual(redelivery, { kind: 'skip', reason: 'already-retried' });
+  assert.deepEqual(result, { kind: 'retry', retry: 1 });
+  assert.match(repository.comments.at(-1).body, /run_id=21 head_sha=abcdef retry=1/);
+});
+
+test('success境界と同時刻でもrun IDが後のfailure retry markerは次cycleに数える', async () => {
+  const { repository, handlers } = setup();
+  const success = run(12, 'success', { updatedAt: 20 });
+  const priorFailure = run(13, 'failure', { updatedAt: 20 });
+  const currentFailure = run(14, 'failure', { updatedAt: 21 });
+  repository.runs.push(success, priorFailure, currentFailure);
+  repository.comments.push({ id: 2, author: 'yuto90', createdAt: 21, body: '<!-- agent:ci-retry:v1 run_id=13 head_sha=abcdef retry=1 -->' });
+
+  const result = await handlers.handleCi(event(currentFailure));
+
+  assert.deepEqual(result, { kind: 'retry', retry: 2 });
+  assert.match(repository.comments.at(-1).body, /run_id=14 head_sha=abcdef retry=2/);
+});
+
+test('workflow_runのmanaged relation一件とhuman relationはmanaged PRだけをtrusted解決する', async () => {
+  const { repository, handlers } = setup();
+  const failed = run(11, 'failure'); repository.runs.push(failed);
+  const multi = event(failed);
+  multi.workflow_run.pull_requests.push({ number: 99, base: { repo: { full_name: 'octo-org/widgets' } } });
+  const result = await handlers.handleCi(multi);
+
+  assert.deepEqual(result, { kind: 'retry', retry: 1 });
+  assert.equal(repository.comments.filter((comment) => comment.body.includes('agent:ci-retry')).length, 1);
+});
+
+test('CI repository gatewayはobject envelopeをpage=1..Nで全取得しmalformed paginationをfail closedする', async () => {
+  const calls = [];
+  const workflowRun = (id) => ({
+    id, name: 'Pull Request CI', status: 'completed', conclusion: 'failure', head_sha: 'abcdef',
+    run_started_at: '2026-08-24T00:00:00Z', updated_at: '2026-08-24T00:01:00Z', html_url: `https://ci/${id}`,
+    repository: { full_name: 'octo-org/widgets' }, pull_requests: [{ number: 30, base: { repo: { full_name: 'octo-org/widgets' } } }],
+  });
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read(path) {
+        calls.push(path);
+        if (path.endsWith('page=1')) return { total_count: 101, workflow_runs: Array.from({ length: 100 }, (_, index) => workflowRun(index + 1)) };
+        if (path.endsWith('page=2')) return { total_count: 101, workflow_runs: [workflowRun(101)] };
+        throw new Error(`unexpected ${path}`);
+      }, async write() {}, async graphql() {},
+    },
+  });
+
+  const runs = await repository.listCiRuns({ number: 30 }, 'Pull Request CI');
+  assert.equal(runs.length, 101);
+  assert.deepEqual(calls, [
+    '/repos/octo-org/widgets/actions/runs?event=pull_request&per_page=100&page=1',
+    '/repos/octo-org/widgets/actions/runs?event=pull_request&per_page=100&page=2',
+  ]);
+
+  const malformed = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: { async read() { return { total_count: 101, workflow_runs: [] }; }, async write() {}, async graphql() {} },
+  });
+  await assert.rejects(() => malformed.listCiRuns({ number: 30 }, 'Pull Request CI'), /pagination/);
+});
+
+test('new repository readsはexact routeとauthor/timestamp/review enum/head SHAをruntime validateする', async () => {
+  const paths = [];
+  const pull = { number: 30, state: 'open', draft: false, base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } }, head: { ref: 'cursor/x', sha: 'abcdef', repo: { full_name: 'octo-org/widgets' } } };
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read(path) {
+        paths.push(path);
+        if (path.endsWith('/pulls/30')) return pull;
+        if (path.endsWith('/issues/30/comments')) return [{ id: 4, body: 'ready', user: { login: 'cursor[bot]' }, created_at: '2026-08-24T00:00:00Z' }];
+        if (path.endsWith('/pulls/30/reviews')) return [{ user: { login: 'yuto90' }, state: 'CHANGES_REQUESTED', submitted_at: '2026-08-24T00:01:00Z', commit_id: 'abcdef' }];
+        if (path.endsWith('/commits/abcdef')) return { sha: 'abcdef' };
+        throw new Error(`unexpected ${path}`);
+      }, async write() {}, async graphql() {},
+    },
+  });
+  const current = await repository.getCurrentPullRequest(30);
+  assert.deepEqual(await repository.listIssueComments(30), [{ id: 4, author: 'cursor[bot]', body: 'ready', createdAt: Date.parse('2026-08-24T00:00:00Z') }]);
+  assert.deepEqual(await repository.listReviews(current), [{ author: 'yuto90', state: 'changes_requested', submittedAt: Date.parse('2026-08-24T00:01:00Z'), commitId: 'abcdef' }]);
+  assert.deepEqual(await repository.getHeadCommit(current), { sha: 'abcdef' });
+  assert.deepEqual(paths, [
+    '/repos/octo-org/widgets/pulls/30',
+    '/repos/octo-org/widgets/issues/30/comments',
+    '/repos/octo-org/widgets/pulls/30/reviews',
+    '/repos/octo-org/widgets/commits/abcdef',
+  ]);
 });

@@ -113,3 +113,60 @@ test('Human Input・accepted resume・changes requested後の古いready marker�
   assert.deepEqual(result, { kind: 'skip', reason: 'invalidated-ready-marker' });
   assert.equal(project.status, 'In Progress');
 });
+
+test('Human Inputまたはchanges requested後の最初のoperator resumeだけがreadyをinvalidateし、In Progress中のunpaired mentionは無視する', async () => {
+  for (const { name, comments, reviews, expected } of [
+    {
+      name: 'unpaired',
+      comments: [
+        { id: 2, author: 'yuto90', createdAt: 15, body: '@cursor\n途中経過を教えてください' },
+        { id: 3, author: 'cursor[bot]', createdAt: 20, body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->' },
+      ], reviews: [], expected: 'Human Review',
+    },
+    {
+      name: 'accepted-human-input-resume',
+      comments: [
+        { id: 2, author: 'cursor[bot]', createdAt: 20, body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->' },
+        { id: 3, author: 'cursor[bot]', createdAt: 21, body: '<!-- agent:human-input -->' },
+        { id: 4, author: 'yuto90', createdAt: 22, body: '@cursor\n選択肢Aで進めてください' },
+      ], reviews: [], expected: 'In Progress',
+    },
+    {
+      name: 'accepted-review-resume',
+      comments: [
+        { id: 2, author: 'cursor[bot]', createdAt: 20, body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->' },
+        { id: 3, author: 'yuto90', createdAt: 22, body: '@cursor\n修正をお願いします' },
+      ], reviews: [{ author: 'yuto90', state: 'changes_requested', submittedAt: 21, commitId: 'abcdef' }], expected: 'In Progress',
+    },
+  ]) {
+    const { repository, project, handlers } = setup();
+    repository.comments.push(...comments); repository.reviews.push(...reviews);
+    repository.runs.push({ id: 7, name: 'Pull Request CI', status: 'completed', conclusion: 'success', headSha: 'abcdef', runStartedAt: 10, updatedAt: 23, url: 'https://ci/7' });
+    await handlers.handleComment(event({ body: repository.comments.find((comment) => comment.body.includes('ready-for-review'))?.body }));
+    assert.equal(project.status, expected, name);
+  }
+});
+
+test('Human Review mutation直前のdraft・new failure・Human Input・changes requested raceは再評価して遷移しない', async () => {
+  for (const race of ['draft', 'failure', 'human-input', 'changes-requested']) {
+    const { repository, project, handlers } = setup();
+    const ready = { id: 2, author: 'cursor[bot]', createdAt: 20, body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->' };
+    repository.comments.push(ready);
+    repository.runs.push({ id: 7, name: 'Pull Request CI', status: 'completed', conclusion: 'success', headSha: 'abcdef', runStartedAt: 10, updatedAt: 21, url: 'https://ci/7' });
+    let reads = 0;
+    const originalCurrentPr = repository.getCurrentPullRequest.bind(repository);
+    repository.getCurrentPullRequest = async (...args) => {
+      reads += 1;
+      if (reads === 2) {
+        if (race === 'draft') repository.pr.draft = true;
+        if (race === 'failure') repository.runs.push({ id: 8, name: 'Pull Request CI', status: 'completed', conclusion: 'failure', headSha: 'abcdef', runStartedAt: 10, updatedAt: 22, url: 'https://ci/8' });
+        if (race === 'human-input') repository.comments.push({ id: 3, author: 'cursor[bot]', createdAt: 22, body: '<!-- agent:human-input -->' });
+        if (race === 'changes-requested') repository.reviews.push({ author: 'yuto90', state: 'changes_requested', submittedAt: 22, commitId: 'abcdef' });
+      }
+      return originalCurrentPr(...args);
+    };
+    const result = await handlers.handleComment(event({ body: ready.body }));
+    assert.notDeepEqual(result, { kind: 'transition', status: 'Human Review' }, race);
+    assert.equal(project.status, 'In Progress', race);
+  }
+});

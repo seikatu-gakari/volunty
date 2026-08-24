@@ -111,6 +111,8 @@ function requireWorkflowStatus(value, field) {
   return status;
 }
 
+const MAX_CI_RUN_PAGES = 1000;
+
 /** @param {unknown} value @param {string} field @param {string} owner @param {string} repository */
 function requireGraphqlReference(value, field, owner, repository) {
   const reference = requireObject(value, field);
@@ -280,34 +282,50 @@ export class AgentRepository {
   async listCiRuns(pullRequest, workflowName) {
     const pr = requirePositiveInteger(pullRequest?.number, 'pull request number');
     const expectedWorkflow = requireString(workflowName, 'workflow name');
-    const data = requireObject(await this.client.read(`/repos/${encode(this.owner)}/${encode(this.repository)}/actions/runs?event=pull_request&per_page=100`, { paginate: false }), 'workflow runs');
-    const runs = requireArray(data.workflow_runs, 'workflow runs.workflow_runs');
-    if (requireNonNegativeInteger(data.total_count, 'workflow runs.total_count') > runs.length) {
-      throw new Error('workflow runs pagination is incomplete');
+    const allRuns = [];
+    const seenIds = new Set();
+    let totalCount = null;
+    let page = 1;
+    while (totalCount === null || allRuns.length < totalCount) {
+      if (totalCount !== null && page > Math.ceil(totalCount / 100)) throw new Error('workflow runs pagination exceeded expected pages');
+      const path = `/repos/${encode(this.owner)}/${encode(this.repository)}/actions/runs?event=pull_request&per_page=100&page=${page}`;
+      const data = requireObject(await this.client.read(path, { paginate: false }), `workflow runs page ${page}`);
+      const pageTotal = requireNonNegativeInteger(data.total_count, `workflow runs page ${page}.total_count`);
+      if (totalCount === null) totalCount = pageTotal;
+      else if (totalCount !== pageTotal) throw new Error('workflow runs pagination total_count changed');
+      if (Math.ceil(totalCount / 100) > MAX_CI_RUN_PAGES) throw new Error('workflow runs pagination exceeds maximum pages');
+      const values = requireArray(data.workflow_runs, `workflow runs page ${page}.workflow_runs`);
+      if (totalCount > allRuns.length && values.length === 0) throw new Error('workflow runs pagination ended prematurely');
+      for (const [index, value] of values.entries()) {
+        const run = requireObject(value, `workflow runs page ${page}[${index}]`);
+        const repository = requireObject(run.repository, `workflow runs page ${page}[${index}].repository`);
+        if (requireString(repository.full_name, `workflow runs page ${page}[${index}].repository.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs page ${page}[${index}].repository must match configured repository`);
+        const pullRequests = requireArray(run.pull_requests, `workflow runs page ${page}[${index}].pull_requests`).map((relation, relationIndex) => {
+          const reference = requireObject(relation, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}]`);
+          const base = requireObject(reference.base, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base`);
+          const baseRepository = requireObject(base.repo, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo`);
+          if (requireString(baseRepository.full_name, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs page ${page}[${index}].pull_requests[${relationIndex}] must match configured repository`);
+          return { number: requirePositiveInteger(reference.number, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].number`) };
+        });
+        const mapped = {
+          id: requirePositiveInteger(run.id, `workflow runs page ${page}[${index}].id`),
+          name: requireString(run.name, `workflow runs page ${page}[${index}].name`),
+          status: requireWorkflowStatus(run.status, `workflow runs page ${page}[${index}].status`),
+          conclusion: normalizeWorkflowConclusion(run.conclusion, `workflow runs page ${page}[${index}].conclusion`),
+          headSha: requireString(run.head_sha, `workflow runs page ${page}[${index}].head_sha`),
+          runStartedAt: requireTimestamp(run.run_started_at, `workflow runs page ${page}[${index}].run_started_at`),
+          updatedAt: requireTimestamp(run.updated_at, `workflow runs page ${page}[${index}].updated_at`),
+          url: requireString(run.html_url, `workflow runs page ${page}[${index}].html_url`),
+          pullRequests,
+        };
+        if (seenIds.has(mapped.id)) throw new Error('workflow runs pagination contains duplicate id');
+        seenIds.add(mapped.id);
+        allRuns.push(mapped);
+        if (allRuns.length > totalCount) throw new Error('workflow runs pagination exceeds total_count');
+      }
+      page += 1;
     }
-    return runs.map((value, index) => {
-      const run = requireObject(value, `workflow runs[${index}]`);
-      const repository = requireObject(run.repository, `workflow runs[${index}].repository`);
-      if (requireString(repository.full_name, `workflow runs[${index}].repository.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs[${index}].repository must match configured repository`);
-      const pullRequests = requireArray(run.pull_requests, `workflow runs[${index}].pull_requests`).map((relation, relationIndex) => {
-        const reference = requireObject(relation, `workflow runs[${index}].pull_requests[${relationIndex}]`);
-        const base = requireObject(reference.base, `workflow runs[${index}].pull_requests[${relationIndex}].base`);
-        const baseRepository = requireObject(base.repo, `workflow runs[${index}].pull_requests[${relationIndex}].base.repo`);
-        if (requireString(baseRepository.full_name, `workflow runs[${index}].pull_requests[${relationIndex}].base.repo.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs[${index}].pull_requests[${relationIndex}] must match configured repository`);
-        return { number: requirePositiveInteger(reference.number, `workflow runs[${index}].pull_requests[${relationIndex}].number`) };
-      });
-      return {
-        id: requirePositiveInteger(run.id, `workflow runs[${index}].id`),
-        name: requireString(run.name, `workflow runs[${index}].name`),
-        status: requireWorkflowStatus(run.status, `workflow runs[${index}].status`),
-        conclusion: normalizeWorkflowConclusion(run.conclusion, `workflow runs[${index}].conclusion`),
-        headSha: requireString(run.head_sha, `workflow runs[${index}].head_sha`),
-        runStartedAt: requireTimestamp(run.run_started_at, `workflow runs[${index}].run_started_at`),
-        updatedAt: requireTimestamp(run.updated_at, `workflow runs[${index}].updated_at`),
-        url: requireString(run.html_url, `workflow runs[${index}].html_url`),
-        pullRequests,
-      };
-    }).filter((run) => run.name === expectedWorkflow && run.pullRequests.some((reference) => reference.number === pr));
+    return allRuns.filter((run) => run.name === expectedWorkflow && run.pullRequests.some((reference) => reference.number === pr));
   }
 
   /** @param {{number: number}} pullRequest @param {string} workflowName */

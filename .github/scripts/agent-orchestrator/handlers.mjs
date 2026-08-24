@@ -292,50 +292,88 @@ export function createHandlers({ repository, project, config, summary }) {
     return matching[0] ?? null;
   }
 
-  /** @param {Array<{author: string, body: string, createdAt?: number | string}>} comments @param {Array<{author: string, state: string, submittedAt?: number | string}>} reviews */
-  function invalidatedAfter(comments, reviews) {
-    const commentTimes = comments
-      .filter((comment) => (config.agentActors.includes(comment.author) && hasExactMarker(comment.body, '<!-- agent:human-input -->'))
-        || (comment.author === config.operator && hasStandaloneCursorMention(comment.body)))
-      .map((comment) => timestamp(comment.createdAt));
-    const reviewTimes = reviews
-      .filter((review) => review.author === config.operator && review.state === 'changes_requested')
-      .map((review) => timestamp(review.submittedAt));
-    return Math.max(Number.NEGATIVE_INFINITY, ...commentTimes, ...reviewTimes);
+  /** @param {{updatedAt?: number | string, id: number}} left @param {{updatedAt?: number | string, id: number}} right */
+  function compareRunOrder(left, right) {
+    return timestamp(left.updatedAt) - timestamp(right.updatedAt) || left.id - right.id;
+  }
+
+  /** @param {Array<any>} runs @param {Array<{author: string, body: string}>} comments */
+  function trustedRetryMarkers(comments, runs) {
+    const runsById = new Map();
+    for (const run of runs) {
+      const id = String(run.id);
+      runsById.set(id, [...(runsById.get(id) ?? []), run]);
+    }
+    return comments.flatMap((comment) => {
+      if (comment.author !== config.operator) return [];
+      const marker = parseRetryMarker(comment.body);
+      if (marker === null || marker.retry < 1 || marker.retry > config.ciRetryLimit) return [];
+      const matchingRuns = runsById.get(marker.runId) ?? [];
+      if (matchingRuns.length !== 1 || matchingRuns[0].headSha !== marker.headSha) return [];
+      return [{ ...marker, run: matchingRuns[0], createdAt: timestamp(comment.createdAt) }];
+    });
+  }
+
+  /** @param {Array<{author: string, body: string, createdAt?: number | string}>} comments @param {Array<{author: string, state: string, submittedAt?: number | string}>} reviews @param {Array<any>} runs */
+  function invalidatedAfter(comments, reviews, runs) {
+    const pauseTimes = [
+      ...comments.filter((comment) => config.agentActors.includes(comment.author) && hasExactMarker(comment.body, '<!-- agent:human-input -->')).map((comment) => timestamp(comment.createdAt)),
+      ...reviews.filter((review) => review.author === config.operator && review.state === 'changes_requested').map((review) => timestamp(review.submittedAt)),
+    ];
+    const retryMarkers = trustedRetryMarkers(comments, runs).sort((left, right) => left.createdAt - right.createdAt);
+    if (new Set(retryMarkers.map((marker) => marker.runId)).size >= config.ciRetryLimit) {
+      pauseTimes.push(retryMarkers.at(-1).createdAt);
+    }
+    const operatorMentions = comments
+      .filter((comment) => comment.author === config.operator && hasStandaloneCursorMention(comment.body))
+      .map((comment) => timestamp(comment.createdAt))
+      .sort((left, right) => left - right);
+    const acceptedResumeTimes = [];
+    for (const pause of pauseTimes.sort((left, right) => left - right)) {
+      const resume = operatorMentions.find((mention) => mention > pause);
+      if (resume !== undefined) acceptedResumeTimes.push(resume);
+    }
+    return Math.max(Number.NEGATIVE_INFINITY, ...pauseTimes, ...acceptedResumeTimes);
   }
 
   /** @param {Array<any>} runs @param {string} headSha */
   function newestCurrentHeadRun(runs, headSha) {
     const candidates = runs.filter((run) => run.name === config.ciWorkflow && run.status === 'completed' && run.headSha === headSha);
-    candidates.sort((left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt) || right.id - left.id);
+    candidates.sort((left, right) => compareRunOrder(right, left));
     return candidates[0] ?? null;
   }
 
-  async function maybeHumanReview(number) {
+  async function readHumanReviewEvidence(number) {
     const session = await readManagedSession(number);
-    if (session.decision.kind !== 'managed') return session.decision;
+    if (session.decision.kind !== 'managed') return { session, decision: session.decision };
     const [comments, reviews, runs] = await Promise.all([
       listTimedComments(number),
       repository.listReviews(session.pullRequest),
       repository.listCiRuns(session.pullRequest, config.ciWorkflow),
     ]);
     const currentRun = newestCurrentHeadRun(runs, session.headSha);
-    const decision = evaluateHumanReview({
-      status: session.status,
-      isDraft: session.pullRequest.draft,
-      isOpen: session.pullRequest.state === 'open',
-      headSha: session.headSha,
-      latestReady: latestReady(comments),
-      invalidatedAfter: invalidatedAfter(comments, reviews),
-      ciConclusion: currentRun?.conclusion ?? null,
-      cancelled: hasLabel(session.issue.labels, config.labels.cancel),
-    });
-    if (decision.kind !== 'transition') return decision;
-    const current = await readManagedSession(number);
-    if (current.decision.kind !== 'managed') return current.decision;
-    if (current.status !== session.status || current.headSha !== session.headSha) return { kind: 'skip', reason: 'stale-session' };
-    await project.transitionIssue(current.issue.id, 'Human Review', ['In Progress', 'Rework']);
-    return decision;
+    return {
+      session,
+      decision: evaluateHumanReview({
+        status: session.status,
+        isDraft: session.pullRequest.draft,
+        isOpen: session.pullRequest.state === 'open',
+        headSha: session.headSha,
+        latestReady: latestReady(comments),
+        invalidatedAfter: invalidatedAfter(comments, reviews, runs),
+        ciConclusion: currentRun?.conclusion ?? null,
+        cancelled: hasLabel(session.issue.labels, config.labels.cancel),
+      }),
+    };
+  }
+
+  async function maybeHumanReview(number) {
+    const first = await readHumanReviewEvidence(number);
+    if (first.decision.kind !== 'transition') return first.decision;
+    const current = await readHumanReviewEvidence(number);
+    if (current.decision.kind !== 'transition') return current.decision;
+    await project.transitionIssue(current.session.issue.id, 'Human Review', ['In Progress', 'Rework']);
+    return current.decision;
   }
 
   async function handleComment(event) {
@@ -363,14 +401,15 @@ export function createHandlers({ repository, project, config, summary }) {
     return { kind: 'transition', status: target };
   }
 
-  /** @param {unknown} event @param {number} prNumber */
-  function eventReferencesPullRequest(event, prNumber) {
+  /** @param {unknown} event */
+  function eventPullRequestNumbers(event) {
     const references = event?.workflow_run?.pull_requests;
-    if (!Array.isArray(references)) return false;
-    return references.some((reference) => {
+    if (!Array.isArray(references)) return [];
+    return [...new Set(references.flatMap((reference) => {
       const baseRepository = reference?.base?.repo?.full_name;
-      return reference?.number === prNumber && baseRepository === `${config.owner}/${config.repository}`;
-    });
+      const number = eventNumber(reference?.number);
+      return baseRepository === `${config.owner}/${config.repository}` && number !== null ? [number] : [];
+    }))];
   }
 
   /** @param {unknown} event */
@@ -395,12 +434,15 @@ export function createHandlers({ repository, project, config, summary }) {
     if (event?.action !== 'completed') return { kind: 'skip', reason: 'unsupported-event' };
     const incoming = eventRun(event);
     if (incoming === null || incoming.name !== config.ciWorkflow || incoming.status !== 'completed') return { kind: 'skip', reason: 'invalid-workflow-run' };
-    const pullRequests = event?.workflow_run?.pull_requests;
-    if (!Array.isArray(pullRequests) || pullRequests.length !== 1) return { kind: 'skip', reason: 'invalid-pull-requests' };
-    const number = eventNumber(pullRequests[0]?.number);
-    if (number === null || !eventReferencesPullRequest(event, number)) return { kind: 'skip', reason: 'invalid-pull-request' };
-    const first = await readManagedSession(number);
-    if (first.decision.kind !== 'managed') return first.decision;
+    const numbers = eventPullRequestNumbers(event);
+    if (numbers.length === 0) return { kind: 'skip', reason: 'invalid-pull-request' };
+    const candidates = [];
+    for (const number of numbers) {
+      const session = await readManagedSession(number);
+      if (session.decision.kind === 'managed' && incoming.headSha === session.headSha) candidates.push({ number, session });
+    }
+    if (candidates.length !== 1) return { kind: 'skip', reason: candidates.length === 0 ? 'no-managed-pull-request' : 'ambiguous-managed-pull-request' };
+    const { number, session: first } = candidates[0];
     if (incoming.headSha !== first.headSha) return { kind: 'skip', reason: 'stale-head' };
     const runs = await repository.listCiRuns(first.pullRequest, config.ciWorkflow);
     const newest = newestCurrentHeadRun(runs, first.headSha);
@@ -411,17 +453,13 @@ export function createHandlers({ repository, project, config, summary }) {
     if (!['In Progress', 'Rework'].includes(first.status)) return { kind: 'skip', reason: 'invalid-status' };
 
     const comments = await listTimedComments(number);
-    if (comments.some((comment) => {
-      const marker = parseRetryMarker(comment.body);
-      return marker !== null && marker.runId === String(newest.id) && marker.headSha === newest.headSha;
-    })) return { kind: 'skip', reason: 'already-retried' };
-    const latestSuccess = [...runs].filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success')
-      .sort((left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt) || right.id - left.id)[0] ?? null;
-    const retriedRunIds = new Set(comments.map((comment) => parseRetryMarker(comment.body)).filter(Boolean)
-      .filter((marker) => {
-        const retried = runs.find((run) => String(run.id) === marker.runId);
-        return retried !== undefined && (latestSuccess === null || timestamp(retried.updatedAt) > timestamp(latestSuccess.updatedAt));
-      }).map((marker) => marker.runId));
+    const trustedMarkers = trustedRetryMarkers(comments, runs);
+    if (trustedMarkers.some((marker) => marker.runId === String(newest.id))) return { kind: 'skip', reason: 'already-retried' };
+    const latestSuccess = [...runs].filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success' && compareRunOrder(run, newest) <= 0)
+      .sort((left, right) => compareRunOrder(right, left))[0] ?? null;
+    const retriedRunIds = new Set(trustedMarkers
+      .filter((marker) => latestSuccess === null || compareRunOrder(marker.run, latestSuccess) > 0)
+      .map((marker) => marker.runId));
     const retry = retriedRunIds.size + 1;
     const current = await readManagedSession(number);
     if (current.decision.kind !== 'managed') return current.decision;
@@ -434,10 +472,7 @@ export function createHandlers({ repository, project, config, summary }) {
       return { kind: 'transition', status: 'Blocked' };
     }
     const currentComments = await listTimedComments(number);
-    if (currentComments.some((comment) => {
-      const marker = parseRetryMarker(comment.body);
-      return marker !== null && marker.runId === String(newest.id) && marker.headSha === newest.headSha;
-    })) return { kind: 'skip', reason: 'already-retried' };
+    if (trustedRetryMarkers(currentComments, currentRuns).some((marker) => marker.runId === String(newest.id))) return { kind: 'skip', reason: 'already-retried' };
     await repository.postComment(number, retryComment(number, newest, retry));
     return { kind: 'retry', retry };
   }
