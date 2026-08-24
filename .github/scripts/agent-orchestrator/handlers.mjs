@@ -320,25 +320,16 @@ export function createHandlers({ repository, project, config, summary }) {
       ...comments.filter((comment) => config.agentActors.includes(comment.author) && hasExactMarker(comment.body, '<!-- agent:human-input -->')).map((comment) => timestamp(comment.createdAt)),
       ...reviews.filter((review) => review.author === config.operator && review.state === 'changes_requested').map((review) => timestamp(review.submittedAt)),
     ];
-    const retryMarkers = trustedRetryMarkers(comments, runs)
-      .sort((left, right) => compareRunOrder(left.run, right.run));
-    const thirdRetry = retryMarkers.at(-1)?.run;
-    const cycleSuccess = thirdRetry === undefined ? null : [...runs]
-      .filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success' && compareRunOrder(run, thirdRetry) < 0)
-      .sort((left, right) => compareRunOrder(right, left))[0] ?? null;
-    const cycleMarkers = retryMarkers.filter((marker) => cycleSuccess === null || compareRunOrder(marker.run, cycleSuccess) > 0);
-    const retryRunIds = new Set(cycleMarkers.map((marker) => marker.runId));
-    if (thirdRetry !== undefined && retryRunIds.size >= config.ciRetryLimit) {
-      const followingSuccess = [...runs]
-        .filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success' && compareRunOrder(run, thirdRetry) > 0)
-        .sort((left, right) => compareRunOrder(left, right))[0] ?? null;
-      const blockedFailure = runs
-        .filter((run) => run.name === config.ciWorkflow && run.status === 'completed' && run.conclusion === 'failure'
-          && compareRunOrder(run, thirdRetry) > 0
-          && (followingSuccess === null || compareRunOrder(run, followingSuccess) < 0)
-          && !retryRunIds.has(String(run.id)))
-        .sort((left, right) => compareRunOrder(left, right))[0];
-      if (blockedFailure !== undefined) pauseTimes.push(timestamp(blockedFailure.updatedAt));
+    const retryMarkers = trustedRetryMarkers(comments, runs).sort((left, right) => compareRunOrder(left.run, right.run));
+    const markerRunIds = new Set(retryMarkers.map((marker) => String(marker.run.id)));
+    const successfulRuns = runs.filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success');
+    for (const failure of runs.filter((run) => run.name === config.ciWorkflow && run.status === 'completed' && run.conclusion === 'failure' && !markerRunIds.has(String(run.id)))) {
+      const priorSuccess = successfulRuns.filter((success) => compareRunOrder(success, failure) < 0)
+        .sort((left, right) => compareRunOrder(right, left))[0] ?? null;
+      const cycleMarkerIds = new Set(retryMarkers
+        .filter((marker) => compareRunOrder(marker.run, failure) < 0 && (priorSuccess === null || compareRunOrder(marker.run, priorSuccess) > 0))
+        .map((marker) => marker.runId));
+      if (cycleMarkerIds.size >= config.ciRetryLimit) pauseTimes.push(timestamp(failure.updatedAt));
     }
     const operatorMentions = comments
       .filter((comment) => comment.author === config.operator && hasStandaloneCursorMention(comment.body))
@@ -421,10 +412,15 @@ export function createHandlers({ repository, project, config, summary }) {
   function eventPullRequestNumbers(event) {
     const references = event?.workflow_run?.pull_requests;
     if (!Array.isArray(references)) return [];
+    const workflowRepository = event?.workflow_run?.repository;
+    const workflowRepositoryId = eventNumber(workflowRepository?.id);
+    if (workflowRepositoryId === null || workflowRepository?.full_name !== `${config.owner}/${config.repository}`) return [];
     return [...new Set(references.flatMap((reference) => {
-      const baseRepository = reference?.base?.repo?.full_name;
+      const baseRepository = reference?.base?.repo;
       const number = eventNumber(reference?.number);
-      return baseRepository === `${config.owner}/${config.repository}` && number !== null ? [number] : [];
+      return number !== null && baseRepository?.id === workflowRepositoryId
+        && baseRepository?.url === `https://api.github.com/repos/${config.owner}/${config.repository}`
+        && baseRepository?.name === config.repository ? [number] : [];
     }))];
   }
 

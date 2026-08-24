@@ -249,3 +249,19 @@ test('REST/GraphQL PullRequest stateはAPI enumを検証しMERGEDを意図どお
     headRepository: { owner: 'octo-org', name: 'widgets' },
   }]);
 });
+
+test('current PR readはconfigured baseを厳密に確認しfork headをnonmanaged候補として返す', async () => {
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return { number: 30, state: 'open', draft: false,
+        base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } },
+        head: { ref: 'cursor/human-fork', sha: 'abcdef', repo: { full_name: 'someone/widgets', name: 'widgets', owner: { login: 'someone' } } },
+      }; }, async write() { return null; }, async graphql() { return {}; },
+    },
+  });
+  assert.deepEqual(await repository.getCurrentPullRequest(30), {
+    number: 30, state: 'open', draft: false, base: { ref: 'main' },
+    head: { ref: 'cursor/human-fork', sha: 'abcdef', repository: { owner: 'someone', name: 'widgets' } },
+  });
+});

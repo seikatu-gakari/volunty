@@ -259,10 +259,10 @@ export class AgentRepository {
     const head = requireObject(pr.head, 'pull request.head');
     const baseRepository = requireObject(base.repo, 'pull request.base.repo');
     const headRepository = requireObject(head.repo, 'pull request.head.repo');
-    if (requireString(baseRepository.full_name, 'pull request.base.repo.full_name') !== `${this.owner}/${this.repository}`
-      || requireString(headRepository.full_name, 'pull request.head.repo.full_name') !== `${this.owner}/${this.repository}`) {
+    if (requireString(baseRepository.full_name, 'pull request.base.repo.full_name') !== `${this.owner}/${this.repository}`) {
       throw new Error('pull request repositories must match configured repository');
     }
+    const headOwner = requireObject(headRepository.owner, 'pull request.head.repo.owner');
     const returnedNumber = requirePositiveInteger(pr.number, 'pull request.number');
     if (returnedNumber !== requestedNumber) throw new Error('pull request.number must match requested pull request number');
     return {
@@ -273,7 +273,10 @@ export class AgentRepository {
       head: {
         ref: requireString(head.ref, 'pull request.head.ref'),
         sha: requireString(head.sha, 'pull request.head.sha'),
-        repository: { owner: this.owner, name: this.repository },
+        repository: {
+          owner: requireString(headOwner.login, 'pull request.head.repo.owner.login'),
+          name: requireString(headRepository.name, 'pull request.head.repo.name'),
+        },
       },
     };
   }
@@ -299,21 +302,23 @@ export class AgentRepository {
       for (const [index, value] of values.entries()) {
         const run = requireObject(value, `workflow runs page ${page}[${index}]`);
         const repository = requireObject(run.repository, `workflow runs page ${page}[${index}].repository`);
+        const repositoryId = requirePositiveInteger(repository.id, `workflow runs page ${page}[${index}].repository.id`);
         if (requireString(repository.full_name, `workflow runs page ${page}[${index}].repository.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs page ${page}[${index}].repository must match configured repository`);
-        const pullRequests = requireArray(run.pull_requests, `workflow runs page ${page}[${index}].pull_requests`).map((relation, relationIndex) => {
+        const pullRequests = (run.pull_requests === null ? [] : requireArray(run.pull_requests, `workflow runs page ${page}[${index}].pull_requests`)).map((relation, relationIndex) => {
           const reference = requireObject(relation, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}]`);
           const base = requireObject(reference.base, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base`);
           const baseRepository = requireObject(base.repo, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo`);
-          if (requireString(baseRepository.full_name, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs page ${page}[${index}].pull_requests[${relationIndex}] must match configured repository`);
+          if (requirePositiveInteger(baseRepository.id, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo.id`) !== repositoryId
+            || requireString(baseRepository.url, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo.url`) !== `https://api.github.com/repos/${this.owner}/${this.repository}`
+            || requireString(baseRepository.name, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo.name`) !== this.repository) throw new Error(`workflow runs page ${page}[${index}].pull_requests[${relationIndex}] must match configured repository`);
           return { number: requirePositiveInteger(reference.number, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].number`) };
         });
         const mapped = {
           id: requirePositiveInteger(run.id, `workflow runs page ${page}[${index}].id`),
-          name: requireString(run.name, `workflow runs page ${page}[${index}].name`),
+          name: run.name === null ? null : requireString(run.name, `workflow runs page ${page}[${index}].name`),
           status: requireWorkflowStatus(run.status, `workflow runs page ${page}[${index}].status`),
           conclusion: normalizeWorkflowConclusion(run.conclusion, `workflow runs page ${page}[${index}].conclusion`),
           headSha: requireString(run.head_sha, `workflow runs page ${page}[${index}].head_sha`),
-          runStartedAt: requireTimestamp(run.run_started_at, `workflow runs page ${page}[${index}].run_started_at`),
           updatedAt: requireTimestamp(run.updated_at, `workflow runs page ${page}[${index}].updated_at`),
           url: requireString(run.html_url, `workflow runs page ${page}[${index}].html_url`),
           pullRequests,

@@ -33,7 +33,8 @@ class FakeRepository {
 class FakeProject { constructor() { this.status = 'In Progress'; } async getIssueStatus() { return this.status; } async transitionIssue(_id, target, allowed) { if (!allowed.includes(this.status)) throw new Error('stale'); this.status = target; } }
 function setup() { const repository = new FakeRepository(); const project = new FakeProject(); return { repository, project, handlers: createHandlers({ repository, project, config, summary: { add() {} } }) }; }
 function run(id, conclusion, { sha = 'abcdef', updatedAt = id, name = 'Pull Request CI' } = {}) { return { id, name, status: 'completed', conclusion, headSha: sha, runStartedAt: id - 1, updatedAt, url: `https://ci/${id}` }; }
-function event(workflowRun) { return { action: 'completed', repository: { full_name: 'octo-org/widgets' }, workflow_run: { ...workflowRun, pull_requests: [{ number: 30, base: { repo: { full_name: 'octo-org/widgets' } } }] } }; }
+function relation(number = 30, repositoryId = 100) { return { number, base: { repo: { id: repositoryId, url: 'https://api.github.com/repos/octo-org/widgets', name: 'widgets' } } }; }
+function event(workflowRun) { return { action: 'completed', repository: { full_name: 'octo-org/widgets' }, workflow_run: { ...workflowRun, repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] } }; }
 
 test('current headのnewest applicable failureだけがretry 1/2/3を一度ずつ投稿し4回目でBlockedへ移す', async () => {
   const { repository, project, handlers } = setup();
@@ -172,8 +173,8 @@ test('retry range外、multi-PR 0/2/duplicate/cross-repoはtrusted candidate境�
 
   for (const { relations, expectedComments } of [
     { relations: [], expectedComments: 1 },
-    { relations: [{ number: 30, base: { repo: { full_name: 'octo-org/widgets' } } }, { number: 30, base: { repo: { full_name: 'octo-org/widgets' } } }], expectedComments: 2 },
-    { relations: [{ number: 30, base: { repo: { full_name: 'fork/widgets' } } }], expectedComments: 1 },
+    { relations: [relation(), relation()], expectedComments: 2 },
+    { relations: [{ number: 30, base: { repo: { id: 999, url: 'https://api.github.com/repos/fork/widgets', name: 'widgets' } } }], expectedComments: 1 },
   ]) {
     const state = setup(); const candidate = run(11, 'failure'); state.repository.runs.push(candidate);
     const payload = event(candidate); payload.workflow_run.pull_requests = relations;
@@ -183,7 +184,7 @@ test('retry range外、multi-PR 0/2/duplicate/cross-repoはtrusted candidate境�
   }
   const ambiguous = setup(); const candidate = run(11, 'failure'); ambiguous.repository.runs.push(candidate);
   ambiguous.repository.getCurrentPullRequest = async (number) => ({ ...structuredClone(ambiguous.repository.pr), number });
-  const payload = event(candidate); payload.workflow_run.pull_requests.push({ number: 31, base: { repo: { full_name: 'octo-org/widgets' } } });
+  const payload = event(candidate); payload.workflow_run.pull_requests.push(relation(31));
   assert.deepEqual(await ambiguous.handlers.handleCi(payload), { kind: 'skip', reason: 'ambiguous-managed-pull-request' });
   assert.equal(ambiguous.repository.comments.length, 1);
 });
@@ -192,19 +193,33 @@ test('workflow_runのmanaged relation一件とhuman relationはmanaged PRだけ�
   const { repository, handlers } = setup();
   const failed = run(11, 'failure'); repository.runs.push(failed);
   const multi = event(failed);
-  multi.workflow_run.pull_requests.push({ number: 99, base: { repo: { full_name: 'octo-org/widgets' } } });
+  multi.workflow_run.pull_requests.push(relation(99));
   const result = await handlers.handleCi(multi);
 
   assert.deepEqual(result, { kind: 'retry', retry: 1 });
   assert.equal(repository.comments.filter((comment) => comment.body.includes('agent:ci-retry')).length, 1);
 });
 
+test('公式minimal relationとoptional run_started_atを受け入れ、過去Blocked/resume後のold readyを再利用しない', async () => {
+  const { repository, project, handlers } = setup();
+  repository.comments.push(
+    { id: 2, author: 'cursor[bot]', createdAt: 5, body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->' },
+    ...[11, 12, 13].map((id, index) => ({ id: index + 3, author: 'yuto90', createdAt: id, body: `<!-- agent:ci-retry:v1 run_id=${id} head_sha=abcdef retry=${index + 1} -->` })),
+    { id: 7, author: 'yuto90', createdAt: 20, body: '@cursor\n再開してください' },
+    { id: 8, author: 'yuto90', createdAt: 31, body: '<!-- agent:ci-retry:v1 run_id=31 head_sha=abcdef retry=1 -->' },
+  );
+  repository.runs.push(...[11, 12, 13, 14].map((id) => run(id, 'failure')), run(15, 'success'), run(31, 'failure'), run(32, 'success'));
+  const result = await handlers.handleCi(event(repository.runs.at(-1)));
+  assert.deepEqual(result, { kind: 'skip', reason: 'invalidated-ready-marker' });
+  assert.equal(project.status, 'In Progress');
+});
+
 test('CI repository gatewayはobject envelopeをpage=1..Nで全取得しmalformed paginationをfail closedする', async () => {
   const calls = [];
   const workflowRun = (id) => ({
     id, name: 'Pull Request CI', status: 'completed', conclusion: 'failure', head_sha: 'abcdef',
-    run_started_at: '2026-08-24T00:00:00Z', updated_at: '2026-08-24T00:01:00Z', html_url: `https://ci/${id}`,
-    repository: { full_name: 'octo-org/widgets' }, pull_requests: [{ number: 30, base: { repo: { full_name: 'octo-org/widgets' } } }],
+    updated_at: '2026-08-24T00:01:00Z', html_url: `https://ci/${id}`,
+    repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()],
   });
   const repository = new AgentRepository({
     config: { owner: 'octo-org', repository: 'widgets' },
@@ -233,7 +248,7 @@ test('CI repository gatewayはobject envelopeをpage=1..Nで全取得しmalforme
 });
 
 test('pagination drift、duplicate ID、overcount、max guardとmalformed enum/timestamp/repositoryはfail closedする', async () => {
-  const base = (id) => ({ id, name: 'Pull Request CI', status: 'completed', conclusion: 'failure', head_sha: 'abcdef', run_started_at: '2026-08-24T00:00:00Z', updated_at: '2026-08-24T00:01:00Z', html_url: `https://ci/${id}`, repository: { full_name: 'octo-org/widgets' }, pull_requests: [{ number: 30, base: { repo: { full_name: 'octo-org/widgets' } } }] });
+  const base = (id) => ({ id, name: 'Pull Request CI', status: 'completed', conclusion: 'failure', head_sha: 'abcdef', run_started_at: '2026-08-24T00:00:00Z', updated_at: '2026-08-24T00:01:00Z', html_url: `https://ci/${id}`, repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] });
   const cases = [
     { name: 'drift', read: async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: Array.from({ length: 100 }, (_, index) => base(index + 1)) } : { total_count: 102, workflow_runs: [base(101)] } },
     { name: 'duplicate', read: async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: Array.from({ length: 100 }, () => base(1)) } : { total_count: 101, workflow_runs: [base(101)] } },
@@ -241,7 +256,7 @@ test('pagination drift、duplicate ID、overcount、max guardとmalformed enum/t
     { name: 'max', read: async () => ({ total_count: 100_001, workflow_runs: [base(1)] }) },
     { name: 'enum', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), status: 'mystery' }] }) },
     { name: 'timestamp', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), updated_at: 'nope' }] }) },
-    { name: 'repository', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), repository: { full_name: 'fork/widgets' } }] }) },
+    { name: 'repository', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), repository: { id: 999, full_name: 'fork/widgets' } }] }) },
   ];
   for (const { name, read } of cases) {
     const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { read, async write() {}, async graphql() {} } });
@@ -251,7 +266,7 @@ test('pagination drift、duplicate ID、overcount、max guardとmalformed enum/t
 
 test('new repository readsはexact routeとauthor/timestamp/review enum/head SHAをruntime validateする', async () => {
   const paths = [];
-  const pull = { number: 30, state: 'open', draft: false, base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } }, head: { ref: 'cursor/x', sha: 'abcdef', repo: { full_name: 'octo-org/widgets' } } };
+  const pull = { number: 30, state: 'open', draft: false, base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } }, head: { ref: 'cursor/x', sha: 'abcdef', repo: { full_name: 'octo-org/widgets', name: 'widgets', owner: { login: 'octo-org' } } } };
   const repository = new AgentRepository({
     config: { owner: 'octo-org', repository: 'widgets' },
     client: {
