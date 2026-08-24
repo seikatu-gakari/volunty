@@ -124,7 +124,7 @@ function normalizeOptionalWorkflowName(value, field) {
   return requireString(value, field);
 }
 
-const MAX_CI_RUN_PAGES = 1000;
+const MAX_FILTERED_CI_RUN_RESULTS = 1000;
 
 /** @param {unknown} value @param {string} field @param {string} owner @param {string} repository */
 function requireGraphqlReference(value, field, owner, repository) {
@@ -294,9 +294,46 @@ export class AgentRepository {
     };
   }
 
-  /** @param {{number: number}} pullRequest @param {string} workflowName */
+  /** @param {number} number */
+  async getCompletionPullRequest(number) {
+    const requestedNumber = requirePositiveInteger(number, 'pull request number');
+    const path = `/repos/${encode(this.owner)}/${encode(this.repository)}/pulls/${requestedNumber}`;
+    const pr = requireObject(await this.client.read(path), 'pull request');
+    const base = requireObject(pr.base, 'pull request.base');
+    const head = requireObject(pr.head, 'pull request.head');
+    const baseRepository = requireObject(base.repo, 'pull request.base.repo');
+    const headRepository = requireObject(head.repo, 'pull request.head.repo');
+    if (requireString(baseRepository.full_name, 'pull request.base.repo.full_name') !== `${this.owner}/${this.repository}`) {
+      throw new Error('pull request base repository must match configured repository');
+    }
+    const headOwner = requireObject(headRepository.owner, 'pull request.head.repo.owner');
+    const headOwnerLogin = requireString(headOwner.login, 'pull request.head.repo.owner.login');
+    const headName = requireString(headRepository.name, 'pull request.head.repo.name');
+    if (requireString(headRepository.full_name, 'pull request.head.repo.full_name') !== `${headOwnerLogin}/${headName}`) {
+      throw new Error('pull request head repository identity is inconsistent');
+    }
+    const returnedNumber = requirePositiveInteger(pr.number, 'pull request.number');
+    if (returnedNumber !== requestedNumber) throw new Error('pull request.number must match requested pull request number');
+    if (typeof pr.merged !== 'boolean') throw new Error('pull request.merged must be a boolean');
+    return {
+      number: returnedNumber,
+      state: requireRestPullRequestState(requireString(pr.state, 'pull request.state'), 'pull request.state'),
+      merged: pr.merged,
+      base: { ref: requireString(base.ref, 'pull request.base.ref') },
+      head: {
+        ref: requireString(head.ref, 'pull request.head.ref'),
+        repository: {
+          owner: headOwnerLogin,
+          name: headName,
+        },
+      },
+    };
+  }
+
+  /** @param {{number: number, head: {ref: string}}} pullRequest @param {string} workflowName */
   async listCiRuns(pullRequest, workflowName) {
     const pr = requirePositiveInteger(pullRequest?.number, 'pull request number');
+    const branch = requireString(pullRequest?.head?.ref, 'pull request.head.ref');
     const expectedWorkflow = requireString(workflowName, 'workflow name');
     const allRuns = [];
     const seenIds = new Set();
@@ -304,12 +341,12 @@ export class AgentRepository {
     let page = 1;
     while (totalCount === null || allRuns.length < totalCount) {
       if (totalCount !== null && page > Math.ceil(totalCount / 100)) throw new Error('workflow runs pagination exceeded expected pages');
-      const path = `/repos/${encode(this.owner)}/${encode(this.repository)}/actions/runs?event=pull_request&per_page=100&page=${page}`;
+      const path = `/repos/${encode(this.owner)}/${encode(this.repository)}/actions/runs?branch=${encode(branch)}&event=pull_request&per_page=100&page=${page}`;
       const data = requireObject(await this.client.read(path, { paginate: false }), `workflow runs page ${page}`);
       const pageTotal = requireNonNegativeInteger(data.total_count, `workflow runs page ${page}.total_count`);
       if (totalCount === null) totalCount = pageTotal;
       else if (totalCount !== pageTotal) throw new Error('workflow runs pagination total_count changed');
-      if (Math.ceil(totalCount / 100) > MAX_CI_RUN_PAGES) throw new Error('workflow runs pagination exceeds maximum pages');
+      if (totalCount >= MAX_FILTERED_CI_RUN_RESULTS) throw new Error('workflow runs branch search reached 1000-result cap');
       const values = requireArray(data.workflow_runs, `workflow runs page ${page}.workflow_runs`);
       if (totalCount > allRuns.length && values.length === 0) throw new Error('workflow runs pagination ended prematurely');
       for (const [index, value] of values.entries()) {
@@ -343,14 +380,14 @@ export class AgentRepository {
         });
         const name = normalizeOptionalWorkflowName(run.name, `workflow runs page ${page}[${index}].name`);
         const status = normalizeOptionalWorkflowStatus(run.status, `workflow runs page ${page}[${index}].status`);
-        const isCompletedCandidate = name === expectedWorkflow && pullRequests.some((reference) => reference.number === pr) && status === 'completed';
+        const isTargetRun = name === expectedWorkflow && pullRequests.some((reference) => reference.number === pr);
         const mapped = {
           id: requirePositiveInteger(run.id, `workflow runs page ${page}[${index}].id`),
           name, status,
-          conclusion: isCompletedCandidate ? normalizeWorkflowConclusion(run.conclusion, `workflow runs page ${page}[${index}].conclusion`) : null,
-          headSha: isCompletedCandidate ? requireString(run.head_sha, `workflow runs page ${page}[${index}].head_sha`) : null,
-          updatedAt: isCompletedCandidate ? requireTimestamp(run.updated_at, `workflow runs page ${page}[${index}].updated_at`) : null,
-          url: isCompletedCandidate ? requireString(run.html_url, `workflow runs page ${page}[${index}].html_url`) : null,
+          conclusion: isTargetRun ? normalizeWorkflowConclusion(run.conclusion, `workflow runs page ${page}[${index}].conclusion`) : null,
+          headSha: isTargetRun ? requireString(run.head_sha, `workflow runs page ${page}[${index}].head_sha`) : null,
+          updatedAt: isTargetRun ? requireTimestamp(run.updated_at, `workflow runs page ${page}[${index}].updated_at`) : null,
+          url: isTargetRun ? requireString(run.html_url, `workflow runs page ${page}[${index}].html_url`) : null,
           pullRequests,
         };
         if (seenIds.has(mapped.id)) throw new Error('workflow runs pagination contains duplicate id');
@@ -363,10 +400,11 @@ export class AgentRepository {
     return allRuns.filter((run) => run.name === expectedWorkflow && run.pullRequests.some((reference) => reference.number === pr));
   }
 
-  /** @param {{number: number}} pullRequest @param {string} workflowName */
+  /** @param {{number: number, head: {ref: string, sha: string}}} pullRequest @param {string} workflowName */
   async getLatestCiRun(pullRequest, workflowName) {
+    const headSha = requireString(pullRequest?.head?.sha, 'pull request.head.sha');
     const runs = await this.listCiRuns(pullRequest, workflowName);
-    return runs.filter((run) => run.status === 'completed' && typeof run.headSha === 'string' && Number.isFinite(run.updatedAt))
+    return runs.filter((run) => run.headSha === headSha && Number.isFinite(run.updatedAt))
       .sort((left, right) => right.updatedAt - left.updatedAt || right.id - left.id)[0] ?? null;
   }
 

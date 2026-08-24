@@ -265,3 +265,44 @@ test('current PR readはconfigured baseを厳密に確認しfork headをnonmanag
     head: { ref: 'cursor/human-fork', sha: 'abcdef', repository: { owner: 'someone', name: 'widgets' } },
   });
 });
+
+test('completion PR readはconfigured repositoryのmerged/base/headを公式REST shapeから検証する', async () => {
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read(path) {
+        assert.equal(path, '/repos/octo-org/widgets/pulls/30');
+        return {
+          number: 30, state: 'closed', merged: true,
+          base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } },
+          head: { ref: 'cursor/issue-20-task', repo: { full_name: 'octo-org/widgets', name: 'widgets', owner: { login: 'octo-org' } } },
+        };
+      },
+      async write() { throw new Error('completion read must not write'); },
+      async graphql() {},
+    },
+  });
+
+  assert.deepEqual(await repository.getCompletionPullRequest(30), {
+    number: 30, state: 'closed', merged: true, base: { ref: 'main' },
+    head: { ref: 'cursor/issue-20-task', repository: { owner: 'octo-org', name: 'widgets' } },
+  });
+});
+
+test('completion PR readはhead repositoryのfull_nameとowner/name不整合をrejectする', async () => {
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() {
+        return {
+          number: 30, state: 'closed', merged: true,
+          base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } },
+          head: { ref: 'cursor/issue-20-task', repo: { full_name: 'fork/widgets', name: 'widgets', owner: { login: 'octo-org' } } },
+        };
+      },
+      async write() {}, async graphql() {},
+    },
+  });
+
+  await assert.rejects(() => repository.getCompletionPullRequest(30), /head repository/);
+});

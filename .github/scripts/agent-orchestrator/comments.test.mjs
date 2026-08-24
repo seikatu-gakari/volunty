@@ -109,6 +109,34 @@ test('PENDING reviewのnullable user/submittedAtはHuman Review gateをinvalidat
   assert.equal(project.status, 'Human Review');
 });
 
+test('operator changes_requestedのsubmittedAtが不明ならHuman Review gateをfail closedする', async () => {
+  const { repository, project, handlers } = setup();
+  const ready = '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->';
+  repository.comments.push({ id: 2, author: 'cursor[bot]', createdAt: 20, body: ready });
+  repository.reviews.push({ author: 'yuto90', state: 'changes_requested', submittedAt: null, commitId: 'abcdef' });
+  repository.runs.push({ id: 7, name: 'Pull Request CI', status: 'completed', conclusion: 'success', headSha: 'abcdef', updatedAt: 21, url: 'https://ci/7' });
+
+  const result = await handlers.handleComment(event({ body: ready }));
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'invalidated-ready-marker' });
+  assert.equal(project.status, 'In Progress');
+});
+
+test('current headのnewest runがqueuedなら古いsuccessでHuman Reviewへ移さない', async () => {
+  const { repository, project, handlers } = setup();
+  const ready = '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->';
+  repository.comments.push({ id: 2, author: 'cursor[bot]', createdAt: 20, body: ready });
+  repository.runs.push(
+    { id: 7, name: 'Pull Request CI', status: 'completed', conclusion: 'success', headSha: 'abcdef', updatedAt: 21, url: 'https://ci/7' },
+    { id: 8, name: 'Pull Request CI', status: 'queued', conclusion: null, headSha: 'abcdef', updatedAt: 22, url: 'https://ci/8' },
+  );
+
+  const result = await handlers.handleComment(event({ body: ready }));
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'ci-not-green' });
+  assert.equal(project.status, 'In Progress');
+});
+
 test('Human Input・accepted resume・changes requested後の古いready markerは再利用しない', async () => {
   const { repository, project, handlers } = setup();
   repository.comments.push(

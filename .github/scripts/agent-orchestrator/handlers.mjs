@@ -1,6 +1,9 @@
 import {
+  evaluateCancel,
+  evaluateDone,
   evaluateHumanReview,
   evaluatePrAck,
+  evaluateReview,
   evaluateStart,
   hasExactMarker,
   hasStandaloneCursorMention,
@@ -8,6 +11,8 @@ import {
   parseReadyHeadSha,
   parseRetryMarker,
 } from './core.mjs';
+
+const activeStatuses = ['Backlog', 'In Progress', 'Human Input', 'Human Review', 'Rework', 'Blocked'];
 
 /** @param {unknown} value @returns {number | null} */
 function eventNumber(value) {
@@ -150,8 +155,10 @@ export function createHandlers({ repository, project, config, summary }) {
     if (number === null) return { kind: 'skip', reason: 'invalid-issue' };
     if (action === 'opened') {
       const current = await repository.getIssue(number);
+      const status = await project.getIssueStatus(current.id);
+      if (hasLabel(current.labels, config.labels.cancel) || isTerminalStatus(status)) return { kind: 'skip', reason: 'terminal' };
       await project.ensureIssueItem(current.id);
-      if (await project.getIssueStatus(current.id) === null) {
+      if (status === null) {
         await project.transitionIssue(current.id, 'Backlog', [null]);
       }
       return { kind: 'initialized' };
@@ -316,6 +323,9 @@ export function createHandlers({ repository, project, config, summary }) {
 
   /** @param {Array<{author: string, body: string, createdAt?: number | string}>} comments @param {Array<{author: string, state: string, submittedAt?: number | string}>} reviews @param {Array<any>} runs */
   function invalidatedAfter(comments, reviews, runs) {
+    const hasUnknownChangesRequestedTime = reviews.some((review) => review.author === config.operator
+      && review.state === 'changes_requested' && !Number.isFinite(timestamp(review.submittedAt)));
+    if (hasUnknownChangesRequestedTime) return Number.POSITIVE_INFINITY;
     const pauseTimes = [
       ...comments.filter((comment) => config.agentActors.includes(comment.author) && hasExactMarker(comment.body, '<!-- agent:human-input -->')).map((comment) => timestamp(comment.createdAt)),
       ...reviews.filter((review) => review.author === config.operator && review.state === 'changes_requested' && Number.isFinite(timestamp(review.submittedAt))).map((review) => timestamp(review.submittedAt)),
@@ -345,7 +355,7 @@ export function createHandlers({ repository, project, config, summary }) {
 
   /** @param {Array<any>} runs @param {string} headSha */
   function newestCurrentHeadRun(runs, headSha) {
-    const candidates = runs.filter((run) => run.name === config.ciWorkflow && run.status === 'completed' && run.headSha === headSha);
+    const candidates = runs.filter((run) => run.name === config.ciWorkflow && run.headSha === headSha);
     candidates.sort((left, right) => compareRunOrder(right, left));
     return candidates[0] ?? null;
   }
@@ -368,7 +378,7 @@ export function createHandlers({ repository, project, config, summary }) {
         headSha: session.headSha,
         latestReady: latestReady(comments),
         invalidatedAfter: invalidatedAfter(comments, reviews, runs),
-        ciConclusion: currentRun?.conclusion ?? null,
+        ciConclusion: currentRun?.status === 'completed' ? currentRun.conclusion : null,
         cancelled: hasLabel(session.issue.labels, config.labels.cancel),
       }),
     };
@@ -498,5 +508,181 @@ export function createHandlers({ repository, project, config, summary }) {
     return { kind: 'retry', retry };
   }
 
-  return { handleStart, handlePrCreated, handleComment, handleCi };
+  /** @param {number} number @param {{author: string, state: string, commitId: string, submittedAt: number}} review */
+  async function readReviewDecision(number, review) {
+    const session = await readManagedSession(number);
+    if (session.decision.kind !== 'managed') return { session, decision: session.decision };
+    if (review.commitId !== session.headSha) return { session, decision: { kind: 'skip', reason: 'stale-head' } };
+    return {
+      session,
+      decision: evaluateReview({
+        status: session.status,
+        isOperator: review.author === config.operator,
+        reviewState: review.state,
+        cancelled: hasLabel(session.issue.labels, config.labels.cancel),
+      }),
+    };
+  }
+
+  async function handleReview(event) {
+    if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
+    if (event?.action !== 'submitted') return { kind: 'skip', reason: 'unsupported-event' };
+    const number = eventNumber(event?.pull_request?.number ?? event?.number);
+    const author = stringValue(event?.review?.user?.login);
+    const stateValue = stringValue(event?.review?.state);
+    const commitId = stringValue(event?.review?.commit_id);
+    const submittedAt = timestamp(event?.review?.submitted_at);
+    if (number === null || author === null || stateValue === null || commitId === null || !Number.isFinite(submittedAt)) {
+      return { kind: 'skip', reason: 'invalid-review' };
+    }
+    const review = { author, state: stateValue.toLowerCase(), commitId, submittedAt };
+    const first = await readReviewDecision(number, review);
+    if (first.decision.kind !== 'transition') return first.decision;
+    const current = await readReviewDecision(number, review);
+    if (current.decision.kind !== 'transition') return current.decision;
+    if (current.session.issue.id !== first.session.issue.id || current.session.headSha !== first.session.headSha) {
+      return { kind: 'skip', reason: 'stale-session' };
+    }
+    await project.transitionIssue(current.session.issue.id, 'Rework', ['Human Review']);
+    return current.decision;
+  }
+
+  const isManagedClosingPullRequest = (pullRequest) => pullRequest?.baseRefName === config.defaultBranch
+    && typeof pullRequest?.headRefName === 'string'
+    && pullRequest.headRefName.startsWith(config.cursorBranchPrefix)
+    && pullRequest?.headRepository?.owner === config.owner
+    && pullRequest?.headRepository?.name === config.repository;
+
+  const isManagedCompletionPullRequest = (pullRequest) => pullRequest?.base?.ref === config.defaultBranch
+    && typeof pullRequest?.head?.ref === 'string'
+    && pullRequest.head.ref.startsWith(config.cursorBranchPrefix)
+    && pullRequest?.head?.repository?.owner === config.owner
+    && pullRequest?.head?.repository?.name === config.repository;
+
+  async function readDone(issueNumber, pullRequestNumber) {
+    const issue = await repository.getIssue(issueNumber);
+    const status = await project.getIssueStatus(issue.id);
+    if (hasLabel(issue.labels, config.labels.cancel) || isTerminalStatus(status)) {
+      return { issue, status, decision: { kind: 'skip', reason: 'terminal' } };
+    }
+    if (!activeStatuses.includes(status)) return { issue, status, decision: { kind: 'skip', reason: 'invalid-status' } };
+    const [pullRequest, closingIssues, closingPullRequests, comments] = await Promise.all([
+      repository.getCompletionPullRequest(pullRequestNumber),
+      repository.findClosingIssues(pullRequestNumber),
+      repository.findClosingPullRequests(issueNumber),
+      listTimedComments(issueNumber),
+    ]);
+    if (!hasTrustedDispatchMarker(comments, issue.number)) {
+      return { issue, status, pullRequest, decision: { kind: 'skip', reason: 'dispatch-marker-missing' } };
+    }
+    if (!isManagedCompletionPullRequest(pullRequest)) {
+      return { issue, status, pullRequest, decision: { kind: 'skip', reason: 'not-managed-pr' } };
+    }
+    if (!Array.isArray(closingIssues) || closingIssues.length !== 1 || closingIssues[0].number !== issue.number) {
+      return { issue, status, pullRequest, decision: { kind: 'skip', reason: 'invalid-closing-issues' } };
+    }
+    const reverse = Array.isArray(closingPullRequests)
+      ? closingPullRequests.filter((candidate) => candidate.number === pullRequest.number)
+      : [];
+    if (reverse.length !== 1 || !isManagedClosingPullRequest(reverse[0])) {
+      return { issue, status, pullRequest, decision: { kind: 'skip', reason: 'invalid-closing-relation' } };
+    }
+    const relation = reverse[0];
+    return {
+      issue,
+      status,
+      pullRequest,
+      decision: evaluateDone({
+        status,
+        isMerged: pullRequest.state === 'closed' && pullRequest.merged === true && relation.state === 'merged',
+        isIssueClosed: issue.state === 'closed' && closingIssues[0].state === 'closed',
+        isDefaultBranch: pullRequest.base.ref === config.defaultBranch && relation.baseRefName === config.defaultBranch,
+        cancelled: hasLabel(issue.labels, config.labels.cancel),
+      }),
+    };
+  }
+
+  async function maybeMarkDone(issueNumber, pullRequestNumber) {
+    const first = await readDone(issueNumber, pullRequestNumber);
+    if (first.decision.kind !== 'transition') return first.decision;
+    const current = await readDone(issueNumber, pullRequestNumber);
+    if (current.decision.kind !== 'transition') return current.decision;
+    if (current.issue.id !== first.issue.id || current.pullRequest.number !== first.pullRequest.number || current.status !== first.status) {
+      return { kind: 'skip', reason: 'stale-session' };
+    }
+    await project.transitionIssue(current.issue.id, 'Done', activeStatuses);
+    return current.decision;
+  }
+
+  async function handleMerge(event) {
+    if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
+    if (event?.action !== 'closed') return { kind: 'skip', reason: 'unsupported-event' };
+    const pullRequestNumber = eventNumber(event?.pull_request?.number);
+    if (pullRequestNumber !== null) {
+      const closingIssues = await repository.findClosingIssues(pullRequestNumber);
+      if (!Array.isArray(closingIssues) || closingIssues.length !== 1) return { kind: 'skip', reason: 'invalid-closing-issues' };
+      return maybeMarkDone(closingIssues[0].number, pullRequestNumber);
+    }
+    const issueNumber = eventNumber(event?.issue?.number);
+    if (issueNumber === null || (event?.issue?.pull_request !== null && typeof event?.issue?.pull_request === 'object')) {
+      return { kind: 'skip', reason: 'invalid-issue' };
+    }
+    const issue = await repository.getIssue(issueNumber);
+    const status = await project.getIssueStatus(issue.id);
+    if (hasLabel(issue.labels, config.labels.cancel) || isTerminalStatus(status)) return { kind: 'skip', reason: 'terminal' };
+    const closingPullRequests = await repository.findClosingPullRequests(issueNumber);
+    const candidates = Array.isArray(closingPullRequests)
+      ? closingPullRequests.filter((candidate) => candidate.state === 'merged' && isManagedClosingPullRequest(candidate))
+      : [];
+    if (candidates.length === 0) return { kind: 'skip', reason: 'no-qualifying-pull-request' };
+    if (candidates.length !== 1) return { kind: 'skip', reason: 'ambiguous-pull-request' };
+    return maybeMarkDone(issueNumber, candidates[0].number);
+  }
+
+  async function readCancel(number) {
+    const issue = await repository.getIssue(number);
+    const status = await project.getIssueStatus(issue.id);
+    if (isTerminalStatus(status)) return { issue, status, decision: { kind: 'skip', reason: 'terminal' } };
+    if (issue.state !== 'open') return { issue, status, decision: { kind: 'skip', reason: 'issue-not-open' } };
+    if (!activeStatuses.includes(status)) return { issue, status, decision: { kind: 'skip', reason: 'invalid-status' } };
+    const [actor, pullRequests, comments] = await Promise.all([
+      repository.getLatestLabelActor(number, config.labels.cancel),
+      repository.findClosingPullRequests(number),
+      listTimedComments(number),
+    ]);
+    const hasReadyLabel = hasLabel(issue.labels, config.labels.ready);
+    const hasManagedPullRequest = Array.isArray(pullRequests) && pullRequests.some(isManagedPullRequest)
+      && hasTrustedDispatchMarker(comments, issue.number);
+    return {
+      issue,
+      status,
+      decision: evaluateCancel({
+        status,
+        isOperator: actor === config.operator,
+        hasCancelLabel: hasLabel(issue.labels, config.labels.cancel),
+        isManaged: hasManagedPullRequest,
+        hasReadyLabel,
+      }),
+    };
+  }
+
+  async function handleCancel(event) {
+    if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
+    if (event?.action !== 'labeled') return { kind: 'skip', reason: 'unsupported-event' };
+    if (event?.label?.name !== config.labels.cancel) return { kind: 'skip', reason: 'unrelated-label' };
+    if (event?.sender?.login !== config.operator) return { kind: 'skip', reason: 'unauthorized-operator' };
+    const number = eventNumber(event?.issue?.number);
+    if (number === null || (event?.issue?.pull_request !== null && typeof event?.issue?.pull_request === 'object')) {
+      return { kind: 'skip', reason: 'invalid-issue' };
+    }
+    const first = await readCancel(number);
+    if (first.decision.kind !== 'transition') return first.decision;
+    const current = await readCancel(number);
+    if (current.decision.kind !== 'transition') return current.decision;
+    if (current.issue.id !== first.issue.id || current.status !== first.status) return { kind: 'skip', reason: 'stale-session' };
+    await project.transitionIssue(current.issue.id, 'Cancelled', activeStatuses);
+    return current.decision;
+  }
+
+  return { handleStart, handlePrCreated, handleComment, handleCi, handleReview, handleMerge, handleCancel };
 }
