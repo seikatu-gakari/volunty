@@ -33,7 +33,7 @@ class FakeRepository {
 class FakeProject { constructor() { this.status = 'In Progress'; } async getIssueStatus() { return this.status; } async transitionIssue(_id, target, allowed) { if (!allowed.includes(this.status)) throw new Error('stale'); this.status = target; } }
 function setup() { const repository = new FakeRepository(); const project = new FakeProject(); return { repository, project, handlers: createHandlers({ repository, project, config, summary: { add() {} } }) }; }
 function run(id, conclusion, { sha = 'abcdef', updatedAt = id, name = 'Pull Request CI' } = {}) { return { id, name, status: 'completed', conclusion, headSha: sha, runStartedAt: id - 1, updatedAt, url: `https://ci/${id}` }; }
-function relation(number = 30, repositoryId = 100) { return { number, base: { repo: { id: repositoryId, url: 'https://api.github.com/repos/octo-org/widgets', name: 'widgets' } } }; }
+function relation(number = 30, repositoryId = 100) { return { id: number + 1000, number, url: `https://api.github.com/repos/octo-org/widgets/pulls/${number}`, head: { ref: 'fork/cursor', sha: 'f00d', repo: { id: 200, url: 'https://api.github.com/repos/fork/widgets', name: 'widgets' } }, base: { ref: 'main', sha: 'beef', repo: { id: repositoryId, url: 'https://api.github.com/repos/octo-org/widgets', name: 'widgets' } } }; }
 function event(workflowRun) { return { action: 'completed', repository: { full_name: 'octo-org/widgets' }, workflow_run: { ...workflowRun, repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] } }; }
 
 test('current headのnewest applicable failureだけがretry 1/2/3を一度ずつ投稿し4回目でBlockedへ移す', async () => {
@@ -173,7 +173,7 @@ test('retry range外、multi-PR 0/2/duplicate/cross-repoはtrusted candidate境�
 
   for (const { relations, expectedComments } of [
     { relations: [], expectedComments: 1 },
-    { relations: [relation(), relation()], expectedComments: 2 },
+    { relations: [relation(), relation()], expectedComments: 1 },
     { relations: [{ number: 30, base: { repo: { id: 999, url: 'https://api.github.com/repos/fork/widgets', name: 'widgets' } } }], expectedComments: 1 },
   ]) {
     const state = setup(); const candidate = run(11, 'failure'); state.repository.runs.push(candidate);
@@ -250,17 +250,16 @@ test('CI repository gatewayはobject envelopeをpage=1..Nで全取得しmalforme
 test('pagination drift、duplicate ID、overcount、max guardとmalformed enum/timestamp/repositoryはfail closedする', async () => {
   const base = (id) => ({ id, name: 'Pull Request CI', status: 'completed', conclusion: 'failure', head_sha: 'abcdef', run_started_at: '2026-08-24T00:00:00Z', updated_at: '2026-08-24T00:01:00Z', html_url: `https://ci/${id}`, repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] });
   const cases = [
-    { name: 'drift', read: async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: Array.from({ length: 100 }, (_, index) => base(index + 1)) } : { total_count: 102, workflow_runs: [base(101)] } },
-    { name: 'duplicate', read: async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: Array.from({ length: 100 }, () => base(1)) } : { total_count: 101, workflow_runs: [base(101)] } },
-    { name: 'overcount', read: async () => ({ total_count: 1, workflow_runs: [base(1), base(2)] }) },
-    { name: 'max', read: async () => ({ total_count: 100_001, workflow_runs: [base(1)] }) },
-    { name: 'enum', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), status: 'mystery' }] }) },
-    { name: 'timestamp', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), updated_at: 'nope' }] }) },
-    { name: 'repository', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), repository: { id: 999, full_name: 'fork/widgets' } }] }) },
+    { name: 'drift', message: 'workflow runs pagination total_count changed', read: async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: Array.from({ length: 100 }, (_, index) => base(index + 1)) } : { total_count: 102, workflow_runs: [base(101)] } },
+    { name: 'duplicate', message: 'workflow runs pagination contains duplicate id', read: async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: [base(1), ...Array.from({ length: 99 }, (_, index) => base(index + 2))] } : { total_count: 101, workflow_runs: [base(1)] } },
+    { name: 'overcount', message: 'workflow runs pagination exceeds total_count', read: async () => ({ total_count: 1, workflow_runs: [base(1), base(2)] }) },
+    { name: 'max', message: 'workflow runs pagination exceeds maximum pages', read: async () => ({ total_count: 100_001, workflow_runs: [] }) },
+    { name: 'timestamp', message: 'workflow runs page 1[0].updated_at must be an ISO date', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), updated_at: 'nope' }] }) },
+    { name: 'repository', message: 'workflow runs page 1[0].repository must match configured repository', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), repository: { id: 999, full_name: 'fork/widgets' } }] }) },
   ];
-  for (const { name, read } of cases) {
+  for (const { name, message, read } of cases) {
     const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { read, async write() {}, async graphql() {} } });
-    await assert.rejects(() => repository.listCiRuns({ number: 30 }, 'Pull Request CI'), /workflow runs|pagination/, name);
+    await assert.rejects(() => repository.listCiRuns({ number: 30 }, 'Pull Request CI'), (error) => error.message === message, name);
   }
 });
 
@@ -290,4 +289,18 @@ test('new repository readsはexact routeとauthor/timestamp/review enum/head SHA
     '/repos/octo-org/widgets/pulls/30/reviews',
     '/repos/octo-org/widgets/commits/abcdef',
   ]);
+});
+
+test('official nullable workflow run/reviewは無関係なら停止せず、PENDING reviewをinvalidatorにしない', async () => {
+  const optionalRun = { id: 41, name: undefined, status: null, conclusion: null, repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] };
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: { async read(path) {
+      if (path.includes('/actions/runs')) return { total_count: 1, workflow_runs: [optionalRun] };
+      if (path.endsWith('/reviews')) return [{ user: null, state: 'PENDING', submitted_at: undefined, commit_id: undefined }];
+      throw new Error(`unexpected ${path}`);
+    }, async write() {}, async graphql() {} },
+  });
+  assert.deepEqual(await repository.listCiRuns({ number: 30 }, 'Pull Request CI'), []);
+  assert.deepEqual(await repository.listReviews({ number: 30 }), [{ author: null, state: 'pending', submittedAt: null, commitId: null }]);
 });

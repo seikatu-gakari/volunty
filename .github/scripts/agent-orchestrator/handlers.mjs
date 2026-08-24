@@ -318,7 +318,7 @@ export function createHandlers({ repository, project, config, summary }) {
   function invalidatedAfter(comments, reviews, runs) {
     const pauseTimes = [
       ...comments.filter((comment) => config.agentActors.includes(comment.author) && hasExactMarker(comment.body, '<!-- agent:human-input -->')).map((comment) => timestamp(comment.createdAt)),
-      ...reviews.filter((review) => review.author === config.operator && review.state === 'changes_requested').map((review) => timestamp(review.submittedAt)),
+      ...reviews.filter((review) => review.author === config.operator && review.state === 'changes_requested' && Number.isFinite(timestamp(review.submittedAt))).map((review) => timestamp(review.submittedAt)),
     ];
     const retryMarkers = trustedRetryMarkers(comments, runs).sort((left, right) => compareRunOrder(left.run, right.run));
     const markerRunIds = new Set(retryMarkers.map((marker) => String(marker.run.id)));
@@ -411,17 +411,26 @@ export function createHandlers({ repository, project, config, summary }) {
   /** @param {unknown} event */
   function eventPullRequestNumbers(event) {
     const references = event?.workflow_run?.pull_requests;
-    if (!Array.isArray(references)) return [];
+    if (!Array.isArray(references)) return null;
     const workflowRepository = event?.workflow_run?.repository;
     const workflowRepositoryId = eventNumber(workflowRepository?.id);
-    if (workflowRepositoryId === null || workflowRepository?.full_name !== `${config.owner}/${config.repository}`) return [];
-    return [...new Set(references.flatMap((reference) => {
+    if (workflowRepositoryId === null || workflowRepository?.full_name !== `${config.owner}/${config.repository}`) return null;
+    const numbers = new Set();
+    for (const reference of references) {
       const baseRepository = reference?.base?.repo;
       const number = eventNumber(reference?.number);
-      return number !== null && baseRepository?.id === workflowRepositoryId
+      const headRepository = reference?.head?.repo;
+      const valid = eventNumber(reference?.id) !== null && typeof reference?.url === 'string' && reference.url !== ''
+        && typeof reference?.base?.ref === 'string' && reference.base.ref !== '' && typeof reference?.base?.sha === 'string' && reference.base.sha !== ''
+        && typeof reference?.head?.ref === 'string' && reference.head.ref !== '' && typeof reference?.head?.sha === 'string' && reference.head.sha !== ''
+        && eventNumber(headRepository?.id) !== null && typeof headRepository?.url === 'string' && headRepository.url !== '' && typeof headRepository?.name === 'string' && headRepository.name !== '';
+      if (!valid || number === null || !(baseRepository?.id === workflowRepositoryId
         && baseRepository?.url === `https://api.github.com/repos/${config.owner}/${config.repository}`
-        && baseRepository?.name === config.repository ? [number] : [];
-    }))];
+        && baseRepository?.name === config.repository)) return null;
+      if (numbers.has(number)) return null;
+      numbers.add(number);
+    }
+    return [...numbers];
   }
 
   /** @param {unknown} event */
@@ -447,7 +456,7 @@ export function createHandlers({ repository, project, config, summary }) {
     const incoming = eventRun(event);
     if (incoming === null || incoming.name !== config.ciWorkflow || incoming.status !== 'completed') return { kind: 'skip', reason: 'invalid-workflow-run' };
     const numbers = eventPullRequestNumbers(event);
-    if (numbers.length === 0) return { kind: 'skip', reason: 'invalid-pull-request' };
+    if (numbers === null || numbers.length === 0) return { kind: 'skip', reason: 'invalid-pull-request' };
     const candidates = [];
     for (const number of numbers) {
       const session = await readManagedSession(number);

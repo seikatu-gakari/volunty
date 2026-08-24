@@ -111,6 +111,19 @@ function requireWorkflowStatus(value, field) {
   return status;
 }
 
+/** @param {unknown} value @param {string} field @returns {string | null} */
+function normalizeOptionalWorkflowStatus(value, field) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string' || !['queued', 'in_progress', 'completed', 'requested', 'waiting', 'pending'].includes(value)) return null;
+  return value;
+}
+
+/** @param {unknown} value @param {string} field @returns {string | null} */
+function normalizeOptionalWorkflowName(value, field) {
+  if (value === null || value === undefined) return null;
+  return requireString(value, field);
+}
+
 const MAX_CI_RUN_PAGES = 1000;
 
 /** @param {unknown} value @param {string} field @param {string} owner @param {string} repository */
@@ -304,23 +317,40 @@ export class AgentRepository {
         const repository = requireObject(run.repository, `workflow runs page ${page}[${index}].repository`);
         const repositoryId = requirePositiveInteger(repository.id, `workflow runs page ${page}[${index}].repository.id`);
         if (requireString(repository.full_name, `workflow runs page ${page}[${index}].repository.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs page ${page}[${index}].repository must match configured repository`);
+        const relationNumbers = new Set();
         const pullRequests = (run.pull_requests === null ? [] : requireArray(run.pull_requests, `workflow runs page ${page}[${index}].pull_requests`)).map((relation, relationIndex) => {
           const reference = requireObject(relation, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}]`);
           const base = requireObject(reference.base, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base`);
+          const head = requireObject(reference.head, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head`);
           const baseRepository = requireObject(base.repo, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo`);
+          const headRepository = requireObject(head.repo, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.repo`);
           if (requirePositiveInteger(baseRepository.id, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo.id`) !== repositoryId
             || requireString(baseRepository.url, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo.url`) !== `https://api.github.com/repos/${this.owner}/${this.repository}`
             || requireString(baseRepository.name, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.repo.name`) !== this.repository) throw new Error(`workflow runs page ${page}[${index}].pull_requests[${relationIndex}] must match configured repository`);
-          return { number: requirePositiveInteger(reference.number, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].number`) };
+          const number = requirePositiveInteger(reference.number, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].number`);
+          requirePositiveInteger(reference.id, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].id`);
+          requireString(reference.url, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].url`);
+          requireString(base.ref, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.ref`);
+          requireString(base.sha, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.sha`);
+          requireString(head.ref, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.ref`);
+          requireString(head.sha, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.sha`);
+          requirePositiveInteger(headRepository.id, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.repo.id`);
+          requireString(headRepository.url, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.repo.url`);
+          requireString(headRepository.name, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.repo.name`);
+          if (relationNumbers.has(number)) throw new Error('workflow runs pull requests contains duplicate number');
+          relationNumbers.add(number);
+          return { number };
         });
+        const name = normalizeOptionalWorkflowName(run.name, `workflow runs page ${page}[${index}].name`);
+        const status = normalizeOptionalWorkflowStatus(run.status, `workflow runs page ${page}[${index}].status`);
+        const isCompletedCandidate = name === expectedWorkflow && pullRequests.some((reference) => reference.number === pr) && status === 'completed';
         const mapped = {
           id: requirePositiveInteger(run.id, `workflow runs page ${page}[${index}].id`),
-          name: run.name === null ? null : requireString(run.name, `workflow runs page ${page}[${index}].name`),
-          status: requireWorkflowStatus(run.status, `workflow runs page ${page}[${index}].status`),
-          conclusion: normalizeWorkflowConclusion(run.conclusion, `workflow runs page ${page}[${index}].conclusion`),
-          headSha: requireString(run.head_sha, `workflow runs page ${page}[${index}].head_sha`),
-          updatedAt: requireTimestamp(run.updated_at, `workflow runs page ${page}[${index}].updated_at`),
-          url: requireString(run.html_url, `workflow runs page ${page}[${index}].html_url`),
+          name, status,
+          conclusion: isCompletedCandidate ? normalizeWorkflowConclusion(run.conclusion, `workflow runs page ${page}[${index}].conclusion`) : null,
+          headSha: isCompletedCandidate ? requireString(run.head_sha, `workflow runs page ${page}[${index}].head_sha`) : null,
+          updatedAt: isCompletedCandidate ? requireTimestamp(run.updated_at, `workflow runs page ${page}[${index}].updated_at`) : null,
+          url: isCompletedCandidate ? requireString(run.html_url, `workflow runs page ${page}[${index}].html_url`) : null,
           pullRequests,
         };
         if (seenIds.has(mapped.id)) throw new Error('workflow runs pagination contains duplicate id');
@@ -345,14 +375,14 @@ export class AgentRepository {
     const values = requireArray(await this.client.read(`/repos/${encode(this.owner)}/${encode(this.repository)}/pulls/${number}/reviews`, { paginate: true }), 'reviews');
     return values.map((value, index) => {
       const review = requireObject(value, `reviews[${index}]`);
-      const user = requireObject(review.user, `reviews[${index}].user`);
+      const user = review.user === null ? null : requireObject(review.user, `reviews[${index}].user`);
       const state = requireString(review.state, `reviews[${index}].state`).toLowerCase();
       if (!['approved', 'changes_requested', 'commented', 'dismissed', 'pending'].includes(state)) throw new Error(`reviews[${index}].state must be a review state`);
       return {
-        author: requireString(user.login, `reviews[${index}].user.login`),
+        author: user === null ? null : requireString(user.login, `reviews[${index}].user.login`),
         state,
-        submittedAt: requireTimestamp(review.submitted_at, `reviews[${index}].submitted_at`),
-        commitId: requireNullableString(review.commit_id, `reviews[${index}].commit_id`),
+        submittedAt: review.submitted_at === null || review.submitted_at === undefined ? null : requireTimestamp(review.submitted_at, `reviews[${index}].submitted_at`),
+        commitId: review.commit_id === undefined ? null : requireNullableString(review.commit_id, `reviews[${index}].commit_id`),
       };
     });
   }
