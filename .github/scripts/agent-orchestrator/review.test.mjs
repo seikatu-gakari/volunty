@@ -45,125 +45,114 @@ function setup() {
   return { repository, project, handlers: createHandlers({ repository, project, config, summary: { add() {} } }) };
 }
 
-function event({ id = 101, author = 'yuto90', state = 'changes_requested', commitId = 'abcdef', action = 'submitted', submitted = '2026-08-24T00:01:00Z' } = {}) {
+function event({ action = 'workflow_dispatch', actor = 'yuto90', number = 30 } = {}) {
   return {
     action,
     repository: { full_name: 'octo-org/widgets' },
-    pull_request: { number: 30 },
-    review: { id, user: { login: author }, state, commit_id: commitId, submitted_at: submitted },
+    sender: { login: actor },
+    pull_request: { number },
   };
 }
 
-test('Human Reviewのcurrent headへoperatorがchanges_requestedを送るとReworkへ移す', async () => {
+test('operatorのmanual workflow_dispatchはAPI上の一意な最新changes_requestedでHuman ReviewをReworkへ移す', async () => {
   const { handlers, project } = setup();
-
   const result = await handlers.handleReview(event());
-
   assert.deepEqual(result, { kind: 'transition', status: 'Rework' });
   assert.equal(project.status, 'Rework');
-  assert.equal(project.transitions.length, 1);
+  assert.deepEqual(project.transitions, [{ id: 120, target: 'Rework', allowedFrom: ['Human Review'] }]);
 });
 
-test('approved/commented/dismissed・unauthorized・wrong status・stale head・terminalはreviewで遷移しない', async () => {
+test('unauthorized dispatch・対象外event・ordinary/non-managed PRはskipでAPI mutationしない', async () => {
   const cases = [
-    { name: 'approved', event: event({ state: 'approved' }) },
-    { name: 'commented', event: event({ state: 'commented' }) },
-    { name: 'dismissed', event: event({ state: 'dismissed' }) },
-    { name: 'unauthorized', event: event({ author: 'attacker' }) },
-    { name: 'wrong status', mutate: ({ project }) => { project.status = 'In Progress'; }, event: event() },
-    { name: 'stale head', event: event({ commitId: 'deadbeef' }) },
-    { name: 'missing review id', event: event({ id: null }) },
-    { name: 'non-positive review id', event: event({ id: 0 }) },
-    { name: 'done', mutate: ({ project }) => { project.status = 'Done'; }, event: event() },
-    { name: 'cancelled', mutate: ({ project }) => { project.status = 'Cancelled'; }, event: event() },
+    { name: 'unauthorized', event: event({ actor: 'collaborator' }), reason: 'unauthorized-operator' },
+    { name: 'wrong event', event: event({ action: 'pull_request_review' }), reason: 'unsupported-event' },
+    { name: 'ordinary branch', mutate: ({ repository }) => { repository.pr.head.ref = 'human/fix'; }, event: event(), reason: 'not-managed-pr' },
+    { name: 'fork PR', mutate: ({ repository }) => { repository.pr.head.repository.owner = 'attacker'; }, event: event(), reason: 'not-managed-pr' },
+    { name: 'closed PR', mutate: ({ repository }) => { repository.pr.state = 'closed'; }, event: event(), reason: 'not-managed-pr' },
+    { name: 'missing closing issue', mutate: ({ repository }) => { repository.findClosingIssues = async () => []; }, event: event(), reason: 'invalid-closing-issues' },
   ];
-
   for (const candidate of cases) {
     const context = setup();
     candidate.mutate?.(context);
-    const before = context.project.status;
-    await context.handlers.handleReview(candidate.event);
-    assert.equal(context.project.status, before, candidate.name);
+    const result = await context.handlers.handleReview(candidate.event);
+    assert.deepEqual(result, { kind: 'skip', reason: candidate.reason }, candidate.name);
+    assert.equal(context.project.status, 'Human Review', candidate.name);
     assert.equal(context.project.transitions.length, 0, candidate.name);
   }
 });
 
-test('event review IDと一致するauthoritative API evidenceが現在も有効な場合だけReworkへ移す', async () => {
-  for (const { name, mutate } of [
-    { name: 'missing', mutate: (repository) => { repository.reviews = []; } },
-    { name: 'different-id', mutate: (repository) => { repository.reviews[0].id = 999; } },
-    { name: 'dismissed', mutate: (repository) => { repository.reviews[0].state = 'dismissed'; } },
-    { name: 'approved', mutate: (repository) => { repository.reviews[0].state = 'approved'; } },
-    { name: 'changed-author', mutate: (repository) => { repository.reviews[0].author = 'attacker'; } },
-    { name: 'changed-head', mutate: (repository) => { repository.reviews[0].commitId = 'deadbeef'; } },
-    { name: 'missing-time', mutate: (repository) => { repository.reviews[0].submittedAt = null; } },
-  ]) {
+test('latest readyより後のcurrent-head operator reviewだけを使い、状態・時系列・一意性をfail closedにする', async () => {
+  const cases = [
+    { name: 'approved only', mutate: (repository) => { repository.reviews[0].state = 'approved'; }, reason: 'review-not-changes-requested' },
+    { name: 'commented only', mutate: (repository) => { repository.reviews[0].state = 'commented'; }, reason: 'review-not-changes-requested' },
+    { name: 'other author', mutate: (repository) => { repository.reviews[0].author = 'attacker'; }, reason: 'review-evidence-missing' },
+    { name: 'stale head', mutate: (repository) => { repository.reviews[0].commitId = 'deadbeef'; }, reason: 'review-evidence-missing' },
+    { name: 'missing timestamp', mutate: (repository) => { repository.reviews[0].submittedAt = null; }, reason: 'invalid-review-evidence' },
+    { name: 'same as ready', mutate: (repository) => { repository.reviews[0].submittedAt = readyAt; }, reason: 'stale-review' },
+    { name: 'before ready', mutate: (repository) => { repository.reviews[0].submittedAt = readyAt - 1; }, reason: 'stale-review' },
+    { name: 'missing ready', mutate: (repository) => { repository.comments = repository.comments.slice(0, 1); }, reason: 'ready-marker-missing' },
+    {
+      name: 'ambiguous latest tie',
+      mutate: (repository) => { repository.reviews.push({ id: 102, author: 'yuto90', state: 'changes_requested', submittedAt, commitId: 'abcdef' }); },
+      reason: 'ambiguous-review-evidence',
+    },
+    {
+      name: 'newer approval supersedes changes request',
+      mutate: (repository) => { repository.reviews.push({ id: 102, author: 'yuto90', state: 'approved', submittedAt: submittedAt + 1, commitId: 'abcdef' }); },
+      reason: 'review-not-changes-requested',
+    },
+  ];
+  for (const candidate of cases) {
     const { repository, project, handlers } = setup();
-    mutate(repository);
-
+    candidate.mutate(repository);
     const result = await handlers.handleReview(event());
-
-    assert.notDeepEqual(result, { kind: 'transition', status: 'Rework' }, name);
-    assert.equal(project.status, 'Human Review', name);
-    assert.equal(project.transitions.length, 0, name);
+    assert.deepEqual(result, { kind: 'skip', reason: candidate.reason }, candidate.name);
+    assert.equal(project.status, 'Human Review', candidate.name);
+    assert.equal(project.transitions.length, 0, candidate.name);
   }
 });
 
-test('review submittedAtはcurrent-head latest readyより厳密に後でなければ古いredeliveryとして無視する', async () => {
-  for (const { name, prepare } of [
-    { name: 'same-time', prepare: (repository) => { repository.comments[1].createdAt = submittedAt; } },
-    { name: 'newer-ready', prepare: (repository) => { repository.comments.push({ id: 3, author: 'cursor[bot]', body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->', createdAt: submittedAt + 1 }); } },
-    { name: 'missing-ready', prepare: (repository) => { repository.comments = repository.comments.slice(0, 1); } },
+test('wrong statusとterminalはmanual reconciliationで遷移しない', async () => {
+  for (const { status, expectedReason } of [
+    { status: 'In Progress', expectedReason: 'invalid-status' },
+    { status: 'Rework', expectedReason: 'invalid-status' },
+    { status: 'Done', expectedReason: 'terminal' },
+    { status: 'Cancelled', expectedReason: 'terminal' },
   ]) {
-    const { repository, project, handlers } = setup();
-    prepare(repository);
-
+    const { project, handlers } = setup();
+    project.status = status;
     const result = await handlers.handleReview(event());
-
-    assert.notDeepEqual(result, { kind: 'transition', status: 'Rework' }, name);
-    assert.equal(project.status, 'Human Review', name);
+    assert.deepEqual(result, { kind: 'skip', reason: expectedReason }, status);
+    assert.equal(project.transitions.length, 0, status);
   }
 });
 
-test('review mutation直前のAPI再取得で同ID reviewがdismissedへ変わったraceを停止する', async () => {
-  const { repository, project, handlers } = setup();
-  let reads = 0;
-  repository.listReviews = async () => {
-    reads += 1;
-    return [{ ...structuredClone(repository.reviews[0]), state: reads === 1 ? 'changes_requested' : 'dismissed' }];
-  };
-
-  const result = await handlers.handleReview(event());
-
-  assert.notDeepEqual(result, { kind: 'transition', status: 'Rework' });
-  assert.equal(reads, 2);
-  assert.equal(project.status, 'Human Review');
-  assert.equal(project.transitions.length, 0);
-});
-
-test('review mutation直前のhead/status再読でstale sessionを停止しredeliveryは一度だけ遷移する', async () => {
-  for (const race of ['head', 'status']) {
+test('mutation直前のAPI二重再取得でreview/head/status raceを停止する', async () => {
+  for (const race of ['review', 'head', 'status']) {
     const context = setup();
     let reads = 0;
     const original = context.repository.getCurrentPullRequest.bind(context.repository);
     context.repository.getCurrentPullRequest = async () => {
       reads += 1;
       if (reads === 2) {
+        if (race === 'review') context.repository.reviews[0].state = 'dismissed';
         if (race === 'head') context.repository.pr.head.sha = 'fedcba';
         if (race === 'status') context.project.status = 'In Progress';
       }
       return original();
     };
-
-    await context.handlers.handleReview(event());
-
+    const result = await context.handlers.handleReview(event());
+    assert.notDeepEqual(result, { kind: 'transition', status: 'Rework' }, race);
     assert.equal(context.project.transitions.length, 0, race);
     assert.equal(reads, 2, race);
   }
+});
 
-  const delivered = setup();
-  await delivered.handlers.handleReview(event());
-  await delivered.handlers.handleReview(event());
-  assert.equal(delivered.project.transitions.length, 1);
-  assert.equal(delivered.project.status, 'Rework');
+test('manual reconciliationのredeliveryは一度だけ遷移する', async () => {
+  const { handlers, project } = setup();
+  await handlers.handleReview(event());
+  const replay = await handlers.handleReview(event());
+  assert.deepEqual(replay, { kind: 'skip', reason: 'invalid-status' });
+  assert.equal(project.transitions.length, 1);
+  assert.equal(project.status, 'Rework');
 });

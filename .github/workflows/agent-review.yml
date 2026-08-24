@@ -1,29 +1,37 @@
-name: Agent Review Signal
+name: Agent Orchestrator - Review Reconciliation
 
 on:
-  pull_request_review:
-    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Reconcile changes requested review for Pull Request number
+        required: true
+        type: number
 
-permissions: {}
+permissions:
+  actions: read
+  contents: read
+  issues: read
+  pull-requests: read
 
 concurrency:
-  group: agent-orchestrator-${{ github.repository }}-pull-request-${{ github.event.pull_request.number || github.run_id }}
+  group: agent-orchestrator-${{ github.repository }}-pull-request-${{ inputs.pull_request_number }}
   cancel-in-progress: false
 
 jobs:
-  capture:
+  orchestrate:
+    if: github.actor == 'yuto90' && github.triggering_actor == 'yuto90'
     runs-on: ubuntu-latest
+    environment: agent-orchestrator
     steps:
-      - name: Capture GitHub-generated review event
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/agent-review-signal"
-          cp "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/agent-review-signal/review-event.json"
-      - name: Upload untrusted review signal
-        uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: agent-review-signal
-          path: ${{ runner.temp }}/agent-review-signal/review-event.json
-          if-no-files-found: error
-          retention-days: 1
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node .github/scripts/agent-orchestrator/main.mjs review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CURSOR_AGENT_ORCHESTRATOR_PAT: ${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}

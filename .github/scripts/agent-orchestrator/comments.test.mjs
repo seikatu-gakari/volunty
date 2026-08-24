@@ -30,10 +30,11 @@ class FakeRepository {
   async getHeadCommit() { return { sha: this.pr.head.sha }; }
 }
 class FakeProject {
-  constructor() { this.status = 'In Progress'; }
+  constructor() { this.status = 'In Progress'; this.transitions = []; }
   async getIssueStatus() { return this.status; }
-  async transitionIssue(_id, target, allowed) {
+  async transitionIssue(id, target, allowed) {
     if (!allowed.includes(this.status)) throw new Error('stale');
+    this.transitions.push({ id, target, allowed });
     this.status = target;
   }
 }
@@ -42,11 +43,11 @@ function setup() {
   const project = new FakeProject();
   return { repository, project, handlers: createHandlers({ repository, project, config, summary: { add() {} } }) };
 }
-function event({ author = 'cursor[bot]', body, pullRequest = true } = {}) {
+function event({ author = 'cursor[bot]', body, pullRequest = true, createdAt = 100 } = {}) {
   return {
     action: 'created', repository: { full_name: 'octo-org/widgets' },
     issue: { number: 30, ...(pullRequest ? { pull_request: { url: 'trusted' } } : {}) },
-    comment: { user: { login: author }, body },
+    comment: { id: 900, user: { login: author }, body, created_at: createdAt },
   };
 }
 
@@ -69,6 +70,107 @@ test('operatorのstandalone @cursorだけがHuman Input・Blocked・Reworkから
     assert.deepEqual(result, { kind: 'transition', status: 'In Progress' }, status);
     assert.equal(project.status, 'In Progress', status);
   }
+});
+
+test('Human Review中のoperator @cursorはauthoritative changes_requestedを照合しRework経由でIn Progressへ再開する', async () => {
+  const { repository, project, handlers } = setup();
+  project.status = 'Human Review';
+  repository.comments.push({
+    id: 2,
+    author: 'cursor[bot]',
+    body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->',
+    createdAt: 20,
+  });
+  repository.reviews.push({ id: 81, author: 'yuto90', state: 'changes_requested', submittedAt: 21, commitId: 'abcdef' });
+
+  const result = await handlers.handleComment(event({ author: 'yuto90', body: '@cursor\n指摘を修正してください' }));
+
+  assert.deepEqual(result, { kind: 'transition', status: 'In Progress' });
+  assert.equal(project.status, 'In Progress');
+  assert.deepEqual(project.transitions.map(({ target }) => target), ['Rework', 'In Progress']);
+  assert.deepEqual(project.transitions.map(({ allowed }) => allowed), [['Human Review'], ['Rework']]);
+});
+
+test('Human Review中の@cursorはreview証拠がない・古い・他author・曖昧・terminal・raceならno-op', async () => {
+  const cases = [
+    { name: 'missing', mutate: () => {}, reason: 'review-evidence-missing' },
+    { name: 'old', mutate: ({ repository }) => { repository.reviews.push({ id: 81, author: 'yuto90', state: 'changes_requested', submittedAt: 19, commitId: 'abcdef' }); }, reason: 'stale-review' },
+    { name: 'other author', mutate: ({ repository }) => { repository.reviews.push({ id: 81, author: 'attacker', state: 'changes_requested', submittedAt: 21, commitId: 'abcdef' }); }, reason: 'review-evidence-missing' },
+    {
+      name: 'ambiguous',
+      mutate: ({ repository }) => { repository.reviews.push(
+        { id: 81, author: 'yuto90', state: 'changes_requested', submittedAt: 21, commitId: 'abcdef' },
+        { id: 82, author: 'yuto90', state: 'changes_requested', submittedAt: 21, commitId: 'abcdef' },
+      ); },
+      reason: 'ambiguous-review-evidence',
+    },
+    { name: 'terminal', mutate: ({ project }) => { project.status = 'Done'; }, reason: 'terminal' },
+    {
+      name: 'review race',
+      mutate: ({ repository }) => {
+        repository.reviews.push({ id: 81, author: 'yuto90', state: 'changes_requested', submittedAt: 21, commitId: 'abcdef' });
+        let reads = 0;
+        repository.listReviews = async () => {
+          reads += 1;
+          return [{ ...structuredClone(repository.reviews[0]), state: reads === 1 ? 'changes_requested' : 'dismissed' }];
+        };
+      },
+      reason: 'review-not-changes-requested',
+    },
+  ];
+
+  for (const candidate of cases) {
+    const context = setup();
+    context.project.status = 'Human Review';
+    context.repository.comments.push({
+      id: 2,
+      author: 'cursor[bot]',
+      body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->',
+      createdAt: 20,
+    });
+    candidate.mutate(context);
+    const result = await context.handlers.handleComment(event({ author: 'yuto90', body: '@cursor\n修正してください' }));
+    assert.deepEqual(result, { kind: 'skip', reason: candidate.reason }, candidate.name);
+    assert.equal(context.project.transitions.length, 0, candidate.name);
+  }
+});
+
+test('新しいchanges_requestedより古い@cursor redeliveryはRework/resume証拠に再利用しない', async () => {
+  const { repository, project, handlers } = setup();
+  project.status = 'Human Review';
+  repository.comments.push({ id: 2, author: 'cursor[bot]', body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->', createdAt: 20 });
+  repository.reviews.push({ id: 81, author: 'yuto90', state: 'changes_requested', submittedAt: 30, commitId: 'abcdef' });
+
+  const result = await handlers.handleComment(event({ author: 'yuto90', body: '@cursor\n以前の再開コメント', createdAt: 25 }));
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'stale-review-resume' });
+  assert.equal(project.status, 'Human Review');
+  assert.equal(project.transitions.length, 0);
+});
+
+test('Human ReviewからRework後のresume raceはIn Progress遷移を停止し、redeliveryで既存Rework resumeが完了する', async () => {
+  const { repository, project, handlers } = setup();
+  project.status = 'Human Review';
+  repository.comments.push({ id: 2, author: 'cursor[bot]', body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->', createdAt: 20 });
+  repository.reviews.push({ id: 81, author: 'yuto90', state: 'changes_requested', submittedAt: 21, commitId: 'abcdef' });
+  let reads = 0;
+  const original = repository.getCurrentPullRequest.bind(repository);
+  repository.getCurrentPullRequest = async () => {
+    reads += 1;
+    if (reads === 4) repository.pr.head.sha = 'fedcba';
+    return original();
+  };
+
+  const first = await handlers.handleComment(event({ author: 'yuto90', body: '@cursor\n修正してください' }));
+
+  assert.deepEqual(first, { kind: 'skip', reason: 'stale-session' });
+  assert.equal(project.status, 'Rework');
+  assert.deepEqual(project.transitions.map(({ target }) => target), ['Rework']);
+
+  repository.pr.head.sha = 'abcdef';
+  const replay = await handlers.handleComment(event({ author: 'yuto90', body: '@cursor\n修正してください' }));
+  assert.deepEqual(replay, { kind: 'transition', status: 'In Progress' });
+  assert.equal(project.status, 'In Progress');
 });
 
 test('Issue comment・unauthorized・通常文・stale relation・terminal sessionはPR statusを変えない', async () => {

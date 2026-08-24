@@ -2,7 +2,7 @@ name: Agent Orchestrator - CI
 
 on:
   workflow_run:
-    workflows: [Pull Request CI, Agent Review Signal]
+    workflows: [Pull Request CI]
     types: [completed]
 
 permissions:
@@ -12,12 +12,12 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: agent-orchestrator-${{ github.repository }}-pull-request-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+  group: agent-orchestrator-${{ github.repository }}-ci-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_branch || github.event.workflow_run.id }}
   cancel-in-progress: false
 
 jobs:
-  ci:
-    if: github.event.workflow_run.name == 'Pull Request CI'
+  orchestrate:
+    if: github.event.workflow_run.event == 'pull_request_target' && github.event.workflow_run.path == '.github/workflows/ci.yml' && github.event.workflow_run.head_repository.full_name == github.repository && startsWith(github.event.workflow_run.head_branch, 'cursor/') && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
     runs-on: ubuntu-latest
     environment: agent-orchestrator
     steps:
@@ -32,29 +32,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CURSOR_AGENT_ORCHESTRATOR_PAT: ${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}
-
-  review:
-    if: github.event.workflow_run.name == 'Agent Review Signal' && github.event.workflow_run.event == 'pull_request_review' && github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
-    environment: agent-orchestrator
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Download untrusted review signal
-        uses: actions/download-artifact@v4
-        with:
-          name: agent-review-signal
-          path: ${{ runner.temp }}/agent-review-signal
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id }}
-      - run: node .github/scripts/agent-orchestrator/main.mjs review
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          CURSOR_AGENT_ORCHESTRATOR_PAT: ${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}
-          AGENT_REVIEW_EVENT_PATH: ${{ runner.temp }}/agent-review-signal/review-event.json

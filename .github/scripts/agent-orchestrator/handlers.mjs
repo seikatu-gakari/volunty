@@ -447,6 +447,19 @@ export function createHandlers({ repository, project, config, summary }) {
     let target = null;
     if (config.agentActors.includes(author) && hasExactMarker(body, '<!-- agent:human-input -->') && ['In Progress', 'Rework'].includes(first.status)) target = 'Human Input';
     if (author === config.operator && hasStandaloneCursorMention(body) && ['Human Input', 'Blocked', 'Rework'].includes(first.status)) target = 'In Progress';
+    if (author === config.operator && hasStandaloneCursorMention(body) && first.status === 'Human Review') {
+      const resumeAt = timestamp(event?.comment?.created_at);
+      if (!Number.isFinite(resumeAt)) return { kind: 'skip', reason: 'invalid-comment' };
+      const reconciled = await reconcileReviewToRework(number, resumeAt);
+      if (reconciled.decision.kind !== 'transition') return reconciled.decision;
+      const resumed = await readManagedSession(number);
+      if (resumed.decision.kind !== 'managed') return resumed.decision;
+      if (resumed.issue.id !== reconciled.session.issue.id || resumed.headSha !== reconciled.session.headSha || resumed.status !== 'Rework') {
+        return { kind: 'skip', reason: 'stale-session' };
+      }
+      await project.transitionIssue(resumed.issue.id, 'In Progress', ['Rework']);
+      return { kind: 'transition', status: 'In Progress' };
+    }
     if (config.agentActors.includes(author) && parseReadyHeadSha(body) !== null) return maybeHumanReview(number);
     if (target === null) return { kind: 'skip', reason: 'unmatched-comment' };
 
@@ -458,13 +471,10 @@ export function createHandlers({ repository, project, config, summary }) {
     return { kind: 'transition', status: target };
   }
 
-  /** @param {unknown} event */
-  function eventPullRequestNumbers(event) {
+  /** @param {unknown} event @param {{repositoryId: number, headBranch: string, headSha: string}} incoming */
+  function eventPullRequestNumbers(event, incoming) {
     const references = event?.workflow_run?.pull_requests;
     if (!Array.isArray(references)) return null;
-    const workflowRepository = event?.workflow_run?.repository;
-    const workflowRepositoryId = eventNumber(workflowRepository?.id);
-    if (workflowRepositoryId === null || workflowRepository?.full_name !== `${config.owner}/${config.repository}`) return null;
     const numbers = new Set();
     for (const reference of references) {
       const baseRepository = reference?.base?.repo;
@@ -474,9 +484,15 @@ export function createHandlers({ repository, project, config, summary }) {
         && typeof reference?.base?.ref === 'string' && reference.base.ref !== '' && typeof reference?.base?.sha === 'string' && reference.base.sha !== ''
         && typeof reference?.head?.ref === 'string' && reference.head.ref !== '' && typeof reference?.head?.sha === 'string' && reference.head.sha !== ''
         && eventNumber(headRepository?.id) !== null && typeof headRepository?.url === 'string' && headRepository.url !== '' && typeof headRepository?.name === 'string' && headRepository.name !== '';
-      if (!valid || number === null || !(baseRepository?.id === workflowRepositoryId
+      if (!valid || number === null || !(baseRepository?.id === incoming.repositoryId
         && baseRepository?.url === `https://api.github.com/repos/${config.owner}/${config.repository}`
-        && baseRepository?.name === config.repository)) return null;
+        && baseRepository?.name === config.repository
+        && headRepository?.id === incoming.repositoryId
+        && headRepository?.url === `https://api.github.com/repos/${config.owner}/${config.repository}`
+        && headRepository?.name === config.repository
+        && reference.base.ref === config.defaultBranch
+        && reference.head.ref === incoming.headBranch
+        && reference.head.sha === incoming.headSha)) return null;
       if (numbers.has(number)) return null;
       numbers.add(number);
     }
@@ -491,8 +507,16 @@ export function createHandlers({ repository, project, config, summary }) {
     const status = stringValue(run?.status);
     const conclusion = run?.conclusion === null ? null : stringValue(run?.conclusion);
     const headSha = stringValue(run?.head_sha ?? run?.headSha);
-    if (id === null || name === null || status === null || headSha === null || conclusion === null) return null;
-    return { id, name, status, conclusion, headSha };
+    const headBranch = stringValue(run?.head_branch);
+    const runRepository = run?.repository;
+    const headRepository = run?.head_repository;
+    const repositoryId = eventNumber(runRepository?.id);
+    if (id === null || name === null || status === null || headSha === null || headBranch === null || conclusion === null
+      || run?.event !== 'pull_request_target' || run?.path !== '.github/workflows/ci.yml'
+      || repositoryId === null || runRepository?.full_name !== `${config.owner}/${config.repository}`
+      || eventNumber(headRepository?.id) !== repositoryId || headRepository?.full_name !== `${config.owner}/${config.repository}`
+      || !headBranch.startsWith(config.cursorBranchPrefix)) return null;
+    return { id, name, status, conclusion, headSha, headBranch, repositoryId };
   }
 
   /** @param {number} number @param {{id: number, headSha: string, url: string}} run @param {number} retry */
@@ -505,15 +529,19 @@ export function createHandlers({ repository, project, config, summary }) {
     if (event?.action !== 'completed') return { kind: 'skip', reason: 'unsupported-event' };
     const incoming = eventRun(event);
     if (incoming === null || incoming.name !== config.ciWorkflow || incoming.status !== 'completed') return { kind: 'skip', reason: 'invalid-workflow-run' };
-    const numbers = eventPullRequestNumbers(event);
-    if (numbers === null || numbers.length === 0) return { kind: 'skip', reason: 'invalid-pull-request' };
-    const candidates = [];
-    for (const number of numbers) {
-      const session = await readManagedSession(number);
-      if (session.decision.kind === 'managed' && incoming.headSha === session.headSha) candidates.push({ number, session });
-    }
-    if (candidates.length !== 1) return { kind: 'skip', reason: candidates.length === 0 ? 'no-managed-pull-request' : 'ambiguous-managed-pull-request' };
-    const { number, session: first } = candidates[0];
+    const relationNumbers = eventPullRequestNumbers(event, incoming);
+    if (relationNumbers === null || relationNumbers.length > 1) return { kind: 'skip', reason: 'invalid-pull-request' };
+    const resolved = await repository.findOpenPullRequestsByHead(incoming.headBranch);
+    if (!Array.isArray(resolved)) return { kind: 'skip', reason: 'invalid-pull-request' };
+    const numbers = resolved.map((pullRequest) => eventNumber(pullRequest?.number));
+    if (numbers.some((number) => number === null) || new Set(numbers).size !== numbers.length) return { kind: 'skip', reason: 'invalid-pull-request' };
+    if (numbers.length === 0) return { kind: 'skip', reason: 'no-managed-pull-request' };
+    if (numbers.length !== 1) return { kind: 'skip', reason: 'ambiguous-managed-pull-request' };
+    const number = numbers[0];
+    if (relationNumbers.length === 1 && relationNumbers[0] !== number) return { kind: 'skip', reason: 'invalid-pull-request' };
+    const first = await readManagedSession(number);
+    if (first.decision.kind !== 'managed') return { kind: 'skip', reason: 'no-managed-pull-request' };
+    if (first.pullRequest.head.ref !== incoming.headBranch) return { kind: 'skip', reason: 'stale-head' };
     if (incoming.headSha !== first.headSha) return { kind: 'skip', reason: 'stale-head' };
     const runs = await repository.listCiRuns(first.pullRequest, config.ciWorkflow);
     const newest = newestCurrentHeadRun(runs, first.headSha);
@@ -535,7 +563,8 @@ export function createHandlers({ repository, project, config, summary }) {
     const retry = retriedRunIds.size + 1;
     const current = await readManagedSession(number);
     if (current.decision.kind !== 'managed') return current.decision;
-    if (current.status !== first.status || current.headSha !== first.headSha) return { kind: 'skip', reason: 'stale-session' };
+    if (current.status !== first.status || current.headSha !== first.headSha
+      || current.pullRequest.head.ref !== incoming.headBranch) return { kind: 'skip', reason: 'stale-session' };
     const currentRuns = await repository.listCiRuns(current.pullRequest, config.ciWorkflow);
     const currentNewest = newestCurrentHeadRun(currentRuns, current.headSha);
     if (currentNewest === null || currentNewest.id !== newest.id || !isCompletedFailure(currentNewest)) return { kind: 'skip', reason: 'stale-run' };
@@ -549,28 +578,33 @@ export function createHandlers({ repository, project, config, summary }) {
     return { kind: 'retry', retry };
   }
 
-  /** @param {number} number @param {{id: number, author: string, state: string, commitId: string, submittedAt: number}} eventReview */
-  async function readReviewDecision(number, eventReview) {
+  /** @param {number} number */
+  async function readReviewDecision(number) {
     const session = await readManagedSession(number);
     if (session.decision.kind !== 'managed') return { session, decision: session.decision };
     const [comments, reviews] = await Promise.all([
       listTimedComments(number),
       repository.listReviews(session.pullRequest),
     ]);
-    const matching = reviews.filter((review) => review.id === eventReview.id);
-    if (matching.length !== 1) return { session, decision: { kind: 'skip', reason: 'review-evidence-missing' } };
-    const review = matching[0];
-    if (review.author !== eventReview.author || review.state !== eventReview.state
-      || review.commitId !== eventReview.commitId || review.submittedAt !== eventReview.submittedAt) {
-      return { session, decision: { kind: 'skip', reason: 'review-evidence-changed' } };
-    }
-    if (review.commitId !== session.headSha) return { session, decision: { kind: 'skip', reason: 'stale-head' } };
-    if (!Number.isFinite(review.submittedAt)) return { session, decision: { kind: 'skip', reason: 'invalid-review-evidence' } };
     const ready = latestReadyForHead(comments, session.headSha);
     if (ready === null) return { session, decision: { kind: 'skip', reason: 'ready-marker-missing' } };
-    if (review.submittedAt <= ready.createdAt) return { session, decision: { kind: 'skip', reason: 'stale-review' } };
+    const submittedStates = new Set(['approved', 'changes_requested', 'commented', 'dismissed']);
+    const currentHeadReviews = reviews.filter((review) => review.author === config.operator
+      && review.commitId === session.headSha && submittedStates.has(review.state));
+    if (currentHeadReviews.some((review) => !Number.isFinite(review.submittedAt))) {
+      return { session, decision: { kind: 'skip', reason: 'invalid-review-evidence' } };
+    }
+    if (currentHeadReviews.length === 0) return { session, decision: { kind: 'skip', reason: 'review-evidence-missing' } };
+    const afterReady = currentHeadReviews.filter((review) => review.submittedAt > ready.createdAt);
+    if (afterReady.length === 0) return { session, decision: { kind: 'skip', reason: 'stale-review' } };
+    const latestSubmittedAt = Math.max(...afterReady.map((review) => review.submittedAt));
+    const latest = afterReady.filter((review) => review.submittedAt === latestSubmittedAt);
+    if (latest.length !== 1) return { session, decision: { kind: 'skip', reason: 'ambiguous-review-evidence' } };
+    const review = latest[0];
     return {
       session,
+      ready,
+      review,
       decision: evaluateReview({
         status: session.status,
         isOperator: review.author === config.operator,
@@ -580,28 +614,34 @@ export function createHandlers({ repository, project, config, summary }) {
     };
   }
 
-  async function handleReview(event) {
-    if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
-    if (event?.action !== 'submitted') return { kind: 'skip', reason: 'unsupported-event' };
-    const number = eventNumber(event?.pull_request?.number ?? event?.number);
-    const id = eventNumber(event?.review?.id);
-    const author = stringValue(event?.review?.user?.login);
-    const stateValue = stringValue(event?.review?.state);
-    const commitId = stringValue(event?.review?.commit_id);
-    const submittedAt = timestamp(event?.review?.submitted_at);
-    if (number === null || id === null || author === null || stateValue === null || commitId === null || !Number.isFinite(submittedAt)) {
-      return { kind: 'skip', reason: 'invalid-review' };
+  async function reconcileReviewToRework(number, resumeAt = null) {
+    const first = await readReviewDecision(number);
+    if (first.decision.kind !== 'transition') return { decision: first.decision, session: first.session };
+    if (resumeAt !== null && resumeAt <= first.review.submittedAt) {
+      return { decision: { kind: 'skip', reason: 'stale-review-resume' }, session: first.session };
     }
-    const review = { id, author, state: stateValue.toLowerCase(), commitId, submittedAt };
-    const first = await readReviewDecision(number, review);
-    if (first.decision.kind !== 'transition') return first.decision;
-    const current = await readReviewDecision(number, review);
-    if (current.decision.kind !== 'transition') return current.decision;
-    if (current.session.issue.id !== first.session.issue.id || current.session.headSha !== first.session.headSha) {
-      return { kind: 'skip', reason: 'stale-session' };
+    const current = await readReviewDecision(number);
+    if (current.decision.kind !== 'transition') return { decision: current.decision, session: current.session };
+    if (resumeAt !== null && resumeAt <= current.review.submittedAt) {
+      return { decision: { kind: 'skip', reason: 'stale-review-resume' }, session: current.session };
+    }
+    if (current.session.issue.id !== first.session.issue.id || current.session.headSha !== first.session.headSha
+      || current.session.status !== first.session.status || current.ready.createdAt !== first.ready.createdAt
+      || current.review.id !== first.review.id || current.review.submittedAt !== first.review.submittedAt) {
+      return { decision: { kind: 'skip', reason: 'stale-session' }, session: current.session };
     }
     await project.transitionIssue(current.session.issue.id, 'Rework', ['Human Review']);
-    return current.decision;
+    return { decision: current.decision, session: current.session };
+  }
+
+  async function handleReview(event) {
+    if (!matchesRepository(event, config)) return { kind: 'skip', reason: 'invalid-repository' };
+    if (event?.action !== 'workflow_dispatch') return { kind: 'skip', reason: 'unsupported-event' };
+    if (event?.sender?.login !== config.operator) return { kind: 'skip', reason: 'unauthorized-operator' };
+    const number = eventNumber(event?.pull_request?.number ?? event?.number);
+    if (number === null) return { kind: 'skip', reason: 'invalid-pull-request' };
+    const reconciled = await reconcileReviewToRework(number);
+    return reconciled.decision;
   }
 
   const isManagedClosingPullRequest = (pullRequest) => pullRequest?.baseRefName === config.defaultBranch

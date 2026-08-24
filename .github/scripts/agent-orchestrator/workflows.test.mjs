@@ -35,17 +35,27 @@ const workflowContracts = {
     on: { issue_comment: { types: ['created'] } },
   },
   'agent-ci.yml': {
-    commands: ['ci', 'review'],
+    commands: ['ci'],
     on: {
       workflow_run: {
-        workflows: ['Pull Request CI', 'Agent Review Signal'],
+        workflows: ['Pull Request CI'],
         types: ['completed'],
       },
     },
   },
   'agent-review.yml': {
-    commands: [],
-    on: { pull_request_review: { types: ['submitted'] } },
+    commands: ['review'],
+    on: {
+      workflow_dispatch: {
+        inputs: {
+          pull_request_number: {
+            description: 'Reconcile changes requested review for Pull Request number',
+            required: true,
+            type: 'number',
+          },
+        },
+      },
+    },
   },
   'agent-merge.yml': {
     commands: ['merge'],
@@ -98,51 +108,12 @@ function projectResponses() {
   ];
 }
 
-function workflowRelation({ number = 42, headSha = 'abcdef1234567890' } = {}) {
-  const repository = { id: 100, url: 'https://api.github.com/repos/seikatu-gakari/volunty', name: 'volunty' };
+function reviewDispatch(overrides = {}) {
   return {
-    id: 200,
-    number,
-    url: `https://api.github.com/repos/seikatu-gakari/volunty/pulls/${number}`,
-    base: { ref: 'main', sha: 'base-sha', repo: repository },
-    head: { ref: 'cursor/issue-1-safe', sha: headSha, repo: repository },
-  };
-}
-
-function reviewWorkflowRun(overrides = {}) {
-  return {
-    action: 'completed',
+    action: 'workflow_dispatch',
     repository: { id: 100, full_name: 'seikatu-gakari/volunty', name: 'volunty', owner: { login: 'seikatu-gakari' } },
-    workflow_run: {
-      id: 900,
-      name: 'Agent Review Signal',
-      event: 'pull_request_review',
-      status: 'completed',
-      conclusion: 'success',
-      head_sha: 'abcdef1234567890',
-      repository: { id: 100, full_name: 'seikatu-gakari/volunty' },
-      pull_requests: [workflowRelation()],
-      ...overrides,
-    },
-  };
-}
-
-function reviewSignal(overrides = {}) {
-  return {
-    action: 'submitted',
-    repository: { id: 100, full_name: 'seikatu-gakari/volunty', name: 'volunty', owner: { login: 'seikatu-gakari' } },
-    pull_request: {
-      number: 42,
-      base: { ref: 'main', sha: 'base-sha', repo: { id: 100, full_name: 'seikatu-gakari/volunty' } },
-      head: { ref: 'cursor/issue-1-safe', sha: 'abcdef1234567890', repo: { id: 100, full_name: 'seikatu-gakari/volunty' } },
-    },
-    review: {
-      id: 700,
-      user: { login: 'yuto90' },
-      state: 'changes_requested',
-      commit_id: 'abcdef1234567890',
-      submitted_at: '2026-08-25T00:00:00Z',
-    },
+    sender: { login: 'yuto90' },
+    inputs: { pull_request_number: 42 },
     ...overrides,
   };
 }
@@ -172,68 +143,45 @@ test('main CLI は固定 command を handler へ一対一で渡す', async () =>
   await assert.rejects(() => dispatchCommand('unknown', handlers, event, 'issues'), /unsupported command/u);
 });
 
-test('review signal は trusted workflow_run とPR/head/review evidenceが一致する場合だけ受理する', async () => {
-  const { resolveReviewSignal } = await import('./main.mjs');
+test('review dispatch はworkflow_dispatchのpositive integer PR入力だけを正規化する', async () => {
+  const { resolveReviewDispatch } = await import('./main.mjs');
   const config = validConfig();
-  const outer = reviewWorkflowRun();
-  const signal = reviewSignal();
-
-  assert.equal(resolveReviewSignal(outer, signal, config, 'workflow_run'), signal);
-
-  const invalidPairs = [
-    [reviewWorkflowRun({ name: 'Other Workflow' }), signal],
-    [reviewWorkflowRun({ event: 'pull_request' }), signal],
-    [reviewWorkflowRun({ status: 'in_progress' }), signal],
-    [reviewWorkflowRun({ conclusion: 'failure' }), signal],
-    [reviewWorkflowRun({ pull_requests: [workflowRelation({ headSha: 'other-sha' })] }), signal],
-    [reviewWorkflowRun({ pull_requests: [] }), signal],
-    [reviewWorkflowRun({ pull_requests: [workflowRelation(), workflowRelation({ number: 43 })] }), signal],
-    [outer, reviewSignal({ action: 'edited' })],
-    [outer, reviewSignal({ repository: { full_name: 'attacker/fork' } })],
-    [outer, reviewSignal({ pull_request: { ...signal.pull_request, number: 43 } })],
-    [outer, reviewSignal({ pull_request: { ...signal.pull_request, head: { ...signal.pull_request.head, sha: 'other-sha' } } })],
-    [outer, reviewSignal({ review: { ...signal.review, id: 0 } })],
-    [outer, reviewSignal({ review: { ...signal.review, commit_id: 'other-sha' } })],
-  ];
-  for (const [workflowEvent, artifactEvent] of invalidPairs) {
-    assert.throws(() => resolveReviewSignal(workflowEvent, artifactEvent, config, 'workflow_run'), /review signal/u);
+  assert.deepEqual(resolveReviewDispatch(reviewDispatch(), config, 'workflow_dispatch'), {
+    action: 'workflow_dispatch',
+    repository: reviewDispatch().repository,
+    sender: { login: 'yuto90' },
+    pull_request: { number: 42 },
+  });
+  const withoutAction = reviewDispatch();
+  delete withoutAction.action;
+  assert.equal(resolveReviewDispatch(withoutAction, config, 'workflow_dispatch').pull_request.number, 42);
+  assert.equal(resolveReviewDispatch(reviewDispatch({ inputs: { pull_request_number: '42' } }), config, 'workflow_dispatch').pull_request.number, 42);
+  for (const value of [undefined, null, 0, -1, 1.5, '', '0', '-1', '01', '1.5', 'not-a-number', Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => resolveReviewDispatch(reviewDispatch({ inputs: { pull_request_number: value } }), config, 'workflow_dispatch'), /review dispatch/u, String(value));
   }
-  assert.throws(() => resolveReviewSignal(outer, signal, config, 'pull_request_review'), /review signal/u);
+  assert.throws(() => resolveReviewDispatch(reviewDispatch(), config, 'pull_request_review'), /review dispatch/u);
+  assert.throws(() => resolveReviewDispatch(reviewDispatch({ repository: { full_name: 'attacker/fork' } }), config, 'workflow_dispatch'), /review dispatch/u);
 });
 
-test('review CLI は固定artifact pathを読み、検証済みsignalだけをauthoritative handlerへ渡す', async () => {
+test('review CLI はGITHUB_EVENT_PATHだけを読みworkflow_dispatchを処理し、unauthorized actorはPATなしでskipする', async () => {
   const { runMain } = await import('./main.mjs');
-  const directory = mkdtempSync(join(tmpdir(), 'agent-review-consumer-'));
+  const directory = mkdtempSync(join(tmpdir(), 'agent-review-dispatch-'));
   try {
-    const eventPath = join(directory, 'workflow-run.json');
-    const reviewEventPath = join(directory, 'review-event.json');
+    const eventPath = join(directory, 'workflow-dispatch.json');
     const configPath = join(directory, 'config.json');
     const summaryPath = join(directory, 'summary.md');
-    writeFileSync(eventPath, JSON.stringify(reviewWorkflowRun()));
-    writeFileSync(reviewEventPath, JSON.stringify(reviewSignal()));
+    writeFileSync(eventPath, JSON.stringify(reviewDispatch({ sender: { login: 'collaborator' } })));
     writeFileSync(configPath, JSON.stringify(validConfig()));
-    const received = [];
-    const handlersFactory = () => ({
-      handleReview: async (event) => { received.push(event); return { kind: 'skip', reason: 'test' }; },
-    });
     const environment = {
       GITHUB_EVENT_PATH: eventPath,
-      AGENT_REVIEW_EVENT_PATH: reviewEventPath,
-      GITHUB_EVENT_NAME: 'workflow_run',
+      GITHUB_EVENT_NAME: 'workflow_dispatch',
       GITHUB_STEP_SUMMARY: summaryPath,
       GITHUB_TOKEN: 'read-token-value',
-      CURSOR_AGENT_ORCHESTRATOR_PAT: 'write-token-value',
     };
-
-    assert.deepEqual(await runMain({ args: ['review'], env: environment, configPath, handlersFactory }), { kind: 'skip', reason: 'test' });
-    assert.deepEqual(received, [reviewSignal()]);
-
-    writeFileSync(reviewEventPath, JSON.stringify(reviewSignal({ review: { ...reviewSignal().review, commit_id: 'fabricated' } })));
-    await assert.rejects(() => runMain({ args: ['review'], env: environment, configPath, handlersFactory }), /review signal/u);
-    assert.equal(received.length, 1);
-    await assert.rejects(() => runMain({
-      args: ['review'], env: { ...environment, AGENT_REVIEW_EVENT_PATH: undefined }, configPath, handlersFactory,
-    }), /AGENT_REVIEW_EVENT_PATH/u);
+    const fetchImpl = async () => { throw new Error('unauthorized dispatch must not call API'); };
+    assert.deepEqual(await runMain({ args: ['review'], env: environment, configPath, fetchImpl }), { kind: 'skip', reason: 'unauthorized-operator' });
+    assert.match(readFileSync(summaryPath, 'utf8'), /安全に処理を見送りました/u);
+    assert.doesNotMatch(readFileSync(summaryPath, 'utf8'), /read-token-value/u);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -408,7 +356,7 @@ test('Agent workflow は exactly seven で trigger と静的 command が一致�
     const { parsed } = parseWorkflow(name);
     assert.deepEqual(parsed.on, contract.on, `${name}: trigger`);
     const jobs = Object.values(parsed.jobs ?? {});
-    assert.equal(jobs.length, name === 'agent-ci.yml' ? 2 : 1, `${name}: thin wrapper job count`);
+    assert.equal(jobs.length, 1, `${name}: thin wrapper job count`);
     const orchestratorRuns = jobs.flatMap((job) => job.steps)
       .map((step) => step.run)
       .filter((run) => typeof run === 'string' && run.startsWith('node .github/scripts/agent-orchestrator/main.mjs '))
@@ -420,11 +368,10 @@ test('Agent workflow は exactly seven で trigger と静的 command が一致�
 test('Agent workflow は最小権限、trusted checkout、Node 22、secret mapping、session concurrency を固定する', () => {
   for (const name of Object.keys(workflowContracts)) {
     const { parsed } = parseWorkflow(name);
-    assert.deepEqual(parsed.permissions, name === 'agent-review.yml' ? {} : expectedPermissions, `${name}: permissions`);
+    assert.deepEqual(parsed.permissions, expectedPermissions, `${name}: permissions`);
     assert.equal(parsed.concurrency?.['cancel-in-progress'], false, `${name}: cancel-in-progress`);
     assert.match(parsed.concurrency?.group ?? '', /^agent-orchestrator-\$\{\{ github\.repository \}\}-/u, `${name}: concurrency group`);
-    assert.match(parsed.concurrency?.group ?? '', /github\.event\.(?:issue|pull_request|workflow_run)/u, `${name}: session key`);
-    if (name === 'agent-review.yml') continue;
+    assert.match(parsed.concurrency?.group ?? '', /github\.event\.(?:issue|pull_request|workflow_run)|inputs\.pull_request_number/u, `${name}: session key`);
 
     for (const job of Object.values(parsed.jobs)) {
       assert.equal(job.environment, 'agent-orchestrator', `${name}: protected Environment`);
@@ -436,51 +383,34 @@ test('Agent workflow は最小権限、trusted checkout、Node 22、secret mappi
       assert.equal(setupNode?.with?.['node-version'], 22, `${name}: Node.js`);
       assert.equal(run?.env?.GITHUB_TOKEN, '${{ github.token }}', `${name}: read token`);
       assert.equal(run?.env?.CURSOR_AGENT_ORCHESTRATOR_PAT, '${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}', `${name}: PAT`);
-      if (run?.run.endsWith(' review')) {
-        assert.equal(run.env.AGENT_REVIEW_EVENT_PATH, '${{ runner.temp }}/agent-review-signal/review-event.json');
-      } else {
-        assert.equal(Object.hasOwn(run?.env ?? {}, 'AGENT_REVIEW_EVENT_PATH'), false);
-      }
+      assert.equal(Object.hasOwn(run?.env ?? {}, 'AGENT_REVIEW_EVENT_PATH'), false);
     }
   }
 });
 
-test('review signal job は権限・secret・checkoutを持たず固定artifactだけを保存する', () => {
+test('manual review reconciliationはoperatorだけがtrusted default-branch codeで実行できる', () => {
   const { parsed, source } = parseWorkflow('agent-review.yml');
-  assert.equal(parsed.name, 'Agent Review Signal');
-  const job = parsed.jobs.capture;
+  assert.equal(parsed.name, 'Agent Orchestrator - Review Reconciliation');
+  const job = parsed.jobs.orchestrate;
   assert.ok(job);
-  assert.equal(Object.hasOwn(job, 'environment'), false);
-  assert.doesNotMatch(source, /CURSOR_AGENT_ORCHESTRATOR_PAT|GITHUB_TOKEN|secrets\.|actions\/checkout|actions\/setup-node/u);
-  const copy = job.steps.find((step) => typeof step.run === 'string');
-  assert.match(copy.run, /\$GITHUB_EVENT_PATH/u);
-  assert.match(copy.run, /\$RUNNER_TEMP\/agent-review-signal\/review-event\.json/u);
-  assert.doesNotMatch(copy.run, /\$\{\{\s*github\.event/u);
-  const upload = job.steps.find((step) => step.uses === 'actions/upload-artifact@v4');
-  assert.equal(upload.with.name, 'agent-review-signal');
-  assert.equal(upload.with.path, '${{ runner.temp }}/agent-review-signal/review-event.json');
-  assert.equal(upload.with['retention-days'], 1);
+  assert.equal(job.if, "github.actor == 'yuto90' && github.triggering_actor == 'yuto90'");
+  assert.equal(job.environment, 'agent-orchestrator');
+  assert.match(source, /pull_request_number/u);
+  assert.doesNotMatch(source, /pull_request_review|upload-artifact|download-artifact|AGENT_REVIEW_EVENT_PATH/u);
 });
 
-test('review consumer はsuccessful signal workflow_runだけをartifactとして読み、実行しない', () => {
-  const { parsed, source } = parseWorkflow('agent-ci.yml');
-  const review = parsed.jobs.review;
-  assert.equal(review.if, "github.event.workflow_run.name == 'Agent Review Signal' && github.event.workflow_run.event == 'pull_request_review' && github.event.workflow_run.conclusion == 'success'");
-  const download = review.steps.find((step) => step.uses === 'actions/download-artifact@v4');
-  assert.equal(download.with.name, 'agent-review-signal');
-  assert.equal(download.with.path, '${{ runner.temp }}/agent-review-signal');
-  assert.equal(download.with['github-token'], '${{ github.token }}');
-  assert.equal(download.with.repository, '${{ github.repository }}');
-  assert.equal(download.with['run-id'], '${{ github.event.workflow_run.id }}');
-  assert.doesNotMatch(source, /chmod|source\s|bash\s+\$|node\s+\$\{\{\s*runner\.temp/u);
+test('CI consumerはofficial path/event/same-repository headをsecret materialization前にguardしbranch単位で直列化する', () => {
+  const { parsed } = parseWorkflow('agent-ci.yml');
+  const job = parsed.jobs.orchestrate;
+  assert.equal(job.if, "github.event.workflow_run.event == 'pull_request_target' && github.event.workflow_run.path == '.github/workflows/ci.yml' && github.event.workflow_run.head_repository.full_name == github.repository && startsWith(github.event.workflow_run.head_branch, 'cursor/') && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')");
+  assert.equal(parsed.concurrency.group, 'agent-orchestrator-${{ github.repository }}-ci-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_branch || github.event.workflow_run.id }}');
 });
 
-test('PAT job はtrusted triggerとmain-only Environment契約を持ち、direct review workflowには存在しない', () => {
+test('PAT job はtrusted triggerとmain-only Environment契約を持ち、review webhookは存在しない', () => {
   for (const name of Object.keys(workflowContracts)) {
     const { parsed, source } = parseWorkflow(name);
-    if (Object.hasOwn(parsed.on, 'pull_request_review')) {
-      assert.doesNotMatch(source, /CURSOR_AGENT_ORCHESTRATOR_PAT|secrets\.|environment:/u);
-    }
+    assert.equal(Object.hasOwn(parsed.on, 'pull_request_review'), false, `${name}: unsafe review trigger`);
+    assert.doesNotMatch(source, /actions\/(?:upload|download)-artifact/u, `${name}: review artifact transport`);
     for (const job of Object.values(parsed.jobs)) {
       const hasPat = job.steps.some((step) => step.env?.CURSOR_AGENT_ORCHESTRATOR_PAT);
       if (hasPat) assert.equal(job.environment, 'agent-orchestrator');
@@ -489,37 +419,46 @@ test('PAT job はtrusted triggerとmain-only Environment契約を持ち、direct
   assert.match(readFileSync(designPath, 'utf8'), /GitHub Environment `agent-orchestrator`[\s\S]*main[^\n]*only/iu);
 });
 
-test('Agent workflow は PR head、artifact、event本文、直接 mutation を実行しない', () => {
+test('privileged Agent workflow はPR head、artifact、event本文、直接 mutationを実行しない', () => {
   for (const name of Object.keys(workflowContracts)) {
     const { parsed, source } = parseWorkflow(name);
     assert.equal(Object.hasOwn(parsed.on, 'pull_request'), false, `${name}: pull_request is forbidden`);
     assert.doesNotMatch(source, /github\.event\.[^}\n]*(?:body|title|comment|label|head_ref|head\.sha)[^}\n]*\}\}/iu, `${name}: untrusted shell interpolation`);
-    assert.doesNotMatch(source, /github\.event\.pull_request\.head|github\.event\.workflow_run\.head_(?:sha|repository)|persist-credentials:\s*true/iu, `${name}: untrusted code`);
+    assert.doesNotMatch(source, /github\.event\.pull_request\.head|github\.event\.workflow_run\.head_sha|persist-credentials:\s*true/iu, `${name}: untrusted code`);
     for (const job of Object.values(parsed.jobs)) {
       assert.ok(job.steps.every((step) => !step.uses || [
-        'actions/checkout@v4', 'actions/setup-node@v4', 'actions/upload-artifact@v4', 'actions/download-artifact@v4',
+        'actions/checkout@v4', 'actions/setup-node@v4',
       ].includes(step.uses)), `${name}: unexpected action`);
-      assert.ok(job.steps.filter((step) => step.run).every((step) => (
-        /^node \.github\/scripts\/agent-orchestrator\/main\.mjs [a-z-]+$/u.test(step.run)
-        || (name === 'agent-review.yml' && step.run.includes('$GITHUB_EVENT_PATH'))
-      )), `${name}: direct mutation or shell command`);
+      assert.ok(job.steps.filter((step) => step.run).every((step) => /^node \.github\/scripts\/agent-orchestrator\/main\.mjs [a-z-]+$/u.test(step.run)), `${name}: direct mutation or shell command`);
     }
   }
 });
 
-test('既存 Pull Request CI を保持して contract job だけを追加する', () => {
-  const { parsed } = parseWorkflow('ci.yml');
+test('Pull Request CI はbase版workflow・read-only tokenでsame-repository PR headだけを実行しcacheを使わない', () => {
+  const { parsed, source } = parseWorkflow('ci.yml');
   assert.equal(parsed.name, 'Pull Request CI');
+  assert.deepEqual(parsed.on, { pull_request_target: { types: ['opened', 'synchronize', 'reopened', 'ready_for_review'], branches: ['main'] } });
+  assert.deepEqual(parsed.permissions, { contents: 'read' });
   assert.deepEqual(Object.keys(parsed.jobs).sort(), ['agent-orchestrator', 'e2e', 'quality', 'rls']);
+  for (const [name, candidate] of Object.entries(parsed.jobs)) {
+    assert.equal(candidate.if, "github.event.pull_request.head.repo.full_name == github.repository", `${name}: same repository guard`);
+    assert.equal(Object.hasOwn(candidate, 'permissions'), false, `${name}: no permission widening`);
+    const checkout = candidate.steps.find((step) => typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@'));
+    const setup = candidate.steps.find((step) => step.uses === 'actions/setup-node@v4');
+    assert.equal(checkout?.uses, 'actions/checkout@v7', `${name}: protected checkout`);
+    assert.equal(checkout?.with?.ref, '${{ github.event.pull_request.head.sha }}', `${name}: explicit PR head`);
+    assert.equal(checkout?.with?.['persist-credentials'], false, `${name}: no persisted token`);
+    assert.equal(Object.hasOwn(checkout?.with ?? {}, 'allow-unsafe-pr-checkout'), false, `${name}: checkout protection enabled`);
+    assert.equal(Object.hasOwn(setup?.with ?? {}, 'cache'), false, `${name}: no cache`);
+  }
+  assert.doesNotMatch(source, /secrets\.|CURSOR_AGENT_ORCHESTRATOR_PAT|permissions:\s*write-all|allow-unsafe-pr-checkout/u);
+
   const job = parsed.jobs['agent-orchestrator'];
   assert.equal(job['runs-on'], 'ubuntu-latest');
-  const checkout = job.steps.find((step) => step.uses === 'actions/checkout@v4');
   const setupNode = job.steps.find((step) => step.uses === 'actions/setup-node@v4');
   const install = job.steps.find((step) => step.run === 'npm ci --no-audit');
   const testStep = job.steps.find((step) => step.run === 'node --test .github/scripts/agent-orchestrator/*.test.mjs');
-  assert.ok(checkout);
   assert.equal(setupNode?.with?.['node-version'], 22);
-  assert.equal(setupNode?.with?.['cache-dependency-path'], 'app/package-lock.json');
   assert.equal(install?.['working-directory'], 'app');
   assert.ok(testStep);
   assert.equal(testStep?.['working-directory'], undefined);

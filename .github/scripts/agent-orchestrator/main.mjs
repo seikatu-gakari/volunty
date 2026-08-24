@@ -57,92 +57,37 @@ function readEvent(path) {
   return event;
 }
 
-/** @param {string} path */
-function readCapturedReviewEvent(path) {
-  let event;
-  try {
-    event = JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    throw new Error('review signal artifact must contain valid JSON');
-  }
-  if (event === null || typeof event !== 'object' || Array.isArray(event)) {
-    throw new Error('review signal artifact must contain an object');
-  }
-  return event;
-}
-
 /** @param {unknown} value */
 function positiveInteger(value) {
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 /** @param {unknown} value */
-function nonEmptyString(value) {
-  return typeof value === 'string' && value !== '' ? value : null;
-}
-
-function invalidReviewSignal() {
-  return new Error('review signal does not match the trusted workflow_run');
+function positiveIntegerInput(value) {
+  if (positiveInteger(value) !== null) return value;
+  if (typeof value !== 'string' || !/^[1-9]\d*$/u.test(value)) return null;
+  const parsed = Number(value);
+  return positiveInteger(parsed);
 }
 
 /**
- * PR merge-ref 上で作られた artifact は untrusted data として扱い、trusted
- * workflow_run metadata と同一 session だと証明できる場合だけ handler へ渡す。
- * review ID のauthor/state/commit/timestampは handleReview がREST APIで二重確認する。
- * @param {Record<string, unknown>} workflowEvent
- * @param {Record<string, unknown>} signalEvent
+ * workflow_dispatch の固定inputだけを正規化する。review証拠はpayloadから受け取らず、
+ * handlerがREST APIからcurrent PR/head/ready/reviewsを二重取得して照合する。
+ * @param {Record<string, unknown>} event
  * @param {import('./config.mjs').AgentConfig} config
  * @param {string} eventName
  */
-export function resolveReviewSignal(workflowEvent, signalEvent, config, eventName) {
-  const fail = () => { throw invalidReviewSignal(); };
+export function resolveReviewDispatch(event, config, eventName) {
+  const fail = () => { throw new Error('review dispatch must contain a valid Pull Request number'); };
   const fullName = `${config.owner}/${config.repository}`;
-  const apiRepositoryUrl = `https://api.github.com/repos/${config.owner}/${config.repository}`;
-  const repository = workflowEvent?.repository;
-  const repositoryId = positiveInteger(repository?.id);
-  const run = workflowEvent?.workflow_run;
-  const runRepository = run?.repository;
-  if (eventName !== 'workflow_run' || workflowEvent?.action !== 'completed'
-    || repositoryId === null || repository?.full_name !== fullName
-    || positiveInteger(run?.id) === null || run?.name !== 'Agent Review Signal'
-    || run?.event !== 'pull_request_review' || run?.status !== 'completed' || run?.conclusion !== 'success'
-    || positiveInteger(runRepository?.id) !== repositoryId || runRepository?.full_name !== fullName) fail();
-
-  const references = run?.pull_requests;
-  if (!Array.isArray(references) || references.length !== 1) fail();
-  const reference = references[0];
-  const pullRequestNumber = positiveInteger(reference?.number);
-  const base = reference?.base;
-  const head = reference?.head;
-  const baseRepository = base?.repo;
-  const headRepository = head?.repo;
-  const baseSha = nonEmptyString(base?.sha);
-  const headSha = nonEmptyString(head?.sha);
-  if (positiveInteger(reference?.id) === null || pullRequestNumber === null
-    || reference?.url !== `${apiRepositoryUrl}/pulls/${pullRequestNumber}`
-    || base?.ref !== config.defaultBranch || baseSha === null
-    || nonEmptyString(head?.ref) === null || !head.ref.startsWith(config.cursorBranchPrefix) || headSha === null
-    || positiveInteger(baseRepository?.id) !== repositoryId || baseRepository?.url !== apiRepositoryUrl || baseRepository?.name !== config.repository
-    || positiveInteger(headRepository?.id) !== repositoryId || headRepository?.url !== apiRepositoryUrl || headRepository?.name !== config.repository) fail();
-
-  const signalRepository = signalEvent?.repository;
-  const pullRequest = signalEvent?.pull_request;
-  const signalBase = pullRequest?.base;
-  const signalHead = pullRequest?.head;
-  const review = signalEvent?.review;
-  const submittedAt = nonEmptyString(review?.submitted_at);
-  const reviewState = nonEmptyString(review?.state);
-  if (signalEvent?.action !== 'submitted'
-    || positiveInteger(signalRepository?.id) !== repositoryId || signalRepository?.full_name !== fullName
-    || positiveInteger(pullRequest?.number) !== pullRequestNumber
-    || signalBase?.ref !== config.defaultBranch || nonEmptyString(signalBase?.sha) === null
-    || positiveInteger(signalBase?.repo?.id) !== repositoryId || signalBase?.repo?.full_name !== fullName
-    || signalHead?.ref !== head.ref || signalHead?.sha !== headSha
-    || positiveInteger(signalHead?.repo?.id) !== repositoryId || signalHead?.repo?.full_name !== fullName
-    || positiveInteger(review?.id) === null || nonEmptyString(review?.user?.login) === null
-    || reviewState === null || !['approved', 'changes_requested', 'commented', 'dismissed', 'pending'].includes(reviewState.toLowerCase())
-    || review?.commit_id !== headSha || submittedAt === null || Number.isNaN(Date.parse(submittedAt))) fail();
-  return signalEvent;
+  const number = positiveIntegerInput(event?.inputs?.pull_request_number);
+  if (eventName !== 'workflow_dispatch' || event?.repository?.full_name !== fullName || number === null) fail();
+  return {
+    action: 'workflow_dispatch',
+    repository: event.repository,
+    sender: event.sender,
+    pull_request: { number },
+  };
 }
 
 /** @param {unknown} value */
@@ -230,12 +175,7 @@ export async function runMain({
   const event = readEvent(eventPath);
   const config = loadConfig(configPath);
   const commandEvent = command === 'review'
-    ? resolveReviewSignal(
-      event,
-      readCapturedReviewEvent(requireEnvironmentValue(env.AGENT_REVIEW_EVENT_PATH, 'AGENT_REVIEW_EVENT_PATH')),
-      config,
-      eventName,
-    )
+    ? resolveReviewDispatch(event, config, eventName)
     : event;
   const client = new GitHubClient({ readToken, writeToken, fetchImpl });
   const repository = new AgentRepository({ client, config });

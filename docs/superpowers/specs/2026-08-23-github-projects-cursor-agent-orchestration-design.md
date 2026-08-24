@@ -114,7 +114,7 @@ Cursor Cloud が使う MCP や外部連携は Cursor Cloud 側で設定し、ロ
 
 ```text
 Human yuto90
-  | Issue / label / PR comment / review / merge
+  | Issue / label / PR comment / review / manual reconciliation / merge
   v
 GitHub Issues + Project #2 + Pull Requests
   | GitHub events
@@ -232,7 +232,8 @@ Project、Status field、option、item の ID は環境固有値なので hard-c
 | `In Progress` / `Rework` | Agent の `<!-- agent:human-input -->` | `Human Input` |
 | `Human Input` / `Blocked` / `Rework` | `yuto90` の PR `@cursor` comment | `In Progress` |
 | `In Progress` / `Rework` | ready marker + current-head CI success + PR 非 Draft | `Human Review` |
-| `Human Review` | `yuto90` の `changes_requested` review | `Rework` |
+| `Human Review` | manual reconciliation で `yuto90` の最新 `changes_requested` を確認 | `Rework` |
+| `Human Review` | `yuto90` の PR `@cursor` comment で同じ review を確認 | `Rework` 経由で `In Progress` |
 | active state | `yuto90` が `agent-cancel` を付与 | `Cancelled` |
 | active state | default branch merge + linked Issue close | `Done` |
 
@@ -320,9 +321,11 @@ dispatch comment 後に Draft PR が作成されなくても自動 retry や tim
 
 `workflow_dispatch` は payload の `action` ではなく、workflow runtime が渡す trusted `GITHUB_EVENT_NAME` で識別する。raw payload 由来の同名 field で read-only preflight を偽装できないようにする。
 
-`pull_request_target`、`workflow_run` などの privileged workflow は PR branch を checkout しない。共通 Orchestrator は必ず default branch の trusted ref から checkout し、PR の title、body、branch、comment を shell command に展開しない。
+PAT を持つ `pull_request_target`、`workflow_run` などの privileged Orchestrator workflow は PR branch を checkout しない。共通 Orchestrator は必ず default branch の trusted ref から checkout し、PR の title、body、branch、comment を shell command に展開しない。例外は PAT/secret を持たない read-only `Pull Request CI` だけであり、後述の分離境界で PR head の test code を実行する。
 
-`pull_request_review` は同一 repository の PR でも merge-ref 側の workflow を実行し得るため、`agent-review.yml` は `permissions: {}` で GitHub 生成 event JSON を短期 artifact `agent-review-signal` として保存するだけの unprivileged signal workflow とする。PAT、Environment、checkout、PR code 実行を一切含めない。`agent-ci.yml` の `workflow_run` consumer が default branch の Orchestrator を checkoutし、artifactを実行せず JSON data として読む。workflow名、event、conclusion、repository、公式PR relation、PR number/head、review IDを照合した後、review ID/author/state/commit/timestampをREST APIで二重確認してから既存review handlerへ渡す。
+2026-08-25 の実環境確認では Cursor GitHub App は `actions`、`checks`、`contents`、`issues`、`pull_requests`、`workflows` の read/write を持ち、repository selection は all、suspend されていなかった。`workflows: write`によりCursor AgentはPR branch上のworkflow YAMLも変更できる。同一 repository の `pull_request_review` がそのmerge-ref版YAMLを実行すると、元のjobが`permissions: {}`でも改変YAMLが`permissions: write-all`等へ昇格させたActions `GITHUB_TOKEN`を悪用できる。Cursor App token自体がworkflowへ渡るという意味ではない。このためreview merge-ref workflowを安全境界には使わず、7 workflowのどれにも`pull_request_review` trigger、review artifact、artifact consumerを置かない。
+
+`agent-review.yml` は default branch に存在する `workflow_dispatch` 専用の手動 reconciliation とし、positive integer の PR number を一つ受ける。job は `github.actor == 'yuto90'` と `github.triggering_actor == 'yuto90'`（他collaboratorによるrerunも拒否）、GitHub Environment `agent-orchestrator`、default-branch checkout を要求し、handler でも trusted payload の `sender.login == yuto90` を再確認する。非 operator は PAT/API mutation 前に exit 0 で skip する。non-`main` ref は Environment の selected branch `main` only policy で secret 到達前に拒否する。
 
 ## Human Input と再開
 
@@ -349,15 +352,18 @@ GitHub Actions は comment を Cursor へ転送・複製せず、Status を `In 
 
 ## CI 自動修正
 
-`agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ処理する。
+`.github/workflows/ci.yml` は PR branch 版 YAML を実行しないよう、base branch 版が選ばれる `pull_request_target` の `opened`、`synchronize`、`reopened`、`ready_for_review`（base `main`）で起動する。top-level `permissions` は `contents: read` だけ、全 job は `github.event.pull_request.head.repo.full_name == github.repository` を要求する。fork PR は test code を実行せず skip する。same-repository PR だけを `actions/checkout@v7` で明示的な PR head SHAから checkoutし、`persist-credentials: false`、`allow-unsafe-pr-checkout` なし、secret参照なし、setup-node cacheなしで既存 quality / RLS / E2E / Orchestrator contract testsを実行する。placeholder値はsecretではない。
 
-1. `workflow_run.repository` と公式 `pull-request-minimal` 形の `workflow_run.pull_requests` を検証し、同一 base repository の open PR を trusted REST API から再取得する。重複・欠損・異なる base repository が一件でも混在すれば event 全体を fail closed とし、fork head の human PR は有効な non-managed relation として除外する。
-2. Agent-managed PR か確認する。
-3. run の `head_sha` が現在の PR head SHA と一致するか確認する。
-4. 同じ head SHA の target workflow run を status に関係なく `(updated_at, id)` で並べ、最新 run か確認する。最新が queued / in_progress / unknown status なら gate を閉じ、`completed + success` または `completed + failure` のときだけ処理する。
-5. `Cancelled` または `Done` なら何もしない。
+`agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ default branch の Orchestrator を実行する。Environment/PATをmaterializeする前のjob guardで、event `pull_request_target`、path `.github/workflows/ci.yml`、same-repository `head_repository`、`cursor/` head branch、conclusion `success|failure`を固定する。concurrencyはrepository IDとhead branchで同じPR sessionを直列化する。
 
-Actions run 一覧は repository 全体ではなく、Issue ごとに一意な managed PR head branch と `pull_request` event に限定して取得する。GitHub の filtered search は最大 1,000 results のため、branch 内でも上限へ達した場合は不完全な履歴を使わず明示的に fail closed とする。object-envelope の全 page で `total_count`、重複 ID、page 数、公式 nullable / optional field を検証する。
+1. `workflow_run` の name/path/event、repository/head repository、`cursor/` head branch、head SHAをruntime validationする。同名の別path workflowは拒否する。
+2. `workflow_run.pull_requests` は空を許容する。存在する場合はofficial relationを追加相関として検証し、重複・不一致・cross-repository relationをfail closedにする。
+3. trusted REST API の `state=open&head=owner:branch` で候補PRを再取得し、same-repository current PRが一意、Agent-managed、current head SHA一致であることを確認する。
+4. fixed endpoint `/actions/workflows/ci.yml/runs` をhead branchとevent `pull_request_target`で絞り、各runのname/path/event/head branch/head repository/head SHAを検証する。同じ current head SHA の最新runを `(updated_at, id)` で選ぶ。
+5. mutation直前にPR/head/Status/runを再取得し、同じrunがcurrent headの最新であることを再確認する。最新が queued / in_progress ならgateを閉じ、`completed + success` または `completed + failure` のときだけ処理する。
+6. `Cancelled` または `Done` なら何もしない。
+
+Actions run 一覧は repository 全体ではなく固定workflow path、Issue ごとに一意な managed PR head branch、`pull_request_target` event に限定して取得する。GitHub の filtered search は最大 1,000 results のため、branch 内でも上限へ達した場合は不完全な履歴を使わず明示的に fail closed とする。object-envelope の全 page で `total_count`、重複 ID、page 数、enumと必須fieldを検証する。
 
 失敗時は、直近の成功 run より後にある retry marker を数える。
 
@@ -370,7 +376,7 @@ failure -> Blocked
 
 つまり自動修正依頼は最大 3 comments、4 回目の連続失敗で `Blocked` にする。retry marker は `yuto90` author、既知 run ID、run と一致する head SHA、範囲内 retry number をすべて満たす場合だけ信頼し、rerun を重複処理しない。run 順は常に `(updated_at, id)` で比較する。current-head CI が成功したら連続失敗 count は実質的に reset されるため、後の Rework は新しい failure cycle として扱う一方、過去 cycle の Blocked / accepted resume は ready marker の invalidation 履歴として保持する。
 
-CI 修正 comment は `yuto90` 名義で対応 PR に投稿し、失敗した job と Actions run URL を案内する。Actions 自身は PR code、artifact、ログ本文を実行しない。
+CI 修正 comment は `yuto90` 名義で対応 PR に投稿し、失敗した job と Actions run URL を案内する。PATを持つAgent OrchestratorはPR code、artifact、ログ本文を実行しない。PR codeを実行する`Pull Request CI`は上記read-only/no-secret境界に隔離する。
 
 ## Human Review gate
 
@@ -389,16 +395,16 @@ CI Green だけ、PR Ready 化だけ、ready marker だけでは遷移しない�
 
 ## Review と Rework
 
-`agent-review.yml` は `pull_request_review.submitted` を受け、次の場合だけ `Human Review -> Rework` にする。
+review submissionだけではworkflowを起動しない。反映経路は次の二つに限定する。
 
-- Agent-managed PR
-- reviewer が `yuto90`
-- review state が `changes_requested`
-- event の review ID、author、state、commit SHA、submitted timestamp が trusted REST API の current review と一致する
-- submitted timestamp が current cycle の latest ready marker より後である。同時刻や時刻不明は fail closed とする
-- Issue が terminal state でない
+1. `yuto90` がdefault branch refの`Agent Orchestrator - Review Reconciliation`を手動実行し、positive integer PR numberを入力する。
+2. `Human Review` 中に`yuto90`が同じPRへstandalone `@cursor` commentを投稿する。
 
-人間が続けて同じ PR に `@cursor` comment を投稿すると、`agent-comments.yml` が `Rework -> In Progress` にする。同じ Agent が修正し、accepted resume より後の current-head ready と最新 completed CI success を揃えた場合だけ `Human Review` に戻る。review が後から `dismissed` へ変わっても old ready の invalidation 履歴は保守的に維持し、古い webhook の redelivery は current review の二重再取得で拒否する。
+どちらもevent内のreview情報を証拠にしない。trusted REST APIからAgent-managed current PR、closing Issue、Project Status、current head、latest current-head ready marker、authoritative reviewsを二度取得する。latest readyより厳密に後にあるcurrent-head `yuto90` reviewのうち、submitted timestampで一意な最新reviewだけを選び、そのstateが`changes_requested`のときだけ`Human Review -> Rework`にする。timestamp欠損、readyとの同値、latest timestamp tie、missing/ambiguous relation、stale head、後続approved/commented/dismissed、terminal stateはfail closedでno-opにする。
+
+手動reconciliationは`Rework`で停止する。`Human Review`中の`yuto90 @cursor`はcomment timestampが選択したreviewより厳密に後である場合だけ同じauthoritative reconciliationを行い、成功時に同一jobで`Human Review -> Rework -> In Progress`の二段階遷移にする。新しいchanges requestedより古いcommentのredeliveryは再利用しない。二段階目の前にもPR/head/Statusを再取得し、raceがあれば`Rework`で停止する。redelivery時は既存の`Rework -> In Progress`契約で収束する。Human Input、Blocked、既存Reworkからのresume契約は変更しない。
+
+同じ Agent が修正し、accepted resume より後の current-head ready と最新 completed CI success を揃えた場合だけ `Human Review` に戻る。review が後から `dismissed` へ変わっても old ready の invalidation 履歴は保守的に維持する。
 
 approve review だけでは Status を変更しない。merge は人間が GitHub UI で行う。
 
@@ -449,7 +455,7 @@ permissions:
 
 ### `CURSOR_AGENT_ORCHESTRATOR_PAT`
 
-GitHub Environment `agent-orchestrator` の secret に保存する `yuto90` の fine-grained PAT。resource owner と repository を限定し、有効期限を有限にする。Environment の deployment branch policy は selected branch `main` only とし、PR merge-ref がEnvironmentを追加してもsecretへ到達できないことをTask 10の導入時に確認する。
+GitHub Environment `agent-orchestrator` の secret に保存する `yuto90` の fine-grained PAT。repository Actions secretは使用しない。resource owner と repository を限定し、有効期限を有限にする。Environment の deployment branch policy は selected branch `main` only とする。Task 10ではsecret保存前にpolicyが`main`一件だけであることを確認し、保存後にもEnvironment名、branch policy、secret名を再読して一致を検証する。これによりPR merge-refやnon-`main` workflow dispatchがEnvironmentを追加してもsecretへ到達できない。
 
 必要権限は次に限定する。
 
@@ -487,19 +493,19 @@ Project ID や option ID を secret または source code に固定しないた�
 - event 対象が Agent-managed Issue/PR でなければ何もしない。
 - workflow rerun、GitHub の event redelivery、API retry を前提にする。GraphQL pagination は cursor の前進を検証し、同一 cursor の循環を fail closed にする。
 
-workflow concurrency は repository と Issue/PR number を key にし、`cancel-in-progress: false` とする。別 workflow 間の完全な lock には依存せず、mutation 直前の再取得を最終防衛線にする。
+workflow concurrency は repository と Issue/PR number、またはAPI再解決前のCIではverified head repository/branchをkeyにし、`cancel-in-progress: false` とする。別 workflow 間の完全な lock には依存せず、mutation 直前の再取得を最終防衛線にする。
 
 repository 全体を対象とする global concurrency limit は設けない。複数 Issue の並列数は、人間が同時に付与する `agent-ready` の数で管理する。
 
 ## Actions のセキュリティ
 
-- privileged workflow は default branch の Orchestrator だけを checkout する。
-- `pull_request_target` で PR head を checkout しない。
-- `workflow_run` で untrusted artifact や PR code を実行しない。
-- `pull_request_review` merge-ref workflow はsecretなしでevent artifactを作るだけとし、trusted `workflow_run` consumerが固定pathのJSONとして検証する。artifactをshell、Node module、実行ファイルとして扱わない。
+- PAT/Environmentを持つprivileged Orchestrator workflowはdefault branchのOrchestratorだけをcheckoutする。
+- privileged Orchestratorの`pull_request_target`と`workflow_run`ではPR head、untrusted artifact、PR codeを実行しない。
+- review webhook/artifact経路は置かず、review reconciliationはtrusted `workflow_dispatch`またはdefault-branch `issue_comment`だけから起動する。
+- base版`pull_request_target`で動く`Pull Request CI`だけはsame-repository PR headを実行できるが、`permissions: contents: read`、secretなし、`actions/checkout@v7`の安全なcustom-ref guard、`persist-credentials: false`、cacheなしを一体の境界とする。fork PRはjob guardで実行しない。
 - Issue title/body、PR body、comment、branch 名を shell へ直接展開しない。
 - event payload は `GITHUB_EVENT_PATH` から Node.js で JSON として読む。
-- GitHub公式Actionは `actions/checkout@v4`、`actions/setup-node@v4`、review signal用の `actions/upload-artifact@v4` / `actions/download-artifact@v4` に限定し、処理はNode.js標準 API を中心にする。
+- Orchestrator workflowのGitHub公式Actionは`actions/checkout@v4`と`actions/setup-node@v4`に限定し、処理はNode.js標準 API を中心にする。`Pull Request CI`のcheckoutだけは`actions/checkout@v7`を使う。
 - workflow の `permissions` を job ごとに最小化する。
 - fork PR、別 repository、別 base branch は Agent-managed session として扱わない。
 
@@ -561,9 +567,11 @@ repository 全体を対象とする global concurrency limit は設けない。�
 - Human Input、Blocked、Rework からの `@cursor` 復帰
 - PR branch、Draft、base、closing Issue の ACK 条件
 - stale head、古い workflow run、run redelivery の無視
+- `pull_request_target` CIのfixed path/event/same-repository head、空relationのAPI再解決、read-only/no-secret/no-cache境界
 - CI retry 1〜3 と 4 回目 Blocked、success 後 reset
 - marker と CI event の順序を問わない Human Review gate
-- changes requested の Rework と unauthorized reviewer の無視
+- manual workflow dispatchのoperator/positive PR inputと、authoritative latest changes requestedのmissing/tie/stale/race拒否
+- Human Review中の`yuto90 @cursor`によるRework経由In Progressとpartial transition redelivery
 - merged + closed の event 順序を問わない Done
 - Cancelled/Done の terminal guard
 - Project field/option 不足時の fail-closed
@@ -587,7 +595,7 @@ default branch へ workflow が入った後、低リスクの docs-only 検証 I
 2. Cursor が同じ Issue の Draft PR を作り、`In Progress` になる。
 3. Human Input comment と `yuto90` の PR 回答で同じ session が再開する。
 4. ready marker、PR Ready、current-head CI Green で `Human Review` になる。
-5. 人間の changes requested と `@cursor` で Rework を同じ session が処理する。
+5. 人間の changes requested 後、manual review reconciliationまたは`@cursor` commentでauthoritative reviewを反映し、同じsessionがReworkを処理する。
 6. 人間の merge で Issue が close し、Project が `Done` になる。
 
 CI retry 上限、stale event、Cancelled は automated contract tests を必須とし、必要なら別の使い捨て Issue で state-only smoke test を行う。意図的な CI 失敗を 4 回発生させることは本番 branch history と Cursor 利用量を増やすため、初期 live smoke の必須条件にはしない。
@@ -609,12 +617,13 @@ Cursor 起動は利用量を消費し、Issue/PR/comment/Project を外部へ書
 ### Phase 2: external configuration
 
 1. Chrome で PAT の権限と期限を最終確認し、明示承認後に作成する。
-2. Chrome で repository Actions secret `CURSOR_AGENT_ORCHESTRATOR_PAT` を保存する。
-3. `agent-ready` と `agent-cancel` labels を作る。
-4. Project Status option を 8 種類へ migrate する。
-5. `agent-start.yml` の manual preflight で Project/PAT/config を read-only 検証する。
-6. Status を変更する built-in Project workflows を無効化する。
-7. Cursor Environment と GitHub integration の設定を再確認する。
+2. Chrome で GitHub Environment `agent-orchestrator` を作成または再確認し、deployment branch policyをselected branch `main` onlyに保存する。保存直後にpolicyを再読する。
+3. Environment secret `CURSOR_AGENT_ORCHESTRATOR_PAT` を保存する。repository Actions secretには保存せず、保存後にEnvironment名、`main` only policy、secret名を再検証する。
+4. `agent-ready` と `agent-cancel` labels を作る。
+5. Project Status option を 8 種類へ migrate する。
+6. `agent-start.yml` の manual preflight で Project/config を read-only 検証する。PAT値はread-only preflightでは使用せず、Environment secret名とpolicyを設定画面で別途確認する。
+7. Status を変更する built-in Project workflows を無効化する。
+8. Cursor Environment と GitHub integration の設定を再確認する。Cursor Appの`workflows: write`を含む実権限を再読し、review webhookを追加しない。
 
 Project migration は実行直前に option と item count を再取得し、設計時の観測と違えば停止する。browser 操作はすべて Chrome を使う。
 
