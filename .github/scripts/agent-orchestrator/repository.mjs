@@ -366,7 +366,8 @@ export class AgentRepository {
   /** @param {{number: number}} pullRequest @param {string} workflowName */
   async getLatestCiRun(pullRequest, workflowName) {
     const runs = await this.listCiRuns(pullRequest, workflowName);
-    return runs.sort((left, right) => right.updatedAt - left.updatedAt || right.id - left.id)[0] ?? null;
+    return runs.filter((run) => run.status === 'completed' && typeof run.headSha === 'string' && Number.isFinite(run.updatedAt))
+      .sort((left, right) => right.updatedAt - left.updatedAt || right.id - left.id)[0] ?? null;
   }
 
   /** @param {{number: number}} pullRequest */

@@ -99,6 +99,16 @@ test('current-headのlatest ready markerとcurrent CI successだけがHuman Revi
   assert.equal(project.status, 'Human Review');
 });
 
+test('PENDING reviewのnullable user/submittedAtはHuman Review gateをinvalidateしない', async () => {
+  const { repository, project, handlers } = setup();
+  const ready = '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->';
+  repository.comments.push({ id: 2, author: 'cursor[bot]', createdAt: 20, body: ready });
+  repository.reviews.push({ author: null, state: 'pending', submittedAt: null, commitId: null });
+  repository.runs.push({ id: 7, name: 'Pull Request CI', status: 'completed', conclusion: 'success', headSha: 'abcdef', updatedAt: 21, url: 'https://ci/7' });
+  assert.deepEqual(await handlers.handleComment(event({ body: ready })), { kind: 'transition', status: 'Human Review' });
+  assert.equal(project.status, 'Human Review');
+});
+
 test('Human Input・accepted resume・changes requested後の古いready markerは再利用しない', async () => {
   const { repository, project, handlers } = setup();
   repository.comments.push(

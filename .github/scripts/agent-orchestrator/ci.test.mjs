@@ -200,6 +200,33 @@ test('workflow_runのmanaged relation一件とhuman relationはmanaged PRだけ�
   assert.equal(repository.comments.filter((comment) => comment.body.includes('agent:ci-retry')).length, 1);
 });
 
+test('managed relationにmalformed/cross-repoが混在するとtrusted PR read前にevent全体をskipする', async () => {
+  for (const bad of [
+    (() => { const value = relation(99); delete value.url; return value; })(),
+    { ...relation(99), base: { ...relation(99).base, repo: { ...relation(99).base.repo, id: 999, url: 'https://api.github.com/repos/other/widgets' } } },
+  ]) {
+    const { repository, project, handlers } = setup();
+    const failed = run(11, 'failure'); repository.runs.push(failed);
+    let reads = 0; const original = repository.getCurrentPullRequest.bind(repository);
+    repository.getCurrentPullRequest = async (...args) => { reads += 1; return original(...args); };
+    const payload = event(failed); payload.workflow_run.pull_requests.push(bad);
+    assert.deepEqual(await handlers.handleCi(payload), { kind: 'skip', reason: 'invalid-pull-request' });
+    assert.equal(reads, 0);
+    assert.equal(repository.comments.length, 1);
+    assert.equal(project.status, 'In Progress');
+  }
+});
+
+test('same-base fork-head human relationは有効に再解決し唯一managed PRへretryする', async () => {
+  const { repository, project, handlers } = setup();
+  const failed = run(11, 'failure'); repository.runs.push(failed);
+  const payload = event(failed); payload.workflow_run.pull_requests.push(relation(99));
+  const result = await handlers.handleCi(payload);
+  assert.deepEqual(result, { kind: 'retry', retry: 1 });
+  assert.equal(repository.comments.filter((comment) => comment.body.includes('agent:ci-retry')).length, 1);
+  assert.equal(project.status, 'In Progress');
+});
+
 test('公式minimal relationとoptional run_started_atを受け入れ、過去Blocked/resume後のold readyを再利用しない', async () => {
   const { repository, project, handlers } = setup();
   repository.comments.push(
@@ -303,4 +330,41 @@ test('official nullable workflow run/reviewは無関係なら停止せず、PEND
   });
   assert.deepEqual(await repository.listCiRuns({ number: 30 }, 'Pull Request CI'), []);
   assert.deepEqual(await repository.listReviews({ number: 30 }), [{ author: null, state: 'pending', submittedAt: null, commitId: null }]);
+});
+
+test('nullable nameと未知statusのunrelated runは個別に非候補となり、target completedの欠落はexact rejectする', async () => {
+  const base = (id, extra = {}) => ({ id, name: 'Pull Request CI', status: 'completed', conclusion: 'success', head_sha: 'abcdef', updated_at: '2026-08-24T00:01:00Z', html_url: `https://ci/${id}`, repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()], ...extra });
+  for (const value of [{ name: null, status: 'completed' }, { name: 'Other CI', status: 'future_unknown_value' }]) {
+    const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { async read() { return { total_count: 1, workflow_runs: [base(51, value)] }; }, async write() {}, async graphql() {} } });
+    assert.deepEqual(await repository.listCiRuns({ number: 30 }, 'Pull Request CI'), []);
+  }
+  for (const [extra, message] of [
+    [{ conclusion: 'not-a-conclusion' }, 'workflow runs page 1[0].conclusion must be a workflow conclusion'],
+    [{ head_sha: undefined }, 'workflow runs page 1[0].head_sha must be a non-empty string'],
+  ]) {
+    const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { async read() { return { total_count: 1, workflow_runs: [base(52, extra)] }; }, async write() {}, async graphql() {} } });
+    await assert.rejects(() => repository.listCiRuns({ number: 30 }, 'Pull Request CI'), (error) => error.message === message);
+  }
+});
+
+test('pagination prematureとexpected-pagesは他guardに先行されずexact messageでrejectする', async () => {
+  const valid = (id) => ({ id, name: 'Pull Request CI', status: 'completed', conclusion: 'success', head_sha: 'abcdef', updated_at: '2026-08-24T00:01:00Z', html_url: `https://ci/${id}`, repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] });
+  for (const [message, read] of [
+    ['workflow runs pagination ended prematurely', async () => ({ total_count: 1, workflow_runs: [] })],
+    ['workflow runs pagination exceeded expected pages', async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: [valid(61)] } : path.endsWith('page=2') ? { total_count: 101, workflow_runs: [valid(62)] } : (() => { throw new Error('page 3 must not be read'); })()],
+  ]) {
+    const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { read, async write() {}, async graphql() {} } });
+    await assert.rejects(() => repository.listCiRuns({ number: 30 }, 'Pull Request CI'), (error) => error.message === message);
+  }
+});
+
+test('getLatestCiRunはnullable status placeholderを返さずcompleted candidateだけを返す', async () => {
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: { async read() { return { total_count: 2, workflow_runs: [
+      { id: 71, name: 'Pull Request CI', status: null, repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] },
+      { id: 72, name: 'Pull Request CI', status: 'completed', conclusion: 'success', head_sha: 'abcdef', updated_at: '2026-08-24T00:01:00Z', html_url: 'https://ci/72', repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] },
+    ] }; }, async write() {}, async graphql() {} },
+  });
+  assert.deepEqual(await repository.getLatestCiRun({ number: 30 }, 'Pull Request CI'), { id: 72, name: 'Pull Request CI', status: 'completed', conclusion: 'success', headSha: 'abcdef', updatedAt: Date.parse('2026-08-24T00:01:00Z'), url: 'https://ci/72', pullRequests: [{ number: 30 }] });
 });
