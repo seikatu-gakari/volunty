@@ -126,3 +126,24 @@ jobs:
       - name: Stop local Supabase
         if: ${{ always() }}
         run: supabase stop --no-backup
+
+  agent-orchestrator:
+    name: agent-orchestrator
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies for YAML contract tests
+        working-directory: app
+        run: npm ci --no-audit
+
+      - name: Run Agent Orchestrator contract tests
+        run: node --test .github/scripts/agent-orchestrator/*.test.mjs

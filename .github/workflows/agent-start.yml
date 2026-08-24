@@ -1,0 +1,32 @@
+name: Agent Orchestrator - Start
+
+on:
+  issues:
+    types: [opened, labeled, closed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: agent-orchestrator-${{ github.repository }}-issue-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node .github/scripts/agent-orchestrator/main.mjs start
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CURSOR_AGENT_ORCHESTRATOR_PAT: ${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}
