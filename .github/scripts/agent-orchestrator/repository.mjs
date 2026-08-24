@@ -228,16 +228,18 @@ export class AgentRepository {
         throw new Error(`${field}.repository must match configured repository`);
       }
       const headRepository = requireObject(reference.headRepository, `${field}.headRepository`);
+      const headName = requireString(headRepository.name, `${field}.headRepository.name`);
       const headOwner = requireObject(headRepository.owner, `${field}.headRepository.owner`);
-      if (requireString(headRepository.name, `${field}.headRepository.name`) !== this.repository || requireString(headOwner.login, `${field}.headRepository.owner.login`) !== this.owner) throw new Error(`${field}.headRepository must match configured repository`);
+      const headOwnerLogin = requireString(headOwner.login, `${field}.headRepository.owner.login`);
       if (typeof reference.isDraft !== 'boolean') throw new Error(`${field}.isDraft must be a boolean`);
-      return { id: requireString(reference.id, `${field}.id`), number: requirePositiveInteger(reference.number, `${field}.number`), state: normalizeGraphqlPullRequestState(requireString(reference.state, `${field}.state`), `${field}.state`), isDraft: reference.isDraft, baseRefName: requireString(reference.baseRefName, `${field}.baseRefName`), headRefName: requireString(reference.headRefName, `${field}.headRefName`) };
+      return { id: requireString(reference.id, `${field}.id`), number: requirePositiveInteger(reference.number, `${field}.number`), state: normalizeGraphqlPullRequestState(requireString(reference.state, `${field}.state`), `${field}.state`), isDraft: reference.isDraft, baseRefName: requireString(reference.baseRefName, `${field}.baseRefName`), headRefName: requireString(reference.headRefName, `${field}.headRefName`), headRepository: { owner: headOwnerLogin, name: headName } };
     });
   }
 
   async #readConnection(query, number, type, relation, mapNode) {
     const referenceNumber = requirePositiveInteger(number, 'reference number');
     const values = [];
+    const seenCursors = new Set();
     let after = null;
     do {
       const data = requireObject(await this.client.graphql(query, { owner: this.owner, repository: this.repository, number: referenceNumber, after }), 'GraphQL data');
@@ -249,7 +251,10 @@ export class AgentRepository {
       const pageInfo = requireObject(connection.pageInfo, `GraphQL ${relation}.pageInfo`);
       if (typeof pageInfo.hasNextPage !== 'boolean') throw new Error(`GraphQL ${relation}.pageInfo.hasNextPage must be a boolean`);
       if (pageInfo.hasNextPage) {
-        after = requireString(pageInfo.endCursor, `GraphQL ${relation}.pageInfo.endCursor`);
+        const nextCursor = requireString(pageInfo.endCursor, `GraphQL ${relation}.pageInfo.endCursor`);
+        if (seenCursors.has(nextCursor)) throw new Error(`GraphQL ${relation}.pageInfo.endCursor must advance`);
+        seenCursors.add(nextCursor);
+        after = nextCursor;
       } else if (pageInfo.endCursor !== null && pageInfo.endCursor !== undefined && typeof pageInfo.endCursor !== 'string') {
         throw new Error(`GraphQL ${relation}.pageInfo.endCursor must be a string or null`);
       } else after = null;

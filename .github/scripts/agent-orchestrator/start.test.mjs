@@ -89,6 +89,12 @@ test('operatorのagent-readyとclosed dependencyは一度だけCursorをdispatch
   assert.match(comments[0].body, /Fixes #8/);
   assert.match(comments[0].body, /Human Input/);
   assert.match(comments[0].body, /gh pr ready/);
+  const verificationIndex = comments[0].body.indexOf('lint / UT / build');
+  const readyIndex = comments[0].body.indexOf('gh pr ready');
+  const markerIndex = comments[0].body.indexOf('<!-- agent:ready-for-review -->');
+  const shaMarkerIndex = comments[0].body.indexOf('<!-- agent:ready-for-review:v1 head_sha=... -->');
+  assert.ok(verificationIndex >= 0 && verificationIndex < readyIndex);
+  assert.ok(readyIndex < markerIndex && markerIndex < shaMarkerIndex);
   assert.equal(project.items.get(108), 'Backlog');
   assert.deepEqual(repository.issues.get(8).labels, ['agent-ready']);
 });
@@ -119,6 +125,20 @@ test('他者が投稿したdispatch markerはdispatch済みとして信頼しな
   assert.equal((await repository.listComments(16)).length, 2);
 });
 
+test('別Issueのdispatch marker bodyは対象Issueのdispatch済みを偽装しない', async () => {
+  const repository = new FakeRepository([issue(20, { labels: ['agent-ready'] })]);
+  repository.readyActors.set(20, 'yuto90');
+  repository.comments.set(20, [{ body: '<!-- agent:dispatch:v1 issue=200 -->', author: 'yuto90' }]);
+  const project = new FakeProject();
+  project.items.set(120, 'Backlog');
+  const { handlers } = handlersFor(repository, project);
+
+  const result = await handlers.handleStart({ action: 'labeled', label: { name: 'agent-ready' }, issue: { number: 20 }, repository: { full_name: 'octo-org/widgets' } });
+
+  assert.deepEqual(result, { kind: 'dispatch' });
+  assert.equal((await repository.listComments(20)).length, 2);
+});
+
 test('human PRだけのreverse relationはmanaged PRとしてdispatchを妨害しない', async () => {
   const repository = new FakeRepository([issue(18, { labels: ['agent-ready'] })]);
   repository.readyActors.set(18, 'yuto90');
@@ -130,6 +150,23 @@ test('human PRだけのreverse relationはmanaged PRとしてdispatchを妨害�
   await handlers.handleStart({ action: 'labeled', label: { name: 'agent-ready' }, issue: { number: 18 }, repository: { full_name: 'octo-org/widgets' } });
 
   assert.equal((await repository.listComments(18)).length, 1);
+});
+
+test('fork headのcursor PRはnonmanagedとしてdispatchを妨害しない', async () => {
+  const repository = new FakeRepository([issue(21, { labels: ['agent-ready'] })]);
+  repository.readyActors.set(21, 'yuto90');
+  repository.closingPullRequests.set(21, [{
+    state: 'open', baseRefName: 'main', headRefName: 'cursor/fork-fix',
+    headRepository: { owner: 'fork-owner', name: 'widgets' },
+  }]);
+  const project = new FakeProject();
+  project.items.set(121, 'Backlog');
+  const { handlers } = handlersFor(repository, project);
+
+  const result = await handlers.handleStart({ action: 'labeled', label: { name: 'agent-ready' }, issue: { number: 21 }, repository: { full_name: 'octo-org/widgets' } });
+
+  assert.deepEqual(result, { kind: 'dispatch' });
+  assert.equal((await repository.listComments(21)).length, 1);
 });
 
 test('closed・wrong base・非cursorのreverse PRだけではdispatchを妨害しない', async () => {
@@ -168,6 +205,46 @@ test('open dependencyまたは最新label actor不正ならlabelを残してdisp
     assert.deepEqual(await repository.listComments(number), [], `Issue #${number}`);
     assert.deepEqual(repository.issues.get(number).labels, ['agent-ready'], `Issue #${number}`);
   }
+});
+
+test('cancel labelのunset Statusは初期化もdispatchもしない', async () => {
+  const repository = new FakeRepository([issue(22, { labels: ['agent-ready', 'agent-cancel'] })]);
+  repository.readyActors.set(22, 'yuto90');
+  const { handlers, project } = handlersFor(repository);
+
+  const result = await handlers.handleStart({ action: 'labeled', label: { name: 'agent-ready' }, issue: { number: 22 }, repository: { full_name: 'octo-org/widgets' } });
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'terminal' });
+  assert.equal(project.items.size, 0);
+  assert.deepEqual(await repository.listComments(22), []);
+});
+
+test('unset Status初期化後の最終readがnullへ戻るraceはinvalid-statusでdispatchしない', async () => {
+  const repository = new FakeRepository([issue(23, { labels: ['agent-ready'] })]);
+  repository.readyActors.set(23, 'yuto90');
+  const { handlers, project } = handlersFor(repository);
+  let transitionCompleted = false;
+  const originalTransition = project.transitionIssue.bind(project);
+  const originalGetStatus = project.getIssueStatus.bind(project);
+  project.transitionIssue = async (...args) => {
+    const result = await originalTransition(...args);
+    transitionCompleted = true;
+    return result;
+  };
+  project.getIssueStatus = async (id) => {
+    const status = await originalGetStatus(id);
+    if (transitionCompleted && status === 'Backlog') {
+      project.items.set(id, null);
+      return null;
+    }
+    return status;
+  };
+
+  const result = await handlers.handleStart({ action: 'labeled', label: { name: 'agent-ready' }, issue: { number: 23 }, repository: { full_name: 'octo-org/widgets' } });
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'invalid-status' });
+  assert.deepEqual(await repository.listComments(23), []);
+  assert.equal(project.items.get(123), null);
 });
 
 test('closed eventは直接blockedでopenかつreadyのIssueだけを再評価する', async () => {

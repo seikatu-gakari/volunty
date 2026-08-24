@@ -52,9 +52,16 @@ function report(summary, line) {
 export function createHandlers({ repository, project, config, summary }) {
   const dispatchMarker = (number) => `<!-- agent:dispatch:v1 issue=${number} -->`;
   const hasTrustedDispatchMarker = (comments, number) => comments.some((comment) => comment.author === config.operator && hasExactMarker(comment.body, dispatchMarker(number)));
-  const isManagedPullRequest = (pullRequest) => pullRequest.state === 'open'
-    && pullRequest.baseRefName === config.defaultBranch
-    && pullRequest.headRefName.startsWith(config.cursorBranchPrefix);
+  const isManagedPullRequest = (pullRequest) => {
+    const headRepository = pullRequest.headRepository;
+    return pullRequest.state === 'open'
+      && pullRequest.baseRefName === config.defaultBranch
+      && pullRequest.headRefName.startsWith(config.cursorBranchPrefix)
+      && headRepository !== null
+      && typeof headRepository === 'object'
+      && headRepository.owner === config.owner
+      && headRepository.name === config.repository;
+  };
 
   async function readStart(number) {
     const current = await repository.getIssue(number);
@@ -95,6 +102,7 @@ export function createHandlers({ repository, project, config, summary }) {
     }
     const current = await readStart(number);
     if (current.decision.kind !== 'dispatch') return current.decision;
+    if (current.status !== 'Backlog') return { kind: 'skip', reason: 'invalid-status' };
     await repository.postComment(number, dispatchComment(number, current.issue.title));
     report(summary, `Issue #${number}: Cursor dispatch posted`);
     return current.decision;

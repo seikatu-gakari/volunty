@@ -99,10 +99,24 @@ test('Status遷移成功後のredeliveryはlabel removalを完遂する', async 
   const { repository, project, handlers } = setup();
   project.status = 'In Progress';
 
-  await handlers.handlePrCreated({ action: 'opened', number: 30, repository: { full_name: 'octo-org/widgets' } });
+  const first = await handlers.handlePrCreated({ action: 'opened', number: 30, repository: { full_name: 'octo-org/widgets' } });
+  const second = await handlers.handlePrCreated({ action: 'opened', number: 30, repository: { full_name: 'octo-org/widgets' } });
 
+  assert.deepEqual(first, { kind: 'transition', status: 'In Progress' });
+  assert.deepEqual(second, { kind: 'unchanged' });
   assert.deepEqual(repository.issue.labels, []);
   assert.equal(project.status, 'In Progress');
+});
+
+test('複数 closing Issueはliteralなinvalid-closing-issues理由でACKしない', async () => {
+  const { repository, project, handlers } = setup();
+  repository.closingIssues = [repository.issue, { ...repository.issue, id: 121, number: 21 }];
+
+  const result = await handlers.handlePrCreated({ action: 'opened', number: 30, repository: { full_name: 'octo-org/widgets' } });
+
+  assert.deepEqual(result, { kind: 'skip', reason: 'invalid-closing-issues' });
+  assert.deepEqual(repository.issue.labels, ['agent-ready']);
+  assert.equal(project.status, 'Backlog');
 });
 
 test('label除去後にcancelされたpartial ACKはIn Progressへ遷移せず失敗として残す', async () => {

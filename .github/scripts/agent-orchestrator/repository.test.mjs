@@ -75,9 +75,128 @@ test('GraphQL reverse relationはcursor paginationしmanaged PR判定に必要�
   });
 
   assert.deepEqual(await repository.findClosingPullRequests(7), [
-    { id: 'P_1', number: 1, state: 'open', isDraft: false, baseRefName: 'main', headRefName: 'human/x' },
-    { id: 'P_2', number: 2, state: 'open', isDraft: false, baseRefName: 'main', headRefName: 'cursor/x' },
+    { id: 'P_1', number: 1, state: 'open', isDraft: false, baseRefName: 'main', headRefName: 'human/x', headRepository: { owner: 'octo-org', name: 'widgets' } },
+    { id: 'P_2', number: 2, state: 'open', isDraft: false, baseRefName: 'main', headRefName: 'cursor/x', headRepository: { owner: 'octo-org', name: 'widgets' } },
   ]);
+});
+
+test('GraphQL reverse relationはfork headRepositoryを検証済みnonmanaged inputとして返す', async () => {
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return []; }, async write() { return null; },
+      async graphql() {
+        return { repository: { issue: { closedByPullRequestsReferences: {
+          nodes: [{
+            id: 'P_fork', number: 8, state: 'OPEN', isDraft: true, baseRefName: 'main', headRefName: 'cursor/fork',
+            repository: { name: 'widgets', owner: { login: 'octo-org' } },
+            headRepository: { name: 'widgets', owner: { login: 'fork-owner' } },
+          }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        } } } };
+      },
+    },
+  });
+
+  assert.deepEqual(await repository.findClosingPullRequests(7), [{
+    id: 'P_fork', number: 8, state: 'open', isDraft: true, baseRefName: 'main', headRefName: 'cursor/fork',
+    headRepository: { owner: 'fork-owner', name: 'widgets' },
+  }]);
+});
+
+test('GraphQL closing relationはmultipleとpaginationの全Issueを返す', async () => {
+  let page = 0;
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return []; }, async write() { return null; },
+      async graphql(_query, variables) {
+        page += 1;
+        assert.equal(variables.after ?? null, page === 1 ? null : 'closing-cursor-1');
+        const nodes = page === 1 ? [relation(7, 'OPEN'), relation(8, 'CLOSED')] : [relation(9, 'OPEN')];
+        return { repository: { pullRequest: { closingIssuesReferences: {
+          nodes,
+          pageInfo: { hasNextPage: page === 1, endCursor: page === 1 ? 'closing-cursor-1' : 'closing-cursor-2' },
+        } } } };
+      },
+    },
+  });
+
+  assert.deepEqual(await repository.findClosingIssues(30), [
+    { id: 'I_7', number: 7, state: 'open' },
+    { id: 'I_8', number: 8, state: 'closed' },
+    { id: 'I_9', number: 9, state: 'open' },
+  ]);
+});
+
+test('GraphQL paginationは不整合pageInfoとcursor cycleをfetch継続前にfail closedする', async () => {
+  const invalidPageInfo = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return []; }, async write() { return null; },
+      async graphql() {
+        return { repository: { pullRequest: { closingIssuesReferences: {
+          nodes: [], pageInfo: { hasNextPage: true, endCursor: '' },
+        } } } };
+      },
+    },
+  });
+  await assert.rejects(() => invalidPageInfo.findClosingIssues(30), /endCursor/);
+
+  let calls = 0;
+  const cyclic = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return []; }, async write() { return null; },
+      async graphql() {
+        calls += 1;
+        if (calls > 2) throw new Error('unexpected fetch after cursor cycle');
+        return { repository: { pullRequest: { closingIssuesReferences: {
+          nodes: [], pageInfo: { hasNextPage: true, endCursor: 'same-cursor' },
+        } } } };
+      },
+    },
+  });
+  await assert.rejects(() => cyclic.findClosingIssues(30), /Cursor|cursor/);
+  assert.equal(calls, 2);
+});
+
+test('REST Issue/PRとGraphQL Issue/PRはunknown state enumを直接rejectする', async () => {
+  const restIssue = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return { id: 130, number: 30, state: 'paused', labels: [], title: 'Task', repository_url: 'https://api.github.com/repos/octo-org/widgets' }; },
+      async write() { return null; }, async graphql() { return {}; },
+    },
+  });
+  await assert.rejects(() => restIssue.getIssue(30), /issue\.state/);
+
+  const restPullRequest = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return { number: 30, state: 'paused', draft: true, base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } }, head: { ref: 'cursor/x', repo: { full_name: 'octo-org/widgets' } } }; },
+      async write() { return null; }, async graphql() { return {}; },
+    },
+  });
+  await assert.rejects(() => restPullRequest.getPullRequest(30), /pull request\.state/);
+
+  const graphqlIssue = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return []; }, async write() { return null; },
+      async graphql() { return { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ ...relation(7), state: 'PAUSED' }], pageInfo: { hasNextPage: false, endCursor: null } } } } }; },
+    },
+  });
+  await assert.rejects(() => graphqlIssue.findClosingIssues(30), /state/);
+
+  const graphqlPullRequest = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() { return []; }, async write() { return null; },
+      async graphql() { return { repository: { issue: { closedByPullRequestsReferences: { nodes: [{ id: 'P_unknown', number: 8, state: 'PAUSED', isDraft: false, baseRefName: 'main', headRefName: 'cursor/x', repository: { name: 'widgets', owner: { login: 'octo-org' } }, headRepository: { name: 'widgets', owner: { login: 'octo-org' } } }], pageInfo: { hasNextPage: false, endCursor: null } } } } }; },
+    },
+  });
+  await assert.rejects(() => graphqlPullRequest.findClosingPullRequests(7), /state/);
 });
 
 test('REST/GraphQL PullRequest stateはAPI enumを検証しMERGEDを意図どおり正規化する', async () => {
@@ -127,5 +246,6 @@ test('REST/GraphQL PullRequest stateはAPI enumを検証しMERGEDを意図どお
     isDraft: false,
     baseRefName: 'main',
     headRefName: 'cursor/issue-7-task',
+    headRepository: { owner: 'octo-org', name: 'widgets' },
   }]);
 });
