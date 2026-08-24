@@ -320,9 +320,25 @@ export function createHandlers({ repository, project, config, summary }) {
       ...comments.filter((comment) => config.agentActors.includes(comment.author) && hasExactMarker(comment.body, '<!-- agent:human-input -->')).map((comment) => timestamp(comment.createdAt)),
       ...reviews.filter((review) => review.author === config.operator && review.state === 'changes_requested').map((review) => timestamp(review.submittedAt)),
     ];
-    const retryMarkers = trustedRetryMarkers(comments, runs).sort((left, right) => left.createdAt - right.createdAt);
-    if (new Set(retryMarkers.map((marker) => marker.runId)).size >= config.ciRetryLimit) {
-      pauseTimes.push(retryMarkers.at(-1).createdAt);
+    const retryMarkers = trustedRetryMarkers(comments, runs)
+      .sort((left, right) => compareRunOrder(left.run, right.run));
+    const thirdRetry = retryMarkers.at(-1)?.run;
+    const cycleSuccess = thirdRetry === undefined ? null : [...runs]
+      .filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success' && compareRunOrder(run, thirdRetry) < 0)
+      .sort((left, right) => compareRunOrder(right, left))[0] ?? null;
+    const cycleMarkers = retryMarkers.filter((marker) => cycleSuccess === null || compareRunOrder(marker.run, cycleSuccess) > 0);
+    const retryRunIds = new Set(cycleMarkers.map((marker) => marker.runId));
+    if (thirdRetry !== undefined && retryRunIds.size >= config.ciRetryLimit) {
+      const followingSuccess = [...runs]
+        .filter((run) => run.name === config.ciWorkflow && run.conclusion === 'success' && compareRunOrder(run, thirdRetry) > 0)
+        .sort((left, right) => compareRunOrder(left, right))[0] ?? null;
+      const blockedFailure = runs
+        .filter((run) => run.name === config.ciWorkflow && run.status === 'completed' && run.conclusion === 'failure'
+          && compareRunOrder(run, thirdRetry) > 0
+          && (followingSuccess === null || compareRunOrder(run, followingSuccess) < 0)
+          && !retryRunIds.has(String(run.id)))
+        .sort((left, right) => compareRunOrder(left, right))[0];
+      if (blockedFailure !== undefined) pauseTimes.push(timestamp(blockedFailure.updatedAt));
     }
     const operatorMentions = comments
       .filter((comment) => comment.author === config.operator && hasStandaloneCursorMention(comment.body))

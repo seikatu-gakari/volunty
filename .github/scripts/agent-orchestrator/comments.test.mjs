@@ -147,8 +147,8 @@ test('Human Inputまたはchanges requested後の最初のoperator resumeだけ�
   }
 });
 
-test('Human Review mutation直前のdraft・new failure・Human Input・changes requested raceは再評価して遷移しない', async () => {
-  for (const race of ['draft', 'failure', 'human-input', 'changes-requested']) {
+test('Human Review second full gateは3回目のPR readで変異したdraft/failure/Human Input/review/head/status/terminalを停止する', async () => {
+  for (const race of ['draft', 'failure', 'human-input', 'changes-requested', 'head', 'status', 'terminal']) {
     const { repository, project, handlers } = setup();
     const ready = { id: 2, author: 'cursor[bot]', createdAt: 20, body: '<!-- agent:ready-for-review -->\n<!-- agent:ready-for-review:v1 head_sha=abcdef -->' };
     repository.comments.push(ready);
@@ -157,16 +157,20 @@ test('Human Review mutation直前のdraft・new failure・Human Input・changes 
     const originalCurrentPr = repository.getCurrentPullRequest.bind(repository);
     repository.getCurrentPullRequest = async (...args) => {
       reads += 1;
-      if (reads === 2) {
+      if (reads === 3) {
         if (race === 'draft') repository.pr.draft = true;
         if (race === 'failure') repository.runs.push({ id: 8, name: 'Pull Request CI', status: 'completed', conclusion: 'failure', headSha: 'abcdef', runStartedAt: 10, updatedAt: 22, url: 'https://ci/8' });
         if (race === 'human-input') repository.comments.push({ id: 3, author: 'cursor[bot]', createdAt: 22, body: '<!-- agent:human-input -->' });
         if (race === 'changes-requested') repository.reviews.push({ author: 'yuto90', state: 'changes_requested', submittedAt: 22, commitId: 'abcdef' });
+        if (race === 'head') repository.pr.head.sha = 'aabbcc';
+        if (race === 'status') project.status = 'Blocked';
+        if (race === 'terminal') repository.issue.labels.push('agent-cancel');
       }
       return originalCurrentPr(...args);
     };
     const result = await handlers.handleComment(event({ body: ready.body }));
     assert.notDeepEqual(result, { kind: 'transition', status: 'Human Review' }, race);
-    assert.equal(project.status, 'In Progress', race);
+    assert.equal(project.status, race === 'status' ? 'Blocked' : 'In Progress', race);
+    assert.equal(reads, 3, race);
   }
 });
