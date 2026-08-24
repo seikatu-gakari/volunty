@@ -392,9 +392,11 @@ CI Green だけ、PR Ready 化だけ、ready marker だけでは遷移しない�
 - Agent-managed PR
 - reviewer が `yuto90`
 - review state が `changes_requested`
+- event の review ID、author、state、commit SHA、submitted timestamp が trusted REST API の current review と一致する
+- submitted timestamp が current cycle の latest ready marker より後である。同時刻や時刻不明は fail closed とする
 - Issue が terminal state でない
 
-人間が続けて同じ PR に `@cursor` comment を投稿すると、`agent-comments.yml` が `Rework -> In Progress` にする。同じ Agent が修正し、再度 Human Review gate を満たせば `Human Review` に戻る。
+人間が続けて同じ PR に `@cursor` comment を投稿すると、`agent-comments.yml` が `Rework -> In Progress` にする。同じ Agent が修正し、accepted resume より後の current-head ready と最新 completed CI success を揃えた場合だけ `Human Review` に戻る。review が後から `dismissed` へ変わっても old ready の invalidation 履歴は保守的に維持し、古い webhook の redelivery は current review の二重再取得で拒否する。
 
 approve review だけでは Status を変更しない。merge は人間が GitHub UI で行う。
 

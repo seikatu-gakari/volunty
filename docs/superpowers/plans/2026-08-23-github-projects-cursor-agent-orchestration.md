@@ -340,7 +340,7 @@ git commit -m "feat: Human InputとCI自動修正を追加"
 
 - [ ] **Step 1: Write failing review tests**
 
-Assert `Human Review + yuto90 + changes_requested -> Rework`; approved, comment-only, unauthorized reviewer, wrong status, terminal session remain unchanged.
+Assert `Human Review + yuto90 + current trusted changes_requested -> Rework`; review ID、author、current state、commit、submitted timestampをAPIから二重再取得し、latest current-head ready より古いreview、dismissed/missing review、redelivery raceを拒否する。approved、comment-only、unauthorized reviewer、wrong status、terminal session remain unchanged。Reworkからはaccepted operator resumeと、その後の新ready evidenceなしにHuman Reviewへ戻さない。
 
 - [ ] **Step 2: Write failing Done tests**
 
