@@ -5,11 +5,11 @@ description: Use when a Volunty agent must decide, run, and report the tests and
 
 # Testing
 
-まず `volunty-test-completion-gate` を必ず読み、その変更分類と完了報告表を使う。新機能、修正、振る舞い変更は `superpowers:test-driven-development` に従う。
+まず `volunty-test-completion-gate` を読み、その変更分類と完了報告表を使う。Cursor Cloud ではこの skill 内の RED/GREEN 手順を使い、利用不能な外部 sub-skill を必須にしない。
 
 ## 変更に対応する検証
 
-`git diff --name-only`、Issue、Acceptance Criteria から変更した振る舞いを列挙する。各振る舞いを gate の表で UT/E2E の `必須` または `適用外` に分類し、適用外理由を残す。既存テストが変更後の振る舞いを実際に assert しているか確認する。
+branch base を確定し、`git diff --name-only <base>...HEAD`、`git diff --cached --name-only`、`git diff --name-only`、`git ls-files --others --exclude-standard` で全 inventory を得る。Issue と Acceptance Criteria に照らして各変更を分類し、振る舞いごとに gate の UT/E2E を `必須` または `適用外` として理由を残す。既存テストが変更後の振る舞いを assert しているか確認する。
 
 認可、role/profile 判定、Server Action、応募可否の UI、拒否メッセージ、ユーザーフローは、該当する change-matched UT と E2E を必須にする。期限、小さい差分、以前の green、無関係な既存テストは skip 理由にならない。
 
@@ -33,7 +33,7 @@ current PR head SHA と current CI run URL を取得し、run の `headSha` が 
 
 | 状況 | 行動 |
 | --- | --- |
-| 振る舞い変更 | gate でUT/E2Eを分類し、change-matched testをRED/GREENで確認 |
+| 振る舞い変更 | gateでUT/E2Eを分類し、change-matched testをRED/GREENで確認 |
 | E2E が必須 | `make e2e` を実行、不能なら残タスク |
 | CI が古い/失敗/未実行 | Readyにせず current head のCIを待つ |
 

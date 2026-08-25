@@ -6,6 +6,20 @@
 - 実際の Cursor Cloud behavior は Task 10 の live smoke で確認する。現時点では未実施であり、この proxy 評価を代替証拠にしない。
 - 同じシナリオを skill なし/ありで実行し、実際に観測した行動だけを記録する。
 
+## Ordered audit index
+
+実行順を次に固定する。attempt ID はこの記録内で不変とし、時刻は観測していないため付与しない。
+
+| 順序 | skill | attempt ID と実績 |
+| --- | --- | --- |
+| 1 | `architecture` | `T7-ARCH-R1` RED、`T7-ARCH-G1` PARTIAL、`T7-ARCH-G2` GREEN / PASS |
+| 2 | `implementation` | `T7-IMPL-R1` baseline PASS、`T7-IMPL-G1` PARTIAL、`T7-IMPL-G2` GREEN / PASS |
+| 3 | `testing` | `T7-TEST-R1` baseline PASS、`T7-TEST-G1` PARTIAL、`T7-TEST-G2` GREEN / PASS |
+| 4 | `code-review` | `T7-REVIEW-R1` baseline PASS、`T7-REVIEW-G1` GREEN / PASS |
+| 5 | `human-escalation` | `T7-HUMAN-R1` RED、`T7-HUMAN-G1` GREEN / PASS |
+| 6 | `create-pr` | `T7-PR-R1` PARTIAL、`T7-PR-G1` PARTIAL、`T7-PR-G2` GREEN / PASS |
+| 7 | `fix-ci` | `T7-CI-R1` PARTIAL、`T7-CI-G1` GREEN / PASS |
+
 ## `architecture`
 
 ### 評価シナリオ
