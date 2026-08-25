@@ -591,30 +591,34 @@ Confirm PR head SHA, GitHub Actions `agent-orchestrator`/quality/rls/e2e, Vercel
 - Consumes: PR #217 migration and the permanent target-only contract merged to `main`
 - Produces: operational GitHub Projects × Cursor Cloud Agent system
 
-- [ ] **Step 1: Wait for human merge**
+- [x] **Step 1: Wait for human merge**
 
-Verify PR #217 and the target-only migration are merged to `main` by a human, seven Agent workflows exist on the default branch, and the Agent did not merge them.
+PR #217は`a130ce6e54d420234f36e2ed00c43b4bce9e42f9`、target-onlyのPR #218は`4e96d2e6c9942a98b1c6678bca677f97aea8a78b`として人間により`main`へmerge済み。default branchに7本のAgent workflowがあり、Agentはmergeしていない。
 
 - [ ] **Step 2: Verify the authoritative target-only default branch**
 
-Before any GitHub Project, PAT, Environment secret, label, Project workflow or Cursor setting is enabled, re-read `main` workflow/test/docs and confirm the exact target-only trigger plus a default-branch `pull_request_target` CI run. Treat this human merge and authoritative default-branch verification as a hard gate; the completed bridge is not a permanent operating mode. Do not combine this verification with polling or custom orchestration.
+`main`の`.github/workflows/ci.yml`が`pull_request_target`だけであること、7本のAgent workflow、target-only契約testは確認済み。PR #218 merge後のdefault-branch版workflowによる新しい`pull_request_target` CI runをこの方針PRで確認してから完了にする。completed bridgeは永続運用ではない。pollingやcustom orchestrationは追加しない。
 
-- [ ] **Step 3: Obtain scoped approval for PAT**
+- [ ] **Step 3: Merge the temporary workflow-review risk acceptance**
+
+Repositoryのprivate/internal化とrulesetによるpath保護、sandbox/fork方式への再設計は行わず、workflow変更を人間が入念にレビューする暫定リスク受容をdefault branchへ人間mergeする。`.github/workflows/**`は軽微変更として扱わず、trigger、permissions、checkout対象、secret参照、外部Action、shell展開を行単位で確認する。本番secret影響は`yuto90`へエスカレーションし、`production-db-migrate.yml`の変更は別途明示承認を必須とする。Agentはmergeしない。このStepは技術的防止を意味せず、将来の`CODEOWNERS`とrequired code-owner reviewは未導入のまま残す。
+
+- [ ] **Step 4: Obtain scoped approval for PAT**
 
 Before Chrome mutation, present resource owner `seikatu-gakari`, repository `volunty`, Issues read/write, organization Projects read/write, finite expiry, Environment `agent-orchestrator`, secret name, selected branch `main` only policy and `yuto90` impersonation impact. Create/store only after explicit approval.
 
-- [ ] **Step 4: Configure GitHub through Chrome**
+- [ ] **Step 5: Configure GitHub through Chrome**
 
 Create or inspect GitHub Environment `agent-orchestrator`; before secret storage save deployment branches as selected branch `main` only and re-read it. Store `CURSOR_AGENT_ORCHESTRATOR_PAT` only as that Environment secret, never as repository Actions secret, then re-read Environment name/policy/secret name. Create labels `agent-ready` (`0E8A16`) and `agent-cancel` (`B60205`), migrate Status options to exact eight values, run the non-mutating manual preflight with the Environment PAT for Organization Project GET, then disable the five conflicting built-in Project workflows. Re-read counts/options immediately before mutation and stop on drift.
 
-- [ ] **Step 5: Verify Cursor Cloud through Chrome**
+- [ ] **Step 6: Verify Cursor Cloud through Chrome**
 
 Confirm repository, Cursor Environment build, Node/install command, `cursor/` prefix, GitHub integration, PR creation setting and absence of production secrets. Re-read Cursor App permissions including `workflows: write`; do not add a `pull_request_review` workflow. Do not replace the working Cursor Environment with `.cursor/environment.json`.
 
-- [ ] **Step 6: Obtain approval and run live smoke**
+- [ ] **Step 7: Obtain approval and run live smoke**
 
 Name the docs-only Issue, Cursor usage/cost, expected Draft PR/change and human merge requirement. After approval, verify dispatch once, Draft ACK/In Progress, Human Input/resume, ready+CI/Human Review, changes requested followed by manual reconciliation or `yuto90 @cursor`, Rework/resume, human merge, Issue close and Done. Use a separate state-only Issue for Cancelled if needed.
 
-- [ ] **Step 7: Audit completion**
+- [ ] **Step 8: Audit completion**
 
 Map every completion condition from the 51-section specification to repository tests, workflow run, Project history, Issue/PR comments, CI, Cursor session and human merge evidence. Mark the goal complete only when all required evidence is current and authoritative.

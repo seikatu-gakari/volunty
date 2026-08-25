@@ -2,21 +2,17 @@
 
 Cursor Cloud Agent は、承認済み Issue を `agent-ready` から同じ `cursor/*` branch と同じ Draft PRで実装・検証・Human Review待ちまで進める標準フローです。`main` への merge、外部設定の変更、production操作は人間の責務です。Codex Cloud は `codex/*` の人間開始フローとして並存し、同じ Issue に両方を自動起動しません。共通のPreviewとbranchは[ブランチ運用](branch-workflow.md)、Codexの手順は[Codex Cloud運用手順](codex-cloud.md)を参照してください。
 
-## 有効化停止条件
+## 暫定セキュリティ方針
 
-この節は設定済みの状態を表しません。2026-08-25時点で、Cursor GitHub Appには`workflows: write`があり、public repositoryかつGA機能だけの同一repository運用では、Cursorが第8の危険なworkflowを追加することを防げません。したがって、**Cursor/PATの有効化、`agent-ready`の付与、live smokeは停止中**です。
+2026-08-26の人間判断として、repositoryのprivate/internal化とrulesetによるworkflow path保護（旧B案）、sandbox/fork方式への再設計（旧C案）は行わず、`.github/workflows/**`の変更を人間が入念にレビューするリスク受容で暫定運用する。Workflow Execution Protectionsを含む別の技術的強制を有効化済みとは扱わない。
 
-加えて、現在の`Pull Request CI`はbase版workflowの`pull_request_target`だけで、typesは`opened` / `synchronize` / `reopened` / `ready_for_review`、baseは`main`である。各jobはsame-repository guardでPR headだけを対象に、`contents: read`、明示PR head checkout、read-only token、secret/cacheなしで実行し、fork PRはskipする。PR #217の移行時にはbootstrap gap回避のため一時的なdual-trigger bridgeを使用したが、これは完了した移行コンテキストであり、target-onlyが永続仕様である。**Cursor/PATの有効化、`agent-ready`の付与、live smokeは、下記A/B/Cのsecurity gateとproduction DB remediationがlive verificationされるまで停止中**である。
+Cursor GitHub Appには`workflows: write`があり、public repositoryの同一repository運用では、Cursorが第8の危険なworkflowを追加することを技術的には防げない。この暫定方針は防止策ではなく、見落とし時に本番secretへ影響し得る残存リスクを人間が受容するものです。将来は`CODEOWNERS`とrequired code-owner reviewによる強制を追加するが、現時点のcontrolとして仮定しません。
 
-人間は次のいずれか一つを選び、その有効状態をGitHub/Cursor UIで再読・live verificationしてからだけ有効化できます。選ばれていない案を設定済みとして扱ってはいけません。
+現在の`Pull Request CI`はbase版workflowの`pull_request_target`だけで、typesは`opened` / `synchronize` / `reopened` / `ready_for_review`、baseは`main`である。各jobはsame-repository guardでPR headだけを対象に、`contents: read`、明示PR head checkout、read-only token、secret/cacheなしで実行し、fork PRはskipする。PR #217の一時的なdual-trigger bridgeは終了し、PR #218でtarget-onlyへ移行済みです。
 
-| 選択肢 | 選択・live verificationが必要な安全境界 |
-| --- | --- |
-| A | public previewの[Workflow Execution Protections](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/actions-policies/workflow-execution-protections)でactor/event allowlistを有効にする。ただしこれはGA-only方針と明示的に両立しない。さらに`Production DB Migration`を、untrusted pushとrepository secretに依存しない経路へ別設計・別変更で移行する。 |
-| B | repositoryをprivateまたはinternalへ変更し、GitHub Team以上のpush rulesetで`.github/workflows/**`を保護する。[push rulesetのpath restriction](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)が実際に有効で、Cursorを含む不適切なbypassがないことを確認する。 |
-| C | publicかつGA-onlyを維持し、sandbox/fork方式へ再設計する。この場合は同一repositoryのCursor Agentを有効化しない。 |
+運用上、`.github/workflows/**`を含むPRは軽微変更として扱わず、変更行ごとにtrigger、`permissions`、checkout対象、secret参照、外部Action、shell展開を確認する。本番secretへの影響が疑われる場合は`yuto90`へエスカレーションしてReady化を止め、[Production DB Migration](../.github/workflows/production-db-migrate.yml)の変更にはIssueまたはPR上の別途明示承認を必須とする。Cursor、Codex、Orchestratorはmergeしません。
 
-現行の[Production DB Migration](../.github/workflows/production-db-migrate.yml)は`main` pushでrepository Actions secretを使うため、上の有効化停止条件に対する**pre-activation noncompliance**です。このTaskではworkflowもsecretも変更しません。選択肢Aでは特に、このproduction DB経路を先にremediateしなければなりません。
+現行の`Production DB Migration`は`main` pushでrepository Actions secretを使う。この暫定判断ではworkflowもsecretも変更せず、上記の残存リスクとして受容する。外部設定は、この方針が`main`へ人間mergeされ、下記preflightと個別のPAT承認を満たした後にだけ進める。
 
 `pull_request_review` trigger、review artifact、artifact consumerは追加しません。PR branch由来のworkflowをreview安全境界にせず、reviewは下記のdefault-branch manual reconciliationまたは`yuto90`のPR `@cursor`でだけ反映します。GitHub Actionsの[secure use](https://docs.github.com/en/actions/reference/security/secure-use)と[script injection対策](https://docs.github.com/en/actions/concepts/security/script-injections)を維持してください。
 
@@ -73,7 +69,7 @@ Cursor Cloudは次の7 skillを使います。skillの名前・契約を変更�
 | `architecture` | 根拠を確認し、未確定の重大判断はHuman Inputへ回す |
 | `implementation` | Issue/AC内だけを型安全に実装し、Project/labelを変更しない |
 | `testing` | `volunty-test-completion-gate`でUT/E2EとCI証拠を判定する |
-| `code-review` | correctness、security/authz、回帰、型、テスト不足、不要差分を確認する |
+| `code-review` | 通常レビューに加え、workflow変更の6項目、別途承認、`yuto90` escalationを確認する |
 | `human-escalation` | exact Human Input markerと判断材料をPRへ投稿して依存作業を止める |
 | `create-pr` | 同一`cursor/*` branchで早期Draft PR、Ready化、current-head markerを管理する |
 | `fix-ci` | 同じsession/branch/PRでcurrent CI failureを根本修正する |
@@ -135,7 +131,7 @@ Cursor Cloudは次の7 skillを使います。skillの名前・契約を変更�
 
 ## PATとGitHub Environment
 
-`CURSOR_AGENT_ORCHESTRATOR_PAT`は`yuto90`のfine-grained PATです。事前承認、上のsecurity gate、default branchへのworkflow merge後にだけ作成・rotationします。値をchat、Issue、PR、ログ、設定ファイルへ書かず、repository Actions secretには**絶対に保存しません**。
+`CURSOR_AGENT_ORCHESTRATOR_PAT`は`yuto90`のfine-grained PATです。事前承認、上の暫定方針を含む文書のdefault branchへの人間merge、authoritative workflow確認後にだけ作成・rotationします。値をchat、Issue、PR、ログ、設定ファイルへ書かず、repository Actions secretには**絶対に保存しません**。
 
 | 項目 | 正確な設定 |
 | --- | --- |
@@ -155,14 +151,14 @@ PATはOrganization ProjectのGET、Issue comment・labelのmutation、Project it
 
 この順序は外部設定のチェックリストであり、現時点で設定済みとは主張しません。
 
-1. この文書の選択肢A/B/Cから一つを人間が選び、該当security controlとproduction DB remediationをlive verificationする。完了前は以降を実行しない。
-2. PR #217とtarget-only移行変更が人間によって`main`へmerge済みであることを確認し、default branchのworkflow・契約test・文書を再読して、`pull_request_target`だけのtarget-only契約をauthoritativeに確認する。外部設定はこの確認前に進めない。
+1. 上記の暫定リスク受容とworkflowレビュー規則が人間によって`main`へmerge済みであることを確認する。技術的なworkflow path防止やproduction DB remediationが完了したとは扱わない。
+2. PR #217とPR #218が人間によって`main`へmerge済みであることを確認し、default branchのworkflow・契約test・文書を再読して、`pull_request_target`だけのtarget-only契約をauthoritativeに確認する。外部設定はこの確認前に進めない。
 3. GitHub Environment `agent-orchestrator`を作成または再確認し、selected branch `main` onlyを保存して再読する。
 4. 明示承認後、最小権限・有限期限のPATを作り、Environment secret `CURSOR_AGENT_ORCHESTRATOR_PAT`としてのみ保存する。Environment名、policy、secret名を再読する。
 5. 上記2 labelを作成し、Project optionとitem countを再読して8 Statusへmigrateする。
 6. `Agent Orchestrator - Start`を`main` refからmanual実行し、read-only preflightのsummaryでrepository、Project、Statusの一意性を確認する。このpreflightはmutationしないが、Organization Project GETのためにEnvironment secretのPAT認証を使う。workflow inputやログにPAT値を入力・表示しない。
 7. preflight成功後にだけ、Statusを変える5本のbuilt-in Project workflowを無効化する。
-8. Cursor UIでrepository、Node 22、install command、`cursor/` prefix、GitHub integration、PR creation、production secret不在、Cursor Appの実権限を再読する。`workflows: write`が残ることを前提に、選んだA/B/Cの安全境界が有効であることを確認する。
+8. Cursor UIでrepository、Node 22、install command、`cursor/` prefix、GitHub integration、PR creation、production secret不在、Cursor Appの実権限を再読する。`workflows: write`が残り技術的なpath防止がないことを確認し、暫定リスク受容から逸脱する設定を追加しない。
 
 ## 日常運用
 
@@ -195,7 +191,7 @@ dispatch後にDraft PRが作られなくても、Orchestratorはauto retryやpol
 2. `agent-ready`を新規付与しない。active Issueは必要に応じて`agent-cancel`を付ける。
 3. Environment `agent-orchestrator`から`CURSOR_AGENT_ORCHESTRATOR_PAT`を削除し、対応するfine-grained PATをrevokeする。repository Actions secretへ移して代用しない。
 4. Project Status history、active item、Actions run、PR/Issue markerを調査してから、必要なitemだけを人間が復旧する。built-in workflowを一括で戻さない。
-5. root causeと選択したA/B/Cのcontrolをlive verificationし、必要なrepository変更が`main`へreview済みでmergeされた後、上のpreflightを最初からやり直す。
+5. root causeと暫定リスク受容の継続可否を人間が再判断し、必要なrepository変更が`main`へreview済みでmergeされた後、上のpreflightを最初からやり直す。
 
 既存PR、Issue、Project history、Cursor branchは削除しないため、監査と手動復旧ができます。
 

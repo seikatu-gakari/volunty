@@ -93,6 +93,14 @@ E2EはGitHub Actions上の一時Supabaseを使う。E2E用のservice role keyは
 
 `quality` と `e2e` を `main` のrequired checksに登録する。
 
+### GitHub Actions workflow変更の暫定レビュー
+
+`.github/workflows/**`を含むPRは軽微変更ではなく、高リスクな変更として扱う。Codexは変更行ごとにtrigger、`permissions`、checkout対象、secret参照、外部Action、shell展開を確認し、確認結果をPRへ残す。本番secretへの影響が疑われる場合は`yuto90`へエスカレーションしてReady化を止める。
+
+`.github/workflows/production-db-migrate.yml`の変更は、IssueまたはPRに記録された別途の明示承認がなければ進めない。CI成功、secret名不変、等価な整理という説明は承認や安全性の証拠にならない。Codex、Cursor、Orchestratorはmergeせず、人間だけが最終mergeを行う。
+
+これは技術的防止ではなく人間レビューに依存する暫定的なリスク受容であり、見落とし時に本番secretへ影響する余地が残る。将来の`CODEOWNERS`とrequired code-owner reviewを現時点のcontrolとして仮定しない。詳細は[ブランチ運用](branch-workflow.md)を参照する。
+
 ### main branch protection
 
 GitHubの `Settings → Branches` で `main` に次を設定する。

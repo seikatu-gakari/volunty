@@ -18,14 +18,25 @@
 - Codex CloudではMCPブリッジを使わずCLIを優先する。ドキュメント検索は `ctx7`、ブラウザ/E2EはPlaywright、DBはPrisma、UTはVitest、lintはESLint、型チェックはTypeScript、コード検索は `rg` / `git grep` を使用する。ローカル環境のネイティブMCP設定は維持する。
 - Codex Cloudではセットアップ済みの `vercel` CLIを使用できるが、Vercel tokenをCloudへ登録せず、Previewデプロイはfeatureブランチへのpushで行う。
 
+## GitHub Actions workflow変更の暫定レビュー境界
+
+- `.github/workflows/**` を含むPRは高リスクとして扱い、通常の軽微変更に分類しない。
+- 変更行ごとに trigger、`permissions`、checkout対象、secret参照、外部Action、shell展開を確認し、結果をレビューに残す。
+- 本番secretへの到達性に影響する可能性があれば `yuto90` にエスカレーションし、Ready化を止める。
+- `.github/workflows/production-db-migrate.yml` の変更は、IssueまたはPRに記録された別途の明示承認を必須とする。
+- Cursor、Codex、Orchestratorはworkflow変更を含むPRもmergeしない。最終mergeは人間だけが行う。
+- これは技術的な防止ではなく人間レビューに依存する暫定的なリスク受容である。将来の強制策は `CODEOWNERS` とrequired code-owner reviewとし、現時点で有効とは扱わない。
+
+詳細は [ブランチ運用](../../docs/branch-workflow.md) を参照する。
+
 ## Cursor Cloud Agent の境界
 
 - `agent-ready` は Cursor Cloud Agent の自律起動専用であり、`cursor/issue-<number>-<slug>` ブランチを使う。Codex Cloud は `codex/*` の人間開始フローを維持する。
 - Agent-managed PR は一つの Cursor Agent session である。CI修正、Human Input 復帰、Rework は同じ session、同じ `cursor/*` branch、同じPRを継続し、replacement PRを作らない。
 - dispatch、Human Input、Ready、CI retry は自然言語で代用しない固定 HTML marker を使う。marker の正確な形式、投稿者、動的値の検証は [Cursor Cloud Agent運用手順](../../docs/cursor-cloud.md) に従う。
 - Cursor Agent は GitHub Project、Project Status、`agent-ready`、`agent-cancel` を変更しない。これらの自動 mutation は trusted GitHub Actions Orchestrator だけが行い、`main` への merge は常に人間だけが行う。
-- Cursor Cloud、PR branch、テスト、artifact、Vercel に本番DB・本番サービス・PATを含む本番 secret を登録・出力しない。`CURSOR_AGENT_ORCHESTRATOR_PAT` は、導入の security gate 通過後も GitHub Environment `agent-orchestrator` の secret にだけ保存する。
-- `agent-ready` の有効化、PAT、Project、Cursor Environment の外部設定は [Cursor Cloud Agent運用手順](../../docs/cursor-cloud.md) の停止条件と live verification を満たすまで実施しない。
+- Cursor Cloud、PR branch、テスト、artifact、Vercel に本番DB・本番サービス・PATを含む本番 secret を登録・出力しない。`CURSOR_AGENT_ORCHESTRATOR_PAT` は、暫定方針を含む導入preflight後も GitHub Environment `agent-orchestrator` の secret にだけ保存する。
+- `agent-ready` の有効化、PAT、Project、Cursor Environment の外部設定は [Cursor Cloud Agent運用手順](../../docs/cursor-cloud.md) の暫定リスク受容と live verification を満たすまで実施しない。
 
 ## 基本方針
 

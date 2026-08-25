@@ -52,7 +52,7 @@ git push origin codex/my-feature
 
 ### Cursor Cloud Agentで開発する場合
 
-`cursor/*` は [Cursor Cloud Agent運用手順](cursor-cloud.md) の security gateを通過し、default branchで`Pull Request CI`のtarget-only契約がlive verification済みで、外部設定もlive verification済みである場合だけ使う。PR #217の移行時には一時的なdual-trigger bridgeを使用したが、現在の永続運用はbase版`pull_request_target`だけである。通常の開始点は人間が要件・受け入れ条件・dependencyを確認したIssueに`agent-ready`を付けることです。
+`cursor/*` は [Cursor Cloud Agent運用手順](cursor-cloud.md) の暫定リスク受容がdefault branchへ人間mergeされ、`Pull Request CI`のtarget-only契約と外部設定がlive verification済みである場合だけ使う。PR #217の移行時には一時的なdual-trigger bridgeを使用したが、PR #218以降の永続運用はbase版`pull_request_target`だけである。通常の開始点は人間が要件・受け入れ条件・dependencyを確認したIssueに`agent-ready`を付けることです。
 
 1. Orchestrator が `@cursor` を一度だけ dispatch し、Cursor は `cursor/issue-<number>-<slug>` を作る。
 2. Cursor は早期に `main` 向け Draft PRを作り、その同じ session/branch/PRで設計、実装、CI修正、Human Input、Reworkを続ける。
@@ -60,6 +60,23 @@ git push origin codex/my-feature
 4. human reviewと必要なreworkの後、人間だけが `main` へ merge する。Cursor、Codex、Orchestratorのいずれもauto-mergeしない。
 
 `codex/*` と `cursor/*` は同じ Issue に並行して自動起動しない。Codex Cloud は人間が開始する手動フォールバックであり、Cursor Cloud Agent は `agent-ready` 専用である。詳細は [Codex Cloud運用手順](codex-cloud.md) と [Cursor Cloud Agent運用手順](cursor-cloud.md) を参照する。
+
+## GitHub Actions workflow変更の暫定レビュー
+
+`.github/workflows/**`を含むPRは高リスクであり、通常の軽微変更として扱わない。人間のreviewerは変更行ごとに次を確認し、PR reviewへ結果を残す。
+
+| 確認対象 | 行単位で確認する内容 |
+| --- | --- |
+| trigger | event、types、branch/path filter、forkや手動実行を含む起動範囲 |
+| `permissions` | top-level/job-levelの実効権限と最小権限性 |
+| checkout | repository、ref/SHA、credentials、untrusted codeの実行有無 |
+| secret参照 | Environment/repository secretの到達経路、伝播、ログ出力 |
+| 外部Action | owner、ref固定、供給元と権限境界 |
+| shell展開 | expression、quote、複数行`run`、untrusted contextの直接展開 |
+
+本番secretへの影響が疑われる場合は`yuto90`へエスカレーションし、Ready化とmergeを止める。`.github/workflows/production-db-migrate.yml`の変更はIssueまたはPRに記録された別途の明示承認を必須とする。Cursor、Codex、Orchestratorはmergeせず、最終mergeは人間だけが行う。
+
+これは技術的なworkflow path防止ではなく、人間レビューに依存する暫定的なリスク受容です。見落とし時には本番secretへ影響する余地が残る。将来は`CODEOWNERS`とrequired code-owner reviewを追加するが、現時点で有効なcontrolとして扱わない。
 
 ## Vercelデプロイのトリガー
 
@@ -85,7 +102,7 @@ git push origin codex/my-feature
 
 workflow は `app/` で `npx prisma migrate deploy` を実行します。未適用 migration がなければ何も適用せず終了し、未適用 migration があれば本番DBへ適用します。手元の `app/.env.local` を本番用に書き換えて migration する運用は行いません。
 
-現行の `Production DB Migration` は `main` へのpushとrepository Actions secretを使う。この経路は Cursor App の `workflows: write` に関する有効化停止条件では未適合であり、Cursor の同一repository自律起動を有効化する前に別変更で安全な経路へ移行する。この文書の変更でproduction workflowやsecretを変更しない。
+現行の `Production DB Migration` は `main` へのpushとrepository Actions secretを使う。2026-08-26の暫定判断ではこの経路を変更せず、人間のworkflowレビューに依存する残存リスクとして受容する。`.github/workflows/production-db-migrate.yml`を変更する場合は、通常のworkflowレビューに加えて別途の明示承認を得る。
 
 GitHub の `Repository` → `Settings` → `Secrets and variables` → `Actions` に以下を設定してください。
 
