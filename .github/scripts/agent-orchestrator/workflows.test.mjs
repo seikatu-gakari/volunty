@@ -434,10 +434,10 @@ test('manual review reconciliationはoperatorだけがtrusted default-branch cod
   assert.doesNotMatch(source, /pull_request_review|upload-artifact|download-artifact|AGENT_REVIEW_EVENT_PATH/u);
 });
 
-test('CI consumerはofficial path/event/same-repository headをsecret materialization前にguardしrepository lockを共有する', () => {
+test('CI consumerはtop-level base metadataとexact one PR relationをsecret materialization前にguardする', () => {
   const { parsed } = parseWorkflow('agent-ci.yml');
   const job = parsed.jobs.orchestrate;
-  assert.equal(job.if, "github.event.workflow_run.event == 'pull_request_target' && github.event.workflow_run.path == '.github/workflows/ci.yml' && github.event.workflow_run.head_repository.full_name == github.repository && startsWith(github.event.workflow_run.head_branch, 'cursor/') && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')");
+  assert.equal(job.if, "github.event.workflow_run.event == 'pull_request_target' && github.event.workflow_run.path == '.github/workflows/ci.yml' && github.event.workflow_run.repository.full_name == github.repository && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.pull_requests[0] != null && github.event.workflow_run.pull_requests[1] == null && github.event.workflow_run.pull_requests[0].base.repo.full_name == github.repository && github.event.workflow_run.pull_requests[0].base.ref == 'main' && github.event.workflow_run.head_branch == github.event.workflow_run.pull_requests[0].base.ref && github.event.workflow_run.head_sha == github.event.workflow_run.pull_requests[0].base.sha && github.event.workflow_run.pull_requests[0].head.repo.full_name == github.repository && startsWith(github.event.workflow_run.pull_requests[0].head.ref, 'cursor/') && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')");
   assert.equal(parsed.concurrency.group, expectedConcurrencyGroup);
 });
 
@@ -459,7 +459,9 @@ test('privileged Agent workflow はPR head、artifact、event本文、直接 mut
     const { parsed, source } = parseWorkflow(name);
     assert.equal(Object.hasOwn(parsed.on, 'pull_request'), false, `${name}: pull_request is forbidden`);
     assert.doesNotMatch(source, /github\.event\.[^}\n]*(?:body|title|comment|label|head_ref|head\.sha)[^}\n]*\}\}/iu, `${name}: untrusted shell interpolation`);
-    assert.doesNotMatch(source, /github\.event\.pull_request\.head|github\.event\.workflow_run\.head_sha|persist-credentials:\s*true/iu, `${name}: untrusted code`);
+    const steps = JSON.stringify(Object.values(parsed.jobs).flatMap((job) => job.steps));
+    assert.doesNotMatch(steps, /github\.event\.pull_request\.head|github\.event\.workflow_run\.head_sha/iu, `${name}: untrusted code in steps`);
+    assert.doesNotMatch(source, /persist-credentials:\s*true/iu, `${name}: persisted credentials`);
     for (const job of Object.values(parsed.jobs)) {
       assert.ok(job.steps.every((step) => !step.uses || [
         'actions/checkout@v4', 'actions/setup-node@v4',

@@ -13,16 +13,12 @@ const dispatch = '<!-- agent:dispatch:v1 issue=20 -->';
 class FakeRepository {
   constructor() {
     this.issue = { id: 120, number: 20, state: 'open', labels: [] };
-    this.pr = { number: 30, state: 'open', draft: false, base: { ref: 'main' }, head: { ref: 'cursor/issue-20-task', sha: 'abcdef', repository: { owner: 'octo-org', name: 'widgets' } } };
+    this.pr = { number: 30, state: 'open', draft: false, createdAt: Date.parse('2026-08-23T00:00:00Z'), base: { ref: 'main' }, head: { ref: 'cursor/issue-20-task', sha: 'abcdef', repository: { owner: 'octo-org', name: 'widgets' } } };
     this.comments = [{ id: 1, author: 'yuto90', body: dispatch, createdAt: 1 }]; this.runs = []; this.reviews = [];
   }
   async getCurrentPullRequest(number) {
     if (number !== 30) return { ...structuredClone(this.pr), number, head: { ...structuredClone(this.pr.head), ref: 'human/fix' } };
     return structuredClone(this.pr);
-  }
-  async findOpenPullRequestsByHead(branch) {
-    if (branch !== this.pr.head.ref) return [];
-    return [{ number: this.pr.number }];
   }
   async getPullRequest() { return structuredClone(this.pr); }
   async findClosingIssues() { return [structuredClone(this.issue)]; }
@@ -38,11 +34,13 @@ class FakeProject { constructor() { this.status = 'In Progress'; } async getIssu
 function setup() { const repository = new FakeRepository(); const project = new FakeProject(); return { repository, project, handlers: createHandlers({ repository, project, config, summary: { add() {} } }) }; }
 function run(id, conclusion, { sha = 'abcdef', updatedAt = id, name = 'Pull Request CI' } = {}) { return { id, name, status: 'completed', conclusion, headSha: sha, runStartedAt: id - 1, updatedAt, url: `https://ci/${id}` }; }
 function relation(number = 30, repositoryId = 100) { return { id: number + 1000, number, url: `https://api.github.com/repos/octo-org/widgets/pulls/${number}`, head: { ref: 'cursor/issue-20-task', sha: 'abcdef', repo: { id: repositoryId, url: 'https://api.github.com/repos/octo-org/widgets', name: 'widgets' } }, base: { ref: 'main', sha: 'beef', repo: { id: repositoryId, url: 'https://api.github.com/repos/octo-org/widgets', name: 'widgets' } } }; }
-function apiRunTrust() { return { event: 'pull_request_target', path: '.github/workflows/ci.yml', head_branch: 'cursor/issue-20-task', head_sha: 'abcdef', head_repository: { id: 100, full_name: 'octo-org/widgets' } }; }
-function event(workflowRun, { relations = null, branch = 'cursor/issue-20-task', headRepository = { id: 100, full_name: 'octo-org/widgets' } } = {}) {
+function currentPullRequest() { return { number: 30, createdAt: Date.parse('2026-08-23T00:00:00Z'), base: { ref: 'main' }, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }; }
+function apiRunTrust() { return { event: 'pull_request_target', path: '.github/workflows/ci.yml', head_branch: 'main', head_sha: 'beef', head_repository: { id: 100, full_name: 'octo-org/widgets' } }; }
+function event(workflowRun, { relations = null, baseBranch = 'main', baseSha = 'beef', relationHeadRef = 'cursor/issue-20-task', headRepository = { id: 100, full_name: 'octo-org/widgets' } } = {}) {
   const pullRequests = relations ?? [{
     ...relation(),
-    head: { ...relation().head, ref: branch, sha: workflowRun.headSha },
+    base: { ...relation().base, ref: baseBranch, sha: baseSha },
+    head: { ...relation().head, ref: relationHeadRef, sha: workflowRun.headSha },
   }];
   return {
     action: 'completed',
@@ -51,14 +49,32 @@ function event(workflowRun, { relations = null, branch = 'cursor/issue-20-task',
       ...workflowRun,
       event: 'pull_request_target',
       path: '.github/workflows/ci.yml',
-      head_branch: branch,
-      head_sha: workflowRun.headSha,
+      head_branch: baseBranch,
+      head_sha: baseSha,
       head_repository: headRepository,
       repository: { id: 100, full_name: 'octo-org/widgets' },
       pull_requests: pullRequests,
     },
   };
 }
+
+test('pull_request_targetのtop-level main/base SHAとrelation cursor/current SHAをPR番号のREST再読で処理する', async () => {
+  const { repository, handlers } = setup();
+  const failed = run(11, 'failure');
+  repository.runs.push(failed);
+  let currentPullRequestReads = 0;
+  const getCurrentPullRequest = repository.getCurrentPullRequest.bind(repository);
+  repository.getCurrentPullRequest = async (number) => {
+    currentPullRequestReads += 1;
+    return getCurrentPullRequest(number);
+  };
+
+  const result = await handlers.handleCi(event(failed));
+
+  assert.deepEqual(result, { kind: 'retry', retry: 1 });
+  assert.ok(currentPullRequestReads >= 2);
+  assert.match(repository.comments.at(-1).body, /head_sha=abcdef/u);
+});
 
 test('current headのnewest applicable failureだけがretry 1/2/3を一度ずつ投稿し4回目でBlockedへ移す', async () => {
   const { repository, project, handlers } = setup();
@@ -293,28 +309,22 @@ test('retry range外でもtrusted candidate境界を守る', async () => {
   assert.deepEqual(await ranged.handlers.handleCi(event(failed)), { kind: 'retry', retry: 1 });
 });
 
-test('pull_request_targetのpull_requests空payloadもsame-repo branchからcurrent managed PRをAPI再解決する', async () => {
-  const { repository, handlers } = setup();
-  const failed = run(11, 'failure'); repository.runs.push(failed);
-  const result = await handlers.handleCi(event(failed, { relations: [] }));
-
-  assert.deepEqual(result, { kind: 'retry', retry: 1 });
-  assert.equal(repository.comments.filter((comment) => comment.body.includes('agent:ci-retry')).length, 1);
-});
-
-test('incoming CI runはofficial path/event/same-repo head/managed branchが一致しない限りPR APIを読まない', async () => {
+test('incoming CI runはofficial path/event/base metadata/exact relationが一致しない限りPR APIを読まない', async () => {
   for (const { name, mutate } of [
     { name: 'wrong path', mutate: (payload) => { payload.workflow_run.path = '.github/workflows/fake-ci.yml'; } },
     { name: 'wrong event', mutate: (payload) => { payload.workflow_run.event = 'pull_request'; } },
-    { name: 'fork head', mutate: (payload) => { payload.workflow_run.head_repository = { id: 200, full_name: 'fork/widgets' }; } },
-    { name: 'human branch', mutate: (payload) => { payload.workflow_run.head_branch = 'human/fix'; } },
+    { name: 'wrong run repository', mutate: (payload) => { payload.workflow_run.repository = { id: 200, full_name: 'fork/widgets' }; } },
+    { name: 'fork base', mutate: (payload) => { payload.workflow_run.head_repository = { id: 200, full_name: 'fork/widgets' }; } },
+    { name: 'wrong top-level base branch', mutate: (payload) => { payload.workflow_run.head_branch = 'develop'; } },
+    { name: 'wrong top-level base SHA', mutate: (payload) => { payload.workflow_run.head_sha = 'deadbeef'; } },
     { name: 'malformed relation', mutate: (payload) => { delete payload.workflow_run.pull_requests[0].url; } },
     { name: 'cross-repo relation', mutate: (payload) => { payload.workflow_run.pull_requests[0].base.repo = { id: 999, url: 'https://api.github.com/repos/other/widgets', name: 'widgets' }; } },
   ]) {
     const { repository, project, handlers } = setup();
     const failed = run(11, 'failure'); repository.runs.push(failed);
     let reads = 0;
-    repository.findOpenPullRequestsByHead = async () => { reads += 1; return [{ number: 30 }]; };
+    const getCurrentPullRequest = repository.getCurrentPullRequest.bind(repository);
+    repository.getCurrentPullRequest = async (number) => { reads += 1; return getCurrentPullRequest(number); };
     const payload = event(failed); mutate(payload);
     assert.equal((await handlers.handleCi(payload)).kind, 'skip', name);
     assert.equal(reads, 0);
@@ -323,17 +333,20 @@ test('incoming CI runはofficial path/event/same-repo head/managed branchが一�
   }
 });
 
-test('API branch resolutionが0件/複数、optional relationが解決PRと不一致ならfail closedする', async () => {
-  for (const { name, resolved, relations, reason } of [
-    { name: 'none', resolved: [], relations: [], reason: 'no-managed-pull-request' },
-    { name: 'multiple', resolved: [{ number: 30 }, { number: 31 }], relations: [], reason: 'ambiguous-managed-pull-request' },
-    { name: 'relation mismatch', resolved: [{ number: 30 }], relations: [relation(31)], reason: 'invalid-pull-request' },
-    { name: 'duplicate relation', resolved: [{ number: 30 }], relations: [relation(), relation()], reason: 'invalid-pull-request' },
+test('空・複数・malformed・cross-repository・stale relationはmutationなしでfail closedする', async () => {
+  for (const { name, relations, mutateRelation, reason } of [
+    { name: 'empty', relations: [], reason: 'invalid-pull-request' },
+    { name: 'multiple', relations: [relation(), relation(31)], reason: 'invalid-pull-request' },
+    { name: 'malformed', relations: [relation()], mutateRelation: (reference) => { delete reference.head.sha; }, reason: 'invalid-pull-request' },
+    { name: 'cross repository', relations: [relation()], mutateRelation: (reference) => { reference.head.repo = { id: 999, url: 'https://api.github.com/repos/fork/widgets', name: 'widgets' }; }, reason: 'invalid-pull-request' },
+    { name: 'stale head ref', relations: [relation()], mutateRelation: (reference) => { reference.head.ref = 'cursor/stale'; }, reason: 'stale-head' },
+    { name: 'stale head SHA', relations: [relation()], mutateRelation: (reference) => { reference.head.sha = 'deadbeef'; }, reason: 'stale-head' },
   ]) {
     const { repository, project, handlers } = setup();
     const failed = run(11, 'failure'); repository.runs.push(failed);
-    repository.findOpenPullRequestsByHead = async () => structuredClone(resolved);
-    const result = await handlers.handleCi(event(failed, { relations }));
+    const candidateRelations = structuredClone(relations);
+    if (mutateRelation) mutateRelation(candidateRelations[0]);
+    const result = await handlers.handleCi(event(failed, { relations: candidateRelations }));
     assert.deepEqual(result, { kind: 'skip', reason }, name);
     assert.equal(project.status, 'In Progress', name);
     assert.equal(repository.comments.length, 1, name);
@@ -373,21 +386,21 @@ test('CI repository gatewayはobject envelopeをpage=1..Nで全取得しmalforme
     },
   });
 
-  const runs = await repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI');
+  const runs = await repository.listCiRuns(currentPullRequest(), 'Pull Request CI');
   assert.equal(runs.length, 101);
   assert.deepEqual(calls, [
-    '/repos/octo-org/widgets/actions/workflows/ci.yml/runs?branch=cursor%2Fissue-20-task&event=pull_request_target&per_page=100&page=1',
-    '/repos/octo-org/widgets/actions/workflows/ci.yml/runs?branch=cursor%2Fissue-20-task&event=pull_request_target&per_page=100&page=2',
+    '/repos/octo-org/widgets/actions/workflows/ci.yml/runs?event=pull_request_target&created=%3E%3D2026-08-23T00%3A00%3A00.000Z&per_page=100&page=1',
+    '/repos/octo-org/widgets/actions/workflows/ci.yml/runs?event=pull_request_target&created=%3E%3D2026-08-23T00%3A00%3A00.000Z&per_page=100&page=2',
   ]);
 
   const malformed = new AgentRepository({
     config: { owner: 'octo-org', repository: 'widgets' },
     client: { async read() { return { total_count: 101, workflow_runs: [] }; }, async write() {}, async graphql() {} },
   });
-  await assert.rejects(() => malformed.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'), /pagination/);
+  await assert.rejects(() => malformed.listCiRuns(currentPullRequest(), 'Pull Request CI'), /pagination/);
 });
 
-test('CI repository gatewayはbranch-scoped searchが1000件に達したら不完全履歴としてrejectする', async () => {
+test('CI repository gatewayはPR created-window searchが1000件に達したら不完全履歴としてrejectする', async () => {
   const calls = [];
   const repository = new AgentRepository({
     config: { owner: 'octo-org', repository: 'widgets' },
@@ -398,10 +411,73 @@ test('CI repository gatewayはbranch-scoped searchが1000件に達したら不�
   });
 
   await assert.rejects(
-    () => repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'),
-    (error) => error.message === 'workflow runs branch search reached 1000-result cap',
+    () => repository.listCiRuns(currentPullRequest(), 'Pull Request CI'),
+    (error) => error.message === 'workflow runs created-window search reached 1000-result cap',
   );
-  assert.deepEqual(calls, ['/repos/octo-org/widgets/actions/workflows/ci.yml/runs?branch=cursor%2Fissue-20-task&event=pull_request_target&per_page=100&page=1']);
+  assert.deepEqual(calls, ['/repos/octo-org/widgets/actions/workflows/ci.yml/runs?event=pull_request_target&created=%3E%3D2026-08-23T00%3A00%3A00.000Z&per_page=100&page=1']);
+});
+
+test('listCiRunsはexact PR relationだけを返しheadShaをrelation headからmapする', async () => {
+  const targetRelation = relation();
+  targetRelation.head.sha = 'feedface';
+  const otherNumber = relation(31);
+  const wrongHeadRef = relation();
+  wrongHeadRef.head.ref = 'cursor/other';
+  const unrelatedFork = relation(31);
+  unrelatedFork.head.repo = { id: 999, url: 'https://api.github.com/repos/fork/widgets', name: 'widgets' };
+  const sameNumberFork = relation();
+  sameNumberFork.head.repo = { id: 999, url: 'https://api.github.com/repos/fork/widgets', name: 'widgets' };
+  const workflowRun = (id, pullRequests) => ({
+    id, name: 'Pull Request CI', status: 'completed', conclusion: 'success', ...apiRunTrust(),
+    updated_at: `2026-08-24T00:0${id}:00Z`, html_url: `https://ci/${id}`,
+    repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: pullRequests,
+  });
+  const repository = new AgentRepository({
+    config: { owner: 'octo-org', repository: 'widgets' },
+    client: {
+      async read() {
+        return { total_count: 6, workflow_runs: [
+          workflowRun(1, [targetRelation]),
+          workflowRun(2, []),
+          workflowRun(3, [otherNumber]),
+          workflowRun(4, [wrongHeadRef]),
+          workflowRun(5, [unrelatedFork]),
+          workflowRun(6, [sameNumberFork]),
+        ] };
+      },
+      async write() {}, async graphql() {},
+    },
+  });
+
+  assert.deepEqual(await repository.listCiRuns(currentPullRequest(), 'Pull Request CI'), [{
+    id: 1,
+    name: 'Pull Request CI',
+    status: 'completed',
+    conclusion: 'success',
+    headSha: 'feedface',
+    updatedAt: Date.parse('2026-08-24T00:01:00Z'),
+    url: 'https://ci/1',
+    pullRequests: [{ number: 30 }],
+  }]);
+});
+
+test('listCiRunsはtarget relationとtop-level base metadataの不整合をfail closedする', async () => {
+  for (const { name, mutate, message } of [
+    { name: 'base branch', mutate: (candidate) => { candidate.head_branch = 'develop'; }, message: 'workflow runs page 1[0].head_branch must match target relation base' },
+    { name: 'base SHA', mutate: (candidate) => { candidate.head_sha = 'deadbeef'; }, message: 'workflow runs page 1[0].head_sha must match target relation base' },
+  ]) {
+    const candidate = {
+      id: 1, name: 'Pull Request CI', status: 'completed', conclusion: 'success', ...apiRunTrust(),
+      updated_at: '2026-08-24T00:01:00Z', html_url: 'https://ci/1',
+      repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()],
+    };
+    mutate(candidate);
+    const repository = new AgentRepository({
+      config: { owner: 'octo-org', repository: 'widgets' },
+      client: { async read() { return { total_count: 1, workflow_runs: [candidate] }; }, async write() {}, async graphql() {} },
+    });
+    await assert.rejects(() => repository.listCiRuns(currentPullRequest(), 'Pull Request CI'), (error) => error.message === message, name);
+  }
 });
 
 test('target workflowのqueued runはhead/order dataを保持しunknown statusはfail closedにする', async () => {
@@ -419,7 +495,7 @@ test('target workflowのqueued runはhead/order dataを保持しunknown status�
   });
 
   await assert.rejects(
-    () => repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'),
+    () => repository.listCiRuns(currentPullRequest(), 'Pull Request CI'),
     /status must be a workflow status/u,
   );
 
@@ -427,7 +503,7 @@ test('target workflowのqueued runはhead/order dataを保持しunknown status�
     config: { owner: 'octo-org', repository: 'widgets' },
     client: { async read() { return { total_count: 1, workflow_runs: [base(1, 'queued')] }; }, async write() {}, async graphql() {} },
   });
-  assert.deepEqual(await queuedOnly.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'), [
+  assert.deepEqual(await queuedOnly.listCiRuns(currentPullRequest(), 'Pull Request CI'), [
     { id: 1, name: 'Pull Request CI', status: 'queued', conclusion: null, headSha: 'abcdef', updatedAt: Date.parse('2026-08-24T00:01:00Z'), url: 'https://ci/1', pullRequests: [{ number: 30 }] },
   ]);
 });
@@ -438,19 +514,19 @@ test('pagination drift、duplicate ID、overcount、max guardとmalformed enum/t
     { name: 'drift', message: 'workflow runs pagination total_count changed', read: async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: Array.from({ length: 100 }, (_, index) => base(index + 1)) } : { total_count: 102, workflow_runs: [base(101)] } },
     { name: 'duplicate', message: 'workflow runs pagination contains duplicate id', read: async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: [base(1), ...Array.from({ length: 99 }, (_, index) => base(index + 2))] } : { total_count: 101, workflow_runs: [base(1)] } },
     { name: 'overcount', message: 'workflow runs pagination exceeds total_count', read: async () => ({ total_count: 1, workflow_runs: [base(1), base(2)] }) },
-    { name: 'max', message: 'workflow runs branch search reached 1000-result cap', read: async () => ({ total_count: 100_001, workflow_runs: [] }) },
+    { name: 'max', message: 'workflow runs created-window search reached 1000-result cap', read: async () => ({ total_count: 100_001, workflow_runs: [] }) },
     { name: 'timestamp', message: 'workflow runs page 1[0].updated_at must be an ISO date', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), updated_at: 'nope' }] }) },
     { name: 'repository', message: 'workflow runs page 1[0].repository must match configured repository', read: async () => ({ total_count: 1, workflow_runs: [{ ...base(1), repository: { id: 999, full_name: 'fork/widgets' } }] }) },
   ];
   for (const { name, message, read } of cases) {
     const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { read, async write() {}, async graphql() {} } });
-    await assert.rejects(() => repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'), (error) => error.message === message, name);
+    await assert.rejects(() => repository.listCiRuns(currentPullRequest(), 'Pull Request CI'), (error) => error.message === message, name);
   }
 });
 
 test('new repository readsはexact routeとauthor/timestamp/review enum/head SHAをruntime validateする', async () => {
   const paths = [];
-  const pull = { number: 30, state: 'open', draft: false, base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } }, head: { ref: 'cursor/x', sha: 'abcdef', repo: { full_name: 'octo-org/widgets', name: 'widgets', owner: { login: 'octo-org' } } } };
+  const pull = { number: 30, state: 'open', draft: false, created_at: '2026-08-23T00:00:00Z', base: { ref: 'main', repo: { full_name: 'octo-org/widgets' } }, head: { ref: 'cursor/x', sha: 'abcdef', repo: { full_name: 'octo-org/widgets', name: 'widgets', owner: { login: 'octo-org' } } } };
   const repository = new AgentRepository({
     config: { owner: 'octo-org', repository: 'widgets' },
     client: {
@@ -520,7 +596,7 @@ test('fixed CI workflow runのnullable metadataはfail closedにし、PENDING re
       throw new Error(`unexpected ${path}`);
     }, async write() {}, async graphql() {} },
   });
-  await assert.rejects(() => repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'), /name must be a non-empty string/u);
+  await assert.rejects(() => repository.listCiRuns(currentPullRequest(), 'Pull Request CI'), /name must be a non-empty string/u);
   assert.deepEqual(await repository.listReviews({ number: 30 }), [{ id: 82, author: null, state: 'pending', submittedAt: null, commitId: null }]);
 });
 
@@ -532,14 +608,14 @@ test('fixed CI workflowのname/status/conclusion/head欠落はexact rejectする
     [{ status: 'future_unknown_value' }, 'workflow runs page 1[0].status must be a workflow status'],
   ]) {
     const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { async read() { return { total_count: 1, workflow_runs: [base(51, value)] }; }, async write() {}, async graphql() {} } });
-    await assert.rejects(() => repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'), (error) => error.message === message);
+    await assert.rejects(() => repository.listCiRuns(currentPullRequest(), 'Pull Request CI'), (error) => error.message === message);
   }
   for (const [extra, message] of [
     [{ conclusion: 'not-a-conclusion' }, 'workflow runs page 1[0].conclusion must be a workflow conclusion'],
     [{ head_sha: undefined }, 'workflow runs page 1[0].head_sha must be a non-empty string'],
   ]) {
     const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { async read() { return { total_count: 1, workflow_runs: [base(52, extra)] }; }, async write() {}, async graphql() {} } });
-    await assert.rejects(() => repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'), (error) => error.message === message);
+    await assert.rejects(() => repository.listCiRuns(currentPullRequest(), 'Pull Request CI'), (error) => error.message === message);
   }
 });
 
@@ -550,7 +626,7 @@ test('pagination prematureとexpected-pagesは他guardに先行されずexact me
     ['workflow runs pagination exceeded expected pages', async (path) => path.endsWith('page=1') ? { total_count: 101, workflow_runs: [valid(61)] } : path.endsWith('page=2') ? { total_count: 101, workflow_runs: [valid(62)] } : (() => { throw new Error('page 3 must not be read'); })()],
   ]) {
     const repository = new AgentRepository({ config: { owner: 'octo-org', repository: 'widgets' }, client: { read, async write() {}, async graphql() {} } });
-    await assert.rejects(() => repository.listCiRuns({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'), (error) => error.message === message);
+    await assert.rejects(() => repository.listCiRuns(currentPullRequest(), 'Pull Request CI'), (error) => error.message === message);
   }
 });
 
@@ -563,5 +639,5 @@ test('getLatestCiRunはcurrent headのnewest target runを返す', async () => {
       { id: 73, name: 'Pull Request CI', status: 'queued', conclusion: null, ...apiRunTrust(), updated_at: '2026-08-24T00:02:00Z', html_url: 'https://ci/73', repository: { id: 100, full_name: 'octo-org/widgets' }, pull_requests: [relation()] },
     ] }; }, async write() {}, async graphql() {} },
   });
-  assert.deepEqual(await repository.getLatestCiRun({ number: 30, head: { ref: 'cursor/issue-20-task', sha: 'abcdef' } }, 'Pull Request CI'), { id: 73, name: 'Pull Request CI', status: 'queued', conclusion: null, headSha: 'abcdef', updatedAt: Date.parse('2026-08-24T00:02:00Z'), url: 'https://ci/73', pullRequests: [{ number: 30 }] });
+  assert.deepEqual(await repository.getLatestCiRun(currentPullRequest(), 'Pull Request CI'), { id: 73, name: 'Pull Request CI', status: 'queued', conclusion: null, headSha: 'abcdef', updatedAt: Date.parse('2026-08-24T00:02:00Z'), url: 'https://ci/73', pullRequests: [{ number: 30 }] });
 });
