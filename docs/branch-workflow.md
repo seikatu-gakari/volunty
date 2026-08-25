@@ -52,7 +52,7 @@ git push origin codex/my-feature
 
 ### Cursor Cloud Agentで開発する場合
 
-`cursor/*` は [Cursor Cloud Agent運用手順](cursor-cloud.md) の security gate を通過し、外部設定が live verification 済みの場合だけ使う。通常の開始点は人間が要件・受け入れ条件・dependencyを確認した Issue に `agent-ready` を付けることです。
+`cursor/*` は [Cursor Cloud Agent運用手順](cursor-cloud.md) の security gateを通過し、PR #217とそのfollow-up cleanup PRを人間が順にmergeして`Pull Request CI`がtarget-onlyへ戻ったこと、および外部設定がlive verification済みである場合だけ使う。PR #217の一時bootstrap bridgeでは`pull_request`と`pull_request_target`の両方により重複CIが生じる場合があるが、永続運用ではない。通常の開始点は人間が要件・受け入れ条件・dependencyを確認したIssueに`agent-ready`を付けることです。
 
 1. Orchestrator が `@cursor` を一度だけ dispatch し、Cursor は `cursor/issue-<number>-<slug>` を作る。
 2. Cursor は早期に `main` 向け Draft PRを作り、その同じ session/branch/PRで設計、実装、CI修正、Human Input、Reworkを続ける。

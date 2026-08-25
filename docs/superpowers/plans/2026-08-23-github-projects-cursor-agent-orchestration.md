@@ -20,7 +20,7 @@
 - `Done`と`Cancelled`はterminal stateで、Agentは`main`をpush/mergeしない。
 - CI修正commentは最大3回、4回目の連続失敗で`Blocked`。
 - PAT/Environmentを持つprivileged Orchestrator workflowはPR head code/artifactを実行せず、trusted default branchだけをcheckoutする。
-- `Pull Request CI`だけはbase版`pull_request_target`からsame-repository PR headをread-only/no-secret/no-cacheで実行し、fork PRをskipする。
+- `Pull Request CI`の永続契約はbase版`pull_request_target`だけでsame-repository PR headをread-only/no-secret/no-cacheで実行し、fork PRをskipする。既存`main`からのbootstrapに限り、PR #217では同条件の`pull_request`を一時併記し、follow-up cleanup PRで削除する。
 - package依存を追加せず、`unknown`相当の外部入力をruntime validatorで絞り込む。
 - 本番DB、Supabase service role、OAuth、Vercel tokenをCursor Cloudへ登録しない。
 - コミットはConventional Commits、日本語の説明とする。
@@ -440,7 +440,7 @@ Each workflow uses its static command and the exact repository-wide concurrency 
 
 - [ ] **Step 5: Secure existing CI and add Orchestrator contract job**
 
-Move `.github/workflows/ci.yml` from PR merge-ref execution to base-defined `pull_request_target` types `opened/synchronize/reopened/ready_for_review`, base `main`. Set top-level `permissions: contents: read`; every existing job must guard same-repository head, use `actions/checkout@v7` with explicit head SHA and `persist-credentials:false`, omit `allow-unsafe-pr-checkout`, secrets and setup-node cache. Fork PR jobs skip. Preserve all existing quality/RLS/E2E behavior. Add an `agent-orchestrator` job that installs `app` dependencies for YAML parsing and runs `node --test .github/scripts/agent-orchestrator/*.test.mjs` from repository root.
+Migrate `.github/workflows/ci.yml` from PR merge-ref execution to base-defined `pull_request_target` types `opened/synchronize/reopened/ready_for_review`, base `main`. Because existing `main` has only `pull_request` while the first implementation version had only `pull_request_target`, use a temporary bootstrap bridge in PR #217 that declares both triggers with the exact same types/base. Set top-level `permissions: contents: read`; every existing job must guard same-repository head, use `actions/checkout@v7` with explicit head SHA and `persist-credentials:false`, omit `allow-unsafe-pr-checkout`, secrets and setup-node cache. Fork PR jobs skip. Preserve all existing quality/RLS/E2E behavior. Add an `agent-orchestrator` job that installs `app` dependencies for YAML parsing and runs `node --test .github/scripts/agent-orchestrator/*.test.mjs` from repository root. The bridge may produce duplicate CI but must not widen current `main` permissions and must be removed by the Task 10 cleanup PR before any external activation.
 
 - [ ] **Step 6: Run tests and commit**
 
@@ -571,7 +571,7 @@ All commands must exit 0. Fix failures through new failing regression tests.
 
 - [ ] **Step 3: Review security and spec coverage**
 
-Compare all 51 specification sections and design decisions against files/tests. Confirm no PR-head checkout in PAT-bearing privileged Orchestrator workflows, no review webhook/artifact path, read-only/no-secret/no-cache same-repository PR-head checkout only in base-defined CI, no untrusted shell interpolation, no PAT in Cursor, all handlers terminal/idempotent, seven workflow names present, all eight Status names exact, and no auto-merge path.
+Compare all 51 specification sections and design decisions against files/tests. Confirm no PR-head checkout in PAT-bearing privileged Orchestrator workflows, no review webhook/artifact path, read-only/no-secret/no-cache same-repository PR-head checkout only in `Pull Request CI`, exact dual trigger during the bootstrap bridge, no untrusted shell interpolation, no PAT in Cursor, all handlers terminal/idempotent, seven workflow names present, all eight Status names exact, and no auto-merge path.
 
 - [ ] **Step 4: Finish branch and create Ready PR**
 
@@ -579,37 +579,42 @@ Use `git-finish-worktree-pr` and `superpowers:finishing-a-development-branch`. P
 
 - [ ] **Step 5: Verify remote evidence**
 
-Confirm PR head SHA, GitHub Actions `agent-orchestrator`/quality/rls/e2e, Vercel Preview and Codex Review correspond to current SHA. Resolve all actionable findings on the same branch.
+Confirm PR head SHA, GitHub Actions `agent-orchestrator`/quality/rls/e2e, Vercel Preview and Codex Review correspond to current SHA. The PR #217 bridge run may be a `pull_request` run and proves only the bootstrap PR; it does not prove the final target-only contract. Resolve all actionable findings on the same branch.
 
-### Task 10: Post-merge external configuration and live acceptance
+### Task 10: Post-merge CI cleanup、external configuration、live acceptance
 
 **Files:**
+- Modify in cleanup PR: `.github/workflows/ci.yml`, `.github/scripts/agent-orchestrator/workflows.test.mjs`, this plan, design, `docs/cursor-cloud.md`, and minimal branch/Codex runbooks
 - External: GitHub fine-grained PAT, GitHub Environment `agent-orchestrator` secret/main-only policy, labels, Project `#2`, Cursor Cloud settings, smoke Issue/PR
 
 **Interfaces:**
-- Consumes: workflows merged to `main`
+- Consumes: PR #217 and its temporary dual-trigger bridge merged to `main`
 - Produces: operational GitHub Projects × Cursor Cloud Agent system
 
 - [ ] **Step 1: Wait for human merge**
 
-Verify the implementation PR is merged to `main` and workflows exist on the default branch. The Agent never merges it.
+Verify PR #217 is merged to `main`, the temporary dual-trigger bridge and seven Agent workflows exist on the default branch, and the Agent did not merge it.
 
-- [ ] **Step 2: Obtain scoped approval for PAT**
+- [ ] **Step 2: Create and human-merge the target-only cleanup PR**
+
+Before any GitHub Project, PAT, Environment secret, label, Project workflow or Cursor setting is enabled, create a separate follow-up PR from the post-#217 `main`. Remove only the temporary `pull_request` trigger from `.github/workflows/ci.yml`, restore the workflow contract test and docs to exact target-only, run focused/full contract tests plus `actionlint`, and confirm the PR receives a default-branch `pull_request_target` CI run. A human must merge this second PR and re-read `main` to confirm target-only. During the bridge duplicate CI may occur; the bridge is not a permanent operating mode. Do not combine this cleanup with polling or custom orchestration.
+
+- [ ] **Step 3: Obtain scoped approval for PAT**
 
 Before Chrome mutation, present resource owner `seikatu-gakari`, repository `volunty`, Issues read/write, organization Projects read/write, finite expiry, Environment `agent-orchestrator`, secret name, selected branch `main` only policy and `yuto90` impersonation impact. Create/store only after explicit approval.
 
-- [ ] **Step 3: Configure GitHub through Chrome**
+- [ ] **Step 4: Configure GitHub through Chrome**
 
 Create or inspect GitHub Environment `agent-orchestrator`; before secret storage save deployment branches as selected branch `main` only and re-read it. Store `CURSOR_AGENT_ORCHESTRATOR_PAT` only as that Environment secret, never as repository Actions secret, then re-read Environment name/policy/secret name. Create labels `agent-ready` (`0E8A16`) and `agent-cancel` (`B60205`), migrate Status options to exact eight values, run the non-mutating manual preflight with the Environment PAT for Organization Project GET, then disable the five conflicting built-in Project workflows. Re-read counts/options immediately before mutation and stop on drift.
 
-- [ ] **Step 4: Verify Cursor Cloud through Chrome**
+- [ ] **Step 5: Verify Cursor Cloud through Chrome**
 
 Confirm repository, Cursor Environment build, Node/install command, `cursor/` prefix, GitHub integration, PR creation setting and absence of production secrets. Re-read Cursor App permissions including `workflows: write`; do not add a `pull_request_review` workflow. Do not replace the working Cursor Environment with `.cursor/environment.json`.
 
-- [ ] **Step 5: Obtain approval and run live smoke**
+- [ ] **Step 6: Obtain approval and run live smoke**
 
 Name the docs-only Issue, Cursor usage/cost, expected Draft PR/change and human merge requirement. After approval, verify dispatch once, Draft ACK/In Progress, Human Input/resume, ready+CI/Human Review, changes requested followed by manual reconciliation or `yuto90 @cursor`, Rework/resume, human merge, Issue close and Done. Use a separate state-only Issue for Cancelled if needed.
 
-- [ ] **Step 6: Audit completion**
+- [ ] **Step 7: Audit completion**
 
 Map every completion condition from the 51-section specification to repository tests, workflow run, Project history, Issue/PR comments, CI, Cursor session and human merge evidence. Mark the goal complete only when all required evidence is current and authoritative.

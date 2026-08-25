@@ -6,6 +6,8 @@ Cursor Cloud Agent は、承認済み Issue を `agent-ready` から同じ `curs
 
 この節は設定済みの状態を表しません。2026-08-25時点で、Cursor GitHub Appには`workflows: write`があり、public repositoryかつGA機能だけの同一repository運用では、Cursorが第8の危険なworkflowを追加することを防げません。したがって、**Cursor/PATの有効化、`agent-ready`の付与、live smokeは停止中**です。
 
+加えて、`Pull Request CI`は既存`main`の`pull_request`から安全な`pull_request_target`へ二段階で移行します。PR #217ではbootstrap gapを避けるため、同じ`opened` / `synchronize` / `reopened` / `ready_for_review`、base `main`の両triggerを一時的に宣言します。bridge中は同じPR headに重複CIが生じる場合がありますが、jobの`contents: read`、same-repository guard、明示PR head checkout、secret/cacheなしの境界は変えません。PR #217を人間がmergeした直後、follow-up cleanup PRで`pull_request`をworkflow・契約test・文書から削除してtarget-onlyへ戻し、人間がmergeしてremote CIを確認します。これは永続仕様ではなく、**この2本目のcleanup merge前にProject/PAT/Cursorを一切有効化してはいけません**。
+
 人間は次のいずれか一つを選び、その有効状態をGitHub/Cursor UIで再読・live verificationしてからだけ有効化できます。選ばれていない案を設定済みとして扱ってはいけません。
 
 | 選択肢 | 選択・live verificationが必要な安全境界 |
@@ -152,13 +154,14 @@ PATはOrganization ProjectのGET、Issue comment・labelのmutation、Project it
 この順序は外部設定のチェックリストであり、現時点で設定済みとは主張しません。
 
 1. この文書の選択肢A/B/Cから一つを人間が選び、該当security controlとproduction DB remediationをlive verificationする。完了前は以降を実行しない。
-2. default branchに7 workflow、Orchestrator、Cursor skills、運用文書がmerge済みであることを確認する。
-3. GitHub Environment `agent-orchestrator`を作成または再確認し、selected branch `main` onlyを保存して再読する。
-4. 明示承認後、最小権限・有限期限のPATを作り、Environment secret `CURSOR_AGENT_ORCHESTRATOR_PAT`としてのみ保存する。Environment名、policy、secret名を再読する。
-5. 上記2 labelを作成し、Project optionとitem countを再読して8 Statusへmigrateする。
-6. `Agent Orchestrator - Start`を`main` refからmanual実行し、read-only preflightのsummaryでrepository、Project、Statusの一意性を確認する。このpreflightはmutationしないが、Organization Project GETのためにEnvironment secretのPAT認証を使う。workflow inputやログにPAT値を入力・表示しない。
-7. preflight成功後にだけ、Statusを変える5本のbuilt-in Project workflowを無効化する。
-8. Cursor UIでrepository、Node 22、install command、`cursor/` prefix、GitHub integration、PR creation、production secret不在、Cursor Appの実権限を再読する。`workflows: write`が残ることを前提に、選んだA/B/Cの安全境界が有効であることを確認する。
+2. PR #217を人間がmergeし、default branchに一時的な両CI trigger、7 workflow、Orchestrator、Cursor skills、運用文書が存在することを確認する。
+3. follow-up cleanup PRで`pull_request` triggerを削除してtarget-only契約・test・文書へ戻し、人間がmergeした後、remote `pull_request_target` CIを確認する。2本のPRがmergeされる前は外部設定へ進まない。
+4. GitHub Environment `agent-orchestrator`を作成または再確認し、selected branch `main` onlyを保存して再読する。
+5. 明示承認後、最小権限・有限期限のPATを作り、Environment secret `CURSOR_AGENT_ORCHESTRATOR_PAT`としてのみ保存する。Environment名、policy、secret名を再読する。
+6. 上記2 labelを作成し、Project optionとitem countを再読して8 Statusへmigrateする。
+7. `Agent Orchestrator - Start`を`main` refからmanual実行し、read-only preflightのsummaryでrepository、Project、Statusの一意性を確認する。このpreflightはmutationしないが、Organization Project GETのためにEnvironment secretのPAT認証を使う。workflow inputやログにPAT値を入力・表示しない。
+8. preflight成功後にだけ、Statusを変える5本のbuilt-in Project workflowを無効化する。
+9. Cursor UIでrepository、Node 22、install command、`cursor/` prefix、GitHub integration、PR creation、production secret不在、Cursor Appの実権限を再読する。`workflows: write`が残ることを前提に、選んだA/B/Cの安全境界が有効であることを確認する。
 
 ## 日常運用
 

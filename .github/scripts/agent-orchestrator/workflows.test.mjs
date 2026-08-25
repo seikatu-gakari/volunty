@@ -469,10 +469,13 @@ test('privileged Agent workflow はPR head、artifact、event本文、直接 mut
   }
 });
 
-test('Pull Request CI はbase版workflow・read-only tokenでsame-repository PR headだけを実行しcacheを使わない', () => {
+test('Pull Request CI はbootstrap bridgeで両PR triggerを固定しread-only tokenでsame-repository PR headだけを実行する', () => {
   const { parsed, source } = parseWorkflow('ci.yml');
   assert.equal(parsed.name, 'Pull Request CI');
-  assert.deepEqual(parsed.on, { pull_request_target: { types: ['opened', 'synchronize', 'reopened', 'ready_for_review'], branches: ['main'] } });
+  assert.deepEqual(parsed.on, {
+    pull_request: { types: ['opened', 'synchronize', 'reopened', 'ready_for_review'], branches: ['main'] },
+    pull_request_target: { types: ['opened', 'synchronize', 'reopened', 'ready_for_review'], branches: ['main'] },
+  });
   assert.deepEqual(parsed.permissions, { contents: 'read' });
   assert.deepEqual(Object.keys(parsed.jobs).sort(), ['agent-orchestrator', 'e2e', 'quality', 'rls']);
   for (const [name, candidate] of Object.entries(parsed.jobs)) {
