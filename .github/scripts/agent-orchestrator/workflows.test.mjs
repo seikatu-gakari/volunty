@@ -404,6 +404,7 @@ test('Agent workflow は最小権限、trusted checkout、Node 22、secret mappi
     assert.deepEqual(parsed.permissions, expectedPermissions, `${name}: permissions`);
     assert.equal(parsed.concurrency?.['cancel-in-progress'], false, `${name}: cancel-in-progress`);
     assert.equal(parsed.concurrency?.group, expectedConcurrencyGroup, `${name}: repository-wide concurrency group`);
+    assert.equal(parsed.concurrency?.queue, 'max', `${name}: preserve up to 100 pending runs`);
     concurrencyGroups.add(parsed.concurrency?.group);
 
     for (const job of Object.values(parsed.jobs)) {

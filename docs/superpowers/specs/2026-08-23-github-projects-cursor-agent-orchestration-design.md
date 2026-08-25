@@ -354,7 +354,7 @@ GitHub Actions は comment を Cursor へ転送・複製せず、Status を `In 
 
 `.github/workflows/ci.yml` は PR branch 版 YAML を実行しないよう、base branch 版が選ばれる `pull_request_target` の `opened`、`synchronize`、`reopened`、`ready_for_review`（base `main`）で起動する。top-level `permissions` は `contents: read` だけ、全 job は `github.event.pull_request.head.repo.full_name == github.repository` を要求する。fork PR は test code を実行せず skip する。same-repository PR だけを `actions/checkout@v7` で明示的な PR head SHAから checkoutし、`persist-credentials: false`、`allow-unsafe-pr-checkout` なし、secret参照なし、setup-node cacheなしで既存 quality / RLS / E2E / Orchestrator contract testsを実行する。placeholder値はsecretではない。
 
-`agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ default branch の Orchestrator を実行する。Environment/PATをmaterializeする前のjob guardで、event `pull_request_target`、path `.github/workflows/ci.yml`、same-repository `head_repository`、`cursor/` head branch、conclusion `success|failure`を固定する。concurrencyは他の6入口と同じrepository-wide groupを共有する。
+`agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ default branch の Orchestrator を実行する。Environment/PATをmaterializeする前のjob guardで、event `pull_request_target`、path `.github/workflows/ci.yml`、same-repository `head_repository`、`cursor/` head branch、conclusion `success|failure`を固定する。concurrencyは他の6入口と同じrepository-wide group、`queue: max`、`cancel-in-progress: false`を共有する。
 
 1. `workflow_run` の name/path/event、repository/head repository、`cursor/` head branch、head SHAをruntime validationする。同名の別path workflowは拒否する。
 2. `workflow_run.pull_requests` は空を許容する。存在する場合はofficial relationを追加相関として検証し、重複・不一致・cross-repository relationをfail closedにする。
@@ -495,7 +495,7 @@ Project ID や option ID を secret または source code に固定しないた�
 - event 対象が Agent-managed Issue/PR でなければ何もしない。
 - workflow rerun、GitHub の event redelivery、API retry を前提にする。GraphQL pagination は cursor の前進を検証し、同一 cursor の循環を fail closed にする。
 
-7本のworkflow concurrencyはexact group `agent-orchestrator-${{ github.repository }}`と`cancel-in-progress: false`を共有し、異なるevent入口のOrchestrator mutationを同時実行しない。GitHub Actions標準のpending run処理を永続queue、全eventの保持、または厳密な順序保証とみなさず、mutation直前の正本再取得とhandlerの冪等性を最終防衛線にする。dependency再評価は引き続きevent-drivenであり、pollingを追加しない。
+7本のworkflow concurrencyはexact group `agent-orchestrator-${{ github.repository }}`、`queue: max`、`cancel-in-progress: false`を共有し、異なるevent入口のOrchestrator mutationを同時実行しない。`queue: max`は同じgroupに最大100のpending runを保持し、waiting開始順にFIFOで実行開始する。ただしeventのdispatch順そのものは保証せず、100を超えたpending runはcancelされ得るため永続queueとはみなさない。`queue: max`は`cancel-in-progress: true`と併用できないためfalseを固定し、mutation直前の正本再取得とhandlerの冪等性を最終防衛線にする。dependency再評価は引き続きevent-drivenであり、pollingやcustom orchestratorを追加しない。
 
 このrepository-wide groupが直列化するのは短時間のOrchestrator runだけであり、Cursor Agentの同時作業数は人間が付与する`agent-ready`の数で管理する。
 

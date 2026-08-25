@@ -397,7 +397,7 @@ git commit -m "feat: Reviewと完了状態の遷移を追加"
 
 - [ ] **Step 1: Write failing CLI and workflow contract tests**
 
-Execute `main.mjs` with a temporary event/config and injected fake transport module. Load the existing `app/node_modules/js-yaml` through `createRequire()` and assert exact trigger, static CLI command, `permissions`, trusted checkout ref, `persist-credentials:false`, Node 22, Environment secret mapping, exact repository-wide concurrency group, and no `${{ github.event.*body* }}` interpolation in shell. Assert exactly seven `agent-*.yml`, no `pull_request_review`/review artifact path, operator-only manual review dispatch, PAT-authenticated read-only Project preflight, and no PAT job without Environment `agent-orchestrator`.
+Execute `main.mjs` with a temporary event/config and injected fake transport module. Load the existing `app/node_modules/js-yaml` through `createRequire()` and assert exact trigger, static CLI command, `permissions`, trusted checkout ref, `persist-credentials:false`, Node 22, Environment secret mapping, exact repository-wide concurrency group, `queue: max`, `cancel-in-progress:false`, and no `${{ github.event.*body* }}` interpolation in shell. Assert exactly seven `agent-*.yml`, no `pull_request_review`/review artifact path, operator-only manual review dispatch, PAT-authenticated read-only Project preflight, and no PAT job without Environment `agent-orchestrator`.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -434,7 +434,7 @@ steps:
       CURSOR_AGENT_ORCHESTRATOR_PAT: ${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}
 ```
 
-Each workflow uses its static command and the exact repository-wide concurrency group `agent-orchestrator-${{ github.repository }}` with `cancel-in-progress:false`. This prevents simultaneous Orchestrator mutations across event types but does not add a durable queue or change the event-driven contract. `agent-pr-created`/PR side of merge use `pull_request_target`; CI uses `workflow_run` without PR checkout.
+Each workflow uses its static command and the exact repository-wide concurrency group `agent-orchestrator-${{ github.repository }}` with `queue: max` and `cancel-in-progress:false`. This prevents simultaneous Orchestrator mutations across event types and preserves up to 100 pending runs. Waiting runs start FIFO by the time they enter the waiting state, but event dispatch order itself is not guaranteed; pending runs over 100 may be cancelled, so this is not a durable queue. It does not change the event-driven contract or add polling/custom orchestration, and it controls only short Orchestrator runs; humans still manage Cursor Agent parallelism through `agent-ready`. `agent-pr-created`/PR side of merge use `pull_request_target`; CI uses `workflow_run` without PR checkout.
 
 `agent-review.yml` uses only `workflow_dispatch` with a positive integer PR input, operator-only `github.actor`/`github.triggering_actor` guards, Environment `agent-orchestrator`, and trusted default-branch checkout. `agent-ci.yml` consumes only `Pull Request CI`; before Environment/PAT materialization its job guard fixes event `pull_request_target`, path `.github/workflows/ci.yml`, same-repository `cursor/` head and success/failure conclusion. It shares the repository-wide lock and never consumes artifacts.
 
@@ -528,7 +528,7 @@ State that `agent-ready` uses `cursor/*`, same PR session, fixed markers, Projec
 
 - [ ] **Step 2: Write `docs/cursor-cloud.md`**
 
-Include current Cursor Environment install command, Node 22, branch prefix, no local MCP dependency, seven workflows, their common repository-wide concurrency group, Status transition table, two label descriptions/colors, PAT exact minimum permissions/finite expiry, PAT-authenticated read-only Project preflight, GitHub Environment `agent-orchestrator` secret name and selected branch `main` only policy, Project option migration, built-in workflows to disable, manual review reconciliation / `yuto90 @cursor`, normal/Human Input/Blocked/Rework/Cancel operations, incident rollback and token revocation. Explicitly prohibit a repository Actions secret and `pull_request_review` workflow.
+Include current Cursor Environment install command, Node 22, branch prefix, no local MCP dependency, seven workflows, their common repository-wide concurrency group and bounded `queue: max` semantics, Status transition table, two label descriptions/colors, PAT exact minimum permissions/finite expiry, PAT-authenticated read-only Project preflight, GitHub Environment `agent-orchestrator` secret name and selected branch `main` only policy, Project option migration, built-in workflows to disable, manual review reconciliation / `yuto90 @cursor`, normal/Human Input/Blocked/Rework/Cancel operations, incident rollback and token revocation. Explicitly prohibit a repository Actions secret and `pull_request_review` workflow.
 
 - [ ] **Step 3: Update branch and Codex coexistence docs**
 

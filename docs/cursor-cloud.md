@@ -46,7 +46,7 @@ Cursor Cloud Agent は、承認済み Issue を `agent-ready` から同じ `curs
 | Agent Orchestrator - Merge Convergence | `.github/workflows/agent-merge.yml` | main mergeとlinked Issue closeを収束し`Done`へ遷移 |
 | Agent Orchestrator - Cancel | `.github/workflows/agent-cancel.yml` | `agent-cancel`付与を確認して`Cancelled`へ遷移 |
 
-7本はすべて同一のrepository-wide concurrency group `agent-orchestrator-${{ github.repository }}`と`cancel-in-progress: false`を使い、異なるevent入口から同じProject itemを同時にmutationしません。これは永続event queueやpending runの保持・順序を独自に保証するものではなく、各handlerは引き続きGitHub上の正本をmutation直前に再取得し、redeliveryに冪等に収束します。dependencyの再評価も従来どおりevent-drivenで、pollingは追加しません。
+7本はすべて同一のrepository-wide concurrency group `agent-orchestrator-${{ github.repository }}`、`queue: max`、`cancel-in-progress: false`を使い、異なるevent入口から同じProject itemを同時にmutationしません。同じgroupは最大100のpending runを保持し、waiting開始順にFIFOで実行開始しますが、eventのdispatch順そのものは保証しません。100を超えたpending runはcancelされ得るため永続event queueとは扱わず、各handlerはGitHub上の正本をmutation直前に再取得し、redeliveryに冪等に収束します。Cursor Agentの並列数は人間が`agent-ready`で別に管理し、dependency再評価はevent-drivenのままとしてpollingやcustom orchestratorを追加しません。
 
 fixed markerは自然言語で代用しません。動的なIssue番号、run ID、SHAは実際の値に置き換え、次の形式以外を信頼しません。
 
