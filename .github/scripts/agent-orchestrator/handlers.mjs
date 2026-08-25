@@ -471,31 +471,32 @@ export function createHandlers({ repository, project, config, summary }) {
     return { kind: 'transition', status: target };
   }
 
-  /** @param {unknown} event @param {{repositoryId: number, baseBranch: string, baseSha: string}} incoming */
-  function eventPullRequestRelation(event, incoming) {
+  /** @param {unknown} event @param {{repositoryId: number, headBranch: string, headSha: string}} incoming */
+  function eventPullRequestNumbers(event, incoming) {
     const references = event?.workflow_run?.pull_requests;
-    if (!Array.isArray(references) || references.length !== 1) return null;
-    const [reference] = references;
-    const baseRepository = reference?.base?.repo;
-    const headRepository = reference?.head?.repo;
-    const number = eventNumber(reference?.number);
-    const headRef = stringValue(reference?.head?.ref);
-    const headSha = stringValue(reference?.head?.sha);
-    const valid = eventNumber(reference?.id) !== null && typeof reference?.url === 'string' && reference.url !== ''
-      && stringValue(reference?.base?.ref) !== null && stringValue(reference?.base?.sha) !== null
-      && headRef !== null && headSha !== null
-      && eventNumber(headRepository?.id) !== null && typeof headRepository?.url === 'string' && headRepository.url !== '' && typeof headRepository?.name === 'string' && headRepository.name !== '';
-    if (!valid || number === null || !(baseRepository?.id === incoming.repositoryId
-      && baseRepository?.url === `https://api.github.com/repos/${config.owner}/${config.repository}`
-      && baseRepository?.name === config.repository
-      && headRepository?.id === incoming.repositoryId
-      && headRepository?.url === `https://api.github.com/repos/${config.owner}/${config.repository}`
-      && headRepository?.name === config.repository
-      && reference.base.ref === config.defaultBranch
-      && reference.base.ref === incoming.baseBranch
-      && reference.base.sha === incoming.baseSha
-      && headRef.startsWith(config.cursorBranchPrefix))) return null;
-    return { number, headRef, headSha };
+    if (!Array.isArray(references)) return null;
+    const numbers = new Set();
+    for (const reference of references) {
+      const baseRepository = reference?.base?.repo;
+      const headRepository = reference?.head?.repo;
+      const number = eventNumber(reference?.number);
+      const valid = eventNumber(reference?.id) !== null && typeof reference?.url === 'string' && reference.url !== ''
+        && stringValue(reference?.base?.ref) !== null && stringValue(reference?.base?.sha) !== null
+        && stringValue(reference?.head?.ref) !== null && stringValue(reference?.head?.sha) !== null
+        && eventNumber(headRepository?.id) !== null && typeof headRepository?.url === 'string' && headRepository.url !== '' && typeof headRepository?.name === 'string' && headRepository.name !== '';
+      if (!valid || number === null || !(baseRepository?.id === incoming.repositoryId
+        && baseRepository?.url === `https://api.github.com/repos/${config.owner}/${config.repository}`
+        && baseRepository?.name === config.repository
+        && headRepository?.id === incoming.repositoryId
+        && headRepository?.url === `https://api.github.com/repos/${config.owner}/${config.repository}`
+        && headRepository?.name === config.repository
+        && reference.base.ref === config.defaultBranch
+        && reference.head.ref === incoming.headBranch
+        && reference.head.sha === incoming.headSha)) return null;
+      if (numbers.has(number)) return null;
+      numbers.add(number);
+    }
+    return [...numbers];
   }
 
   /** @param {unknown} event */
@@ -505,16 +506,17 @@ export function createHandlers({ repository, project, config, summary }) {
     const name = stringValue(run?.name);
     const status = stringValue(run?.status);
     const conclusion = run?.conclusion === null ? null : stringValue(run?.conclusion);
-    const baseSha = stringValue(run?.head_sha);
-    const baseBranch = stringValue(run?.head_branch);
+    const headSha = stringValue(run?.head_sha);
+    const headBranch = stringValue(run?.head_branch);
     const runRepository = run?.repository;
     const headRepository = run?.head_repository;
     const repositoryId = eventNumber(runRepository?.id);
-    if (id === null || name === null || status === null || baseSha === null || baseBranch === null || conclusion === null
+    if (id === null || name === null || status === null || headSha === null || headBranch === null || conclusion === null
       || run?.event !== 'pull_request_target' || run?.path !== '.github/workflows/ci.yml'
       || repositoryId === null || runRepository?.full_name !== `${config.owner}/${config.repository}`
-      || eventNumber(headRepository?.id) !== repositoryId || headRepository?.full_name !== `${config.owner}/${config.repository}`) return null;
-    return { id, name, status, conclusion, baseSha, baseBranch, repositoryId };
+      || eventNumber(headRepository?.id) !== repositoryId || headRepository?.full_name !== `${config.owner}/${config.repository}`
+      || !headBranch.startsWith(config.cursorBranchPrefix)) return null;
+    return { id, name, status, conclusion, headSha, headBranch, repositoryId };
   }
 
   /** @param {number} number @param {{id: number, headSha: string, url: string}} run @param {number} retry */
@@ -527,12 +529,19 @@ export function createHandlers({ repository, project, config, summary }) {
     if (event?.action !== 'completed') return { kind: 'skip', reason: 'unsupported-event' };
     const incoming = eventRun(event);
     if (incoming === null || incoming.name !== config.ciWorkflow || incoming.status !== 'completed') return { kind: 'skip', reason: 'invalid-workflow-run' };
-    const relation = eventPullRequestRelation(event, incoming);
-    if (relation === null) return { kind: 'skip', reason: 'invalid-pull-request' };
-    const number = relation.number;
+    const relationNumbers = eventPullRequestNumbers(event, incoming);
+    if (relationNumbers === null || relationNumbers.length > 1) return { kind: 'skip', reason: 'invalid-pull-request' };
+    const resolved = await repository.findOpenPullRequestsByHead(incoming.headBranch);
+    if (!Array.isArray(resolved)) return { kind: 'skip', reason: 'invalid-pull-request' };
+    const numbers = resolved.map((pullRequest) => eventNumber(pullRequest?.number));
+    if (numbers.some((number) => number === null) || new Set(numbers).size !== numbers.length) return { kind: 'skip', reason: 'invalid-pull-request' };
+    if (numbers.length === 0) return { kind: 'skip', reason: 'no-managed-pull-request' };
+    if (numbers.length !== 1) return { kind: 'skip', reason: 'ambiguous-managed-pull-request' };
+    const number = numbers[0];
+    if (relationNumbers.length === 1 && relationNumbers[0] !== number) return { kind: 'skip', reason: 'invalid-pull-request' };
     const first = await readManagedSession(number);
     if (first.decision.kind !== 'managed') return { kind: 'skip', reason: 'no-managed-pull-request' };
-    if (first.pullRequest.head.ref !== relation.headRef || first.headSha !== relation.headSha) return { kind: 'skip', reason: 'stale-head' };
+    if (first.pullRequest.head.ref !== incoming.headBranch || first.headSha !== incoming.headSha) return { kind: 'skip', reason: 'stale-head' };
     const runs = await repository.listCiRuns(first.pullRequest, config.ciWorkflow);
     const newest = newestCurrentHeadRun(runs, first.headSha);
     if (newest === null || newest.id !== incoming.id) return { kind: 'skip', reason: 'stale-run' };
@@ -554,7 +563,7 @@ export function createHandlers({ repository, project, config, summary }) {
     const current = await readManagedSession(number);
     if (current.decision.kind !== 'managed') return current.decision;
     if (current.status !== first.status || current.headSha !== first.headSha
-      || current.pullRequest.head.ref !== relation.headRef) return { kind: 'skip', reason: 'stale-session' };
+      || current.pullRequest.head.ref !== incoming.headBranch) return { kind: 'skip', reason: 'stale-session' };
     const currentRuns = await repository.listCiRuns(current.pullRequest, config.ciWorkflow);
     const currentNewest = newestCurrentHeadRun(currentRuns, current.headSha);
     if (currentNewest === null || currentNewest.id !== newest.id || !isCompletedFailure(currentNewest)) return { kind: 'skip', reason: 'stale-run' };

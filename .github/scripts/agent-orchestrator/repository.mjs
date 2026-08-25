@@ -269,7 +269,6 @@ export class AgentRepository {
       number: returnedNumber,
       state: requireRestPullRequestState(requireString(pr.state, 'pull request.state'), 'pull request.state'),
       draft: typeof pr.draft === 'boolean' ? pr.draft : (() => { throw new Error('pull request.draft must be a boolean'); })(),
-      createdAt: requireTimestamp(pr.created_at, 'pull request.created_at'),
       base: { ref: requireString(base.ref, 'pull request.base.ref') },
       head: {
         ref: requireString(head.ref, 'pull request.head.ref'),
@@ -355,15 +354,12 @@ export class AgentRepository {
     };
   }
 
-  /** @param {{number: number, createdAt: number, base: {ref: string}, head: {ref: string, sha: string}}} pullRequest @param {string} workflowName */
+  /** @param {{number: number, head: {ref: string, sha: string}}} pullRequest @param {string} workflowName */
   async listCiRuns(pullRequest, workflowName) {
     const pr = requirePositiveInteger(pullRequest?.number, 'pull request number');
-    const createdAt = requirePositiveInteger(pullRequest?.createdAt, 'pull request.createdAt');
-    const baseRef = requireString(pullRequest?.base?.ref, 'pull request.base.ref');
-    const headRef = requireString(pullRequest?.head?.ref, 'pull request.head.ref');
+    const branch = requireString(pullRequest?.head?.ref, 'pull request.head.ref');
     requireString(pullRequest?.head?.sha, 'pull request.head.sha');
     const expectedWorkflow = requireString(workflowName, 'workflow name');
-    const createdFilter = `>=${new Date(createdAt).toISOString()}`;
     const targetRuns = [];
     const seenIds = new Set();
     let totalCount = null;
@@ -371,28 +367,34 @@ export class AgentRepository {
     let page = 1;
     while (totalCount === null || receivedCount < totalCount) {
       if (totalCount !== null && page > Math.ceil(totalCount / 100)) throw new Error('workflow runs pagination exceeded expected pages');
-      const path = `/repos/${encode(this.owner)}/${encode(this.repository)}/actions/workflows/ci.yml/runs?event=pull_request_target&created=${encode(createdFilter)}&per_page=100&page=${page}`;
+      const path = `/repos/${encode(this.owner)}/${encode(this.repository)}/actions/workflows/ci.yml/runs?branch=${encode(branch)}&event=pull_request_target&per_page=100&page=${page}`;
       const data = requireObject(await this.client.read(path, { paginate: false }), `workflow runs page ${page}`);
       const pageTotal = requireNonNegativeInteger(data.total_count, `workflow runs page ${page}.total_count`);
       if (totalCount === null) totalCount = pageTotal;
       else if (totalCount !== pageTotal) throw new Error('workflow runs pagination total_count changed');
-      if (totalCount >= MAX_FILTERED_CI_RUN_RESULTS) throw new Error('workflow runs created-window search reached 1000-result cap');
+      if (totalCount >= MAX_FILTERED_CI_RUN_RESULTS) throw new Error('workflow runs branch search reached 1000-result cap');
       const values = requireArray(data.workflow_runs, `workflow runs page ${page}.workflow_runs`);
       if (totalCount > receivedCount && values.length === 0) throw new Error('workflow runs pagination ended prematurely');
       for (const [index, value] of values.entries()) {
         const run = requireObject(value, `workflow runs page ${page}[${index}]`);
+        const id = requirePositiveInteger(run.id, `workflow runs page ${page}[${index}].id`);
+        if (seenIds.has(id)) throw new Error('workflow runs pagination contains duplicate id');
+        seenIds.add(id);
+        receivedCount += 1;
+        if (receivedCount > totalCount) throw new Error('workflow runs pagination exceeds total_count');
         const repository = requireObject(run.repository, `workflow runs page ${page}[${index}].repository`);
         const repositoryId = requirePositiveInteger(repository.id, `workflow runs page ${page}[${index}].repository.id`);
         if (requireString(repository.full_name, `workflow runs page ${page}[${index}].repository.full_name`) !== `${this.owner}/${this.repository}`) throw new Error(`workflow runs page ${page}[${index}].repository must match configured repository`);
-        const headRepository = requireObject(run.head_repository, `workflow runs page ${page}[${index}].head_repository`);
-        if (requirePositiveInteger(headRepository.id, `workflow runs page ${page}[${index}].head_repository.id`) !== repositoryId
-          || requireString(headRepository.full_name, `workflow runs page ${page}[${index}].head_repository.full_name`) !== `${this.owner}/${this.repository}`) {
-          throw new Error(`workflow runs page ${page}[${index}].head_repository must match configured repository`);
-        }
+        const runHeadBranch = requireString(run.head_branch, `workflow runs page ${page}[${index}].head_branch`);
+        const runHeadSha = requireString(run.head_sha, `workflow runs page ${page}[${index}].head_sha`);
+        if (run.head_repository === null || typeof run.head_repository !== 'object' || Array.isArray(run.head_repository)) continue;
+        const headRepository = /** @type {Record<string, unknown>} */ (run.head_repository);
+        const headRepositoryId = requirePositiveInteger(headRepository.id, `workflow runs page ${page}[${index}].head_repository.id`);
+        const headRepositoryFullName = requireString(headRepository.full_name, `workflow runs page ${page}[${index}].head_repository.full_name`);
+        if (headRepositoryId !== repositoryId || headRepositoryFullName !== `${this.owner}/${this.repository}`) continue;
         if (requireString(run.path, `workflow runs page ${page}[${index}].path`) !== '.github/workflows/ci.yml') throw new Error(`workflow runs page ${page}[${index}].path must be ci.yml`);
         if (requireString(run.event, `workflow runs page ${page}[${index}].event`) !== 'pull_request_target') throw new Error(`workflow runs page ${page}[${index}].event must be pull_request_target`);
-        const runBaseRef = requireString(run.head_branch, `workflow runs page ${page}[${index}].head_branch`);
-        const runBaseSha = requireString(run.head_sha, `workflow runs page ${page}[${index}].head_sha`);
+        if (runHeadBranch !== branch) throw new Error(`workflow runs page ${page}[${index}].head_branch must match pull request`);
         const relationNumbers = new Set();
         const pullRequests = (run.pull_requests === null ? [] : requireArray(run.pull_requests, `workflow runs page ${page}[${index}].pull_requests`)).map((relation, relationIndex) => {
           const reference = requireObject(relation, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}]`);
@@ -407,9 +409,9 @@ export class AgentRepository {
           requirePositiveInteger(reference.id, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].id`);
           requireString(reference.url, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].url`);
           const relationBaseRef = requireString(base.ref, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.ref`);
-          const relationBaseSha = requireString(base.sha, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.sha`);
+          requireString(base.sha, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].base.sha`);
           const relationHeadRef = requireString(head.ref, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.ref`);
-          const relationHeadSha = requireString(head.sha, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.sha`);
+          requireString(head.sha, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.sha`);
           const headRepositoryId = requirePositiveInteger(headRepository.id, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.repo.id`);
           const headRepositoryUrl = requireString(headRepository.url, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.repo.url`);
           const headRepositoryName = requireString(headRepository.name, `workflow runs page ${page}[${index}].pull_requests[${relationIndex}].head.repo.name`);
@@ -418,40 +420,28 @@ export class AgentRepository {
           return {
             number,
             baseRef: relationBaseRef,
-            baseSha: relationBaseSha,
             headRef: relationHeadRef,
-            headSha: relationHeadSha,
             headRepositoryId,
             headRepositoryUrl,
             headRepositoryName,
           };
         });
-        for (const reference of pullRequests) {
-          if (runBaseRef !== reference.baseRef) throw new Error(`workflow runs page ${page}[${index}].head_branch must match target relation base`);
-          if (runBaseSha !== reference.baseSha) throw new Error(`workflow runs page ${page}[${index}].head_sha must match target relation base`);
-        }
         const name = requireString(run.name, `workflow runs page ${page}[${index}].name`);
         if (name !== expectedWorkflow) throw new Error(`workflow runs page ${page}[${index}].name must match configured workflow`);
         const status = requireWorkflowStatus(run.status, `workflow runs page ${page}[${index}].status`);
-        const id = requirePositiveInteger(run.id, `workflow runs page ${page}[${index}].id`);
-        if (seenIds.has(id)) throw new Error('workflow runs pagination contains duplicate id');
-        seenIds.add(id);
-        receivedCount += 1;
-        if (receivedCount > totalCount) throw new Error('workflow runs pagination exceeds total_count');
         const targetRelation = pullRequests.find((reference) => reference.number === pr
-          && reference.baseRef === baseRef
-          && reference.headRef === headRef
+          && reference.headRef === branch
           && reference.headRepositoryId === repositoryId
           && reference.headRepositoryUrl === `https://api.github.com/repos/${this.owner}/${this.repository}`
           && reference.headRepositoryName === this.repository) ?? null;
-        if (targetRelation !== null) {
+        if (pullRequests.length === 0 || targetRelation !== null) {
           targetRuns.push({
             id, name, status,
             conclusion: normalizeWorkflowConclusion(run.conclusion, `workflow runs page ${page}[${index}].conclusion`),
-            headSha: targetRelation.headSha,
+            headSha: runHeadSha,
             updatedAt: requireTimestamp(run.updated_at, `workflow runs page ${page}[${index}].updated_at`),
             url: requireString(run.html_url, `workflow runs page ${page}[${index}].html_url`),
-            pullRequests: [{ number: targetRelation.number }],
+            pullRequests: targetRelation === null ? [] : [{ number: targetRelation.number }],
           });
         }
       }
@@ -460,7 +450,7 @@ export class AgentRepository {
     return targetRuns;
   }
 
-  /** @param {{number: number, createdAt: number, base: {ref: string}, head: {ref: string, sha: string}}} pullRequest @param {string} workflowName */
+  /** @param {{number: number, head: {ref: string, sha: string}}} pullRequest @param {string} workflowName */
   async getLatestCiRun(pullRequest, workflowName) {
     const headSha = requireString(pullRequest?.head?.sha, 'pull request.head.sha');
     const runs = await this.listCiRuns(pullRequest, workflowName);

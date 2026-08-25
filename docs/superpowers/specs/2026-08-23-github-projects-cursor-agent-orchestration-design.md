@@ -358,16 +358,17 @@ PR #217を人間がmergeした直後、外部Project/PAT/Cursorを一切有効�
 
 どちらのtriggerでも、fork PRはtest codeを実行せずskipする。same-repository PRだけを`actions/checkout@v7`で明示的なPR head SHAからcheckoutし、`persist-credentials: false`、`allow-unsafe-pr-checkout`なし、secret参照なし、setup-node cacheなしで既存quality / RLS / E2E / Orchestrator contract testsを実行する。placeholder値はsecretではない。
 
-`agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ default branch の Orchestrator を実行する。`pull_request_target` runのtop-level `head_branch` / `head_sha`はPR headではなくbase branch / SHAである。Environment/PATをmaterializeする前のjob guardで、event `pull_request_target`、path `.github/workflows/ci.yml`、same-repository run、conclusion `success|failure`に加え、`pull_requests` relationがexactly one、relation baseがsame-repository `main`かつtop-level base metadataと一致、relation headがsame-repository `cursor/*`であることを固定する。concurrencyは他の6入口と同じrepository-wide group、`queue: max`、`cancel-in-progress: false`を共有する。
+`agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ default branch の Orchestrator を実行する。ここでは`pull_request_target` workflow実行中の`GITHUB_SHA`（base branch commit）と、Actions REST / `workflow_run` eventのtop-level `head_branch` / `head_sha` / `head_repository`（PR head branch / 当該runのhistorical PR head SHA / head repository）を区別する。2026-08-25の実API再検証ではtarget run `32426759084`がtop-levelにhistorical PR headを持つ一方、relationはbase commitとcurrentへ更新済みのhead SHAを持ち、fork target run `32622953562`はbase repositoryと異なるtop-level head repositoryかつ空relationだった。Environment/PATをmaterializeする前のjob guardはevent `pull_request_target`、path `.github/workflows/ci.yml`、same-repository run/head repository、top-level `cursor/*` head branch、conclusion `success|failure`を固定し、dynamicなrelationを必須guardにしない。concurrencyは他の6入口と同じrepository-wide group、`queue: max`、`cancel-in-progress: false`を共有する。
 
-1. incoming `workflow_run` の name/path/event、repository/head repository、top-level base branch/SHAとexactly oneのrelationをruntime validationする。同名の別path、空・複数・malformed・cross-repository relation、top-level base不一致はmutationなしで拒否する。
-2. relationからPR番号・head ref・head SHAを取得し、trusted REST APIでそのPR番号を再取得する。same-repository、open、Agent-managed、base `main`、relationとcurrent head ref/SHAが一致する場合だけ続行する。
-3. fixed endpoint `/actions/workflows/ci.yml/runs` をevent `pull_request_target`とPRの`created_at`以後で絞る。branch filterは使わない。各runのtrusted repository/path/event/name、top-level base metadata、全relationのshapeとbase repositoryを検証し、target PRはnumber/base/head refとhead repository id/url/nameがexactなrelationだけに対応付ける。空relation、unrelated PR、fork relationは対象外とし、relation head SHAをPR head SHAとして使う。
-4. 同じcurrent head SHAの最新target runを`(updated_at, id)`で選ぶ。
-5. mutation直前にPR/head/Status/runを再取得し、同じrunがcurrent headの最新であることを再確認する。最新が queued / in_progress ならgateを閉じ、`completed + success` または `completed + failure` のときだけ処理する。
-6. `Cancelled` または `Done` なら何もしない。
+1. incoming `workflow_run` のname/path/event、repository/head repository、top-level PR head branch/SHAをruntime validationする。同名の別path、fork head、非`cursor/*` branchはEnvironment/PAT materialization前またはhandlerで拒否する。
+2. `pull_requests`はarrayとして検証し、空を公式shapeとして許容する。存在するrelationはnumber、same-repository base/head、base `main`、top-levelと同じhead ref/SHAの追加相関にだけ使い、複数・malformed・cross-repository・stale relationはmutationなしで拒否する。
+3. trusted REST APIの`state=open&head=owner:branch`でexactly oneのsame-repository PRを解決し、Agent-managed、base `main`、current head ref/SHAがincoming top-levelと一致する場合だけ続行する。
+4. fixed endpoint `/actions/workflows/ci.yml/runs` をmanaged PR head branchとevent `pull_request_target`で絞る。各same-repository runのrepository/path/event/name/head branch/statusを検証し、historical PR head SHAはdynamic relationではなくtop-level `head_sha`から対応付ける。空relationは対象branchのrunとして許容し、relationがある場合はnumber/repository/refを追加相関にする。同名branchのfork runはtop-level `head_repository` objectをshape検証後に対象外とし、削除済みfork等で同fieldがnon-objectのrunも対象外にする。どちらもtarget履歴全体を失敗させない。
+5. 同じcurrent head SHAの最新target runを`(updated_at, id)`で選ぶ。
+6. mutation直前にPR/head/Status/runを再取得し、同じrunがcurrent headの最新であることを再確認する。最新が queued / in_progress ならgateを閉じ、`completed + success` または `completed + failure` のときだけ処理する。
+7. `Cancelled` または `Done` なら何もしない。
 
-Actions run 一覧は固定workflow path、`pull_request_target` event、対象PRの作成日時以後に限定して取得する。GitHub の filtered search は最大 1,000 results のため、このcreated-windowで上限へ達した場合は不完全な履歴を使わず明示的に fail closed とする。object-envelope の全 page で `total_count`、重複 ID、page 数、enumと必須fieldを検証する。
+Actions run 一覧は固定workflow path、managed PR head branch、`pull_request_target` eventに限定して取得する。GitHub の filtered search は最大 1,000 results のため、このbranch searchで上限へ達した場合は不完全な履歴を使わず明示的に fail closed とする。object-envelope の全 pageで`total_count`、重複ID、page数、enumと必須fieldを検証する。fork runはpagination件数には含めるがtarget evidenceにはしない。
 
 失敗時は、直近の成功 run より後にある retry marker を数える。
 
@@ -573,7 +574,7 @@ Project ID や option ID を secret または source code に固定しないた�
 - Human Input、Blocked、Rework からの `@cursor` 復帰
 - PR branch、Draft、base、closing Issue の ACK 条件
 - stale head、古い workflow run、run redelivery の無視
-- `pull_request_target` CIのtop-level base metadata、exactly oneのincoming PR relation、PR番号のAPI再照合、created-window履歴とexact target relation、read-only/no-secret/no-cache境界
+- `pull_request_target` CIのtop-level historical PR head、empty/dynamic relation、head branchのAPI再解決、branch履歴、same-branch fork除外、read-only/no-secret/no-cache境界
 - CI retry 1〜3 と 4 回目 Blocked、success 後 reset
 - marker と CI event の順序を問わない Human Review gate
 - manual workflow dispatchのoperator/positive PR inputと、authoritative latest changes requestedのmissing/tie/stale/race拒否
