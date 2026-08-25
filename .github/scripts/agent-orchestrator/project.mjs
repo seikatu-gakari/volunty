@@ -76,12 +76,12 @@ export class ProjectStore {
   }
 
   async #resolveProject() {
-    const project = requireObject(await this.client.read(this.#basePath()), 'project');
+    const project = requireObject(await this.client.projectRead(this.#basePath()), 'project');
     const projectId = requireId(project.id, 'project.id');
     if (requireId(project.number, 'project.number') !== this.config.projectNumber) {
       throw new Error('project.number must match config.projectNumber');
     }
-    const fields = requireArray(await this.client.read(`${this.#basePath()}/fields`, { paginate: true }), 'project fields');
+    const fields = requireArray(await this.client.projectRead(`${this.#basePath()}/fields`, { paginate: true }), 'project fields');
     const statusFields = fields.filter((field) => (
       field !== null && typeof field === 'object' && !Array.isArray(field)
       && /** @type {Record<string, unknown>} */ (field).name === 'Status'
@@ -158,7 +158,11 @@ export class ProjectStore {
   /** @param {number} issueId @returns {Promise<Record<string, unknown> | null>} */
   async #findIssueItem(issueId) {
     requireId(issueId, 'issueId');
-    const items = requireArray(await this.client.read(`${this.#basePath()}/items`, { paginate: true }), 'project items');
+    const { statusFieldId } = await this.resolveProject();
+    const items = requireArray(await this.client.projectRead(
+      `${this.#basePath()}/items?fields=${encodeURIComponent(String(statusFieldId))}`,
+      { paginate: true },
+    ), 'project items');
     const matches = items.filter((item) => isIssueItemFor(item, issueId));
     if (matches.length > 1) throw new Error(`Project contains duplicate items for REST Issue id ${issueId}`);
     return matches.length === 0 ? null : requireProjectItem(matches[0], issueId);

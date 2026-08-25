@@ -46,6 +46,8 @@ Cursor Cloud Agent は、承認済み Issue を `agent-ready` から同じ `curs
 | Agent Orchestrator - Merge Convergence | `.github/workflows/agent-merge.yml` | main mergeとlinked Issue closeを収束し`Done`へ遷移 |
 | Agent Orchestrator - Cancel | `.github/workflows/agent-cancel.yml` | `agent-cancel`付与を確認して`Cancelled`へ遷移 |
 
+7本はすべて同一のrepository-wide concurrency group `agent-orchestrator-${{ github.repository }}`と`cancel-in-progress: false`を使い、異なるevent入口から同じProject itemを同時にmutationしません。これは永続event queueやpending runの保持・順序を独自に保証するものではなく、各handlerは引き続きGitHub上の正本をmutation直前に再取得し、redeliveryに冪等に収束します。dependencyの再評価も従来どおりevent-drivenで、pollingは追加しません。
+
 fixed markerは自然言語で代用しません。動的なIssue番号、run ID、SHAは実際の値に置き換え、次の形式以外を信頼しません。
 
 ```html
@@ -143,7 +145,7 @@ Cursor Cloudは次の7 skillを使います。skillの名前・契約を変更�
 | 保存先 | GitHub Environment `agent-orchestrator` のsecret `CURSOR_AGENT_ORCHESTRATOR_PAT`のみ |
 | Deployment branch policy | selected branch `main` only。保存前と保存後に`main`一件だけであることを再読 |
 
-PATはOrchestratorのIssue comment、label、Project Status mutationだけに渡します。PR/APIのreadはworkflowのscoped `GITHUB_TOKEN`を使います。rotation時は新PATを作る前に対象・権限・有限期限・`yuto90`名義のmutation影響を明示承認し、Environmentの名前・`main` only policy・secret名を再読してから旧PATをrevokeします。token文字列を表示・貼付・検証ログに出しません。
+PATはOrganization ProjectのGET、Issue comment・labelのmutation、Project item/Statusのmutationにだけ渡します。RepositoryのIssue/PR/Actionsのreadはworkflowのscoped `GITHUB_TOKEN`を使います。rotation時は新PATを作る前に対象・権限・有限期限・`yuto90`名義のmutation影響を明示承認し、Environmentの名前・`main` only policy・secret名を再読してから旧PATをrevokeします。token文字列を表示・貼付・検証ログに出しません。
 
 ## 導入preflight
 
@@ -154,7 +156,7 @@ PATはOrchestratorのIssue comment、label、Project Status mutationだけに渡
 3. GitHub Environment `agent-orchestrator`を作成または再確認し、selected branch `main` onlyを保存して再読する。
 4. 明示承認後、最小権限・有限期限のPATを作り、Environment secret `CURSOR_AGENT_ORCHESTRATOR_PAT`としてのみ保存する。Environment名、policy、secret名を再読する。
 5. 上記2 labelを作成し、Project optionとitem countを再読して8 Statusへmigrateする。
-6. `Agent Orchestrator - Start`を`main` refからmanual実行し、read-only preflightのsummaryでrepository、Project、Statusの一意性を確認する。preflightにPAT値を入力しない。
+6. `Agent Orchestrator - Start`を`main` refからmanual実行し、read-only preflightのsummaryでrepository、Project、Statusの一意性を確認する。このpreflightはmutationしないが、Organization Project GETのためにEnvironment secretのPAT認証を使う。workflow inputやログにPAT値を入力・表示しない。
 7. preflight成功後にだけ、Statusを変える5本のbuilt-in Project workflowを無効化する。
 8. Cursor UIでrepository、Node 22、install command、`cursor/` prefix、GitHub integration、PR creation、production secret不在、Cursor Appの実権限を再読する。`workflows: write`が残ることを前提に、選んだA/B/Cの安全境界が有効であることを確認する。
 

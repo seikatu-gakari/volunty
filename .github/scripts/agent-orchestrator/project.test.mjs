@@ -76,7 +76,7 @@ test('resolveProjectはRESTの動的IDとStatus option raw名を解決する', a
     'https://api.github.com/orgs/octo-org/projectsV2/2/fields',
   ]);
   assert.equal(fake.calls[0].method, 'GET');
-  assert.equal(fake.calls[0].headers.get('authorization'), 'Bearer read-token');
+  assert.ok(fake.calls.every((call) => call.headers.get('authorization') === 'Bearer write-token'));
 });
 
 test('resolveProjectは不足または重複したStatus optionをfail closedする', async () => {
@@ -119,7 +119,39 @@ test('ensureIssueItemは既存REST Issue idをPOSTせず返す', async () => {
   assert.deepEqual(await store.ensureIssueItem(10), existing);
   assert.equal(fake.calls.length, 3);
   assert.equal(fake.calls.at(-1).method, 'GET');
-  assert.match(fake.calls.at(-1).url, /\/items$/);
+  assert.equal(fake.calls.at(-1).url, 'https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3');
+});
+
+test('items GETはStatus field IDを全ページに指定してStatusを解決する', async () => {
+  const calls = [];
+  const fetchImpl = async (input, init = {}) => {
+    const url = String(input);
+    calls.push({ url, headers: new Headers(init.headers), method: init.method ?? 'GET' });
+    if (url === 'https://api.github.com/orgs/octo-org/projectsV2/2') return jsonResponse(project());
+    if (url === 'https://api.github.com/orgs/octo-org/projectsV2/2/fields') return jsonResponse(fields());
+    if (url === 'https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3') {
+      return jsonResponse([item(9, 'Backlog')], {
+        headers: { link: '<https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3&page=2>; rel="next"' },
+      });
+    }
+    if (url === 'https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3&page=2') {
+      return jsonResponse([item(10, 'Human Review')]);
+    }
+    if (url === 'https://api.github.com/orgs/octo-org/projectsV2/2/items') {
+      // GitHub APIの既定値ではStatusは投影されない。
+      return jsonResponse([item(10, null)]);
+    }
+    throw new Error(`unexpected request: ${url}`);
+  };
+  const client = new GitHubClient({ readToken: 'read-token', writeToken: 'write-token', fetchImpl });
+  const store = new ProjectStore({ client, config });
+
+  assert.equal(await store.getIssueStatus(10), 'Human Review');
+  assert.deepEqual(calls.slice(2).map((call) => call.url), [
+    'https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3',
+    'https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3&page=2',
+  ]);
+  assert.ok(calls.every((call) => call.headers.get('authorization') === 'Bearer write-token'));
 });
 
 test('ensureIssueItemは422の後に再読込して実在項目だけを成功扱いにする', async () => {
@@ -137,6 +169,7 @@ test('ensureIssueItemは422の後に再読込して実在項目だけを成功�
   assert.equal(fake.calls[3].headers.get('content-type'), 'application/json');
   assert.equal(fake.calls[3].body, '{"type":"Issue","id":10}');
   assert.equal(fake.calls[4].method, 'GET');
+  assert.equal(fake.calls[4].url, 'https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3');
 });
 
 test('ensureIssueItemは403と409を成功扱いにしない', async () => {
@@ -177,6 +210,7 @@ test('transitionIssueはmutation直前にstatusを再読込してPATCHする', a
   assert.equal(await store.transitionIssue(10, 'In Progress', ['Backlog']), 'changed');
   assert.equal(fake.calls.length, 5);
   assert.equal(fake.calls[3].method, 'GET');
+  assert.equal(fake.calls[3].url, 'https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3');
   assert.equal(fake.calls[4].url, 'https://api.github.com/orgs/octo-org/projectsV2/2/items/110');
   assert.equal(fake.calls[4].method, 'PATCH');
   assert.equal(fake.calls[4].headers.get('authorization'), 'Bearer write-token');
@@ -200,7 +234,7 @@ test('transitionIssueはunset Statusをnull sourceからBacklogへ遷移し、�
   assert.equal(fake.calls[3].headers.get('content-type'), 'application/json');
   assert.equal(fake.calls[3].body, '{"type":"Issue","id":10}');
   assert.equal(fake.calls[4].method, 'GET');
-  assert.equal(fake.calls[4].url, 'https://api.github.com/orgs/octo-org/projectsV2/2/items');
+  assert.equal(fake.calls[4].url, 'https://api.github.com/orgs/octo-org/projectsV2/2/items?fields=3');
   assert.equal(fake.calls[5].url, 'https://api.github.com/orgs/octo-org/projectsV2/2/items/210');
   assert.equal(fake.calls[5].method, 'PATCH');
   assert.equal(fake.calls[5].headers.get('authorization'), 'Bearer write-token');

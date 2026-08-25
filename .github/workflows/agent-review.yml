@@ -15,7 +15,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: agent-orchestrator-${{ github.repository }}-pull-request-${{ inputs.pull_request_number }}
+  group: agent-orchestrator-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:

@@ -76,6 +76,7 @@ const expectedPermissions = {
   issues: 'read',
   'pull-requests': 'read',
 };
+const expectedConcurrencyGroup = 'agent-orchestrator-${{ github.repository }}';
 
 function parseWorkflow(name) {
   const source = readFileSync(join(workflowsDirectory, name), 'utf8');
@@ -187,7 +188,7 @@ test('review CLI はGITHUB_EVENT_PATHだけを読みworkflow_dispatchを処理�
   }
 });
 
-test('main CLI は一時 event/config と read-only transport で preflight を実行する', async () => {
+test('main CLI は一時 event/config とPATのread-only Project transportで preflight を実行する', async () => {
   const { runMain } = await import('./main.mjs');
   const directory = mkdtempSync(join(tmpdir(), 'agent-orchestrator-cli-'));
   try {
@@ -214,6 +215,7 @@ test('main CLI は一時 event/config と read-only transport で preflight を�
         GITHUB_EVENT_NAME: 'workflow_dispatch',
         GITHUB_STEP_SUMMARY: summaryPath,
         GITHUB_TOKEN: 'read-token-value',
+        CURSOR_AGENT_ORCHESTRATOR_PAT: 'project-token-value',
       },
       configPath,
       fetchImpl,
@@ -222,13 +224,41 @@ test('main CLI は一時 event/config と read-only transport で preflight を�
     assert.deepEqual(result, { kind: 'preflight' });
     assert.equal(responses.length, 0);
     assert.equal(requests.length, 2);
-    assert.ok(requests.every(({ init }) => new Headers(init.headers).get('authorization') === 'Bearer read-token-value'));
+    assert.ok(requests.every(({ init }) => new Headers(init.headers).get('authorization') === 'Bearer project-token-value'));
     assert.ok(requests.every(({ init }) => init.method === 'GET'));
     const summary = readFileSync(summaryPath, 'utf8');
     assert.match(summary, /Agent Orchestrator/u);
     assert.match(summary, /事前確認/u);
     assert.match(summary, /結果/u);
-    assert.doesNotMatch(summary, /read-token-value/u);
+    assert.doesNotMatch(summary, /read-token-value|project-token-value/u);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('manual preflightはProject読み取り用PATがなければAPI呼び出し前に失敗する', async () => {
+  const { runMain } = await import('./main.mjs');
+  const directory = mkdtempSync(join(tmpdir(), 'agent-orchestrator-preflight-token-'));
+  try {
+    const eventPath = join(directory, 'event.json');
+    const configPath = join(directory, 'config.json');
+    const summaryPath = join(directory, 'summary.md');
+    writeFileSync(eventPath, JSON.stringify({ repository: { full_name: 'seikatu-gakari/volunty' } }));
+    writeFileSync(configPath, JSON.stringify(validConfig()));
+    let called = false;
+
+    await assert.rejects(() => runMain({
+      args: ['start'],
+      env: {
+        GITHUB_EVENT_PATH: eventPath,
+        GITHUB_EVENT_NAME: 'workflow_dispatch',
+        GITHUB_STEP_SUMMARY: summaryPath,
+        GITHUB_TOKEN: 'read-token-value',
+      },
+      configPath,
+      fetchImpl: async () => { called = true; throw new Error('must not fetch'); },
+    }), /CURSOR_AGENT_ORCHESTRATOR_PAT/u);
+    assert.equal(called, false);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -265,7 +295,7 @@ test('main CLI は unknown command、余分な引数、malformed payload を非�
   }
 });
 
-test('main CLI は mutation だけに PAT を使い partial API failure を失敗として返す', async () => {
+test('main CLI はRepository GETとProject GET/mutationのtokenを分離し partial API failureを失敗として返す', async () => {
   const { runMain } = await import('./main.mjs');
   const directory = mkdtempSync(join(tmpdir(), 'agent-orchestrator-partial-'));
   try {
@@ -324,9 +354,11 @@ test('main CLI は mutation だけに PAT を使い partial API failure を失�
 
     assert.equal(responses.length, 0);
     const mutations = requests.filter(({ init }) => init.method !== 'GET');
+    const repositoryReads = requests.filter(({ url, init }) => init.method === 'GET' && String(url).includes('/repos/'));
+    const projectReads = requests.filter(({ url, init }) => init.method === 'GET' && String(url).includes('/projectsV2/'));
     assert.deepEqual(mutations.map(({ init }) => init.method), ['POST', 'PATCH']);
-    assert.ok(requests.filter(({ init }) => init.method === 'GET')
-      .every(({ init }) => new Headers(init.headers).get('authorization') === 'Bearer read-token-value'));
+    assert.ok(repositoryReads.every(({ init }) => new Headers(init.headers).get('authorization') === 'Bearer read-token-value'));
+    assert.ok(projectReads.every(({ init }) => new Headers(init.headers).get('authorization') === 'Bearer write-token-value'));
     assert.ok(mutations.every(({ init }) => new Headers(init.headers).get('authorization') === 'Bearer write-token-value'));
 
     writeFileSync(configPath, '{ malformed config');
@@ -365,13 +397,14 @@ test('Agent workflow は exactly seven で trigger と静的 command が一致�
   }
 });
 
-test('Agent workflow は最小権限、trusted checkout、Node 22、secret mapping、session concurrency を固定する', () => {
+test('Agent workflow は最小権限、trusted checkout、Node 22、secret mapping、repository concurrency を固定する', () => {
+  const concurrencyGroups = new Set();
   for (const name of Object.keys(workflowContracts)) {
     const { parsed } = parseWorkflow(name);
     assert.deepEqual(parsed.permissions, expectedPermissions, `${name}: permissions`);
     assert.equal(parsed.concurrency?.['cancel-in-progress'], false, `${name}: cancel-in-progress`);
-    assert.match(parsed.concurrency?.group ?? '', /^agent-orchestrator-\$\{\{ github\.repository \}\}-/u, `${name}: concurrency group`);
-    assert.match(parsed.concurrency?.group ?? '', /github\.event\.(?:issue|pull_request|workflow_run)|inputs\.pull_request_number/u, `${name}: session key`);
+    assert.equal(parsed.concurrency?.group, expectedConcurrencyGroup, `${name}: repository-wide concurrency group`);
+    concurrencyGroups.add(parsed.concurrency?.group);
 
     for (const job of Object.values(parsed.jobs)) {
       assert.equal(job.environment, 'agent-orchestrator', `${name}: protected Environment`);
@@ -386,6 +419,7 @@ test('Agent workflow は最小権限、trusted checkout、Node 22、secret mappi
       assert.equal(Object.hasOwn(run?.env ?? {}, 'AGENT_REVIEW_EVENT_PATH'), false);
     }
   }
+  assert.deepEqual([...concurrencyGroups], [expectedConcurrencyGroup], '異なるevent入口が同じlockへ収束する');
 });
 
 test('manual review reconciliationはoperatorだけがtrusted default-branch codeで実行できる', () => {
@@ -399,11 +433,11 @@ test('manual review reconciliationはoperatorだけがtrusted default-branch cod
   assert.doesNotMatch(source, /pull_request_review|upload-artifact|download-artifact|AGENT_REVIEW_EVENT_PATH/u);
 });
 
-test('CI consumerはofficial path/event/same-repository headをsecret materialization前にguardしbranch単位で直列化する', () => {
+test('CI consumerはofficial path/event/same-repository headをsecret materialization前にguardしrepository lockを共有する', () => {
   const { parsed } = parseWorkflow('agent-ci.yml');
   const job = parsed.jobs.orchestrate;
   assert.equal(job.if, "github.event.workflow_run.event == 'pull_request_target' && github.event.workflow_run.path == '.github/workflows/ci.yml' && github.event.workflow_run.head_repository.full_name == github.repository && startsWith(github.event.workflow_run.head_branch, 'cursor/') && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')");
-  assert.equal(parsed.concurrency.group, 'agent-orchestrator-${{ github.repository }}-ci-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_branch || github.event.workflow_run.id }}');
+  assert.equal(parsed.concurrency.group, expectedConcurrencyGroup);
 });
 
 test('PAT job はtrusted triggerとmain-only Environment契約を持ち、review webhookは存在しない', () => {

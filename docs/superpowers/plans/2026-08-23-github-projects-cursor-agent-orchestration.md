@@ -156,7 +156,7 @@ git commit -m "feat: Agent Orchestratorの状態モデルを追加"
 **Interfaces:**
 - Consumes: `AgentConfig` from `config.mjs`
 - Produces: `GitHubClient({readToken, writeToken, fetchImpl, apiVersion})`
-- Produces: `client.read(path, options)`, `client.write(path, options)`, `client.graphql(query, variables)`
+- Produces: `client.read(path, options)`, `client.projectRead(path, options)`, `client.write(path, options)`, `client.graphql(query, variables)`
 - Produces: `ProjectStore({client, config})`
 - Produces: `resolveProject(): {projectId, statusFieldId, optionIdsByName}`
 - Produces: `ensureIssueItem(issueId): ProjectItem`
@@ -165,7 +165,7 @@ git commit -m "feat: Agent Orchestratorの状態モデルを追加"
 
 - [ ] **Step 1: Write failing HTTP boundary tests**
 
-Use a queue-backed real `fetchImpl` fake that records method, URL, headers, body and returns complete `Response` objects. Assert that read calls use `GITHUB_TOKEN`, mutation calls use the PAT, `X-GitHub-Api-Version: 2026-03-10` is present, and non-2xx errors include status/request ID without response secrets.
+Use a queue-backed real `fetchImpl` fake that records method, URL, headers, body and returns complete `Response` objects. Assert that Repository read calls use `GITHUB_TOKEN`, Organization Project GET and mutations use the PAT, both read transports are GET-only and paginate `Link` headers, `X-GitHub-Api-Version: 2026-03-10` is present, and non-2xx errors include status/request ID without response secrets.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -188,6 +188,10 @@ export class GitHubClient {
     return this.request(path, { ...options, token: this.readToken });
   }
 
+  projectRead(path, options = {}) {
+    return this.request(path, { ...options, method: 'GET', token: requireToken(this.writeToken, 'CURSOR_AGENT_ORCHESTRATOR_PAT') });
+  }
+
   write(path, options = {}) {
     return this.request(path, { ...options, token: requireToken(this.writeToken, 'CURSOR_AGENT_ORCHESTRATOR_PAT') });
   }
@@ -198,7 +202,7 @@ Add pagination using `Link` headers, GraphQL error validation, JSON/non-JSON err
 
 - [ ] **Step 4: Implement ProjectStore with dynamic IDs**
 
-Resolve organization Project `#2`, list fields, require exactly one `Status` field and all eight option names, list/filter item by the REST Issue integer `id`, add item idempotently, and PATCH the Status field only after re-reading the current item ID and status together. Treat `Done`/`Cancelled` as terminal, make same-target redelivery unchanged, and reject a transition not included in `allowedFrom`; use explicit `null` only for the unset-to-`Backlog` transition.
+Resolve organization Project `#2`, list fields, require exactly one `Status` field and all eight option names, then list every item page with `?fields=<statusFieldId>` and filter by the REST Issue integer `id`. Add an item idempotently, and PATCH the Status field only after re-reading the current item ID and projected status together. Treat `Done`/`Cancelled` as terminal, make same-target redelivery unchanged, and reject a transition not included in `allowedFrom`; use explicit `null` only for the unset-to-`Backlog` transition.
 
 - [ ] **Step 5: Verify error and idempotency cases**
 
@@ -393,7 +397,7 @@ git commit -m "feat: Reviewと完了状態の遷移を追加"
 
 - [ ] **Step 1: Write failing CLI and workflow contract tests**
 
-Execute `main.mjs` with a temporary event/config and injected fake transport module. Load the existing `app/node_modules/js-yaml` through `createRequire()` and assert exact trigger, static CLI command, `permissions`, trusted checkout ref, `persist-credentials:false`, Node 22, Environment secret mapping, and no `${{ github.event.*body* }}` interpolation in shell. Assert exactly seven `agent-*.yml`, no `pull_request_review`/review artifact path, operator-only manual review dispatch, and no PAT job without Environment `agent-orchestrator`.
+Execute `main.mjs` with a temporary event/config and injected fake transport module. Load the existing `app/node_modules/js-yaml` through `createRequire()` and assert exact trigger, static CLI command, `permissions`, trusted checkout ref, `persist-credentials:false`, Node 22, Environment secret mapping, exact repository-wide concurrency group, and no `${{ github.event.*body* }}` interpolation in shell. Assert exactly seven `agent-*.yml`, no `pull_request_review`/review artifact path, operator-only manual review dispatch, PAT-authenticated read-only Project preflight, and no PAT job without Environment `agent-orchestrator`.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -430,9 +434,9 @@ steps:
       CURSOR_AGENT_ORCHESTRATOR_PAT: ${{ secrets.CURSOR_AGENT_ORCHESTRATOR_PAT }}
 ```
 
-Each workflow uses its static command and session-scoped concurrency with `cancel-in-progress:false`. `agent-pr-created`/PR side of merge use `pull_request_target`; CI uses `workflow_run` without PR checkout.
+Each workflow uses its static command and the exact repository-wide concurrency group `agent-orchestrator-${{ github.repository }}` with `cancel-in-progress:false`. This prevents simultaneous Orchestrator mutations across event types but does not add a durable queue or change the event-driven contract. `agent-pr-created`/PR side of merge use `pull_request_target`; CI uses `workflow_run` without PR checkout.
 
-`agent-review.yml` uses only `workflow_dispatch` with a positive integer PR input, operator-only `github.actor`/`github.triggering_actor` guards, Environment `agent-orchestrator`, and trusted default-branch checkout. `agent-ci.yml` consumes only `Pull Request CI`; before Environment/PAT materialization its job guard fixes event `pull_request_target`, path `.github/workflows/ci.yml`, same-repository `cursor/` head and success/failure conclusion. It serializes the same head branch and never consumes artifacts.
+`agent-review.yml` uses only `workflow_dispatch` with a positive integer PR input, operator-only `github.actor`/`github.triggering_actor` guards, Environment `agent-orchestrator`, and trusted default-branch checkout. `agent-ci.yml` consumes only `Pull Request CI`; before Environment/PAT materialization its job guard fixes event `pull_request_target`, path `.github/workflows/ci.yml`, same-repository `cursor/` head and success/failure conclusion. It shares the repository-wide lock and never consumes artifacts.
 
 - [ ] **Step 5: Secure existing CI and add Orchestrator contract job**
 
@@ -524,7 +528,7 @@ State that `agent-ready` uses `cursor/*`, same PR session, fixed markers, Projec
 
 - [ ] **Step 2: Write `docs/cursor-cloud.md`**
 
-Include current Cursor Environment install command, Node 22, branch prefix, no local MCP dependency, seven workflows, Status transition table, two label descriptions/colors, PAT exact minimum permissions/finite expiry, GitHub Environment `agent-orchestrator` secret name and selected branch `main` only policy, Project option migration, built-in workflows to disable, manual preflight, manual review reconciliation / `yuto90 @cursor`, normal/Human Input/Blocked/Rework/Cancel operations, incident rollback and token revocation. Explicitly prohibit a repository Actions secret and `pull_request_review` workflow.
+Include current Cursor Environment install command, Node 22, branch prefix, no local MCP dependency, seven workflows, their common repository-wide concurrency group, Status transition table, two label descriptions/colors, PAT exact minimum permissions/finite expiry, PAT-authenticated read-only Project preflight, GitHub Environment `agent-orchestrator` secret name and selected branch `main` only policy, Project option migration, built-in workflows to disable, manual review reconciliation / `yuto90 @cursor`, normal/Human Input/Blocked/Rework/Cancel operations, incident rollback and token revocation. Explicitly prohibit a repository Actions secret and `pull_request_review` workflow.
 
 - [ ] **Step 3: Update branch and Codex coexistence docs**
 
@@ -596,7 +600,7 @@ Before Chrome mutation, present resource owner `seikatu-gakari`, repository `vol
 
 - [ ] **Step 3: Configure GitHub through Chrome**
 
-Create or inspect GitHub Environment `agent-orchestrator`; before secret storage save deployment branches as selected branch `main` only and re-read it. Store `CURSOR_AGENT_ORCHESTRATOR_PAT` only as that Environment secret, never as repository Actions secret, then re-read Environment name/policy/secret name. Create labels `agent-ready` (`0E8A16`) and `agent-cancel` (`B60205`), migrate Status options to exact eight values, run manual preflight, then disable the five conflicting built-in Project workflows. Re-read counts/options immediately before mutation and stop on drift.
+Create or inspect GitHub Environment `agent-orchestrator`; before secret storage save deployment branches as selected branch `main` only and re-read it. Store `CURSOR_AGENT_ORCHESTRATOR_PAT` only as that Environment secret, never as repository Actions secret, then re-read Environment name/policy/secret name. Create labels `agent-ready` (`0E8A16`) and `agent-cancel` (`B60205`), migrate Status options to exact eight values, run the non-mutating manual preflight with the Environment PAT for Organization Project GET, then disable the five conflicting built-in Project workflows. Re-read counts/options immediately before mutation and stop on drift.
 
 - [ ] **Step 4: Verify Cursor Cloud through Chrome**
 

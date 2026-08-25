@@ -60,6 +60,35 @@ test('readはGET以外のmethodまたはbodyをfetch前に拒否する', async (
   assert.equal(fake.calls[0].method, 'GET');
 });
 
+test('projectReadはPATだけでProject GETのLink paginationを読む', async () => {
+  const fake = queueFetch([
+    jsonResponse([{ id: 1 }], { headers: { link: '<https://api.github.com/orgs/octo-org/projectsV2/2/items?page=2>; rel="next"' } }),
+    jsonResponse([{ id: 2 }]),
+  ]);
+  const client = new GitHubClient({ readToken: 'read-token', writeToken: 'project-token', fetchImpl: fake.fetch });
+
+  const result = await client.projectRead('/orgs/octo-org/projectsV2/2/items', { paginate: true });
+
+  assert.deepEqual(result, [{ id: 1 }, { id: 2 }]);
+  assert.deepEqual(fake.calls.map((call) => call.url), [
+    'https://api.github.com/orgs/octo-org/projectsV2/2/items',
+    'https://api.github.com/orgs/octo-org/projectsV2/2/items?page=2',
+  ]);
+  assert.ok(fake.calls.every((call) => call.method === 'GET'));
+  assert.ok(fake.calls.every((call) => call.headers.get('authorization') === 'Bearer project-token'));
+});
+
+test('projectReadはPATの欠落とGET以外の入力をfetch前に拒否する', async () => {
+  const fake = queueFetch([]);
+  const withoutPat = new GitHubClient({ readToken: 'read-token', fetchImpl: fake.fetch });
+  const client = new GitHubClient({ readToken: 'read-token', writeToken: 'project-token', fetchImpl: fake.fetch });
+
+  await assert.rejects(() => withoutPat.projectRead('/orgs/octo-org/projectsV2/2'), /CURSOR_AGENT_ORCHESTRATOR_PAT/u);
+  await assert.rejects(() => client.projectRead('/orgs/octo-org/projectsV2/2', { method: 'POST' }), /GET-only/u);
+  await assert.rejects(() => client.projectRead('/orgs/octo-org/projectsV2/2', { body: {} }), /GET-only/u);
+  assert.equal(fake.calls.length, 0);
+});
+
 test('writeはPATでJSON mutationを送る', async () => {
   const fake = queueFetch([jsonResponse({ ok: true }, { status: 201 })]);
   const client = new GitHubClient({ readToken: 'read-token', writeToken: 'write-token', fetchImpl: fake.fetch });

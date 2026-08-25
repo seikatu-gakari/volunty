@@ -93,6 +93,23 @@ export class GitHubClient {
   }
 
   /**
+   * Organization Projectの参照だけをProjects権限付きPATで実行します。
+   * @param {string} path
+   * @param {{method?: string, headers?: HeadersInit, body?: unknown, signal?: AbortSignal, paginate?: boolean}} [options]
+   * @returns {Promise<unknown>}
+   */
+  async projectRead(path, options = {}) {
+    if ((options.method !== undefined && options.method.toUpperCase() !== 'GET') || options.body !== undefined) {
+      throw new Error('GitHub Project read is GET-only');
+    }
+    return this.#request(path, {
+      ...options,
+      method: 'GET',
+      token: requireToken(this.writeToken, 'CURSOR_AGENT_ORCHESTRATOR_PAT'),
+    });
+  }
+
+  /**
    * @param {string} path
    * @param {{method?: string, headers?: HeadersInit, body?: unknown, signal?: AbortSignal}} [options]
    * @returns {Promise<unknown>}

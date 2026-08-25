@@ -168,8 +168,8 @@ export async function runMain({
   const eventPath = requireEnvironmentValue(env.GITHUB_EVENT_PATH, 'GITHUB_EVENT_PATH');
   const summaryPath = requireEnvironmentValue(env.GITHUB_STEP_SUMMARY, 'GITHUB_STEP_SUMMARY');
   const readToken = requireEnvironmentValue(env.GITHUB_TOKEN, 'GITHUB_TOKEN');
-  // PAT は mutation が必要になった時点で GitHubClient が検証する。これにより
-  // read-only preflight と non-managed event は秘密値なしでも安全に no-op できる。
+  // PAT はOrganization Projectの参照またはmutationが必要になった時点で検証する。
+  // Repositoryだけを読むnon-managed eventは、PATなしでも安全にno-opできる。
   const writeToken = env.CURSOR_AGENT_ORCHESTRATOR_PAT;
   const eventName = requireEnvironmentValue(env.GITHUB_EVENT_NAME, 'GITHUB_EVENT_NAME');
   const event = readEvent(eventPath);

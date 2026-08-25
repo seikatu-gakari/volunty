@@ -206,7 +206,7 @@ Workflow ごとに GitHub API 処理を複製しない。package 追加を必要
 }
 ```
 
-Project、Status field、option、item の ID は環境固有値なので hard-code しない。実行時に Project API から解決し、Status 名が不足・重複していれば mutation せず失敗させる。
+Project、Status field、option、item の ID は環境固有値なので hard-code しない。実行時にProjects権限付きPATで Project API から解決し、Status 名が不足・重複していれば mutation せず失敗させる。item一覧は解決したStatus field IDを`fields` queryで全ページに投影し、API既定のTitle fieldだけでStatusを判定しない。
 
 ## 状態モデル
 
@@ -274,7 +274,7 @@ Project history、label history、review、Actions run、commit は GitHub が�
 - `issues.opened`: Project item を確保し、Status が未設定なら `Backlog` にする。
 - `issues.labeled`: `agent-ready` の開始処理を行う。
 - `issues.closed`: その Issue に依存する Issue を event-driven で再評価する。
-- `workflow_dispatch`: 外部設定導入時の read-only preflight を行う。
+- `workflow_dispatch`: Environment secretのPATでOrganization ProjectをGETし、mutationを行わないread-only preflightを実行する。
 
 開始 guard は次の順で判定する。
 
@@ -354,7 +354,7 @@ GitHub Actions は comment を Cursor へ転送・複製せず、Status を `In 
 
 `.github/workflows/ci.yml` は PR branch 版 YAML を実行しないよう、base branch 版が選ばれる `pull_request_target` の `opened`、`synchronize`、`reopened`、`ready_for_review`（base `main`）で起動する。top-level `permissions` は `contents: read` だけ、全 job は `github.event.pull_request.head.repo.full_name == github.repository` を要求する。fork PR は test code を実行せず skip する。same-repository PR だけを `actions/checkout@v7` で明示的な PR head SHAから checkoutし、`persist-credentials: false`、`allow-unsafe-pr-checkout` なし、secret参照なし、setup-node cacheなしで既存 quality / RLS / E2E / Orchestrator contract testsを実行する。placeholder値はsecretではない。
 
-`agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ default branch の Orchestrator を実行する。Environment/PATをmaterializeする前のjob guardで、event `pull_request_target`、path `.github/workflows/ci.yml`、same-repository `head_repository`、`cursor/` head branch、conclusion `success|failure`を固定する。concurrencyはrepository IDとhead branchで同じPR sessionを直列化する。
+`agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ default branch の Orchestrator を実行する。Environment/PATをmaterializeする前のjob guardで、event `pull_request_target`、path `.github/workflows/ci.yml`、same-repository `head_repository`、`cursor/` head branch、conclusion `success|failure`を固定する。concurrencyは他の6入口と同じrepository-wide groupを共有する。
 
 1. `workflow_run` の name/path/event、repository/head repository、`cursor/` head branch、head SHAをruntime validationする。同名の別path workflowは拒否する。
 2. `workflow_run.pull_requests` は空を許容する。存在する場合はofficial relationを追加相関として検証し、重複・不一致・cross-repository relationをfail closedにする。
@@ -464,9 +464,9 @@ GitHub Environment `agent-orchestrator` の secret に保存する `yuto90` の 
 - Issues: read/write
 - Organization Projects: read/write
 
-PR comment は Issues comment API を使うため、初期版の Orchestrator に Contents write、Actions write、Administration、Secrets、Deployments、本番環境権限、Pull Requests write は与えない。PR と Actions の read は scoped `GITHUB_TOKEN` を利用する。
+PR comment は Issues comment API を使うため、初期版の Orchestrator に Contents write、Actions write、Administration、Secrets、Deployments、本番環境権限、Pull Requests write は与えない。RepositoryのIssue/PR/Actions read は scoped `GITHUB_TOKEN` を利用する。
 
-PAT は Orchestrator の API mutation にだけ渡し、Cursor Cloud Environment、PR branch、build、test、artifact、Vercel には渡さない。secret 値を log や workflow summary に出さない。
+PAT はOrganization Project GETとOrchestratorの API mutation にだけ渡し、Cursor Cloud Environment、PR branch、build、test、artifact、Vercel には渡さない。secret 値を log や workflow summary に出さない。
 
 PAT の作成と GitHub Environment secret 保存は、`yuto90` 名義でコメント・Project 更新を行える永続的な権限付与である。実行時に対象、権限、有効期限、`main` only policy、影響を提示し、明示確認を得てから Chrome で設定する。
 
@@ -474,6 +474,8 @@ PAT の作成と GitHub Environment secret 保存は、`yuto90` 名義でコメ�
 
 - GitHub Projects REST API の GA endpoint と API version `2026-03-10` を使用する。
 - organization、Project number、Status field、option 名から毎回 ID を解決する。
+- Project、field、itemのGETはProjects権限付きPATのGET-only transportに限定し、Repository用`GITHUB_TOKEN`と分離する。
+- item一覧GETはStatus field解決後に`?fields=<statusFieldId>`を指定し、Link paginationの後続ページでも同じ投影を保つ。
 - item がなければ一度だけ追加し、既に存在すれば同じ item を再利用する。
 - Status mutation 直前に current Status と terminal state を再取得する。複数 mutation の partial state は明示的に redelivery で収束させる。
 - Issue/PR closing reference の検証には GitHub GraphQL の正式 field を利用する。
@@ -493,9 +495,9 @@ Project ID や option ID を secret または source code に固定しないた�
 - event 対象が Agent-managed Issue/PR でなければ何もしない。
 - workflow rerun、GitHub の event redelivery、API retry を前提にする。GraphQL pagination は cursor の前進を検証し、同一 cursor の循環を fail closed にする。
 
-workflow concurrency は repository と Issue/PR number、またはAPI再解決前のCIではverified head repository/branchをkeyにし、`cancel-in-progress: false` とする。別 workflow 間の完全な lock には依存せず、mutation 直前の再取得を最終防衛線にする。
+7本のworkflow concurrencyはexact group `agent-orchestrator-${{ github.repository }}`と`cancel-in-progress: false`を共有し、異なるevent入口のOrchestrator mutationを同時実行しない。GitHub Actions標準のpending run処理を永続queue、全eventの保持、または厳密な順序保証とみなさず、mutation直前の正本再取得とhandlerの冪等性を最終防衛線にする。dependency再評価は引き続きevent-drivenであり、pollingを追加しない。
 
-repository 全体を対象とする global concurrency limit は設けない。複数 Issue の並列数は、人間が同時に付与する `agent-ready` の数で管理する。
+このrepository-wide groupが直列化するのは短時間のOrchestrator runだけであり、Cursor Agentの同時作業数は人間が付与する`agent-ready`の数で管理する。
 
 ## Actions のセキュリティ
 
@@ -621,7 +623,7 @@ Cursor 起動は利用量を消費し、Issue/PR/comment/Project を外部へ書
 3. Environment secret `CURSOR_AGENT_ORCHESTRATOR_PAT` を保存する。repository Actions secretには保存せず、保存後にEnvironment名、`main` only policy、secret名を再検証する。
 4. `agent-ready` と `agent-cancel` labels を作る。
 5. Project Status option を 8 種類へ migrate する。
-6. `agent-start.yml` の manual preflight で Project/config を read-only 検証する。PAT値はread-only preflightでは使用せず、Environment secret名とpolicyを設定画面で別途確認する。
+6. `agent-start.yml` の manual preflight で Project/config を read-only 検証する。mutationはしないがOrganization Project GETの認証にEnvironment secretのPATを使う。PAT値をworkflow inputやログに入力・表示せず、Environment secret名とpolicyを設定画面で別途確認する。
 7. Status を変更する built-in Project workflows を無効化する。
 8. Cursor Environment と GitHub integration の設定を再確認する。Cursor Appの`workflows: write`を含む実権限を再読し、review webhookを追加しない。
 
