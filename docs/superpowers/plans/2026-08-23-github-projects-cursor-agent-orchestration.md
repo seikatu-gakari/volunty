@@ -601,7 +601,7 @@ PR #217は`a130ce6e54d420234f36e2ed00c43b4bce9e42f9`、target-onlyのPR #218は`
 
 - [ ] **Step 3: Merge the temporary workflow-review risk acceptance**
 
-Repositoryのprivate/internal化とrulesetによるpath保護、sandbox/fork方式への再設計は行わず、workflow変更を人間が入念にレビューする暫定リスク受容をdefault branchへ人間mergeする。`.github/workflows/**`は軽微変更として扱わず、trigger、permissions、checkout対象、secret参照、外部Action、shell展開を行単位で確認する。本番secret影響は`yuto90`へエスカレーションし、`production-db-migrate.yml`の変更は別途明示承認を必須とする。Agentはmergeしない。このStepは技術的防止を意味せず、将来の`CODEOWNERS`とrequired code-owner reviewは未導入のまま残す。
+Repositoryのprivate/internal化とrulesetによるpath保護、sandbox/fork方式への再設計は行わず、workflow変更をAgentがcommit前、人間がmerge前に入念にレビューする暫定リスク受容をdefault branchへ人間mergeする。`.github/workflows/**`は軽微変更として扱わず、commit前の未commit差分をtrigger、permissions、checkout対象、secret参照、外部Action、shell展開で行単位に確認し、IssueまたはPRへ`pre-commit`、対象ファイル、判定、6項目の結果を記録する。本番secret影響は`yuto90`へエスカレーションしてcommit、push、Readyを止め、`production-db-migrate.yml`の変更はcommit前の別途明示承認を必須とする。Agentはmergeしない。このStepは技術的防止を意味せず、規則を逸脱した`workflows: write`のpushは人間レビュー前に実行され得る。将来の`CODEOWNERS`とrequired code-owner reviewもこのレビュー前実行を防がない。
 
 - [ ] **Step 4: Obtain scoped approval for PAT**
 

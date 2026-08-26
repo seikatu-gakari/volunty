@@ -1,33 +1,33 @@
 ---
 name: code-review
-description: Use when a Volunty agent reviews an Issue implementation or amended PR before declaring it Ready, especially for authorization, GitHub Actions workflow, production-secret, regression, or test-evidence risk.
+description: Use when a Volunty change involves authorization, GitHub Actions workflows, production secrets, regressions, runtime types, or test-evidence risk.
 ---
 
 # Code Review
 
 ## Review Contract
 
-Before Ready, read the Issue/AC and the full tracked and untracked diff. Do not trust the author summary or a green command alone.
+Before Ready, read the Issue/AC and full tracked/untracked diff. Author summaries or a green command alone are insufficient evidence.
 
 Review in this exact priority: correctness; security/authz/secret/permission; regressions/compatibility; types/runtime validation; change-matched test gaps; unrelated diff.
 
-Volunty authorization is the authoritative DB `m_user.role`; completion is the corresponding role profile row. Self-editable metadata is never authorization. Check that missing/invalid DB data fails closed and that suspension checks remain effective.
+Authorization is DB `m_user.role`; completion is its role profile row. Self-editable metadata is never authorization. Missing/invalid data must fail closed, including suspension.
 
-## GitHub Actions Workflow Review
+## Pre-Commit GitHub Actions Workflow Gate
 
-Any `.github/workflows/**` diff is high risk, never minor. Review every changed line and record: trigger; `permissions`; checkout target and untrusted code; secret reachability/logging; external Actions and refs; shell interpolation and untrusted contexts.
+Any `.github/workflows/**` diff is high risk. Before a local commit containing it, review the uncommitted workflow diff line by line; never defer to push/Ready. Record `pre-commit`, files, verdict, and six results: trigger; `permissions`; checkout/untrusted code; secret reachability/logging; external Actions/refs; shell interpolation/untrusted contexts.
 
-If production-secret reachability may change, use `human-escalation` to escalate to `yuto90` and stop Ready. `.github/workflows/production-db-migrate.yml` needs separate explicit approval recorded in the Issue or PR; without it, escalate and stop. Green CI, unchanged secret names, and claimed equivalence are not proof.
+If production-secret reachability may change, use `human-escalation` to escalate to `yuto90`; stop commit, push, and Ready. `.github/workflows/production-db-migrate.yml` needs separate explicit approval recorded in the Issue or PR before commit; without it, escalate and stop. Green CI, unchanged secret names, and claimed equivalence are not proof.
 
-Cursor, Codex, and Orchestrator never merge. This is temporary human-review risk acceptance, not technical prevention; a missed finding can affect production secrets. `CODEOWNERS` and required code-owner review are future enforcement, not a current control.
+After push, a human repeats review before merge; agents never merge. This gate controls compliant agents only: bypassed `workflows: write` can run a new `on: push` workflow before human review and reach repository secrets. `CODEOWNERS` and required code-owner review govern merge, not pre-review execution.
 
-Example: a “cleanup” changing `ci.yml` and `production-db-migrate.yml` stays out of Ready until all six checks, separate approval, and required `yuto90` escalation are recorded.
+Example: a “cleanup” changing `ci.yml` and `production-db-migrate.yml` stays uncommitted until the pre-commit record, separate approval, and required `yuto90` escalation are complete.
 
 ## Evidence-Backed Findings
 
-Report only evidence-backed findings, ordered by severity. Each finding gives a tight `file:line`, impact or exploit, evidence, and the smallest fix with its covering test. Do not report style nits unless they have impact.
+Report only impact-bearing findings, ordered by severity, with tight `file:line`, impact/exploit, evidence, smallest fix, and covering test.
 
-Critical or Important findings block Ready. On the same Agent session, branch, and PR, fix every evidence-backed finding; restore or add regression tests; use the `testing` skill and `volunty-test-completion-gate`; then re-review the amended diff. Do not suppress a test/change spec or expand unrelated scope. If the fix depends on product or authority ambiguity, use `human-escalation` and stop dependent work.
+Critical/Important findings block Ready. Fix them in the same session/branch/PR, restore tests, use `testing` and `volunty-test-completion-gate`, then re-review. Product/authority ambiguity requires `human-escalation` and stops dependent work.
 
 Preserve human merge authority. Do not change Projects or labels.
 
@@ -37,9 +37,9 @@ Preserve human merge authority. Do not change Projects or labels.
 | --- | --- |
 | Metadata used for role/completion | Trace DB role/profile checks and add a negative regression test |
 | Green after deleted negatives | Treat it as insufficient evidence; restore coverage |
-| Workflow changed | Record all six line-by-line checks |
-| Production migration workflow changed | Require separate approval or stop |
-| Production-secret impact possible | Escalate to `yuto90`; stop Ready |
+| Workflow changed | Before local commit, record the six checks and verdict |
+| Production migration workflow changed | Require recorded separate approval before commit |
+| Production-secret impact possible | Escalate to `yuto90`; stop commit, push, and Ready |
 | Important finding | Fix and re-review before Ready |
 | Scope/authority ambiguity | Escalate; stop dependent work |
 
@@ -47,9 +47,9 @@ Preserve human merge authority. Do not change Projects or labels.
 
 - Accepting `as` casts as runtime validation.
 - Treating mutable user metadata as authorization.
-- Missing removed suspension or negative tests because lint/build pass.
+- Missing removed negative tests because lint/build pass.
 - Calling a workflow diff minor because CI is green.
+- Creating a local workflow commit first because it has not been pushed.
 - Skipping checkout, external Actions, or shell expansion.
 - Allowing unapproved production migration or missing `yuto90` escalation.
-- Leaving unrelated documentation or terminology edits in the PR.
 - Declaring Ready before the corrected diff and covering tests are reviewed.

@@ -95,11 +95,11 @@ E2EはGitHub Actions上の一時Supabaseを使う。E2E用のservice role keyは
 
 ### GitHub Actions workflow変更の暫定レビュー
 
-`.github/workflows/**`を含むPRは軽微変更ではなく、高リスクな変更として扱う。Codexは変更行ごとにtrigger、`permissions`、checkout対象、secret参照、外部Action、shell展開を確認し、確認結果をPRへ残す。本番secretへの影響が疑われる場合は`yuto90`へエスカレーションしてReady化を止める。
+`.github/workflows/**`の変更を含むcommitは軽微変更ではなく、高リスクとして扱う。Codexはそのcommitを作る前に、未commitのworkflow差分を変更行ごとにtrigger、`permissions`、checkout対象、secret参照、外部Action、shell展開で確認する。IssueまたはPRへ`pre-commit`、対象ファイル、判定、6項目の結果を記録するまで、ローカルcommitもpushもしない。commit後やpush/Ready前への先送りは禁止する。
 
-`.github/workflows/production-db-migrate.yml`の変更は、IssueまたはPRに記録された別途の明示承認がなければ進めない。CI成功、secret名不変、等価な整理という説明は承認や安全性の証拠にならない。Codex、Cursor、Orchestratorはmergeせず、人間だけが最終mergeを行う。
+本番secretへの影響が疑われる場合は`yuto90`へエスカレーションし、commit、push、Ready化を止める。`.github/workflows/production-db-migrate.yml`の変更は、commit前のIssueまたはPRに記録された別途の明示承認がなければ進めない。CI成功、secret名不変、等価な整理という説明は承認や安全性の証拠にならない。push後は人間がmerge前に同じ6項目を再レビューし、Codex、Cursor、Orchestratorはmergeしない。
 
-これは技術的防止ではなく人間レビューに依存する暫定的なリスク受容であり、見落とし時に本番secretへ影響する余地が残る。将来の`CODEOWNERS`とrequired code-owner reviewを現時点のcontrolとして仮定しない。詳細は[ブランチ運用](branch-workflow.md)を参照する。
+これは規則に従うAgentと人間レビューに依存する暫定的なリスク受容であり、技術的防止ではない。規則を逸脱した`workflows: write`のpushは人間のPRレビュー前に実行されrepository secretへ到達し得る。将来の`CODEOWNERS`とrequired code-owner reviewもmerge reviewを強制するだけで、このレビュー前実行を防がない。詳細は[ブランチ運用](branch-workflow.md)を参照する。
 
 ### main branch protection
 

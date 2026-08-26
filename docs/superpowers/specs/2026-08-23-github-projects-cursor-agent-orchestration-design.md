@@ -57,9 +57,9 @@ Issue
 
 ### Workflow変更の暫定リスク受容
 
-2026-08-26の人間判断では、repositoryのprivate/internal化とrulesetによるworkflow path保護、sandbox/fork方式への再設計は採用せず、`.github/workflows/**`を人間が入念にレビューする暫定運用を選択した。Cursor Appの`workflows: write`を技術的に封じるcontrolではなく、見落とし時には本番secretへ影響し得る残存リスクを受容する。
+2026-08-26の人間判断では、repositoryのprivate/internal化とrulesetによるworkflow path保護、sandbox/fork方式への再設計は採用せず、`.github/workflows/**`をAgentがcommit前、人間がmerge前に入念にレビューする暫定運用を選択した。Cursor Appの`workflows: write`を技術的に封じるcontrolではない。規則を逸脱したAgentが新しい`on: push` workflowをpushすれば、人間のPRレビュー前に実行されrepository secretへ到達し得る残存リスクを受容する。
 
-workflow変更を含むPRは軽微変更として扱わず、trigger、`permissions`、checkout対象、secret参照、外部Action、shell展開を変更行ごとに確認する。本番secretへの影響が疑われる場合は`yuto90`へエスカレーションしてReady化を止め、`.github/workflows/production-db-migrate.yml`の変更はIssueまたはPR上の別途明示承認を必須とする。Cursor、Codex、Orchestratorはmergeしない。将来は`CODEOWNERS`とrequired code-owner reviewで強制するが、現時点のcontrolとして仮定しない。
+workflow変更を含むcommitは軽微変更として扱わない。Agentはcommit前の未commit差分をtrigger、`permissions`、checkout対象、secret参照、外部Action、shell展開で行単位に確認し、IssueまたはPRへ`pre-commit`、対象ファイル、判定、6項目の結果を記録する。本番secretへの影響が疑われる場合は`yuto90`へエスカレーションしてcommit、push、Ready化を止め、`.github/workflows/production-db-migrate.yml`はcommit前の別途明示承認を必須とする。push後は人間がmerge前に再レビューし、Cursor、Codex、Orchestratorはmergeしない。将来の`CODEOWNERS`とrequired code-owner reviewはmerge reviewを強制するが、レビュー前実行を防がない。
 
 ## 現状と移行対象
 
@@ -546,7 +546,7 @@ Project ID や option ID を secret または source code に固定しないた�
 ### `code-review`
 
 - correctness、security、認可、回帰、型安全、テスト不足、不要差分をセルフレビューする。
-- `.github/workflows/**`は6項目を行単位で確認し、本番secret影響は`yuto90`へ、production migration workflowは別途明示承認へ回す。
+- `.github/workflows/**`はcommit前の未commit差分を6項目で行単位に確認し、`pre-commit`記録を残す。本番secret影響は`yuto90`へ回してcommit、push、Readyを止め、production migration workflowはcommit前の別途明示承認を必須とする。
 - review 指摘は根拠を確認し、同じ PR branch で修正する。
 
 ### `human-escalation`
@@ -621,7 +621,7 @@ Cursor 起動は利用量を消費し、Issue/PR/comment/Project を外部へ書
 ### Phase 1: repository implementation
 
 1. 設計承認後に詳細実装計画を作る。
-2. Orchestrator、workflows、Cursor skills、運用文書、tests を専用 branch で実装する。
+2. Orchestrator、workflows、Cursor skills、運用文書、tests を専用 branch で実装する。`.github/workflows/**`変更を含むcommitは、未commit差分の6項目レビューと`pre-commit`記録を完了してから作る。
 3. lint、UT、build、static checks を実行する。
 4. `main` 向け Ready PR を作り、CI、Vercel Preview、Codex Review を確認する。
 5. 人間が内容を確認して merge する。
@@ -630,7 +630,7 @@ Cursor 起動は利用量を消費し、Issue/PR/comment/Project を外部へ書
 
 ### Phase 2: external configuration
 
-1. 暫定リスク受容とworkflowレビュー規則がdefault branchへ人間merge済みであることを確認する。
+1. 暫定リスク受容とworkflowのcommit前・merge前レビュー規則がdefault branchへ人間merge済みであることを確認する。
 2. Chrome で PAT の権限と期限を最終確認し、明示承認後に作成する。
 3. Chrome で GitHub Environment `agent-orchestrator` を作成または再確認し、deployment branch policyをselected branch `main` onlyに保存する。保存直後にpolicyを再読する。
 4. Environment secret `CURSOR_AGENT_ORCHESTRATOR_PAT` を保存する。repository Actions secretには保存せず、保存後にEnvironment名、`main` only policy、secret名を再検証する。
@@ -697,4 +697,4 @@ Project migration は実行直前に option と item count を再取得し、設
 - `Done` は merged + closed の両条件、`Cancelled` と `Done` は terminal state とする。
 - 通常運用に polling、独自 DB、自動 merge を導入しない。
 - target-only契約を含む変更を人間がmergeし、default branchのworkflowとremote CIをauthoritativeに確認した後にだけ外部設定を切り替える。
-- workflow pathの技術的防止は未導入のまま、人間による高リスクレビューを暫定controlとして残存リスクを受容する。
+- workflow pathの技術的防止は未導入のまま、Agentのcommit前レビューと人間のmerge前レビューを暫定controlとして残存リスクを受容する。規則を逸脱した`workflows: write`のpushは人間レビュー前に実行されrepository secretへ到達し得て、`CODEOWNERS`とrequired code-owner reviewもこの実行を防がない。

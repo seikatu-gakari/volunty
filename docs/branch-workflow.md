@@ -63,7 +63,7 @@ git push origin codex/my-feature
 
 ## GitHub Actions workflow変更の暫定レビュー
 
-`.github/workflows/**`を含むPRは高リスクであり、通常の軽微変更として扱わない。人間のreviewerは変更行ごとに次を確認し、PR reviewへ結果を残す。
+`.github/workflows/**`の変更を含むcommitは高リスクであり、通常の軽微変更として扱わない。Agentはそのcommitを作る前に、未commitのworkflow差分を変更行ごとに次の6項目で確認する。IssueまたはPRへ`pre-commit`、対象ファイル、判定、6項目の結果を記録するまで、ローカルcommitもpushもしない。commit後やpush/Ready前への先送りは禁止する。push後は人間のreviewerがmerge前に同じ6項目を再確認し、PR reviewへ結果を残す。
 
 | 確認対象 | 行単位で確認する内容 |
 | --- | --- |
@@ -74,9 +74,9 @@ git push origin codex/my-feature
 | 外部Action | owner、ref固定、供給元と権限境界 |
 | shell展開 | expression、quote、複数行`run`、untrusted contextの直接展開 |
 
-本番secretへの影響が疑われる場合は`yuto90`へエスカレーションし、Ready化とmergeを止める。`.github/workflows/production-db-migrate.yml`の変更はIssueまたはPRに記録された別途の明示承認を必須とする。Cursor、Codex、Orchestratorはmergeせず、最終mergeは人間だけが行う。
+本番secretへの影響が疑われる場合は`yuto90`へエスカレーションし、commit、push、Ready化、mergeを止める。`.github/workflows/production-db-migrate.yml`の変更は、commit前のIssueまたはPRに記録された別途の明示承認を必須とする。Cursor、Codex、Orchestratorはmergeせず、最終mergeは人間だけが行う。
 
-これは技術的なworkflow path防止ではなく、人間レビューに依存する暫定的なリスク受容です。見落とし時には本番secretへ影響する余地が残る。将来は`CODEOWNERS`とrequired code-owner reviewを追加するが、現時点で有効なcontrolとして扱わない。
+これは規則に従うAgentと人間レビューに依存する暫定的なリスク受容であり、技術的なworkflow path防止ではない。規則を逸脱して`workflows: write`で新しい`on: push` workflowをpushすれば、人間のPRレビュー前に実行されrepository secretへ到達し得る。将来の`CODEOWNERS`とrequired code-owner reviewはmerge reviewを強制するが、このレビュー前実行を防がない。
 
 ## Vercelデプロイのトリガー
 
@@ -102,7 +102,7 @@ git push origin codex/my-feature
 
 workflow は `app/` で `npx prisma migrate deploy` を実行します。未適用 migration がなければ何も適用せず終了し、未適用 migration があれば本番DBへ適用します。手元の `app/.env.local` を本番用に書き換えて migration する運用は行いません。
 
-現行の `Production DB Migration` は `main` へのpushとrepository Actions secretを使う。2026-08-26の暫定判断ではこの経路を変更せず、人間のworkflowレビューに依存する残存リスクとして受容する。`.github/workflows/production-db-migrate.yml`を変更する場合は、通常のworkflowレビューに加えて別途の明示承認を得る。
+現行の `Production DB Migration` は `main` へのpushとrepository Actions secretを使う。2026-08-26の暫定判断ではこの経路を変更せず、Agentのcommit前レビューと人間のmerge前レビューに依存する残存リスクとして受容する。`.github/workflows/production-db-migrate.yml`を変更する場合は、commit前に通常の6項目レビューと別途の明示承認を完了する。
 
 GitHub の `Repository` → `Settings` → `Secrets and variables` → `Actions` に以下を設定してください。
 

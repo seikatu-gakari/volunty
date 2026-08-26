@@ -4,15 +4,15 @@ Cursor Cloud Agent は、承認済み Issue を `agent-ready` から同じ `curs
 
 ## 暫定セキュリティ方針
 
-2026-08-26の人間判断として、repositoryのprivate/internal化とrulesetによるworkflow path保護（旧B案）、sandbox/fork方式への再設計（旧C案）は行わず、`.github/workflows/**`の変更を人間が入念にレビューするリスク受容で暫定運用する。Workflow Execution Protectionsを含む別の技術的強制を有効化済みとは扱わない。
+2026-08-26の人間判断として、repositoryのprivate/internal化とrulesetによるworkflow path保護（旧B案）、sandbox/fork方式への再設計（旧C案）は行わず、`.github/workflows/**`の変更をAgentがcommit前、人間がmerge前に入念にレビューするリスク受容で暫定運用する。Workflow Execution Protectionsを含む別の技術的強制を有効化済みとは扱わない。
 
-Cursor GitHub Appには`workflows: write`があり、public repositoryの同一repository運用では、Cursorが第8の危険なworkflowを追加することを技術的には防げない。この暫定方針は防止策ではなく、見落とし時に本番secretへ影響し得る残存リスクを人間が受容するものです。将来は`CODEOWNERS`とrequired code-owner reviewによる強制を追加するが、現時点のcontrolとして仮定しません。
+Cursor GitHub Appには`workflows: write`があり、public repositoryの同一repository運用では、Cursorが第8の危険なworkflowを追加することを技術的には防げない。このcommit前ゲートは規則に従うAgentだけを制御する。規則を逸脱したAgentが新しい`on: push` workflowをpushすれば、人間のPRレビュー前に実行されrepository secretへ到達し得る残存リスクを人間が受容する。将来の`CODEOWNERS`とrequired code-owner reviewもmerge reviewの強制であり、このレビュー前実行を防ぐcontrolではない。
 
 現在の`Pull Request CI`はbase版workflowの`pull_request_target`だけで、typesは`opened` / `synchronize` / `reopened` / `ready_for_review`、baseは`main`である。各jobはsame-repository guardでPR headだけを対象に、`contents: read`、明示PR head checkout、read-only token、secret/cacheなしで実行し、fork PRはskipする。PR #217の一時的なdual-trigger bridgeは終了し、PR #218でtarget-onlyへ移行済みです。
 
-運用上、`.github/workflows/**`を含むPRは軽微変更として扱わず、変更行ごとにtrigger、`permissions`、checkout対象、secret参照、外部Action、shell展開を確認する。本番secretへの影響が疑われる場合は`yuto90`へエスカレーションしてReady化を止め、[Production DB Migration](../.github/workflows/production-db-migrate.yml)の変更にはIssueまたはPR上の別途明示承認を必須とする。Cursor、Codex、Orchestratorはmergeしません。
+運用上、`.github/workflows/**`の変更を含むcommitは軽微変更として扱わない。Agentはcommit前の未commit差分をtrigger、`permissions`、checkout対象、secret参照、外部Action、shell展開で行単位に確認し、IssueまたはPRへ`pre-commit`、対象ファイル、判定、6項目の結果を記録する。記録完了前のローカルcommit、push、Ready化は禁止する。本番secretへの影響が疑われる場合は`yuto90`へエスカレーションしてcommit、push、Ready化を止め、[Production DB Migration](../.github/workflows/production-db-migrate.yml)の変更にはcommit前の別途明示承認を必須とする。push後は人間がmerge前に再レビューし、Cursor、Codex、Orchestratorはmergeしません。
 
-現行の`Production DB Migration`は`main` pushでrepository Actions secretを使う。この暫定判断ではworkflowもsecretも変更せず、上記の残存リスクとして受容する。外部設定は、この方針が`main`へ人間mergeされ、下記preflightと個別のPAT承認を満たした後にだけ進める。
+現行の`Production DB Migration`は`main` pushでrepository Actions secretを使う。この暫定判断ではworkflowもsecretも変更せず、上記のcommit前ゲートに依存する残存リスクとして受容する。外部設定は、この方針が`main`へ人間mergeされ、下記preflightと個別のPAT承認を満たした後にだけ進める。
 
 `pull_request_review` trigger、review artifact、artifact consumerは追加しません。PR branch由来のworkflowをreview安全境界にせず、reviewは下記のdefault-branch manual reconciliationまたは`yuto90`のPR `@cursor`でだけ反映します。GitHub Actionsの[secure use](https://docs.github.com/en/actions/reference/security/secure-use)と[script injection対策](https://docs.github.com/en/actions/concepts/security/script-injections)を維持してください。
 
@@ -151,7 +151,7 @@ PATはOrganization ProjectのGET、Issue comment・labelのmutation、Project it
 
 この順序は外部設定のチェックリストであり、現時点で設定済みとは主張しません。
 
-1. 上記の暫定リスク受容とworkflowレビュー規則が人間によって`main`へmerge済みであることを確認する。技術的なworkflow path防止やproduction DB remediationが完了したとは扱わない。
+1. 上記の暫定リスク受容とworkflowのcommit前・merge前レビュー規則が人間によって`main`へmerge済みであることを確認する。技術的なworkflow path防止やproduction DB remediationが完了したとは扱わない。
 2. PR #217とPR #218が人間によって`main`へmerge済みであることを確認し、default branchのworkflow・契約test・文書を再読して、`pull_request_target`だけのtarget-only契約をauthoritativeに確認する。外部設定はこの確認前に進めない。
 3. GitHub Environment `agent-orchestrator`を作成または再確認し、selected branch `main` onlyを保存して再読する。
 4. 明示承認後、最小権限・有限期限のPATを作り、Environment secret `CURSOR_AGENT_ORCHESTRATOR_PAT`としてのみ保存する。Environment名、policy、secret名を再読する。

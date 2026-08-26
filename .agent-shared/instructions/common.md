@@ -20,12 +20,14 @@
 
 ## GitHub Actions workflow変更の暫定レビュー境界
 
-- `.github/workflows/**` を含むPRは高リスクとして扱い、通常の軽微変更に分類しない。
-- 変更行ごとに trigger、`permissions`、checkout対象、secret参照、外部Action、shell展開を確認し、結果をレビューに残す。
-- 本番secretへの到達性に影響する可能性があれば `yuto90` にエスカレーションし、Ready化を止める。
-- `.github/workflows/production-db-migrate.yml` の変更は、IssueまたはPRに記録された別途の明示承認を必須とする。
+- `.github/workflows/**` の変更を含むcommitは高リスクとして扱い、通常の軽微変更に分類しない。
+- Agentはそのcommitを作る前に、未commitのworkflow差分を変更行ごとに trigger、`permissions`、checkout対象、secret参照、外部Action、shell展開の6項目で確認する。commit後やpush/Ready前への先送りは禁止する。
+- commit前のIssueまたはPRに `pre-commit`、対象ファイル、判定、6項目の確認結果を記録する。
+- 本番secretへの到達性に影響する可能性があれば `yuto90` にエスカレーションし、commit、push、Ready化を止める。
+- `.github/workflows/production-db-migrate.yml` の変更は、commit前のIssueまたはPRに記録された別途の明示承認を必須とする。
+- push後は人間がmerge前にworkflow差分を再レビューする。
 - Cursor、Codex、Orchestratorはworkflow変更を含むPRもmergeしない。最終mergeは人間だけが行う。
-- これは技術的な防止ではなく人間レビューに依存する暫定的なリスク受容である。将来の強制策は `CODEOWNERS` とrequired code-owner reviewとし、現時点で有効とは扱わない。
+- これは規則に従うAgentと人間レビューに依存する暫定的なリスク受容であり、技術的な防止ではない。規則を逸脱して`workflows: write`で新しい`on: push` workflowをpushすれば、人間のPRレビュー前に実行されrepository secretへ到達し得る。将来の`CODEOWNERS`とrequired code-owner reviewもmerge reviewの強制であり、このレビュー前実行を防ぐcontrolではない。
 
 詳細は [ブランチ運用](../../docs/branch-workflow.md) を参照する。
 
