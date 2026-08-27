@@ -1,6 +1,0 @@
-# GitHub公式GAのconcurrency.queueはworkflows.test.mjsでexact検証する。
-# actionlint v1.7.12のschema未対応分だけを7本のAgent workflowに限定する。
-paths:
-  '.github/workflows/agent-*.yml':
-    ignore:
-      - 'unexpected key "queue" for "concurrency" section'
