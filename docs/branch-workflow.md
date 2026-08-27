@@ -9,9 +9,7 @@
 | `main` | 本番運用専用。直接pushは禁止 | **Production** |
 | `preview` | 既存のプレビュー確認用。標準フローの必須中継地点ではない | **Preview** |
 | `develop` | 既存の開発用ブランチ | **Preview** |
-| `feature/*` | 人間が開始する通常の機能開発用。`main` 向けPRを作成 | **Preview** |
-| `codex/*` | 人間が明示的に開始する Codex Cloud 手動フロー。`main` 向けPRを作成 | **Preview** |
-| `cursor/*` | `agent-ready` から始まる Cursor Cloud Agent 自律フロー。`main` 向け Draft PRを同一sessionで継続 | **Preview** |
+| `feature/*` / `codex/*` | 機能開発用。`main` 向けPRを作成 | **Preview** |
 
 ## 日常のワークフロー
 
@@ -50,17 +48,6 @@ git push origin codex/my-feature
 5. スマホブラウザでPreview URLを開いてUIを確認
 6. GitHub ActionsとCodex Reviewが成功したら、人間がmainへマージ
 
-### Cursor Cloud Agentで開発する場合
-
-`cursor/*` は [Cursor Cloud Agent運用手順](cursor-cloud.md) の security gateを通過し、default branchで`Pull Request CI`のtarget-only契約がlive verification済みで、外部設定もlive verification済みである場合だけ使う。PR #217の移行時には一時的なdual-trigger bridgeを使用したが、現在の永続運用はbase版`pull_request_target`だけである。通常の開始点は人間が要件・受け入れ条件・dependencyを確認したIssueに`agent-ready`を付けることです。
-
-1. Orchestrator が `@cursor` を一度だけ dispatch し、Cursor は `cursor/issue-<number>-<slug>` を作る。
-2. Cursor は早期に `main` 向け Draft PRを作り、その同じ session/branch/PRで設計、実装、CI修正、Human Input、Reworkを続ける。
-3. current-head の Ready marker、PR非Draft、Pull Request CI成功がそろうと `Human Review` になる。
-4. human reviewと必要なreworkの後、人間だけが `main` へ merge する。Cursor、Codex、Orchestratorのいずれもauto-mergeしない。
-
-`codex/*` と `cursor/*` は同じ Issue に並行して自動起動しない。Codex Cloud は人間が開始する手動フォールバックであり、Cursor Cloud Agent は `agent-ready` 専用である。詳細は [Codex Cloud運用手順](codex-cloud.md) と [Cursor Cloud Agent運用手順](cursor-cloud.md) を参照する。
-
 ## Vercelデプロイのトリガー
 
 現在のVercel設定では、`main` はProduction、それ以外のブランチpushはPreviewとしてデプロイされます。
@@ -68,7 +55,7 @@ git push origin codex/my-feature
 | イベント | デプロイ先 |
 | --- | --- |
 | `main` へのpush/マージ | Production |
-| `preview` / `develop` / `feature/*` / `codex/*` / `cursor/*` のpush | Preview |
+| `preview` / `develop` / `feature/*` / `codex/*` のpush | Preview |
 
 ## 本番DBマイグレーション
 
@@ -85,8 +72,6 @@ git push origin codex/my-feature
 
 workflow は `app/` で `npx prisma migrate deploy` を実行します。未適用 migration がなければ何も適用せず終了し、未適用 migration があれば本番DBへ適用します。手元の `app/.env.local` を本番用に書き換えて migration する運用は行いません。
 
-現行の `Production DB Migration` は `main` へのpushとrepository Actions secretを使う。この経路は Cursor App の `workflows: write` に関する有効化停止条件では未適合であり、Cursor の同一repository自律起動を有効化する前に別変更で安全な経路へ移行する。この文書の変更でproduction workflowやsecretを変更しない。
-
 GitHub の `Repository` → `Settings` → `Secrets and variables` → `Actions` に以下を設定してください。
 
 | Secret名                  | 用途                                                                 |
@@ -98,7 +83,7 @@ GitHub の `Repository` → `Settings` → `Secrets and variables` → `Actions`
 
 ### Vercel設定の確認
 
-Vercel → プロジェクト → **Settings → Git** で、feature/codex/cursorブランチのpushがPreviewデプロイ対象になっていることを確認する。main/preview以外をスキップするIgnored Build Stepは使用しない。
+Vercel → プロジェクト → **Settings → Git** で、feature/codexブランチのpushがPreviewデプロイ対象になっていることを確認する。main/preview以外をスキップするIgnored Build Stepは使用しない。
 
 ## 注意事項
 
@@ -106,4 +91,3 @@ Vercel → プロジェクト → **Settings → Git** で、feature/codex/curso
 - 環境変数は [Vercelダッシュボード](https://vercel.com) → Settings → Environment Variables で管理
 - 本番とプレビューで同じ環境変数を使わない（将来バックエンド追加時に注意）
 - `.env.local` はローカル専用。gitにはコミットしない（`.gitignore` 済み）
-- `codex/*` と `cursor/*` のどちらも自動mergeしない。PRの最終mergeは人間がGitHub UIで行う

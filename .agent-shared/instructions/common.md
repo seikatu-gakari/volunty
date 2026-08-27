@@ -18,15 +18,6 @@
 - Codex CloudではMCPブリッジを使わずCLIを優先する。ドキュメント検索は `ctx7`、ブラウザ/E2EはPlaywright、DBはPrisma、UTはVitest、lintはESLint、型チェックはTypeScript、コード検索は `rg` / `git grep` を使用する。ローカル環境のネイティブMCP設定は維持する。
 - Codex Cloudではセットアップ済みの `vercel` CLIを使用できるが、Vercel tokenをCloudへ登録せず、Previewデプロイはfeatureブランチへのpushで行う。
 
-## Cursor Cloud Agent の境界
-
-- `agent-ready` は Cursor Cloud Agent の自律起動専用であり、`cursor/issue-<number>-<slug>` ブランチを使う。Codex Cloud は `codex/*` の人間開始フローを維持する。
-- Agent-managed PR は一つの Cursor Agent session である。CI修正、Human Input 復帰、Rework は同じ session、同じ `cursor/*` branch、同じPRを継続し、replacement PRを作らない。
-- dispatch、Human Input、Ready、CI retry は自然言語で代用しない固定 HTML marker を使う。marker の正確な形式、投稿者、動的値の検証は [Cursor Cloud Agent運用手順](../../docs/cursor-cloud.md) に従う。
-- Cursor Agent は GitHub Project、Project Status、`agent-ready`、`agent-cancel` を変更しない。これらの自動 mutation は trusted GitHub Actions Orchestrator だけが行い、`main` への merge は常に人間だけが行う。
-- Cursor Cloud、PR branch、テスト、artifact、Vercel に本番DB・本番サービス・PATを含む本番 secret を登録・出力しない。`CURSOR_AGENT_ORCHESTRATOR_PAT` は、導入の security gate 通過後も GitHub Environment `agent-orchestrator` の secret にだけ保存する。
-- `agent-ready` の有効化、PAT、Project、Cursor Environment の外部設定は [Cursor Cloud Agent運用手順](../../docs/cursor-cloud.md) の停止条件と live verification を満たすまで実施しない。
-
 ## 基本方針
 
 - Volunty は BIG5 性格診断によるボランティアマッチング Web アプリです。
@@ -55,4 +46,4 @@
 1. タスクを始める前に上表から関係する skill を選び、必要なものだけ読む。
 2. 新しい恒久的なプロジェクト知識を追加する場合は、AGENTS.md へ長文を戻さず、該当 skill を更新する。
 3. 複数セクションにまたがる作業では、関係する skill を組み合わせて読む。
-4. Codex Cloud の設定・依頼手順は [docs/codex-cloud.md](../../docs/codex-cloud.md) を参照し、本番シークレットを Cloud に登録しない。
+4. Codex Cloud の設定・依頼手順は [docs/codex-cloud.md](docs/codex-cloud.md) を参照し、本番シークレットを Cloud に登録しない。

@@ -4,8 +4,6 @@
 
 Codex Cloud は設計、実装、検証、Pull Request 作成までを担当する。`main` へのマージは人間が行う。
 
-Codex Cloud は人間が開始する `codex/*` フローであり、`agent-ready` をトリガーにしない。`agent-ready` は Cursor Cloud Agent の `cursor/*` 自律フロー専用である。同じ Issue を両方へ自動dispatchせず、どちらもauto-mergeしない。Cursor側の開始・停止・復旧・外部設定は [Cursor Cloud Agent運用手順](cursor-cloud.md)、共通のbranch/Preview運用は [ブランチ運用](branch-workflow.md) を参照する。
-
 1. Codex Cloudで `seikatu-gakari/volunty` と `main` を対象にタスクを開始する。
 2. Codexが関連コードと設計書を調査し、設計案を提示する。
 3. 人間が設計案を承認する。
@@ -84,8 +82,6 @@ E2EはGitHub Actions上の一時Supabaseを使う。E2E用のservice role keyは
 
 `.github/workflows/ci.yml` は `main` 向けPull Requestで次を実行する。
 
-`Pull Request CI`はbase版workflowの`pull_request_target`だけで、typesは`opened`、`synchronize`、`reopened`、`ready_for_review`、baseは`main`とする。各jobはsame-repository PR headだけを対象に、`contents: read`、明示head checkout、read-only token、secretなし、cacheなしで実行し、fork PRはskipする。PR #217の移行時にはbootstrap gap回避のため一時的なdual-trigger bridgeを使用したが、現在の永続契約はtarget-onlyである。
-
 - `quality`: npm install、Prisma生成、lint、UT、`npm run build -- --webpack`
 - `e2e`: Supabase CLIでlocal環境を起動、DB reset（migration + seed）、Playwright E2E、結果artifact保存、Supabase停止
 
@@ -142,5 +138,4 @@ mainへのマージは行わないでください。
 - [Codex Cloud maintenance](../.codex/cloud/maintenance.sh)
 - [Pull Request CI](../.github/workflows/ci.yml)
 - [ブランチ運用](branch-workflow.md)
-- [Cursor Cloud Agent運用手順](cursor-cloud.md)
 - [Codex Cloud設計書](superpowers/specs/2026-08-01-codex-cloud-development-design.md)
