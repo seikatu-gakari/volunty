@@ -352,11 +352,11 @@ GitHub Actions は comment を Cursor へ転送・複製せず、Status を `In 
 
 ## CI 自動修正
 
-`.github/workflows/ci.yml` の永続契約は、PR branch版YAMLをworkflow定義として実行せず、base branch版が選ばれる`pull_request_target`の`opened`、`synchronize`、`reopened`、`ready_for_review`（base `main`）だけで起動することである。PR #217の移行時にはbootstrap gap回避のため同じtypes/baseの`pull_request`と`pull_request_target`を一時的に併記したが、このbridgeは完了済みの移行コンテキストであり、現在はtarget-onlyである。
+`.github/workflows/ci.yml` の永続契約は、PR branch版YAMLをworkflow定義として実行せず、base branch版が選ばれる`pull_request_target`の`opened`、`synchronize`、`reopened`、`ready_for_review`（base `main`）だけで起動することである。ただし既存`main`は`pull_request`だけ、PR #217の変更後workflowは`pull_request_target`だけであり、PR開設eventをどちらの版も拾えないbootstrap gapが生じた。この移行だけは二段階にし、PR #217で同じtypes/baseの`pull_request`と`pull_request_target`を一時的に両方宣言する。bridge中は同一PR headのCIが重複する場合があるが、top-level `permissions: contents: read`、全jobのsame-repository guard、明示PR head checkout、secret/cacheなしを共通にし、既存`main`より権限を広げない。
 
-target-onlyへの移行完了は人間がmergeしたdefault branchのworkflow、契約test、remote `pull_request_target` CIをauthoritativeに再確認して扱う。`agent-ci.yml`が処理するeventは`pull_request_target`だけであり、移行時の一時的な`pull_request` runはOrchestratorの状態遷移証拠にしない。外部Project/PAT/Cursorの有効化は、この人間mergeとdefault branch確認の後にだけ行う。
+PR #217を人間がmergeした直後、外部Project/PAT/Cursorを一切有効化する前にfollow-up cleanup PRを作り、`pull_request` triggerをworkflow・契約test・文書から削除してtarget-onlyへ戻す。このcleanup PRも人間がmergeし、default branch版`pull_request_target`によるremote CIを確認する。bridgeは永続仕様ではなく、移行には2本のPRと2回のhuman mergeが必要である。`agent-ci.yml`が処理するeventは移行中も`pull_request_target`だけであり、一時的な`pull_request` runはOrchestratorの状態遷移証拠にしない。
 
-この`pull_request_target` triggerでは、fork PRはtest codeを実行せずskipする。same-repository PRだけを`actions/checkout@v7`で明示的なPR head SHAからcheckoutし、`persist-credentials: false`、`allow-unsafe-pr-checkout`なし、secret参照なし、setup-node cacheなしで既存quality / RLS / E2E / Orchestrator contract testsを実行する。placeholder値はsecretではない。
+どちらのtriggerでも、fork PRはtest codeを実行せずskipする。same-repository PRだけを`actions/checkout@v7`で明示的なPR head SHAからcheckoutし、`persist-credentials: false`、`allow-unsafe-pr-checkout`なし、secret参照なし、setup-node cacheなしで既存quality / RLS / E2E / Orchestrator contract testsを実行する。placeholder値はsecretではない。
 
 `agent-ci.yml` は `workflow_run.completed` を受け、workflow 名が `Pull Request CI` のときだけ default branch の Orchestrator を実行する。ここでは`pull_request_target` workflow実行中の`GITHUB_SHA`（base branch commit）と、Actions REST / `workflow_run` eventのtop-level `head_branch` / `head_sha` / `head_repository`（PR head branch / 当該runのhistorical PR head SHA / head repository）を区別する。2026-08-25の実API再検証ではtarget run `32426759084`がtop-levelにhistorical PR headを持つ一方、relationはbase commitとcurrentへ更新済みのhead SHAを持ち、fork target run `32622953562`はbase repositoryと異なるtop-level head repositoryかつ空relationだった。Environment/PATをmaterializeする前のjob guardはevent `pull_request_target`、path `.github/workflows/ci.yml`、same-repository run/head repository、top-level `cursor/*` head branch、conclusion `success|failure`を固定し、dynamicなrelationを必須guardにしない。concurrencyは他の6入口と同じrepository-wide group、`queue: max`、`cancel-in-progress: false`を共有する。
 
@@ -509,7 +509,7 @@ Project ID や option ID を secret または source code に固定しないた�
 - PAT/Environmentを持つprivileged Orchestrator workflowはdefault branchのOrchestratorだけをcheckoutする。
 - privileged Orchestratorの`pull_request_target`と`workflow_run`ではPR head、untrusted artifact、PR codeを実行しない。
 - review webhook/artifact経路は置かず、review reconciliationはtrusted `workflow_dispatch`またはdefault-branch `issue_comment`だけから起動する。
-- `Pull Request CI`だけはsame-repository PR headを実行できる。永続triggerはbase版`pull_request_target`だけで、`permissions: contents: read`、secretなし、`actions/checkout@v7`の安全なcustom-ref guard、`persist-credentials: false`、cacheなしを一体の境界とし、fork PRはjob guardで実行しない。
+- `Pull Request CI`だけはsame-repository PR headを実行できる。永続triggerはbase版`pull_request_target`だけとし、PR #217のbootstrap bridgeに限って同条件の`pull_request`を一時併記する。どちらも`permissions: contents: read`、secretなし、`actions/checkout@v7`の安全なcustom-ref guard、`persist-credentials: false`、cacheなしを一体の境界とし、fork PRはjob guardで実行しない。
 - Issue title/body、PR body、comment、branch 名を shell へ直接展開しない。
 - event payload は `GITHUB_EVENT_PATH` から Node.js で JSON として読む。
 - Orchestrator workflowのGitHub公式Actionは`actions/checkout@v4`と`actions/setup-node@v4`に限定し、処理はNode.js標準 API を中心にする。`Pull Request CI`のcheckoutだけは`actions/checkout@v7`を使う。
@@ -688,4 +688,4 @@ Project migration は実行直前に option と item count を再取得し、設
 - CI 修正 comment は最大 3 回、4 回目の連続失敗で Blocked とする。
 - `Done` は merged + closed の両条件、`Cancelled` と `Done` は terminal state とする。
 - 通常運用に polling、独自 DB、自動 merge を導入しない。
-- target-only契約を含む変更を人間がmergeし、default branchのworkflowとremote CIをauthoritativeに確認した後にだけ外部設定を切り替える。
+- PR #217とtarget-onlyへ戻すfollow-up cleanup PRを人間が順にmergeした後にだけ外部設定を切り替える。

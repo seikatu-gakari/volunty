@@ -84,7 +84,7 @@ E2EはGitHub Actions上の一時Supabaseを使う。E2E用のservice role keyは
 
 `.github/workflows/ci.yml` は `main` 向けPull Requestで次を実行する。
 
-`Pull Request CI`はbase版workflowの`pull_request_target`だけで、typesは`opened`、`synchronize`、`reopened`、`ready_for_review`、baseは`main`とする。各jobはsame-repository PR headだけを対象に、`contents: read`、明示head checkout、read-only token、secretなし、cacheなしで実行し、fork PRはskipする。PR #217の移行時にはbootstrap gap回避のため一時的なdual-trigger bridgeを使用したが、現在の永続契約はtarget-onlyである。
+`pull_request`から安全なbase-defined `pull_request_target`への移行は2本のPRで行う。PR #217ではbootstrap gapを避けるため同じtypes/baseの両triggerを一時的に宣言し、重複CIが生じる場合がある。#217を人間がmergeした直後のfollow-up cleanup PRで`pull_request`を削除してtarget-onlyへ戻し、そのPRも人間がmergeする。bridge中も`contents: read`、same-repository PR、明示head checkout、secret/cacheなしを維持し、cleanup merge前はProject/PAT/Cursorを有効化しない。
 
 - `quality`: npm install、Prisma生成、lint、UT、`npm run build -- --webpack`
 - `e2e`: Supabase CLIでlocal環境を起動、DB reset（migration + seed）、Playwright E2E、結果artifact保存、Supabase停止
