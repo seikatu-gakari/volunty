@@ -87,14 +87,14 @@ test("fork由来CIの開始時も手動承認済みの旧successをpendingへ戻
   assert.equal(statuses[0].status.state, "pending");
 });
 
-test("同じHEADの古いCI runを再実行しても最新demo-video statusを上書きしない", async () => {
+test("最新CI完了後に古いrunを再実行してもdemo-video statusを上書きしない", async () => {
   let statusCalls = 0;
 
   const outcome = await invalidateDemoStatus({
     event: workflowRunEvent(),
     client: {
       async getLatestPullRequestCiRun() {
-        return { id: 988, run_attempt: 1 };
+        return { id: 988, run_attempt: 1, status: "completed" };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };
@@ -107,6 +107,37 @@ test("同じHEADの古いCI runを再実行しても最新demo-video statusを�
 
   assert.equal(outcome, "stale");
   assert.equal(statusCalls, 0);
+});
+
+test("lock待機中に古くなったinvalidatorは実行中の最新CIをpendingへ同期する", async () => {
+  const statuses = [];
+
+  const outcome = await invalidateDemoStatus({
+    event: workflowRunEvent(),
+    client: {
+      async getLatestPullRequestCiRun() {
+        return { id: 988, run_attempt: 2, status: "in_progress" };
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async setDemoStatus(sha, status) {
+        statuses.push({ sha, status });
+      },
+    },
+  });
+
+  assert.equal(outcome, "pending-latest");
+  assert.deepEqual(statuses, [
+    {
+      sha: headSha,
+      status: {
+        state: "pending",
+        description: "最新CIの動作ビデオを待機しています",
+        targetUrl: `https://github.com/${repository}/actions/runs/988/attempts/2`,
+      },
+    },
+  ]);
 });
 
 test("同じrun IDでも古いattemptはdemo-video statusを上書きしない", async () => {

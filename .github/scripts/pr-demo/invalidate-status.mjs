@@ -27,20 +27,34 @@ export async function invalidateDemoStatus({ event, client }) {
   if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
     throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
   }
+  if (currentHeadSha !== context.headSha) {
+    return "stale";
+  }
+
+  let targetUrl = context.runUrl;
+  let outcome = "pending";
   if (
     latestRun.id !== context.runId ||
-    latestRun.run_attempt !== context.runAttempt ||
-    currentHeadSha !== context.headSha
+    latestRun.run_attempt !== context.runAttempt
   ) {
-    return "stale";
+    if (!["queued", "in_progress"].includes(latestRun.status)) {
+      return "stale";
+    }
+    const latestRunBaseUrl =
+      `https://github.com/${context.repository}/actions/runs/${latestRun.id}`;
+    targetUrl =
+      latestRun.run_attempt === 1
+        ? latestRunBaseUrl
+        : `${latestRunBaseUrl}/attempts/${latestRun.run_attempt}`;
+    outcome = "pending-latest";
   }
 
   await client.setDemoStatus(context.headSha, {
     state: "pending",
     description: "最新CIの動作ビデオを待機しています",
-    targetUrl: context.runUrl,
+    targetUrl,
   });
-  return "pending";
+  return outcome;
 }
 
 export async function invalidateDemoStatusWithRetry({

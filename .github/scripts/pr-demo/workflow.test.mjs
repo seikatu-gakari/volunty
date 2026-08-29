@@ -17,7 +17,7 @@ function jobBlock(name, nextName) {
   return workflow.slice(start, end);
 }
 
-test("publisher finalizerとinvalidatorのstatus更新を同じHEAD lockで直列化する", () => {
+test("stale invalidatorがfinalizerをcancelせず同じHEAD lockで直列化する", () => {
   const invalidate = jobBlock("invalidate", "publish");
   const publish = jobBlock("publish", "finalize");
   const finalize = jobBlock("finalize");
@@ -26,7 +26,7 @@ test("publisher finalizerとinvalidatorのstatus更新を同じHEAD lockで直�
     invalidate,
     /group: \$\{\{ github\.repository \}\}-pr-demo-status-\$\{\{ github\.event\.workflow_run\.head_sha \}\}/,
   );
-  assert.match(invalidate, /cancel-in-progress: true/);
+  assert.match(invalidate, /cancel-in-progress: false/);
   assert.match(publish, /group: \$\{\{ github\.repository \}\}-pr-demo-pages/);
   assert.doesNotMatch(publish, /finalize-publish\.mjs/);
   assert.match(finalize, /needs: publish/);
