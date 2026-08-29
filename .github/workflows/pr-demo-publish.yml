@@ -221,16 +221,13 @@ jobs:
     needs: publish
     if: ${{ always() && needs.publish.outputs.head_sha != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 60
     permissions:
       actions: read
-      contents: read
+      contents: write
       issues: write
       pull-requests: read
       statuses: write
-    concurrency:
-      group: ${{ github.repository }}-pr-demo-status-${{ needs.publish.outputs.head_sha }}
-      cancel-in-progress: false
     steps:
       - name: Checkout trusted main scripts
         uses: actions/checkout@v4
@@ -252,8 +249,14 @@ jobs:
           name: pr-demo-finalizer-${{ github.run_attempt }}
           path: ${{ runner.temp }}/pr-demo-finalizer
 
+      - name: Acquire PR demo operation lock
+        id: pages_lock
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node source/.github/scripts/pr-demo/pages-lock.mjs acquire
+
       - name: Upsert PR comment and set demo-video status
-        if: ${{ always() }}
+        if: ${{ always() && steps.pages_lock.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_RESULT_PATH: ${{ runner.temp }}/pr-demo-finalizer/result.json
@@ -265,3 +268,11 @@ jobs:
           PR_DEMO_MANUAL_PR_NUMBER: ${{ inputs.pr_number }}
           PR_DEMO_MANUAL_HEAD_SHA: ${{ inputs.head_sha }}
         run: node source/.github/scripts/pr-demo/finalize-publish.mjs
+
+      - name: Release PR demo operation lock
+        if: ${{ always() && steps.pages_lock.outputs.lock_ref_id != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_PAGES_LOCK_REF_ID: ${{ steps.pages_lock.outputs.lock_ref_id }}
+          PR_DEMO_PAGES_LOCK_SHA: ${{ steps.pages_lock.outputs.lock_sha }}
+        run: node source/.github/scripts/pr-demo/pages-lock.mjs release

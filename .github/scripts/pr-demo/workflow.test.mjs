@@ -21,7 +21,7 @@ function jobBlock(name, nextName) {
   return workflow.slice(start, end);
 }
 
-test("invalidatorをfinalizerの単一pending枠から分離する", () => {
+test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lockで直列化する", () => {
   const invalidate = jobBlock("invalidate", "publish");
   const publish = jobBlock("publish", "finalize");
   const finalize = jobBlock("finalize");
@@ -40,11 +40,17 @@ test("invalidatorをfinalizerの単一pending枠から分離する", () => {
   assert.match(publish, /pages-lock\.mjs release/);
   assert.doesNotMatch(publish, /finalize-publish\.mjs/);
   assert.match(finalize, /needs: publish/);
+  assert.doesNotMatch(finalize, /concurrency:/);
+  assert.match(finalize, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
+  assert.ok(
+    finalize.indexOf("pages-lock.mjs acquire") <
+      finalize.indexOf("finalize-publish.mjs"),
+  );
   assert.match(
     finalize,
-    /group: \$\{\{ github\.repository \}\}-pr-demo-status-\$\{\{ needs\.publish\.outputs\.head_sha \}\}/,
+    /Release PR demo operation lock[\s\S]*if: \$\{\{ always\(\)/,
   );
-  assert.match(finalize, /cancel-in-progress: false/);
+  assert.match(finalize, /pages-lock\.mjs release/);
   assert.match(finalize, /id: handoff[\s\S]*continue-on-error: true/);
   assert.match(finalize, /finalize-publish\.mjs/);
 });
