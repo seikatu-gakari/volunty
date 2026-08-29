@@ -31,6 +31,7 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   const finalize = jobBlock("finalize");
 
   assert.doesNotMatch(invalidate, /concurrency:/);
+  assert.match(invalidate, /timeout-minutes: 90/);
   assert.match(invalidate, /contents: write/);
   assert.match(invalidate, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
   assert.ok(

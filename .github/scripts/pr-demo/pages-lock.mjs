@@ -9,7 +9,7 @@ const LOCK_REF = "refs/heads/pr-demo-pages-lock";
 const LOCK_REF_PATH = "heads/pr-demo-pages-lock";
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const DEFAULT_MAX_WAIT_MS = 40 * 60 * 1000;
+const DEFAULT_MAX_WAIT_MS = 75 * 60 * 1000;
 const DEFAULT_POLL_MS = 5000;
 const STALE_GRACE_MS = 60 * 1000;
 

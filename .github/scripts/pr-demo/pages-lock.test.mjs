@@ -160,6 +160,26 @@ test("空いているPages lock refを取得する", async () => {
   assert.equal(result.refId, lock.refId);
 });
 
+test("60分ownerを上回る75分のlock待機上限を受理する", async () => {
+  const result = await acquirePagesLock({
+    identity,
+    client: {
+      async getLock() {
+        return undefined;
+      },
+      async createLock() {
+        return lock;
+      },
+    },
+    now: () => acquiredAt,
+    sleep: async () => {},
+    maxWaitMs: 75 * 60 * 1000,
+    pollMs: 1,
+  });
+
+  assert.equal(result.refId, lock.refId);
+});
+
 test("別runのlockが解放されるまでjobを失わず待機する", async () => {
   let reads = 0;
   const sleeps = [];
