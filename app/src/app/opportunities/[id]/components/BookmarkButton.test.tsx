@@ -20,8 +20,8 @@ describe("BookmarkButton", () => {
     await waitFor(() => expect(addBookmark).toHaveBeenCalledWith("opp-1"));
     expect(
       screen.getByRole("button", { name: "後で見るから解除" })
-    ).toBeInTheDocument();
-    expect(screen.getByText("お気に入りに追加しました")).toBeInTheDocument();
+    ).not.toBeNull();
+    expect(screen.getByText("お気に入りに追加しました")).not.toBeNull();
   });
 
   it("登録済みなら解除し、未登録表示へ切り替える", async () => {
@@ -31,7 +31,7 @@ describe("BookmarkButton", () => {
     fireEvent.click(screen.getByRole("button", { name: "後で見るから解除" }));
 
     await waitFor(() => expect(removeBookmark).toHaveBeenCalledWith("opp-1"));
-    expect(screen.getByRole("button", { name: "後で見る" })).toBeInTheDocument();
-    expect(screen.getByText("お気に入りを解除しました")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "後で見る" })).not.toBeNull();
+    expect(screen.getByText("お気に入りを解除しました")).not.toBeNull();
   });
 });

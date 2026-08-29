@@ -29,6 +29,6 @@ describe("BookmarkList", () => {
     await waitFor(() => expect(screen.queryByText("清掃活動")).toBeNull());
     expect(
       screen.getByText("後で見る案件はまだありません。")
-    ).toBeInTheDocument();
+    ).not.toBeNull();
   });
 });
