@@ -196,10 +196,6 @@ GRANT ALL PRIVILEGES ON TABLE
   public.m_participant_profile,
   public.m_organization_profile
   TO anon, authenticated;
--- m_opportunityの既存Data API DML権限を再現し、Issue #215 migrationの
--- RLS policy有無をGRANT不足と分離して検証する。
-GRANT SELECT ON public.m_opportunity TO anon;
-GRANT SELECT, INSERT, UPDATE ON public.m_opportunity TO authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated;
 
@@ -228,6 +224,18 @@ psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260815075346_issue199_diagnosis_write_schema_repair.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260822000000_issue215_profile_data_api_authz.sql" >/dev/null
 
+# Issue #215 migrationがINSERT/UPDATE policy追記前に適用済みだった本番状態を再現する。
+# repair migration前にはテスト側から案件権限・policyを補わない。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+REVOKE ALL ON TABLE public.m_opportunity FROM anon, authenticated;
+DROP POLICY IF EXISTS "団体は自分の案件を作成可能"
+  ON public.m_opportunity;
+DROP POLICY IF EXISTS "団体は自分の案件を更新可能"
+  ON public.m_opportunity;
+SQL
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830000000_issue230_opportunity_data_api_authz_repair.sql" >/dev/null
+
 # seedなしのmigration-only契約: ownerの案件作成・更新がData APIロールで成立する。
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
 INSERT INTO public.m_opportunity (
@@ -241,11 +249,21 @@ INSERT INTO public.m_opportunity (
 DO $$
 BEGIN
   IF NOT has_table_privilege(
+    'authenticated', 'public.m_opportunity', 'SELECT'
+  ) OR NOT has_table_privilege(
     'authenticated', 'public.m_opportunity', 'INSERT'
   ) OR NOT has_table_privilege(
     'authenticated', 'public.m_opportunity', 'UPDATE'
+  ) OR NOT has_table_privilege(
+    'anon', 'public.m_opportunity', 'SELECT'
+  ) OR has_table_privilege(
+    'anon', 'public.m_opportunity', 'INSERT'
+  ) OR has_table_privilege(
+    'anon', 'public.m_opportunity', 'UPDATE'
+  ) OR has_table_privilege(
+    'authenticated', 'public.m_opportunity', 'DELETE'
   ) THEN
-    RAISE EXCEPTION 'migration-only fixture lacks m_opportunity DML grants';
+    RAISE EXCEPTION 'repair migration restored unexpected m_opportunity privileges';
   END IF;
 END;
 $$;
@@ -336,6 +354,44 @@ BEGIN
 
   IF NOT reassignment_denied THEN
     RAISE EXCEPTION 'organization owner can reassign opportunity';
+  END IF;
+END;
+$$;
+RESET ROLE;
+SQL
+
+# 匿名ロールは公開案件を参照できるが、案件の作成・更新はできない。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+SET ROLE anon;
+DO $$
+DECLARE
+  insert_denied boolean := false;
+  update_denied boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO public.m_opportunity (
+      id, organization_id, title, created_at, updated_at
+    ) VALUES (
+      '99999999-8888-8888-8888-888888888888',
+      '99999999-3333-3333-3333-333333333333',
+      'anonymous opportunity', NOW(), NOW()
+    );
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      insert_denied := true;
+  END;
+
+  BEGIN
+    UPDATE public.m_opportunity
+    SET title = 'anonymous update'
+    WHERE id = '99999999-6666-6666-6666-666666666666';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      update_denied := true;
+  END;
+
+  IF NOT insert_denied OR NOT update_denied THEN
+    RAISE EXCEPTION 'anon can insert or update m_opportunity';
   END IF;
 END;
 $$;
