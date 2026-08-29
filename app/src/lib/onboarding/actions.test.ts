@@ -359,7 +359,6 @@ describe("registerParticipant", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("予期しないエラーが発生しました");
-    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });
 

@@ -33,7 +33,9 @@ describe("RoleSelectionClient", () => {
   it("未選択時は次へボタンが無効", () => {
     render(<RoleSelectionClient />);
 
-    expect(screen.getByRole("button", { name: "次へ" })).toBeDisabled();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "次へ" }).disabled).toBe(
+      true
+    );
   });
 
   it("保存中は処理中表示になり、エラーを表示しない", async () => {
@@ -46,10 +48,13 @@ describe("RoleSelectionClient", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
 
-    expect(await screen.findByRole("button", { name: "処理中..." })).toBeDisabled();
+    expect(
+      (await screen.findByRole<HTMLButtonElement>("button", { name: "処理中..." }))
+        .disabled
+    ).toBe(true);
     expect(
       screen.queryByText("ロールの保存中にエラーが発生しました")
-    ).not.toBeInTheDocument();
+    ).toBeNull();
   });
 
   it.each([
@@ -65,7 +70,7 @@ describe("RoleSelectionClient", () => {
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith(redirectTo));
     expect(
       screen.queryByText("ロールの保存中にエラーが発生しました")
-    ).not.toBeInTheDocument();
+    ).toBeNull();
   });
 
   it("失敗結果では遷移せずエラーを表示して再試行できる", async () => {
@@ -80,11 +85,11 @@ describe("RoleSelectionClient", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
 
-    expect(
-      await screen.findByText("ロールの保存中にエラーが発生しました")
-    ).toBeInTheDocument();
+    expect(await screen.findByText("ロールの保存中にエラーが発生しました")).toBeTruthy();
     expect(mocks.push).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "次へ" })).toBeEnabled();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "次へ" }).disabled).toBe(
+      false
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
     await waitFor(() => expect(mocks.selectRole).toHaveBeenCalledTimes(2));
@@ -99,9 +104,9 @@ describe("RoleSelectionClient", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
 
-    expect(
-      await screen.findByText("ロールの保存中にエラーが発生しました")
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "次へ" })).toBeEnabled();
+    expect(await screen.findByText("ロールの保存中にエラーが発生しました")).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "次へ" }).disabled).toBe(
+      false
+    );
   });
 });
