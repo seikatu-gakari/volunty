@@ -135,6 +135,23 @@ async function resolveManualFallbackFreshness({ result, client }) {
   }
 }
 
+async function finalizeManualFallback({ result, client }) {
+  const freshness = await resolveManualFallbackFreshness({ result, client });
+  let outcome = await finalizePublish({
+    result,
+    currentHeadSha: freshness.currentHeadSha,
+    latestRunId: freshness.latestRunId,
+    latestRunAttempt: freshness.latestRunAttempt,
+    siteReady: false,
+    pagesReady: false,
+    client,
+  });
+  if (freshness.verified) {
+    outcome = await reconcileFinalStatus({ result, outcome, client });
+  }
+  return outcome;
+}
+
 export async function main({
   resultPath = process.env.PR_DEMO_RESULT_PATH,
   eventPath = process.env.GITHUB_EVENT_PATH,
@@ -189,15 +206,14 @@ export async function main({
         manualPrNumber,
         manualHeadSha,
       });
-      outcome = await finalizePublish({
-        result: buildFailureResult(
+      const fallbackResult = {
+        ...buildFailureResult(
           context,
           `手動承認runを解決できませんでした: ${resolutionError.message}`,
         ),
-        siteReady: false,
-        pagesReady: false,
-        client,
-      });
+        manualFallback: true,
+      };
+      outcome = await finalizeManualFallback({ result: fallbackResult, client });
     }
     if (!outcome.success) {
       throw new Error("demo-videoをfailureに設定しました");
@@ -229,19 +245,7 @@ export async function main({
         throw new Error("手動承認fallback resultがworkflow入力と一致しません");
       }
     }
-    const freshness = await resolveManualFallbackFreshness({ result, client });
-    let outcome = await finalizePublish({
-      result,
-      currentHeadSha: freshness.currentHeadSha,
-      latestRunId: freshness.latestRunId,
-      latestRunAttempt: freshness.latestRunAttempt,
-      siteReady: false,
-      pagesReady: false,
-      client,
-    });
-    if (freshness.verified) {
-      outcome = await reconcileFinalStatus({ result, outcome, client });
-    }
+    const outcome = await finalizeManualFallback({ result, client });
     if (!outcome.success) {
       throw new Error("demo-videoをfailureに設定しました");
     }

@@ -88,6 +88,9 @@ test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをf
         async getWorkflowRunPullRequests() {
           throw new Error("temporary GitHub API failure");
         },
+        async getPullRequest() {
+          throw new Error("temporary GitHub API failure");
+        },
         async upsertDemoComment(prNumber, body) {
           calls.push({ type: "comment", prNumber, body });
         },
@@ -103,6 +106,51 @@ test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをf
   assert.equal(calls[0].prNumber, 321);
   assert.equal(calls[1].sha, headSha);
   assert.equal(calls[1].status.state, "failure");
+});
+
+test("handoff欠落時の手動fallbackも後続runがあればstaleとして上書きしない", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-handoff-stale-"));
+  const eventPath = join(directory, "event.json");
+  await writeFile(
+    eventPath,
+    JSON.stringify({ repository: { full_name: repository } }),
+  );
+  const writes = [];
+
+  const outcome = await main({
+    resultPath: join(directory, "missing-result.json"),
+    eventPath,
+    token: "test-token",
+    repository,
+    manualForkApproval: true,
+    sourceRunId: "987",
+    sourceRunAttempt: "1",
+    manualPrNumber: "321",
+    manualHeadSha: headSha,
+    githubClient: {
+      async getWorkflowRun() {
+        throw new Error("temporary workflow run API failure");
+      },
+      async getWorkflowRunPullRequests() {
+        throw new Error("temporary workflow run API failure");
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async getLatestPullRequestCiRun() {
+        return { id: 988, run_attempt: 1, status: "completed" };
+      },
+      async upsertDemoComment(...args) {
+        writes.push({ type: "comment", args });
+      },
+      async setDemoStatus(...args) {
+        writes.push({ type: "status", args });
+      },
+    },
+  });
+
+  assert.equal(outcome.state, "stale");
+  assert.deepEqual(writes, []);
 });
 
 test("手動run解決失敗resultはAPI再照合不能でもfailure statusを確定する", async () => {
