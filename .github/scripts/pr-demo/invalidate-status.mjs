@@ -13,6 +13,13 @@ function sleepFor(milliseconds) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 }
 
+function buildRunUrl(repository, run) {
+  const runBaseUrl = `https://github.com/${repository}/actions/runs/${run.id}`;
+  return run.run_attempt === 1
+    ? runBaseUrl
+    : `${runBaseUrl}/attempts/${run.run_attempt}`;
+}
+
 export async function invalidateDemoStatus({ event, client }) {
   if (!["requested", "in_progress"].includes(event?.action)) {
     return "ignored";
@@ -40,12 +47,7 @@ export async function invalidateDemoStatus({ event, client }) {
     latestRun.id !== context.runId ||
     latestRun.run_attempt !== context.runAttempt
   ) {
-    const latestRunBaseUrl =
-      `https://github.com/${context.repository}/actions/runs/${latestRun.id}`;
-    targetUrl =
-      latestRun.run_attempt === 1
-        ? latestRunBaseUrl
-        : `${latestRunBaseUrl}/attempts/${latestRun.run_attempt}`;
+    targetUrl = buildRunUrl(context.repository, latestRun);
     outcome = "pending-latest";
   }
 
@@ -54,6 +56,30 @@ export async function invalidateDemoStatus({ event, client }) {
     description: "最新CIの動作ビデオを待機しています",
     targetUrl,
   });
+
+  const [refreshedRun, refreshedPullRequest] = await Promise.all([
+    client.getLatestPullRequestCiRun(context.prNumber, context.headSha),
+    client.getPullRequest(context.prNumber),
+  ]);
+  if (refreshedPullRequest?.head?.sha !== context.headSha) {
+    return "stale";
+  }
+  if (refreshedRun.status === "completed") {
+    // workflow側のdurable lockを解放後、completed publisherが最終状態を確定する。
+    return "pending-completed";
+  }
+  if (
+    ["queued", "in_progress"].includes(refreshedRun.status) &&
+    (refreshedRun.id !== latestRun.id ||
+      refreshedRun.run_attempt !== latestRun.run_attempt)
+  ) {
+    await client.setDemoStatus(context.headSha, {
+      state: "pending",
+      description: "最新CIの動作ビデオを待機しています",
+      targetUrl: buildRunUrl(context.repository, refreshedRun),
+    });
+    return "pending-latest";
+  }
   return outcome;
 }
 

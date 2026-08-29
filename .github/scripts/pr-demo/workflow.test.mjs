@@ -27,6 +27,13 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   const finalize = jobBlock("finalize");
 
   assert.doesNotMatch(invalidate, /concurrency:/);
+  assert.match(invalidate, /contents: write/);
+  assert.match(invalidate, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
+  assert.ok(
+    invalidate.indexOf("pages-lock.mjs acquire") <
+      invalidate.indexOf("invalidate-status.mjs"),
+  );
+  assert.match(invalidate, /pages-lock\.mjs release/);
   assert.doesNotMatch(publish, /concurrency:/);
   assert.match(publish, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
   assert.ok(
@@ -53,6 +60,29 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   assert.match(finalize, /pages-lock\.mjs release/);
   assert.match(finalize, /id: handoff[\s\S]*continue-on-error: true/);
   assert.match(finalize, /finalize-publish\.mjs/);
+});
+
+test("finalize単独再実行でもpublish元attemptのhandoffを取得する", () => {
+  const publish = jobBlock("publish", "finalize");
+  const finalize = jobBlock("finalize");
+
+  assert.match(
+    publish,
+    /finalizer_artifact_name: \$\{\{ steps\.handoff\.outputs\.artifact_name \}\}/,
+  );
+  assert.match(
+    publish,
+    /artifact_name=pr-demo-finalizer-\$\{GITHUB_RUN_ATTEMPT\}/,
+  );
+  assert.match(
+    publish,
+    /name: \$\{\{ steps\.handoff\.outputs\.artifact_name \}\}/,
+  );
+  assert.match(
+    finalize,
+    /name: \$\{\{ needs\.publish\.outputs\.finalizer_artifact_name \}\}/,
+  );
+  assert.doesNotMatch(finalize, /pr-demo-finalizer-\$\{\{ github\.run_attempt \}\}/);
 });
 
 test("fork手動承認はAPI障害時のfailure対象identityも必須入力にする", () => {

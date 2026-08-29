@@ -34,10 +34,10 @@ jobs:
     name: Invalidate stale demo-video status
     if: ${{ github.event_name == 'workflow_run' && (github.event.action == 'requested' || github.event.action == 'in_progress') && github.event.workflow_run.event == 'pull_request' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 45
     permissions:
       actions: read
-      contents: read
+      contents: write
       pull-requests: read
       statuses: write
     steps:
@@ -52,10 +52,24 @@ jobs:
         with:
           node-version: 22
 
+      - name: Acquire PR demo operation lock
+        id: pages_lock
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/pr-demo/pages-lock.mjs acquire
+
       - name: Mark demo-video pending for the current CI run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/pr-demo/invalidate-status.mjs
+
+      - name: Release PR demo operation lock
+        if: ${{ always() && steps.pages_lock.outputs.lock_ref_id != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_PAGES_LOCK_REF_ID: ${{ steps.pages_lock.outputs.lock_ref_id }}
+          PR_DEMO_PAGES_LOCK_SHA: ${{ steps.pages_lock.outputs.lock_sha }}
+        run: node .github/scripts/pr-demo/pages-lock.mjs release
 
   publish:
     name: Prepare PR demo Pages
@@ -64,6 +78,7 @@ jobs:
     timeout-minutes: 60
     outputs:
       head_sha: ${{ steps.prepare.outputs.head_sha || github.event.workflow_run.head_sha || inputs.head_sha }}
+      finalizer_artifact_name: ${{ steps.handoff.outputs.artifact_name }}
       pages_ready: ${{ steps.handoff.outputs.pages_ready }}
       site_ready: ${{ steps.handoff.outputs.site_ready }}
     permissions:
@@ -204,14 +219,17 @@ jobs:
           test -f "$PR_DEMO_RESULT_PATH"
           mkdir -p "$RUNNER_TEMP/pr-demo-finalizer"
           cp -- "$PR_DEMO_RESULT_PATH" "$RUNNER_TEMP/pr-demo-finalizer/result.json"
-          echo "site_ready=$PR_DEMO_SITE_READY" >> "$GITHUB_OUTPUT"
-          echo "pages_ready=$PR_DEMO_PAGES_READY" >> "$GITHUB_OUTPUT"
+          {
+            echo "artifact_name=pr-demo-finalizer-${GITHUB_RUN_ATTEMPT}"
+            echo "site_ready=$PR_DEMO_SITE_READY"
+            echo "pages_ready=$PR_DEMO_PAGES_READY"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload trusted finalizer handoff
         if: ${{ always() && steps.handoff.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: pr-demo-finalizer-${{ github.run_attempt }}
+          name: ${{ steps.handoff.outputs.artifact_name }}
           path: ${{ runner.temp }}/pr-demo-finalizer/result.json
           if-no-files-found: error
           retention-days: 1
@@ -246,7 +264,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: pr-demo-finalizer-${{ github.run_attempt }}
+          name: ${{ needs.publish.outputs.finalizer_artifact_name }}
           path: ${{ runner.temp }}/pr-demo-finalizer
 
       - name: Acquire PR demo operation lock

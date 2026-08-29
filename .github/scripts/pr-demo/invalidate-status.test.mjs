@@ -131,6 +131,33 @@ test("同じrunの遅延invalidatorはCI完了後のsuccessをpendingへ戻さ�
   assert.equal(statusCalls, 0);
 });
 
+test("pending更新中にCIが完了した場合は完了publisherへ引き継ぐ", async () => {
+  let latestRunCalls = 0;
+  const statuses = [];
+
+  const outcome = await invalidateDemoStatus({
+    event: workflowRunEvent(),
+    client: {
+      async getLatestPullRequestCiRun() {
+        latestRunCalls += 1;
+        return latestRunCalls === 1
+          ? { id: 987, run_attempt: 1, status: "in_progress" }
+          : { id: 987, run_attempt: 1, status: "completed" };
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async setDemoStatus(sha, status) {
+        statuses.push({ sha, status });
+      },
+    },
+  });
+
+  assert.equal(outcome, "pending-completed");
+  assert.equal(latestRunCalls, 2);
+  assert.deepEqual(statuses.map(({ status }) => status.state), ["pending"]);
+});
+
 test("lock待機中に古くなったinvalidatorは実行中の最新CIをpendingへ同期する", async () => {
   const statuses = [];
 
@@ -251,7 +278,7 @@ test("一時的なGitHub API失敗後も再試行して旧successをpendingへ�
   });
 
   assert.equal(outcome, "pending");
-  assert.equal(latestRunCalls, 3);
+  assert.equal(latestRunCalls, 4);
   assert.deepEqual(retryDelays, [1000, 2000]);
   assert.equal(statuses.length, 1);
 });
