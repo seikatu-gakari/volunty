@@ -263,3 +263,25 @@ test("CIまたはartifact失敗は理由付きcommentとfailure statusにする"
   assert.match(calls[0].body, /対象テストが0件でした/);
   assert.equal(calls[1].status.state, "failure");
 });
+
+test("生成失敗時の旧動画削除をdeploy・永続化できなければ明示的にfailureにする", async () => {
+  const calls = [];
+
+  const outcome = await finalizePublish({
+    result: baseResult({
+      outcome: "failure",
+      siteChanged: true,
+      reason: "対象テストが0件でした",
+      manifestUrl: undefined,
+      comment: undefined,
+    }),
+    siteReady: false,
+    pagesReady: false,
+    client: createClient(calls),
+  });
+
+  assert.equal(outcome.success, false);
+  assert.match(calls[0].body, /対象テストが0件でした/);
+  assert.match(calls[0].body, /旧動画.*削除できませんでした/);
+  assert.equal(calls[1].status.state, "failure");
+});

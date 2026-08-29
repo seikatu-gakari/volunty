@@ -132,6 +132,13 @@ export async function finalizePublish({
     return { success: true, state: "success" };
   }
   if (result.outcome === "failure") {
+    if (result.siteChanged && siteReady !== true) {
+      return publishFailure({
+        result,
+        reason: `旧動画をGitHub Pagesから削除できませんでした; ${result.reason}`,
+        client,
+      });
+    }
     return publishFailure({ result, reason: result.reason, client });
   }
   if (siteReady !== true) {
