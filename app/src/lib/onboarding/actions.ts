@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { ensureUserRecord } from "@/lib/auth/ensure-user-record";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -14,32 +13,49 @@ import type {
   RegisterParticipantResult,
   RegisterOrganizationData,
   RegisterOrganizationResult,
+  SelectRoleResult,
 } from "./types";
+
+const SELECT_ROLE_ERROR = "ロールの保存中にエラーが発生しました";
 
 /**
  * ロール選択 — user_metadata と m_user のロールを更新
  */
-export async function selectRole(role: "participant" | "organization") {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("認証が必要です");
+export async function selectRole(
+  role: "participant" | "organization"
+): Promise<SelectRoleResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: SELECT_ROLE_ERROR };
+    }
 
-  // Supabase Auth メタデータを更新
-  const { error: authError } = await supabase.auth.updateUser({
-    data: { role },
-  });
-  if (authError) throw new Error(`ロール更新に失敗しました: ${authError.message}`);
+    // Supabase Auth メタデータを更新
+    const { error: authError } = await supabase.auth.updateUser({
+      data: { role },
+    });
+    if (authError) {
+      console.error("[selectRole] Auth metadata 更新エラー:", authError);
+      return { success: false, error: SELECT_ROLE_ERROR };
+    }
 
-  // DB のロールも同期し、m_user 未作成環境でも進めるようにする
-  await ensureUserRecord(user, { role, updateRole: true });
+    // DB のロールも同期し、m_user 未作成環境でも進めるようにする
+    await ensureUserRecord(user, { role, updateRole: true });
 
-  redirect(
-    role === "organization"
-      ? "/onboarding/organization"
-      : "/onboarding/participant"
-  );
+    return {
+      success: true,
+      redirectTo:
+        role === "organization"
+          ? "/onboarding/organization"
+          : "/onboarding/participant",
+    };
+  } catch (error) {
+    console.error("[selectRole] 予期しないエラー:", error);
+    return { success: false, error: SELECT_ROLE_ERROR };
+  }
 }
 
 /**

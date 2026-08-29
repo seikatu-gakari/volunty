@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Users, Building2 } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -10,6 +11,7 @@ import { selectRole } from "@/lib/onboarding/actions";
 type Role = "participant" | "organization";
 
 export function RoleSelectionClient() {
+  const router = useRouter();
   const [selected, setSelected] = useState<Role | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,14 @@ export function RoleSelectionClient() {
     setError(null);
 
     try {
-      await selectRole(selected);
+      const result = await selectRole(selected);
+      if (result.success) {
+        router.push(result.redirectTo);
+        return;
+      }
+
+      setError(result.error);
+      setLoading(false);
     } catch {
       setError("ロールの保存中にエラーが発生しました");
       setLoading(false);
