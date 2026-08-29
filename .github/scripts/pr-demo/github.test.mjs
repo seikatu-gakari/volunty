@@ -192,6 +192,7 @@ test("同一HEADの対象PRからrun_numberが最新のPull Request CIを選ぶ"
   const run = (id, runNumber, prNumber) => ({
     id,
     run_number: runNumber,
+    run_attempt: 1,
     event: "pull_request",
     head_sha: "b".repeat(40),
     pull_requests: [{ number: prNumber }],
@@ -218,7 +219,30 @@ test("同一HEADの対象PRからrun_numberが最新のPull Request CIを選ぶ"
 
   assert.equal(latest.id, 900);
   assert.equal(latest.run_number, 52);
+  assert.equal(latest.run_attempt, 1);
   assert.match(calls[1], /actions\/workflows\/ci\.yml\/runs\?.*page=2$/);
+});
+
+test("最新Pull Request CIのrun_attempt欠落を拒否する", async () => {
+  const fetchImpl = async () =>
+    jsonResponse({
+      total_count: 1,
+      workflow_runs: [
+        {
+          id: 987,
+          run_number: 52,
+          event: "pull_request",
+          head_sha: "b".repeat(40),
+          pull_requests: [{ number: 321 }],
+        },
+      ],
+    });
+  const client = createGitHubClient({ token: "test-token", repository, fetchImpl });
+
+  await assert.rejects(
+    client.getLatestPullRequestCiRun(321, "b".repeat(40)),
+    /run APIのresponse/,
+  );
 });
 
 test("artifact archiveのredirect先へtokenを送らずsizeを制限して保存する", async () => {

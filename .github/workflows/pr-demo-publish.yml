@@ -84,6 +84,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           PR_DEMO_ARCHIVE_PATH: ${{ runner.temp }}/pr-demo-download/pr-demo-results.zip
           PR_DEMO_ARTIFACT_DIR: ${{ github.workspace }}/artifact
         run: node source/.github/scripts/pr-demo/download-artifact.mjs

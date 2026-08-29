@@ -22,11 +22,13 @@ function safeReason(reason, fallback) {
   return normalized || fallback;
 }
 
-function assertRunUrl(runUrl, repository, runId) {
-  const expected = `https://github.com/${repository}/actions/runs/${runId}`;
-  if (runUrl !== expected && !runUrl.startsWith(`${expected}/`)) {
+function normalizeRunUrl(runUrl, repository, runId, runAttempt) {
+  const base = `https://github.com/${repository}/actions/runs/${runId}`;
+  const attemptUrl = `${base}/attempts/${runAttempt}`;
+  if (runUrl !== base && runUrl !== attemptUrl) {
     throw new Error("workflow_run URLが不正です");
   }
+  return runAttempt === 1 ? base : attemptUrl;
 }
 
 export function extractWorkflowRunContext(event) {
@@ -38,6 +40,8 @@ export function extractWorkflowRunContext(event) {
     run.event !== "pull_request" ||
     !Number.isSafeInteger(run.id) ||
     run.id <= 0 ||
+    !Number.isSafeInteger(run.run_attempt) ||
+    run.run_attempt <= 0 ||
     !REPOSITORY_PATTERN.test(repository ?? "") ||
     !SHA_PATTERN.test(run.head_sha ?? "")
   ) {
@@ -63,7 +67,12 @@ export function extractWorkflowRunContext(event) {
   if (!REPOSITORY_PATTERN.test(headRepository ?? "")) {
     throw new Error("workflow_runのhead repositoryが不正です");
   }
-  assertRunUrl(run.html_url, repository, run.id);
+  const runUrl = normalizeRunUrl(
+    run.html_url,
+    repository,
+    run.id,
+    run.run_attempt,
+  );
 
   return {
     prNumber: pullRequest.number,
@@ -73,7 +82,8 @@ export function extractWorkflowRunContext(event) {
     sameRepository: headRepository === repository,
     conclusion: run.conclusion,
     runId: run.id,
-    runUrl: run.html_url,
+    runAttempt: run.run_attempt,
+    runUrl,
   };
 }
 
@@ -178,6 +188,7 @@ export function buildFailureResult(context, reason) {
     headSha: context.headSha,
     repository: context.repository,
     runId: context.runId,
+    runAttempt: context.runAttempt,
     runUrl: context.runUrl,
     reason: safeReason(reason, "動作ビデオの公開に失敗しました"),
   };
@@ -192,6 +203,7 @@ export function buildStaleResult(context, reason) {
     headSha: context.headSha,
     repository: context.repository,
     runId: context.runId,
+    runAttempt: context.runAttempt,
     runUrl: context.runUrl,
     reason: safeReason(reason, "このworkflow_runは最新ではありません"),
   };
@@ -268,6 +280,7 @@ export async function preparePublish({
       headSha: context.headSha,
       repository: context.repository,
       runId: context.runId,
+      runAttempt: context.runAttempt,
       runUrl: context.runUrl,
       reason: safeReason(decision.reason, "ユーザー表示に影響する変更がありません"),
     };
@@ -295,6 +308,7 @@ export async function preparePublish({
     headSha: context.headSha,
     repository: context.repository,
     runId: context.runId,
+    runAttempt: context.runAttempt,
     runUrl: context.runUrl,
     reason: "動作ビデオを公開しました",
     manifestUrl: `${assetBase}/manifest.json`,

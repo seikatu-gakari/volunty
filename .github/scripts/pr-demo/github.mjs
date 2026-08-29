@@ -198,6 +198,8 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
             run.id <= 0 ||
             !Number.isSafeInteger(run.run_number) ||
             run.run_number <= 0 ||
+            !Number.isSafeInteger(run.run_attempt) ||
+            run.run_attempt <= 0 ||
             run.event !== "pull_request" ||
             run.head_sha !== headSha ||
             !Array.isArray(run.pull_requests) ||

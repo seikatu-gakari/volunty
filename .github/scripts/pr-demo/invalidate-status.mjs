@@ -21,7 +21,11 @@ export async function invalidateDemoStatus({ event, client }) {
   if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
     throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
   }
-  if (latestRun.id !== context.runId || currentHeadSha !== context.headSha) {
+  if (
+    latestRun.id !== context.runId ||
+    latestRun.run_attempt !== context.runAttempt ||
+    currentHeadSha !== context.headSha
+  ) {
     return "stale";
   }
 

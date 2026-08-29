@@ -25,6 +25,7 @@ function createEvent(overrides = {}) {
     repository: { full_name: repository },
     workflow_run: {
       id: 987,
+      run_attempt: 1,
       name: "Pull Request CI",
       event: "pull_request",
       conclusion: "success",
@@ -124,6 +125,15 @@ test("workflow_runからtrustedなPR identityを取り出す", () => {
   assert.equal(context.headSha, headSha);
   assert.equal(context.repository, repository);
   assert.equal(context.sameRepository, true);
+});
+
+test("workflow_run identityに再実行attempt番号を保持する", () => {
+  const context = extractWorkflowRunContext(
+    createEvent({ workflow_run: { run_attempt: 2 } }),
+  );
+
+  assert.equal(context.runId, 987);
+  assert.equal(context.runAttempt, 2);
 });
 
 test("fork由来workflow_runはartifactを読む前に公開対象外と判定する", async () => {

@@ -17,21 +17,20 @@ function validateResult(result) {
     !REPOSITORY_PATTERN.test(result.repository ?? "") ||
     !Number.isSafeInteger(result.runId) ||
     result.runId <= 0 ||
+    !Number.isSafeInteger(result.runAttempt) ||
+    result.runAttempt <= 0 ||
     typeof result.reason !== "string" ||
     result.reason.length > 300 ||
     typeof result.siteChanged !== "boolean"
   ) {
     throw new Error("publish resultのschemaが不正です");
   }
-  const expectedRunUrl = `https://github.com/${result.repository}/actions/runs/${result.runId}`;
-  const attemptsPrefix = `${expectedRunUrl}/attempts/`;
-  if (
-    result.runUrl !== expectedRunUrl &&
-    !(
-      result.runUrl?.startsWith(attemptsPrefix) &&
-      /^[1-9][0-9]*$/.test(result.runUrl.slice(attemptsPrefix.length))
-    )
-  ) {
+  const runBaseUrl = `https://github.com/${result.repository}/actions/runs/${result.runId}`;
+  const expectedRunUrl =
+    result.runAttempt === 1
+      ? runBaseUrl
+      : `${runBaseUrl}/attempts/${result.runAttempt}`;
+  if (result.runUrl !== expectedRunUrl) {
     throw new Error("publish resultのrun URLが不正です");
   }
 
@@ -79,6 +78,7 @@ export async function finalizePublish({
   result: unvalidatedResult,
   currentHeadSha,
   latestRunId,
+  latestRunAttempt,
   siteReady,
   pagesReady,
   client,
@@ -87,9 +87,15 @@ export async function finalizePublish({
   if (currentHeadSha !== undefined && !SHA_PATTERN.test(currentHeadSha)) {
     throw new Error("PRのcurrent HEAD SHAが不正です");
   }
+  const hasLatestRunId = latestRunId !== undefined;
+  const hasLatestRunAttempt = latestRunAttempt !== undefined;
   if (
-    latestRunId !== undefined &&
-    (!Number.isSafeInteger(latestRunId) || latestRunId <= 0)
+    hasLatestRunId !== hasLatestRunAttempt ||
+    (hasLatestRunId &&
+      (!Number.isSafeInteger(latestRunId) ||
+        latestRunId <= 0 ||
+        !Number.isSafeInteger(latestRunAttempt) ||
+        latestRunAttempt <= 0))
   ) {
     throw new Error("最新Pull Request CI run IDが不正です");
   }
@@ -99,7 +105,10 @@ export async function finalizePublish({
   if (result.outcome === "stale") {
     return { success: true, state: "stale" };
   }
-  if (latestRunId !== undefined && latestRunId !== result.runId) {
+  if (
+    hasLatestRunId &&
+    (latestRunId !== result.runId || latestRunAttempt !== result.runAttempt)
+  ) {
     return { success: true, state: "stale" };
   }
   if (result.outcome === "skip") {

@@ -52,7 +52,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: pr-demo-decision
+          name: pr-demo-decision-${{ github.run_attempt }}
           path: ${{ runner.temp }}/pr-demo/decision.json
           if-no-files-found: warn
           retention-days: 3
@@ -143,7 +143,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: pr-demo-decision
+          name: pr-demo-decision-${{ github.run_attempt }}
           path: ${{ runner.temp }}/pr-demo
 
       - name: Enforce demo policy result
@@ -213,7 +213,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-results
+          name: playwright-results-${{ github.run_attempt }}
           path: |
             app/playwright-report
             app/test-results
@@ -223,7 +223,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: pr-demo-results
+          name: pr-demo-results-${{ github.run_attempt }}
           path: ${{ runner.temp }}/pr-demo
           if-no-files-found: warn
           retention-days: 3

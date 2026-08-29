@@ -13,6 +13,7 @@ function workflowRunEvent(overrides = {}) {
     repository: { full_name: repository },
     workflow_run: {
       id: 987,
+      run_attempt: 1,
       name: "Pull Request CI",
       event: "pull_request",
       status: "in_progress",
@@ -33,7 +34,7 @@ test("trustedな同一repository CIの開始時に旧demo-video successをpendin
     event: workflowRunEvent(),
     client: {
       async getLatestPullRequestCiRun() {
-        return { id: 987 };
+        return { id: 987, run_attempt: 1 };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };
@@ -66,7 +67,7 @@ test("fork由来CIの開始時も手動承認済みの旧successをpendingへ戻
     }),
     client: {
       async getLatestPullRequestCiRun() {
-        return { id: 987 };
+        return { id: 987, run_attempt: 1 };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };
@@ -90,7 +91,29 @@ test("同じHEADの古いCI runを再実行しても最新demo-video statusを�
     event: workflowRunEvent(),
     client: {
       async getLatestPullRequestCiRun() {
-        return { id: 988 };
+        return { id: 988, run_attempt: 1 };
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async setDemoStatus() {
+        statusCalls += 1;
+      },
+    },
+  });
+
+  assert.equal(outcome, "stale");
+  assert.equal(statusCalls, 0);
+});
+
+test("同じrun IDでも古いattemptはdemo-video statusを上書きしない", async () => {
+  let statusCalls = 0;
+
+  const outcome = await invalidateDemoStatus({
+    event: workflowRunEvent({ run_attempt: 1 }),
+    client: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987, run_attempt: 2 };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };
@@ -112,7 +135,7 @@ test("CI開始後にPR HEADが進んだ場合は古いSHAのstatusを更新し�
     event: workflowRunEvent(),
     client: {
       async getLatestPullRequestCiRun() {
-        return { id: 987 };
+        return { id: 987, run_attempt: 1 };
       },
       async getPullRequest() {
         return { head: { sha: "c".repeat(40) } };

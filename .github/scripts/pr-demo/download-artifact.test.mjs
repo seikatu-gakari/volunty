@@ -38,16 +38,16 @@ with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
   ]);
 }
 
-test("run artifactはpr-demo-resultsが1件かつ圧縮size上限内だけ受理する", () => {
+test("run artifactはattempt固有のpr-demo-resultsが1件かつ圧縮size上限内だけ受理する", () => {
   const artifact = selectArtifactMetadata([
     {
       id: 123,
-      name: "pr-demo-results",
+      name: "pr-demo-results-1",
       expired: false,
       size_in_bytes: 1024,
     },
     { id: 456, name: "playwright-results", expired: false, size_in_bytes: 2048 },
-  ]);
+  ], 1);
   assert.equal(artifact.id, 123);
 
   assert.throws(
@@ -55,17 +55,39 @@ test("run artifactはpr-demo-resultsが1件かつ圧縮size上限内だけ受理
       selectArtifactMetadata([
         artifact,
         { ...artifact, id: 124 },
-      ]),
+      ], 1),
     /正確に1件/,
   );
   assert.throws(
-    () => selectArtifactMetadata([{ ...artifact, expired: true }]),
+    () => selectArtifactMetadata([{ ...artifact, expired: true }], 1),
     /期限切れ状態/,
   );
   assert.throws(
-    () => selectArtifactMetadata([{ ...artifact, size_in_bytes: MAX_ARCHIVE_BYTES + 1 }]),
+    () => selectArtifactMetadata([{ ...artifact, size_in_bytes: MAX_ARCHIVE_BYTES + 1 }], 1),
     /圧縮size/,
   );
+});
+
+test("publisherは対象attempt固有のartifactだけを選ぶ", () => {
+  const artifact = selectArtifactMetadata(
+    [
+      {
+        id: 123,
+        name: "pr-demo-results-1",
+        expired: false,
+        size_in_bytes: 1024,
+      },
+      {
+        id: 456,
+        name: "pr-demo-results-2",
+        expired: false,
+        size_in_bytes: 2048,
+      },
+    ],
+    2,
+  );
+
+  assert.equal(artifact.id, 456);
 });
 
 test("metadataの圧縮sizeが上限超過ならarchiveをdownloadしない", async () => {
@@ -74,6 +96,7 @@ test("metadataの圧縮sizeが上限超過ならarchiveをdownloadしない", as
   await assert.rejects(
     downloadArtifactForRun({
       runId: 987,
+      runAttempt: 1,
       archivePath: join(root, "artifact.zip"),
       artifactDirectory: join(root, "artifact"),
       client: {
@@ -81,7 +104,7 @@ test("metadataの圧縮sizeが上限超過ならarchiveをdownloadしない", as
           return [
             {
               id: 123,
-              name: "pr-demo-results",
+              name: "pr-demo-results-1",
               expired: false,
               size_in_bytes: MAX_ARCHIVE_BYTES + 1,
             },

@@ -32,6 +32,7 @@ function baseResult(overrides) {
     headSha,
     repository,
     runId: 987,
+    runAttempt: 1,
     runUrl,
     reason: "動作ビデオを公開しました",
     manifestUrl,
@@ -216,6 +217,24 @@ test("公開処理中に同じHEADの新しいCI runが始まった場合も更�
     result: baseResult(),
     currentHeadSha: headSha,
     latestRunId: 988,
+    latestRunAttempt: 1,
+    siteReady: true,
+    pagesReady: true,
+    client: createClient(calls),
+  });
+
+  assert.equal(outcome.state, "stale");
+  assert.deepEqual(calls, []);
+});
+
+test("公開処理中に同じrun IDの新しいattemptが始まった場合も更新しない", async () => {
+  const calls = [];
+
+  const outcome = await finalizePublish({
+    result: baseResult({ runAttempt: 1 }),
+    currentHeadSha: headSha,
+    latestRunId: 987,
+    latestRunAttempt: 2,
     siteReady: true,
     pagesReady: true,
     client: createClient(calls),

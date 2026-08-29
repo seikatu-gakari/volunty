@@ -102,10 +102,13 @@ export async function main({
       context.prNumber,
       context.headSha,
     );
-    if (latestRun.id !== context.runId) {
+    if (
+      latestRun.id !== context.runId ||
+      latestRun.run_attempt !== context.runAttempt
+    ) {
       result = buildStaleResult(
         context,
-        "同一HEADに新しいPull Request CI runがあるため公開しません",
+        "同一HEADに新しいPull Request CI runまたはattemptがあるため公開しません",
       );
     } else {
       const pullRequest = await client.getPullRequest(context.prNumber);

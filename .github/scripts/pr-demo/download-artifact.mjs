@@ -9,17 +9,25 @@ import { promisify } from "node:util";
 import { createGitHubClient } from "./github.mjs";
 
 const execFileAsync = promisify(execFile);
-const ARTIFACT_NAME = "pr-demo-results";
+const ARTIFACT_NAME_PREFIX = "pr-demo-results-";
 export const MAX_ARCHIVE_BYTES = 50 * 1024 * 1024;
 const SAFE_EXTRACTOR = fileURLToPath(new URL("./safe_extract_zip.py", import.meta.url));
 
-export function selectArtifactMetadata(artifacts) {
+function artifactNameForAttempt(runAttempt) {
+  if (!Number.isSafeInteger(runAttempt) || runAttempt <= 0) {
+    throw new Error("Pull Request CI run attemptが不正です");
+  }
+  return `${ARTIFACT_NAME_PREFIX}${runAttempt}`;
+}
+
+export function selectArtifactMetadata(artifacts, runAttempt) {
+  const artifactName = artifactNameForAttempt(runAttempt);
   if (!Array.isArray(artifacts) || artifacts.length > 200) {
     throw new Error("workflow run artifact一覧が不正です");
   }
-  const matches = artifacts.filter((artifact) => artifact?.name === ARTIFACT_NAME);
+  const matches = artifacts.filter((artifact) => artifact?.name === artifactName);
   if (matches.length !== 1) {
-    throw new Error(`${ARTIFACT_NAME} artifactは正確に1件必要です`);
+    throw new Error(`${artifactName} artifactは正確に1件必要です`);
   }
   const artifact = matches[0];
   if (!Number.isSafeInteger(artifact.id) || artifact.id <= 0) {
@@ -77,14 +85,23 @@ export async function safelyExtractArchive({
 
 export async function downloadArtifactForRun({
   runId,
+  runAttempt,
   archivePath,
   artifactDirectory,
   client,
 }) {
-  if (!Number.isSafeInteger(runId) || runId <= 0) {
-    throw new Error("Pull Request CI run IDが不正です");
+  if (
+    !Number.isSafeInteger(runId) ||
+    runId <= 0 ||
+    !Number.isSafeInteger(runAttempt) ||
+    runAttempt <= 0
+  ) {
+    throw new Error("Pull Request CI run IDまたはattemptが不正です");
   }
-  const artifact = selectArtifactMetadata(await client.getWorkflowRunArtifacts(runId));
+  const artifact = selectArtifactMetadata(
+    await client.getWorkflowRunArtifacts(runId),
+    runAttempt,
+  );
   await mkdir(dirname(archivePath), { recursive: true, mode: 0o700 });
   await client.downloadArtifactArchive(artifact.id, archivePath, MAX_ARCHIVE_BYTES);
   try {
@@ -102,6 +119,7 @@ export async function main({
   token = process.env.GITHUB_TOKEN,
   repository = process.env.GITHUB_REPOSITORY,
   sourceRunId = process.env.PR_DEMO_SOURCE_RUN_ID,
+  sourceRunAttempt = process.env.PR_DEMO_SOURCE_RUN_ATTEMPT,
   archivePath = process.env.PR_DEMO_ARCHIVE_PATH,
   artifactDirectory = process.env.PR_DEMO_ARTIFACT_DIR,
   githubOutputPath = process.env.GITHUB_OUTPUT,
@@ -112,8 +130,29 @@ export async function main({
   }
   const runId = Number.parseInt(sourceRunId, 10);
   const client = githubClient ?? createGitHubClient({ token, repository });
+  let runAttempt;
+  if (sourceRunAttempt) {
+    if (!/^[1-9][0-9]*$/.test(sourceRunAttempt)) {
+      throw new Error("artifact downloadのrun attemptが不正です");
+    }
+    runAttempt = Number.parseInt(sourceRunAttempt, 10);
+  } else {
+    const run = await client.getWorkflowRun(runId);
+    if (
+      run?.id !== runId ||
+      !Number.isSafeInteger(run.run_attempt) ||
+      run.run_attempt <= 0
+    ) {
+      throw new Error("GitHub APIからrun attemptを確認できません");
+    }
+    runAttempt = run.run_attempt;
+  }
+  if (!Number.isSafeInteger(runAttempt)) {
+    throw new Error("artifact downloadのrun attemptが大きすぎます");
+  }
   const entries = await downloadArtifactForRun({
     runId,
+    runAttempt,
     archivePath,
     artifactDirectory,
     client,

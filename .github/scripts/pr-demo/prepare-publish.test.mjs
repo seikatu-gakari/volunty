@@ -17,6 +17,7 @@ function failedWorkflowEvent() {
     repository: { full_name: repository },
     workflow_run: {
       id: 987,
+      run_attempt: 1,
       name: "Pull Request CI",
       event: "pull_request",
       conclusion: "failure",
@@ -68,7 +69,7 @@ test("prepare CLIはartifactがないCI失敗でもfinalizer用resultを必ず�
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
     githubClient: {
       async getLatestPullRequestCiRun() {
-        return { id: 987 };
+        return { id: 987, run_attempt: 1 };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };
@@ -98,7 +99,7 @@ test("prepare CLIはGitHub上のcurrent HEADと異なるrunをstaleにする", a
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
     githubClient: {
       async getLatestPullRequestCiRun() {
-        return { id: 987 };
+        return { id: 987, run_attempt: 1 };
       },
       async getPullRequest() {
         return { head: { sha: "c".repeat(40) } };
@@ -129,6 +130,7 @@ test("同じHEADでも最新ではないPull Request CI runをstaleにする", a
             {
               id: 988,
               run_number: 52,
+              run_attempt: 1,
               event: "pull_request",
               head_sha: headSha,
               pull_requests: [{ number: 321 }],
@@ -136,6 +138,7 @@ test("同じHEADでも最新ではないPull Request CI runをstaleにする", a
             {
               id: 987,
               run_number: 51,
+              run_attempt: 1,
               event: "pull_request",
               head_sha: headSha,
               pull_requests: [{ number: 321 }],
@@ -160,6 +163,32 @@ test("同じHEADでも最新ではないPull Request CI runをstaleにする", a
   assert.equal(result.siteChanged, false);
   assert.equal(calls.length, 1);
   assert.match(calls[0], /actions\/workflows\/ci\.yml\/runs/);
+});
+
+test("同じrun IDでも古いattemptのpublisherをstaleにする", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-old-attempt-"));
+  const event = failedWorkflowEvent();
+  event.workflow_run.conclusion = "success";
+  event.workflow_run.run_attempt = 1;
+  const eventPath = join(directory, "event.json");
+  const resultPath = join(directory, "result.json");
+  await writeFile(eventPath, JSON.stringify(event));
+
+  const result = await main({
+    eventPath,
+    artifactDirectory: join(directory, "missing-artifact"),
+    siteDirectory: join(directory, "missing-site"),
+    resultPath,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+    githubClient: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987, run_attempt: 2 };
+      },
+    },
+  });
+
+  assert.equal(result.outcome, "stale");
+  assert.equal(result.runAttempt, 1);
 });
 
 test("最新Pull Request CIの照会失敗をfailure resultとして保存する", async () => {
@@ -233,7 +262,7 @@ reason: ドキュメントのみ
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
     githubClient: {
       async getLatestPullRequestCiRun() {
-        return { id: 987 };
+        return { id: 987, run_attempt: 1 };
       },
       async getPullRequest() {
         return pullRequest;

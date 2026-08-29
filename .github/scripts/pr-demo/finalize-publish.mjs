@@ -35,6 +35,7 @@ const outcome = await finalizePublish({
   result,
   currentHeadSha,
   latestRunId: latestRun?.id,
+  latestRunAttempt: latestRun?.run_attempt,
   siteReady: process.env.PR_DEMO_SITE_READY === "true",
   pagesReady: process.env.PR_DEMO_PAGES_READY === "true",
   client,
