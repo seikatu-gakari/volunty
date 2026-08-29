@@ -48,9 +48,7 @@ function isMatchingCandidateStatus(value: string): value is MatchingCandidateSta
  * - status = 'approved' の場合のみ organizations.line_id を含める
  */
 export async function fetchMyPageData(): Promise<MyPageData> {
-  console.error("[fetchMyPageData2] ");
   const supabase = await createClient();
-  console.error("[fetchMyPageData] ");
 
   const {
     data: { user },
@@ -96,8 +94,6 @@ export async function fetchMyPageData(): Promise<MyPageData> {
         detail: `Prisma: ${debug.prismaErrorDetail}${supabaseDetail}`,
       };
     }
-
-    console.error(profile);
   } catch (err) {
     console.error("[fetchMyPageData] 参加者プロフィール取得に失敗:", err);
   }

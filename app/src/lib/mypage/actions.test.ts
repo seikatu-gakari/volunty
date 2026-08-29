@@ -123,6 +123,9 @@ describe("fetchMyPageData", () => {
   });
 
   it("認証済みでプロフィールがある場合、プロフィール情報を返す", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     mockGetUser.mockReturnValue({
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
@@ -155,6 +158,8 @@ describe("fetchMyPageData", () => {
       diagnosis_answered_at: "2026-07-01T00:00:00.000Z",
     });
     expect(result.alert).toBeNull();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 
   it("応募データがある場合、応募一覧を返す", async () => {
