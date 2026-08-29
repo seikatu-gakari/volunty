@@ -40,6 +40,7 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   );
   assert.match(invalidate, /pages-lock\.mjs release/);
   assert.doesNotMatch(publish, /concurrency:/);
+  assert.match(publish, /timeout-minutes: 120/);
   assert.match(publish, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
   assert.ok(
     publish.indexOf("pages-lock.mjs acquire") <

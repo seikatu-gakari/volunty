@@ -11,6 +11,9 @@ const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const DEFAULT_MAX_WAIT_MS = 75 * 60 * 1000;
 const DEFAULT_POLL_MS = 5000;
+const DEFAULT_API_RETRY_ATTEMPTS = 6;
+const API_RETRY_BASE_MS = 1000;
+const API_RETRY_MAX_MS = 16_000;
 const STALE_GRACE_MS = 60 * 1000;
 
 function validateIdentity(identity) {
@@ -241,6 +244,7 @@ export async function acquirePagesLock({
   client,
   maxWaitMs = DEFAULT_MAX_WAIT_MS,
   pollMs = DEFAULT_POLL_MS,
+  apiRetryAttempts = DEFAULT_API_RETRY_ATTEMPTS,
   now = () => new Date(),
   sleep = (milliseconds) =>
     new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds)),
@@ -252,7 +256,10 @@ export async function acquirePagesLock({
     maxWaitMs > DEFAULT_MAX_WAIT_MS ||
     !Number.isSafeInteger(pollMs) ||
     pollMs <= 0 ||
-    pollMs > 60_000
+    pollMs > 60_000 ||
+    !Number.isSafeInteger(apiRetryAttempts) ||
+    apiRetryAttempts <= 0 ||
+    apiRetryAttempts > 10
   ) {
     throw new Error("Pages lockの待機設定が不正です");
   }
@@ -260,35 +267,57 @@ export async function acquirePagesLock({
   if (!(startedAt instanceof Date) || Number.isNaN(startedAt.getTime())) {
     throw new Error("Pages lockの現在時刻が不正です");
   }
+  let consecutiveApiFailures = 0;
 
   while (now().getTime() - startedAt.getTime() <= maxWaitMs) {
-    const existing = await client.getLock();
-    if (existing && sameOwner(existing, identity)) {
-      return existing;
-    }
-    if (existing) {
-      const ageMs = now().getTime() - existing.acquiredAt.getTime();
-      if (ageMs >= STALE_GRACE_MS) {
-        const ownerRun = await client.getWorkflowRun(existing.runId);
-        if (
-          !ownerRun ||
-          ownerRun.status === "completed" ||
-          ownerRun.run_attempt !== existing.runAttempt
-        ) {
-          await client.deleteLock(existing.refId);
-          continue;
-        }
+    try {
+      const existing = await client.getLock();
+      if (existing && sameOwner(existing, identity)) {
+        return existing;
       }
-      await sleep(pollMs);
-      continue;
-    }
+      if (existing) {
+        const ageMs = now().getTime() - existing.acquiredAt.getTime();
+        if (ageMs >= STALE_GRACE_MS) {
+          const ownerRun = await client.getWorkflowRun(existing.runId);
+          if (
+            !ownerRun ||
+            ownerRun.status === "completed" ||
+            ownerRun.run_attempt !== existing.runAttempt
+          ) {
+            await client.deleteLock(existing.refId);
+            consecutiveApiFailures = 0;
+            continue;
+          }
+        }
+        consecutiveApiFailures = 0;
+        await sleep(pollMs);
+        continue;
+      }
 
-    const acquiredAt = now();
-    const created = await client.createLock(identity, acquiredAt);
-    if (created) {
-      return created;
+      const acquiredAt = now();
+      const created = await client.createLock(identity, acquiredAt);
+      if (created) {
+        return created;
+      }
+      consecutiveApiFailures = 0;
+      await sleep(pollMs);
+    } catch (error) {
+      consecutiveApiFailures += 1;
+      if (consecutiveApiFailures >= apiRetryAttempts) {
+        throw new Error(
+          `Pages lock API操作が${apiRetryAttempts}回連続で失敗しました`,
+          { cause: error },
+        );
+      }
+      const retryDelayMs = Math.min(
+        API_RETRY_BASE_MS * 2 ** (consecutiveApiFailures - 1),
+        API_RETRY_MAX_MS,
+      );
+      console.warn(
+        `[pr-demo] Pages lock API failure; retry ${consecutiveApiFailures}/${apiRetryAttempts - 1} in ${retryDelayMs}ms`,
+      );
+      await sleep(retryDelayMs);
     }
-    await sleep(pollMs);
   }
   throw new Error("GitHub Pages publish lockの取得がtimeoutしました");
 }

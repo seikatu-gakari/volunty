@@ -160,6 +160,90 @@ test("空いているPages lock refを取得する", async () => {
   assert.equal(result.refId, lock.refId);
 });
 
+test("lock取得中のGitHub API一時障害を指数backoffで再試行する", async () => {
+  let reads = 0;
+  const sleeps = [];
+
+  const result = await acquirePagesLock({
+    identity,
+    client: {
+      async getLock() {
+        reads += 1;
+        if (reads <= 2) {
+          throw new Error("temporary API failure");
+        }
+        return undefined;
+      },
+      async createLock() {
+        return lock;
+      },
+    },
+    now: () => acquiredAt,
+    sleep: async (milliseconds) => sleeps.push(milliseconds),
+    maxWaitMs: 1000,
+    pollMs: 1,
+    apiRetryAttempts: 4,
+  });
+
+  assert.equal(result.refId, lock.refId);
+  assert.equal(reads, 3);
+  assert.deepEqual(sleeps, [1000, 2000]);
+});
+
+test("lock作成応答を失っても次の所有者確認で取得済みlockを回収する", async () => {
+  let existing;
+  let creates = 0;
+  const sleeps = [];
+
+  const result = await acquirePagesLock({
+    identity,
+    client: {
+      async getLock() {
+        return existing;
+      },
+      async createLock() {
+        creates += 1;
+        existing = lock;
+        throw new Error("response lost after create");
+      },
+    },
+    now: () => acquiredAt,
+    sleep: async (milliseconds) => sleeps.push(milliseconds),
+    maxWaitMs: 1000,
+    pollMs: 1,
+    apiRetryAttempts: 3,
+  });
+
+  assert.equal(result.refId, lock.refId);
+  assert.equal(creates, 1);
+  assert.deepEqual(sleeps, [1000]);
+});
+
+test("lock APIの恒久障害は有限回でfail closedにする", async () => {
+  const sleeps = [];
+  let reads = 0;
+
+  await assert.rejects(
+    acquirePagesLock({
+      identity,
+      client: {
+        async getLock() {
+          reads += 1;
+          throw new Error("persistent API failure");
+        },
+      },
+      now: () => acquiredAt,
+      sleep: async (milliseconds) => sleeps.push(milliseconds),
+      maxWaitMs: 1000,
+      pollMs: 1,
+    }),
+    /Pages lock API操作が6回連続で失敗しました/,
+  );
+
+  assert.equal(reads, 6);
+  assert.deepEqual(sleeps, [1000, 2000, 4000, 8000, 16_000]);
+});
+
 test("60分ownerを上回る75分のlock待機上限を受理する", async () => {
   const result = await acquirePagesLock({
     identity,

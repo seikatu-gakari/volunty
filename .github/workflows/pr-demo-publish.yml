@@ -75,7 +75,7 @@ jobs:
     name: Prepare PR demo Pages
     if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.action == 'completed' && github.event.workflow_run.event == 'pull_request') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     outputs:
       head_sha: ${{ steps.prepare.outputs.head_sha || github.event.workflow_run.head_sha || inputs.head_sha }}
       finalizer_artifact_name: ${{ steps.handoff.outputs.artifact_name }}
