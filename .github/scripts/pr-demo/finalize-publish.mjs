@@ -9,7 +9,11 @@ import {
   finalizePublish,
 } from "./finalizer.mjs";
 import { createGitHubClient } from "./github.mjs";
-import { resolveWorkflowRunEvent } from "./prepare-publish.mjs";
+import {
+  buildManualFallbackContext,
+  resolveWorkflowRunEvent,
+} from "./prepare-publish.mjs";
+import { buildFailureResult } from "./publisher.mjs";
 
 async function readPublishResult(resultPath, repository) {
   if (!resultPath) {
@@ -59,6 +63,8 @@ export async function main({
   manualForkApproval = process.env.PR_DEMO_MANUAL_FORK_APPROVAL === "true",
   sourceRunId = process.env.PR_DEMO_SOURCE_RUN_ID,
   sourceRunAttempt = process.env.PR_DEMO_SOURCE_RUN_ATTEMPT,
+  manualPrNumber = process.env.PR_DEMO_MANUAL_PR_NUMBER,
+  manualHeadSha = process.env.PR_DEMO_MANUAL_HEAD_SHA,
   siteReady = process.env.PR_DEMO_SITE_READY === "true",
   pagesReady = process.env.PR_DEMO_PAGES_READY === "true",
   githubClient,
@@ -72,23 +78,82 @@ export async function main({
     result = await readPublishResult(resultPath, repository);
   } catch (handoffError) {
     console.warn(`[pr-demo] finalizer handoff failure: ${handoffError.message}`);
-    const resolved = await resolveFallbackEvent({
-      eventPath,
+    let outcome;
+    try {
+      const resolved = await resolveFallbackEvent({
+        eventPath,
+        repository,
+        manualForkApproval,
+        sourceRunId,
+        sourceRunAttempt,
+        client,
+      });
+      outcome = await finalizeHandoffFailure({
+        event: resolved.event,
+        reason: "finalizer handoffを取得できませんでした",
+        client,
+      });
+    } catch (resolutionError) {
+      if (manualForkApproval !== true) {
+        throw resolutionError;
+      }
+      const context = buildManualFallbackContext({
+        repository,
+        sourceRunId,
+        sourceRunAttempt,
+        manualPrNumber,
+        manualHeadSha,
+      });
+      outcome = await finalizePublish({
+        result: buildFailureResult(
+          context,
+          `手動承認runを解決できませんでした: ${resolutionError.message}`,
+        ),
+        siteReady: false,
+        pagesReady: false,
+        client,
+      });
+    }
+    if (!outcome.success) {
+      throw new Error("demo-videoをfailureに設定しました");
+    }
+    console.log(`[pr-demo] demo-video=${outcome.state} handoff=failure`);
+    return outcome;
+  }
+
+  if (result.manualFallback === true) {
+    if (manualForkApproval !== true) {
+      throw new Error("手動承認fallback resultはworkflow_dispatchだけで使用できます");
+    }
+    const expected = buildManualFallbackContext({
       repository,
-      manualForkApproval,
       sourceRunId,
       sourceRunAttempt,
-      client,
+      manualPrNumber,
+      manualHeadSha,
     });
-    const outcome = await finalizeHandoffFailure({
-      event: resolved.event,
-      reason: "finalizer handoffを取得できませんでした",
+    for (const key of [
+      "prNumber",
+      "headSha",
+      "repository",
+      "runId",
+      "runAttempt",
+      "runUrl",
+    ]) {
+      if (result[key] !== expected[key]) {
+        throw new Error("手動承認fallback resultがworkflow入力と一致しません");
+      }
+    }
+    const outcome = await finalizePublish({
+      result,
+      siteReady: false,
+      pagesReady: false,
       client,
     });
     if (!outcome.success) {
       throw new Error("demo-videoをfailureに設定しました");
     }
-    console.log(`[pr-demo] demo-video=${outcome.state} handoff=failure`);
+    console.log(`[pr-demo] demo-video=${outcome.state} manual-fallback=true`);
     return outcome;
   }
 

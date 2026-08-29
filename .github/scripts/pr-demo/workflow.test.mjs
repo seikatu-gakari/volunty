@@ -37,3 +37,12 @@ test("publisher finalizerとinvalidatorのstatus更新を同じHEAD lockで直�
   assert.match(finalize, /id: handoff[\s\S]*continue-on-error: true/);
   assert.match(finalize, /finalize-publish\.mjs/);
 });
+
+test("fork手動承認はAPI障害時のfailure対象identityも必須入力にする", () => {
+  assert.match(workflow, /pr_number:[\s\S]*required: true/);
+  assert.match(workflow, /head_sha:[\s\S]*required: true/);
+  assert.match(
+    workflow,
+    /head_sha: \$\{\{ steps\.prepare\.outputs\.head_sha \|\| github\.event\.workflow_run\.head_sha \|\| inputs\.head_sha \}\}/,
+  );
+});

@@ -60,3 +60,94 @@ test("handoff fileがなくてもtrusted eventから最新HEADを解決してfai
   assert.equal(calls[1].sha, headSha);
   assert.equal(calls[1].status.state, "failure");
 });
+
+test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをfailureにする", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-finalize-"));
+  const eventPath = join(directory, "event.json");
+  await writeFile(
+    eventPath,
+    JSON.stringify({ repository: { full_name: repository } }),
+  );
+  const calls = [];
+
+  await assert.rejects(
+    main({
+      resultPath: join(directory, "missing-result.json"),
+      eventPath,
+      token: "test-token",
+      repository,
+      manualForkApproval: true,
+      sourceRunId: "987",
+      sourceRunAttempt: "1",
+      manualPrNumber: "321",
+      manualHeadSha: headSha,
+      githubClient: {
+        async getWorkflowRun() {
+          throw new Error("temporary GitHub API failure");
+        },
+        async getWorkflowRunPullRequests() {
+          throw new Error("temporary GitHub API failure");
+        },
+        async upsertDemoComment(prNumber, body) {
+          calls.push({ type: "comment", prNumber, body });
+        },
+        async setDemoStatus(sha, status) {
+          calls.push({ type: "status", sha, status });
+        },
+      },
+    }),
+    /demo-videoをfailure/,
+  );
+
+  assert.deepEqual(calls.map((call) => call.type), ["comment", "status"]);
+  assert.equal(calls[0].prNumber, 321);
+  assert.equal(calls[1].sha, headSha);
+  assert.equal(calls[1].status.state, "failure");
+});
+
+test("手動run解決失敗resultは追加のread APIなしでfailure statusを確定する", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-result-"));
+  const resultPath = join(directory, "result.json");
+  await writeFile(
+    resultPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      outcome: "failure",
+      siteChanged: false,
+      manualFallback: true,
+      prNumber: 321,
+      headSha,
+      repository,
+      runId: 987,
+      runAttempt: 1,
+      runUrl: `https://github.com/${repository}/actions/runs/987`,
+      reason: "手動承認runを解決できませんでした",
+    }),
+  );
+  const calls = [];
+
+  await assert.rejects(
+    main({
+      resultPath,
+      token: "test-token",
+      repository,
+      manualForkApproval: true,
+      sourceRunId: "987",
+      sourceRunAttempt: "1",
+      manualPrNumber: "321",
+      manualHeadSha: headSha,
+      githubClient: {
+        async upsertDemoComment(prNumber, body) {
+          calls.push({ type: "comment", prNumber, body });
+        },
+        async setDemoStatus(sha, status) {
+          calls.push({ type: "status", sha, status });
+        },
+      },
+    }),
+    /demo-videoをfailure/,
+  );
+
+  assert.deepEqual(calls.map((call) => call.type), ["comment", "status"]);
+  assert.equal(calls[1].status.state, "failure");
+});

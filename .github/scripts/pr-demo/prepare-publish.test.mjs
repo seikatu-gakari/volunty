@@ -78,6 +78,47 @@ test("workflow_dispatchは承認したrun attemptとAPI上の最新attemptが違
   );
 });
 
+test("workflow_dispatchのrun解決失敗をmaintainer入力identity付きfailure resultにする", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-failure-"));
+  const eventPath = join(directory, "event.json");
+  const resultPath = join(directory, "result.json");
+  const outputPath = join(directory, "github-output.txt");
+  await writeFile(
+    eventPath,
+    JSON.stringify({ repository: { full_name: repository } }),
+  );
+  await writeFile(outputPath, "");
+
+  const result = await main({
+    eventPath,
+    artifactDirectory: join(directory, "missing-artifact"),
+    siteDirectory: join(directory, "missing-site"),
+    resultPath,
+    githubOutputPath: outputPath,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+    manualForkApproval: true,
+    sourceRunId: "987",
+    sourceRunAttempt: "1",
+    manualPrNumber: "321",
+    manualHeadSha: headSha,
+    githubClient: {
+      async getWorkflowRun() {
+        throw new Error("temporary GitHub API failure");
+      },
+      async getWorkflowRunPullRequests() {
+        throw new Error("temporary GitHub API failure");
+      },
+    },
+  });
+
+  assert.equal(result.outcome, "failure");
+  assert.equal(result.prNumber, 321);
+  assert.equal(result.headSha, headSha);
+  assert.match(result.reason, /手動承認runを解決できませんでした/);
+  assert.match(await readFile(outputPath, "utf8"), new RegExp(`head_sha=${headSha}`));
+  assert.equal(JSON.parse(await readFile(resultPath, "utf8")).outcome, "failure");
+});
+
 test("prepare CLIはartifactがないCI失敗でもfinalizer用resultを必ず書く", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-prepare-"));
   const eventPath = join(directory, "event.json");

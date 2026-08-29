@@ -25,7 +25,8 @@ function validateResult(result) {
     result.runAttempt <= 0 ||
     typeof result.reason !== "string" ||
     result.reason.length > 300 ||
-    typeof result.siteChanged !== "boolean"
+    typeof result.siteChanged !== "boolean" ||
+    (result.manualFallback !== undefined && result.manualFallback !== true)
   ) {
     throw new Error("publish resultのschemaが不正です");
   }
@@ -51,6 +52,11 @@ function validateResult(result) {
     }
   } else if (result.outcome === "stale" && result.siteChanged !== false) {
     throw new Error("stale resultはsiteを変更できません");
+  } else if (
+    result.manualFallback === true &&
+    (result.outcome !== "failure" || result.siteChanged !== false)
+  ) {
+    throw new Error("手動承認fallback resultが不正です");
   }
   return result;
 }

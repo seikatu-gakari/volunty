@@ -18,6 +18,14 @@ on:
         description: Maintainerが内容を確認したPull Request CI run attempt
         required: true
         type: string
+      pr_number:
+        description: 対象Pull Request番号（API障害時のfail-closed用）
+        required: true
+        type: string
+      head_sha:
+        description: 確認した40文字のPull Request HEAD SHA（API障害時のfail-closed用）
+        required: true
+        type: string
 
 permissions: {}
 
@@ -58,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      head_sha: ${{ steps.prepare.outputs.head_sha || github.event.workflow_run.head_sha }}
+      head_sha: ${{ steps.prepare.outputs.head_sha || github.event.workflow_run.head_sha || inputs.head_sha }}
       pages_ready: ${{ steps.handoff.outputs.pages_ready }}
       site_ready: ${{ steps.handoff.outputs.site_ready }}
     permissions:
@@ -125,6 +133,8 @@ jobs:
           PR_DEMO_SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
           PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.run_attempt }}
           PR_DEMO_MANUAL_FORK_APPROVAL: ${{ github.event_name == 'workflow_dispatch' }}
+          PR_DEMO_MANUAL_PR_NUMBER: ${{ inputs.pr_number }}
+          PR_DEMO_MANUAL_HEAD_SHA: ${{ inputs.head_sha }}
         run: node source/.github/scripts/pr-demo/prepare-publish.mjs
 
       - name: Configure GitHub Pages
@@ -244,4 +254,6 @@ jobs:
           PR_DEMO_SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
           PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.run_attempt }}
           PR_DEMO_MANUAL_FORK_APPROVAL: ${{ github.event_name == 'workflow_dispatch' }}
+          PR_DEMO_MANUAL_PR_NUMBER: ${{ inputs.pr_number }}
+          PR_DEMO_MANUAL_HEAD_SHA: ${{ inputs.head_sha }}
         run: node source/.github/scripts/pr-demo/finalize-publish.mjs
