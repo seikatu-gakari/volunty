@@ -10,6 +10,7 @@ import {
   CLEANUP_PENDING_FILE,
   installDemoOnSite,
   listPublishedDemos,
+  preparePublicSiteDirectory,
   readPendingCleanup,
   removeDemoFromSite,
   validateSiteDirectory,
@@ -117,6 +118,26 @@ test("demo公開時は同じPRのcleanup再試行だけを解除する", async (
 
   await installDemoOnSite({ artifactDirectory, siteDirectory, manifest });
 
+  assert.deepEqual(await readPendingCleanup(siteDirectory), [
+    { prNumber: 322, headSha: "c".repeat(40) },
+  ]);
+});
+
+test("Pages artifact用treeにはcleanup再試行stateを含めない", async () => {
+  const { artifactDirectory, siteDirectory, manifest } = await fixture();
+  const publicDirectory = join(siteDirectory, "..", "public-site");
+  await installDemoOnSite({ artifactDirectory, siteDirectory, manifest });
+  await writePendingCleanup(siteDirectory, [
+    { prNumber: 322, headSha: "c".repeat(40) },
+  ]);
+
+  await preparePublicSiteDirectory({ siteDirectory, publicDirectory });
+
+  assert.deepEqual(await listPublishedDemos(publicDirectory), [manifest]);
+  await assert.rejects(
+    readFile(join(publicDirectory, CLEANUP_PENDING_FILE), "utf8"),
+    /ENOENT/,
+  );
   assert.deepEqual(await readPendingCleanup(siteDirectory), [
     { prNumber: 322, headSha: "c".repeat(40) },
   ]);

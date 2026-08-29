@@ -61,7 +61,7 @@ fork由来PRはread-only CIで録画まで行いますが、自動runではartif
 
 ## 保存とcleanup
 
-Open中のPRは最新HEADだけを保持し、最新差分が対象外または生成失敗になった場合は旧HEAD動画も除去します。merge / closeから7日後、日次workflowがPagesから削除し、削除treeを `gh-pages` へ永続化してからPR commentを「保存期間終了」へ更新します。複数commentの途中でGitHub APIが失敗した場合は、hiddenな検証済み再試行stateを `gh-pages` に残し、次回runで全件を再試行します。全件成功後だけstateを除去します。Pages artifactはhidden fileを含めないため、この運用stateは公開siteへdeployしません。Pagesの1GB上限に対し、publisherはmedia合計900MiBを安全marginとして超過を拒否します。動画をmainやfeature branchへcommitしません。
+Open中のPRは最新HEADだけを保持し、最新差分が対象外または生成失敗になった場合は旧HEAD動画も除去します。merge / closeから7日後、日次workflowがPagesから削除し、削除treeを `gh-pages` へ永続化してからPR commentを「保存期間終了」へ更新します。複数commentの途中でGitHub APIが失敗した場合は、hiddenな検証済み再試行stateを `gh-pages` に残し、次回runで全件を再試行します。全件成功後だけstateを除去します。deploy前に公開対象だけの別treeを作り、再試行stateはPages artifactへ含めません。Pagesの1GB上限に対し、publisherはmedia合計900MiBを安全marginとして超過を拒否します。動画をmainやfeature branchへcommitしません。
 
 ## main merge後の有効化手順
 

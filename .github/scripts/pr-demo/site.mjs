@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  cp,
   copyFile,
   lstat,
   mkdir,
@@ -9,7 +10,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -327,6 +328,45 @@ export async function validateSiteDirectory(siteDirectory) {
     if (actualIndex !== renderIndex(demos)) {
       throw new Error("index.htmlが公開manifest一覧と一致しません");
     }
+  }
+  return demos;
+}
+
+function isSameOrDescendant(parent, candidate) {
+  const path = relative(parent, candidate);
+  return path === "" || (!path.startsWith(`..${sep}`) && path !== "..");
+}
+
+export async function preparePublicSiteDirectory({
+  siteDirectory,
+  publicDirectory,
+}) {
+  const source = resolve(siteDirectory);
+  const destination = resolve(publicDirectory);
+  if (
+    isSameOrDescendant(source, destination) ||
+    isSameOrDescendant(destination, source)
+  ) {
+    throw new Error("公開用Pages treeは永続化treeと分離したdirectoryが必要です");
+  }
+
+  await validateSiteDirectory(source);
+  await rm(destination, { recursive: true, force: true });
+  await mkdir(destination, { recursive: true });
+  for (const entry of [".nojekyll", "index.html", "pr"]) {
+    const sourcePath = join(source, entry);
+    if (!(await pathExists(sourcePath))) {
+      continue;
+    }
+    await cp(sourcePath, join(destination, entry), {
+      recursive: entry === "pr",
+      force: false,
+      errorOnExist: true,
+    });
+  }
+  const demos = await validateSiteDirectory(destination);
+  if (await pathExists(join(destination, CLEANUP_PENDING_FILE))) {
+    throw new Error("公開用Pages treeにcleanup再試行stateを含められません");
   }
   return demos;
 }

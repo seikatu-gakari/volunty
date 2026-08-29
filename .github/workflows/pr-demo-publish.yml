@@ -127,11 +127,18 @@ jobs:
         if: ${{ steps.prepare.outputs.site_changed == 'true' }}
         uses: actions/configure-pages@v5
 
+      - name: Prepare public Pages artifact
+        if: ${{ steps.prepare.outputs.site_changed == 'true' }}
+        env:
+          PR_DEMO_SITE_DIR: ${{ github.workspace }}/site
+          PR_DEMO_PUBLIC_SITE_DIR: ${{ runner.temp }}/pr-demo-pages-site
+        run: node source/.github/scripts/pr-demo/prepare-pages-artifact.mjs
+
       - name: Upload Pages artifact
         if: ${{ steps.prepare.outputs.site_changed == 'true' }}
         uses: actions/upload-pages-artifact@v4
         with:
-          path: site
+          path: ${{ runner.temp }}/pr-demo-pages-site
 
       - name: Deploy GitHub Pages
         id: deploy
