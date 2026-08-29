@@ -4,6 +4,7 @@ import { authStatePath } from "../test-support/playwright-auth-state";
 
 const APPLICATION_OPPORTUNITY_TITLE = "E2E 応募対象案件";
 const FILTER_OPPORTUNITY_TITLE = "E2E オンライン環境保全案件";
+const NAVIGATION_TIMEOUT_MS = 15_000;
 
 test.describe.serial("参加者の案件探索と応募", () => {
   test.use({ storageState: authStatePath("participant.json") });
@@ -39,12 +40,19 @@ test.describe.serial("参加者の案件探索と応募", () => {
     ).toBeVisible();
 
     await applicationCard.click();
+    await expect(page).toHaveURL(
+      /\/opportunities\/[^/?]+(?:\?.*)?$/,
+      { timeout: NAVIGATION_TIMEOUT_MS }
+    );
 
     await expect(
       page.getByRole("heading", { name: APPLICATION_OPPORTUNITY_TITLE })
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "募集情報" })).toBeVisible();
     await page.getByRole("link", { name: "E2E承認済み団体" }).click();
+    await expect(page).toHaveURL(/\/organizations\/[^/?]+$/, {
+      timeout: NAVIGATION_TIMEOUT_MS,
+    });
     await expect(
       page.getByRole("heading", { name: "E2E承認済み団体" })
     ).toBeVisible();
