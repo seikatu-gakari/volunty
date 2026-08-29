@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
 import {
   LogIn,
   LogOut,
@@ -14,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { HeaderUserState } from "@/app/components/Header";
 
@@ -44,7 +43,6 @@ export function HeaderAuth({
   user: SupabaseUser | null;
   userState: HeaderUserState;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -63,10 +61,8 @@ export function HeaderAuth({
 
   const closeMenu = () => setMenuOpen(false);
 
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.refresh();
+  const handleLogout = () => {
+    window.location.assign("/auth/signout");
   };
 
   /** リンクがアクティブかどうか */
