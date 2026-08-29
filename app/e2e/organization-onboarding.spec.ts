@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 test.describe("団体オンボーディング", () => {
-  test.use({ storageState: "playwright/.auth/organization-fresh.json" });
+  test.use({ storageState: authStatePath("organization-fresh.json") });
 
   test("O-E1: 団体ロールを選び審査を申請できる", async ({ page }) => {
     await page.goto("/");
@@ -31,7 +33,7 @@ test.describe("団体オンボーディング", () => {
 });
 
 test.describe("否認された団体の再申請", () => {
-  test.use({ storageState: "playwright/.auth/organization-reapply.json" });
+  test.use({ storageState: authStatePath("organization-reapply.json") });
 
   test("O-E2: 否認理由を確認して申請内容を修正できる", async ({ page }) => {
     await page.goto("/onboarding/pending");
@@ -63,7 +65,7 @@ test.describe("否認された団体の再申請", () => {
 
 test.describe("承認済み団体プロフィールの再審査", () => {
   test.use({
-    storageState: "playwright/.auth/organization-profile-review.json",
+    storageState: authStatePath("organization-profile-review.json"),
   });
 
   test("O-E3: プロフィール更新後は再審査完了までアクセスが制限される", async ({

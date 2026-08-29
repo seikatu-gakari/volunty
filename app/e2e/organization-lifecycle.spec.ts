@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
-test.use({ storageState: "playwright/.auth/organization-lifecycle.json" });
+import { authStatePath } from "../test-support/playwright-auth-state";
+
+test.use({ storageState: authStatePath("organization-lifecycle.json") });
 
 const TITLES = {
   approachSend: "E2E 団体アプローチ送信案件",

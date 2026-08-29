@@ -439,6 +439,20 @@ export async function seedE2eUsers(): Promise<void> {
     },
   });
 
+  // 前回のE2Eで残った閲覧・後で見る状態を消し、再実行可能な初期状態へ戻す。
+  await prisma.engagementEvent.deleteMany({
+    where: {
+      userId: {
+        in: [
+          ...new Set([
+            ...idByEmail.values(),
+            ORGANIZATION_FIXTURE_PARTICIPANT.id,
+          ]),
+        ],
+      },
+    },
+  });
+
   // オンボーディングE2Eが作成した状態をseedごとに初期化する。
   await prisma.diagnosisResult.deleteMany({ where: { userId: freshId } });
   await prisma.participantProfile.deleteMany({ where: { userId: freshId } });

@@ -1,14 +1,16 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 const AUTH_STATE = {
-  participant: "playwright/.auth/participant.json",
-  participantDiagnosis: "playwright/.auth/participant-diagnosis.json",
-  participantLogout: "playwright/.auth/participant-logout.json",
-  organization: "playwright/.auth/organization.json",
+  participant: authStatePath("participant.json"),
+  participantDiagnosis: authStatePath("participant-diagnosis.json"),
+  participantLogout: authStatePath("participant-logout.json"),
+  organization: authStatePath("organization.json"),
   organizationPendingReadonly:
-    "playwright/.auth/organization-pending-readonly.json",
-  organizationRejected: "playwright/.auth/organization-rejected.json",
-  admin: "playwright/.auth/admin.json",
+    authStatePath("organization-pending-readonly.json"),
+  organizationRejected: authStatePath("organization-rejected.json"),
+  admin: authStatePath("admin.json"),
 } as const;
 
 async function openAuthenticatedPage(browser: Browser, storageState: string) {
@@ -133,7 +135,7 @@ test("C-E6: 他団体の案件・応募者・証明書を閲覧更新できな�
 
   const other = await openAuthenticatedPage(
     browser,
-    "playwright/.auth/organization-secondary.json"
+    authStatePath("organization-secondary.json")
   );
   await other.page.goto(editHref!);
   await expect(

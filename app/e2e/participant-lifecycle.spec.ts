@@ -1,6 +1,8 @@
 import { stat } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 const PENDING_APPLICATION_TITLE = "E2E 審査中応募案件";
 const ACCEPTED_APPLICATION_TITLE = "E2E 成立済み応募案件";
 const CERTIFICATE_REQUEST_TITLE = "E2E 証明書申請対象案件";
@@ -18,7 +20,7 @@ function applicationCard(page: Page, title: string) {
 }
 
 test.describe.serial("参加者の応募後ライフサイクル", () => {
-  test.use({ storageState: "playwright/.auth/participant-lifecycle.json" });
+  test.use({ storageState: authStatePath("participant-lifecycle.json") });
 
   test("P-8/P-11: 審査中は連絡先を非表示、成立後はLINE連絡先を表示する", async ({
     page,

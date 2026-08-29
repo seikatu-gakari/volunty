@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   opportunityFindFirst: vi.fn(),
   opportunityCreate: vi.fn(),
   opportunityUpdate: vi.fn(),
+  engagementEventDeleteMany: vi.fn(),
   matchingCandidateDeleteMany: vi.fn(),
   matchingCandidateUpsert: vi.fn(),
   approachDeleteMany: vi.fn(),
@@ -77,6 +78,7 @@ vi.mock("@/lib/prisma", () => ({
       create: mocks.opportunityCreate,
       update: mocks.opportunityUpdate,
     },
+    engagementEvent: { deleteMany: mocks.engagementEventDeleteMany },
     matchingCandidate: {
       deleteMany: mocks.matchingCandidateDeleteMany,
       upsert: mocks.matchingCandidateUpsert,
@@ -323,6 +325,7 @@ describe("seedE2eUsers", () => {
     mocks.opportunityUpdate.mockImplementation(
       async ({ where }: { where: { id: string } }) => ({ id: where.id })
     );
+    mocks.engagementEventDeleteMany.mockResolvedValue({ count: 0 });
     mocks.matchingCandidateDeleteMany.mockResolvedValue({ count: 0 });
     mocks.matchingCandidateUpsert.mockImplementation(
       async ({
@@ -437,6 +440,17 @@ describe("seedE2eUsers", () => {
     });
     expect(mocks.organizationProfileDeleteMany).toHaveBeenCalledWith({
       where: { userId: personaId("organization-fresh") },
+    });
+    expect(mocks.engagementEventDeleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: {
+          in: expect.arrayContaining([
+            personaId("participant-onboarded"),
+            personaId("participant-lifecycle"),
+            ORGANIZATION_FIXTURE_PARTICIPANT_ID,
+          ]),
+        },
+      },
     });
 
     expect(mocks.userUpsert).toHaveBeenCalledWith({

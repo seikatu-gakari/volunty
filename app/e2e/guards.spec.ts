@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 const LP_SECTION_IDS = [
   "styles",
   "kadai",
@@ -315,7 +317,7 @@ test.describe("非LP未認証ヘッダー", () => {
 });
 
 test.describe("認証済みホームヘッダー", () => {
-  test.use({ storageState: "playwright/.auth/participant.json" });
+  test.use({ storageState: authStatePath("participant.json") });
 
   test("参加者ホームではLP固有要素を表示せず認証済み導線を表示する", async ({ page }) => {
     await page.goto("/");
@@ -423,7 +425,7 @@ test.describe("公開ヘッダーのブレークポイント", () => {
 });
 
 test.describe("ロール越境ガード", () => {
-  test.use({ storageState: "playwright/.auth/participant.json" });
+  test.use({ storageState: authStatePath("participant.json") });
 
   test("G3: 参加者で管理画面へ進むとアクセス拒否になる", async ({ page }) => {
     await page.goto("/admin");

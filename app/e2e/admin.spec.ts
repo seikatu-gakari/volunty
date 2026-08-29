@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 const PENDING_ORGANIZATION_NAME = "E2E一覧承認団体";
 const SUSPENDABLE_EMAIL = "e2e-user-suspendable@example.com";
 
 test.describe("管理者", () => {
-  test.use({ storageState: "playwright/.auth/admin.json" });
+  test.use({ storageState: authStatePath("admin.json") });
 
   test("A1: 管理ダッシュボードに統計を表示する", async ({ page }) => {
     await page.goto("/admin");
@@ -19,7 +21,7 @@ test.describe("管理者", () => {
 });
 
 test.describe("管理者操作", () => {
-  test.use({ storageState: "playwright/.auth/admin-review.json" });
+  test.use({ storageState: authStatePath("admin-review.json") });
 
   test("A2: 審査待ち団体を承認して承認済み一覧へ反映する", async ({ page }) => {
     await page.goto("/admin/reviews");

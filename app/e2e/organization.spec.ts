@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 const ORGANIZATION_FLOW_OPPORTUNITY_TITLE = "E2E 団体フロー案件";
 
 test.describe("承認済み団体", () => {
-  test.use({ storageState: "playwright/.auth/organization.json" });
+  test.use({ storageState: authStatePath("organization.json") });
 
   test("O1: ダッシュボードに自団体の募集案件を表示する", async ({ page }) => {
     await page.goto("/dashboard");

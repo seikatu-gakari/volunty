@@ -6,6 +6,8 @@ import {
   test,
 } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 const USER_SUSPENDABLE_NAME = "E2E user-suspendable";
 const USER_SUSPENDABLE_EMAIL = "e2e-user-suspendable@example.com";
 const ADMIN_REVIEW_EMAIL = "e2e-admin-review@example.com";
@@ -39,7 +41,7 @@ async function ensureSuspendableUserActive(page: Page) {
 }
 
 test.describe("管理者ユーザー管理", () => {
-  test.use({ storageState: "playwright/.auth/admin.json" });
+  test.use({ storageState: authStatePath("admin.json") });
 
   test("A-E1: 名前/メール検索とロールフィルターとゼロ状態を確認する", async ({
     page,
@@ -78,7 +80,7 @@ test.describe("管理者ユーザー管理", () => {
 });
 
 test.describe("管理者ユーザー凍結", () => {
-  test.use({ storageState: "playwright/.auth/admin-review.json" });
+  test.use({ storageState: authStatePath("admin-review.json") });
 
   test("A-E6: 凍結ユーザーはユーザー側で利用できず解除後に再利用できる", async ({
     page,
@@ -96,7 +98,7 @@ test.describe("管理者ユーザー凍結", () => {
       await expect(userCard.getByText("停止中")).toBeVisible();
 
       suspendedContext = await browser.newContext({
-        storageState: "playwright/.auth/user-suspendable.json",
+        storageState: authStatePath("user-suspendable.json"),
       });
       const suspendedPage = await suspendedContext.newPage();
       await suspendedPage.goto("/mypage");

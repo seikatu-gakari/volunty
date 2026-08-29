@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 test.describe("参加者オンボーディング", () => {
-  test.use({ storageState: "playwright/.auth/participant-fresh.json" });
+  test.use({ storageState: authStatePath("participant-fresh.json") });
 
   test("P-2: 参加者ロールを選びプロフィールを登録できる", async ({ page }) => {
     await page.goto("/");

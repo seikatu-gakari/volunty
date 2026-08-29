@@ -3,6 +3,8 @@ import { config } from "dotenv";
 import { Client } from "pg";
 import { expect, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 config({ path: resolve(process.cwd(), ".env.local"), quiet: true });
 
 const DELETE_PERSONA_EMAIL = "e2e-participant-delete@example.com";
@@ -36,7 +38,7 @@ async function countDiagnosisRows(): Promise<{
 }
 
 test.describe("参加者のアカウント削除", () => {
-  test.use({ storageState: "playwright/.auth/participant-delete.json" });
+  test.use({ storageState: authStatePath("participant-delete.json") });
 
   test("P-15: アカウント削除で診断データも連鎖削除される", async ({ page }) => {
     // 前提: seed により削除専用 persona には診断結果が存在する

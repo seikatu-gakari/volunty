@@ -1,5 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 function organizationCard(page: Page, name: string) {
   return page.getByRole("article", { name: new RegExp(name) });
 }
@@ -17,7 +19,7 @@ async function openReviewDetail(page: Page, name: string) {
   ).toBeVisible();
 }
 
-test.use({ storageState: "playwright/.auth/admin-review.json" });
+test.use({ storageState: authStatePath("admin-review.json") });
 
 test("A-E2/A-E5: 審査詳細で団体情報を確認して承認し履歴に反映する", async ({
   page,

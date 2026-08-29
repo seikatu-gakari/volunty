@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 const APPLICATION_OPPORTUNITY_TITLE = "E2E 応募対象案件";
 const FILTER_OPPORTUNITY_TITLE = "E2E オンライン環境保全案件";
 
 test.describe.serial("参加者の案件探索と応募", () => {
-  test.use({ storageState: "playwright/.auth/participant.json" });
+  test.use({ storageState: authStatePath("participant.json") });
 
   test("P-5: カテゴリ・地域・参加形態でおすすめ案件を絞り込める", async ({
     page,
@@ -100,20 +102,47 @@ test.describe.serial("参加者の案件探索と応募", () => {
     const card = page
       .locator("main > div.grid > div")
       .filter({ hasText: FILTER_OPPORTUNITY_TITLE });
-    await card.getByRole("button", { name: "後で見る" }).click();
+    await card
+      .getByRole("button", { name: "後で見る", exact: true })
+      .click();
     await expect(
-      card.getByRole("button", { name: "後で見るから解除" })
+      card.getByRole("button", { name: "後で見るから解除", exact: true })
+    ).toBeVisible();
+
+    // Server Actionの完了後にフル再読込し、クライアント状態だけでなくDB永続化も確認する。
+    await page.reload();
+    await expect(
+      card.getByRole("button", { name: "後で見るから解除", exact: true })
     ).toBeVisible();
 
     await page.goto("/mypage/bookmarks");
     await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
-    await page.getByRole("button", { name: "後で見るから解除" }).click();
+    await page
+      .getByRole("button", { name: "後で見るから解除", exact: true })
+      .click();
     await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toHaveCount(0);
 
     await page.goto("/opportunities");
-    await card.getByRole("button", { name: "後で見る" }).click();
+    await card
+      .getByRole("button", { name: "後で見る", exact: true })
+      .click();
+    await expect(
+      card.getByRole("button", { name: "後で見るから解除", exact: true })
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      card.getByRole("button", { name: "後で見るから解除", exact: true })
+    ).toBeVisible();
     await page.getByRole("link", { name: FILTER_OPPORTUNITY_TITLE }).click();
-    await page.getByRole("button", { name: "後で見るから解除" }).click();
-    await expect(page.getByRole("button", { name: "後で見る" })).toBeVisible();
+    await expect(page).toHaveURL(/\/opportunities\/[^/?]+(?:\?.*)?$/);
+    await expect(
+      page.getByRole("heading", { name: FILTER_OPPORTUNITY_TITLE })
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "後で見るから解除", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "後で見る", exact: true })
+    ).toBeVisible();
   });
 });

@@ -1,13 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+import { AUTH_STATE_DIRECTORY } from "../test-support/playwright-auth-state";
 
 const appDirectory = fileURLToPath(new URL("..", import.meta.url));
 
 export default function globalSetup(): void {
-  mkdirSync(new URL("../playwright/.auth/", import.meta.url), {
-    recursive: true,
-  });
+  rmSync(AUTH_STATE_DIRECTORY, { recursive: true, force: true });
+  mkdirSync(AUTH_STATE_DIRECTORY, { recursive: true, mode: 0o700 });
 
   // server-only を含むseedをPlaywrightから直接importせず、別プロセスで実行する。
   execFileSync("npm", ["run", "seed:e2e"], {

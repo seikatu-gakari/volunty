@@ -1,5 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
+import { authStatePath } from "../test-support/playwright-auth-state";
+
 const TOTAL_QUESTIONS = 50;
 const BRIEF_TOTAL_QUESTIONS = 15;
 
@@ -18,7 +20,7 @@ async function answerQuestions(
 }
 
 test.describe("参加者性格診断", () => {
-  test.use({ storageState: "playwright/.auth/participant-diagnosis.json" });
+  test.use({ storageState: authStatePath("participant-diagnosis.json") });
 
   test("P-3/P-4: 全50問を回答して結果を確認し、再診断できる", async ({
     page,

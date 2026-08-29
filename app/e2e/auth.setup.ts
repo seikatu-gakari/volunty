@@ -1,5 +1,6 @@
-import { resolve } from "node:path";
 import { test as setup } from "@playwright/test";
+
+import { authStatePath } from "../test-support/playwright-auth-state";
 
 const personas = [
   { key: "participant-onboarded", file: "participant" },
@@ -33,7 +34,7 @@ for (const persona of personas) {
     await page.goto(`/api/test-auth/login?persona=${persona.key}`);
     await page.waitForURL((url) => url.pathname !== "/api/test-auth/login");
     await page.context().storageState({
-      path: resolve("playwright", ".auth", `${persona.file}.json`),
+      path: authStatePath(`${persona.file}.json`),
     });
   });
 }
