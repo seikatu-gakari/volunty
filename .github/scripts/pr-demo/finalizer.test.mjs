@@ -30,6 +30,7 @@ function baseResult(overrides) {
     runUrl,
     reason: "動作ビデオを公開しました",
     manifestUrl,
+    manifestSha256: "d".repeat(64),
     comment: "<!-- pr-demo-comment:v1 -->\n## 🎬 動作ビデオ",
     ...overrides,
   };

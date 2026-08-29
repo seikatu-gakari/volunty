@@ -1,4 +1,7 @@
+import { createHash } from "node:crypto";
+
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 function assertManifestUrl(value, headSha) {
   const url = new URL(value);
@@ -23,6 +26,7 @@ function sleep(milliseconds) {
 export async function waitForPublishedManifest({
   url,
   headSha,
+  manifestSha256,
   attempts = 30,
   intervalMs = 10_000,
   fetchImpl = fetch,
@@ -30,6 +34,7 @@ export async function waitForPublishedManifest({
 }) {
   if (
     !SHA_PATTERN.test(headSha) ||
+    !SHA256_PATTERN.test(manifestSha256 ?? "") ||
     !Number.isSafeInteger(attempts) ||
     attempts <= 0 ||
     attempts > 60 ||
@@ -51,7 +56,8 @@ export async function waitForPublishedManifest({
         const text = await response.text();
         if (text.length <= 1024 * 1024) {
           const manifest = JSON.parse(text);
-          if (manifest.headSha === headSha) {
+          const actualSha256 = createHash("sha256").update(text).digest("hex");
+          if (manifest.headSha === headSha && actualSha256 === manifestSha256) {
             return manifest;
           }
         }
@@ -64,5 +70,5 @@ export async function waitForPublishedManifest({
       await sleepImpl(intervalMs);
     }
   }
-  throw new Error("GitHub Pagesで最新HEADのmanifestを確認できませんでした");
+  throw new Error("GitHub Pagesで今回のmanifestを確認できませんでした");
 }

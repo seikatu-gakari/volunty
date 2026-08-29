@@ -20,7 +20,7 @@ export function collectChangedFiles(cwd, baseSha, headSha) {
       "diff",
       "--name-only",
       "--no-renames",
-      "--diff-filter=ACMRD",
+      "--diff-filter=ACMRTD",
       `${baseSha}...${headSha}`,
       "--",
     ],

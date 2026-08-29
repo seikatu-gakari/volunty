@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { createGitHubClient } from "./github.mjs";
@@ -143,4 +146,66 @@ test("renameされたPR fileは旧pathと新pathの両方を返す", async () =>
     "docs/moved.md",
     "app/src/app/old/page.tsx",
   ]);
+});
+
+test("workflow run artifact metadataをpaginationして取得する", async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url.includes("page=2")) {
+      return jsonResponse({ total_count: 101, artifacts: [{ id: 101 }] });
+    }
+    return jsonResponse({
+      total_count: 101,
+      artifacts: Array.from({ length: 100 }, (_, index) => ({ id: index + 1 })),
+    });
+  };
+  const client = createGitHubClient({ token: "test-token", repository, fetchImpl });
+
+  const artifacts = await client.getWorkflowRunArtifacts(987);
+
+  assert.equal(artifacts.length, 101);
+  assert.match(calls[1], /actions\/runs\/987\/artifacts\?per_page=100&page=2$/);
+});
+
+test("artifact archiveのredirect先へtokenを送らずsizeを制限して保存する", async () => {
+  const calls = [];
+  const archive = Buffer.from("PK-safe-archive");
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    if (calls.length === 1) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://pipelines.actions.githubusercontent.com/archive.zip" },
+      });
+    }
+    return new Response(archive, {
+      status: 200,
+      headers: { "content-length": String(archive.length) },
+    });
+  };
+  const root = await mkdtemp(join(tmpdir(), "volunty-pr-demo-download-"));
+  const destination = join(root, "artifact.zip");
+  const client = createGitHubClient({ token: "test-token", repository, fetchImpl });
+
+  await client.downloadArtifactArchive(123, destination, 1024);
+
+  assert.deepEqual(await readFile(destination), archive);
+  assert.match(calls[0].options.headers.Authorization, /test-token/);
+  assert.equal(calls[1].options.headers.Authorization, undefined);
+});
+
+test("artifact archiveのContent-Lengthが上限超過なら書き込み前に拒否する", async () => {
+  const fetchImpl = async () =>
+    new Response(Buffer.from("too large"), {
+      status: 200,
+      headers: { "content-length": "1025" },
+    });
+  const root = await mkdtemp(join(tmpdir(), "volunty-pr-demo-download-limit-"));
+  const client = createGitHubClient({ token: "test-token", repository, fetchImpl });
+
+  await assert.rejects(
+    client.downloadArtifactArchive(123, join(root, "artifact.zip"), 1024),
+    /download size/,
+  );
 });

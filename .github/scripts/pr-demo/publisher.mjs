@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { lstat, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -266,8 +267,10 @@ export async function preparePublish({
   const base = validatePagesBaseUrl(pagesBaseUrl, context.repository);
   await stat(siteDirectory);
   await validateSiteDirectory(siteDirectory);
-  await installDemoOnSite({ artifactDirectory, siteDirectory, manifest });
+  const destination = await installDemoOnSite({ artifactDirectory, siteDirectory, manifest });
   await validateSiteDirectory(siteDirectory);
+  const publishedManifest = await readFile(join(destination, "manifest.json"));
+  const manifestSha256 = createHash("sha256").update(publishedManifest).digest("hex");
   const assetBase = `${base}/pr/${context.prNumber}/${context.headSha}`;
   return {
     schemaVersion: 1,
@@ -279,6 +282,7 @@ export async function preparePublish({
     runUrl: context.runUrl,
     reason: "動作ビデオを公開しました",
     manifestUrl: `${assetBase}/manifest.json`,
+    manifestSha256,
     comment: buildDemoComment(manifest, base),
   };
 }

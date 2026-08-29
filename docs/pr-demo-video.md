@@ -38,9 +38,9 @@ reason:
 2. 通常の全E2Eを録画なしで実行する。
 3. DBを再初期化し、指定シナリオだけをdesktop 1280×720 / mobile 390×844で再実行する。
 4. WebMをH.264 MP4と軽量GIFへ変換し、SHA-256・size・録画時間をmanifestへ記録する。
-5. `workflow_run` がmain上のtrusted codeだけをcheckoutし、GitHub APIのliveなPR本文・label・変更pathでpolicyを再評価してartifact decisionと照合する。さらにartifactのidentity、形式、件数、size、hashを再検証し、PR codeはcheckoutしない。
+5. `workflow_run` がmain上のtrusted codeだけをcheckoutし、GitHub APIのliveなPR本文・label・変更pathでpolicyを再評価してartifact decisionと照合する。artifactはdownload前にAPI上の個数・圧縮sizeを制限し、許可file名・展開後size・圧縮率・symlink・path traversalを検証する専用展開処理を通す。さらにMP4のH.264・無音・viewport・時間、GIFのviewport・時間と全frame decode、identity、件数、hashを検証し、PR codeはcheckoutしない。
 6. `gh-pages` はPRごとの最新HEADだけを持つroot commitへ置き換え、同じtreeをGitHub Pagesへdeployする。
-7. SHA固有manifestの反映をHTTP確認した後、PR commentをupsertし、commit status `demo-video` を成功にする。
+7. SHA固有manifestの反映をHTTP確認し、今回配置したmanifest本文のSHA-256まで一致した後、PR commentをupsertし、commit status `demo-video` を成功にする。
 
 生成失敗、tagの0件/複数件、不正path、古いSHA、Pages未反映は `demo-video` failureです。非UI PRは「対象外」としてsuccessになります。
 

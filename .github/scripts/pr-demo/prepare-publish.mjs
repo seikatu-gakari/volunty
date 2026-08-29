@@ -56,6 +56,7 @@ async function writeOutputs(path, result) {
       `outcome=${result.outcome}`,
       `site_changed=${result.siteChanged}`,
       `manifest_url=${result.manifestUrl ?? ""}`,
+      `manifest_sha256=${result.manifestSha256 ?? ""}`,
       `head_sha=${result.headSha}`,
       "",
     ].join("\n"),

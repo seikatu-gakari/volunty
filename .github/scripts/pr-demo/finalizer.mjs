@@ -32,7 +32,8 @@ function validateResult(result) {
       result.siteChanged !== true ||
       !result.comment?.startsWith(COMMENT_MARKER) ||
       !result.manifestUrl?.startsWith("https://") ||
-      !result.manifestUrl.endsWith(expectedSuffix)
+      !result.manifestUrl.endsWith(expectedSuffix) ||
+      !/^[0-9a-f]{64}$/.test(result.manifestSha256 ?? "")
     ) {
       throw new Error("published resultのPages情報が不正です");
     }

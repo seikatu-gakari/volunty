@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 
 import {
   buildDemoComment,
@@ -12,14 +12,14 @@ import {
   shouldExpireDemo,
   validateArtifactDirectory,
 } from "./artifact.mjs";
+import { createTestMedia } from "./test-media-helper.mjs";
 
 const repository = "seikatu-gakari/volunty";
 const headSha = "b".repeat(40);
-const gif = Buffer.from("GIF89a-valid-demo");
-const mp4 = Buffer.concat([
-  Buffer.from([0, 0, 0, 24]),
-  Buffer.from("ftypisom-valid-demo"),
-]);
+const testMedia = await createTestMedia();
+after(testMedia.cleanup);
+const gif = testMedia.gif;
+const mp4 = testMedia.mp4;
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -63,7 +63,7 @@ async function createArtifact(overrides = {}) {
     media: [
       {
         viewport: "desktop",
-        durationSeconds: 20,
+        durationSeconds: testMedia.durationSeconds,
         gif: { file: "desktop.gif", bytes: gif.length, sha256: sha256(gif) },
         mp4: { file: "desktop.mp4", bytes: mp4.length, sha256: sha256(mp4) },
       },
@@ -87,7 +87,7 @@ test("decision・manifest・mediaがtrusted eventと一致するartifactを受�
     repository,
   });
 
-  assert.equal(result.manifest.media[0].durationSeconds, 20);
+  assert.equal(result.manifest.media[0].durationSeconds, testMedia.durationSeconds);
   assert.equal(result.decision.contract.tag, "@demo-221");
 });
 
@@ -107,7 +107,9 @@ test("artifactのHEAD SHA差し替えを拒否する", async () => {
 });
 
 test("mediaのhash不一致を拒否する", async () => {
-  const { directory } = await createArtifact({ gif: Buffer.from("GIF89a-tampe-demo") });
+  const tamperedGif = Buffer.from(gif);
+  tamperedGif[tamperedGif.length - 1] ^= 0xff;
+  const { directory } = await createArtifact({ gif: tamperedGif });
 
   await assert.rejects(
     validateArtifactDirectory(directory, {
@@ -122,7 +124,7 @@ test("mediaのhash不一致を拒否する", async () => {
 test("viewportごとにmediaが正確に1件ないartifactを拒否する", async () => {
   const desktopMedia = {
     viewport: "desktop",
-    durationSeconds: 20,
+    durationSeconds: testMedia.durationSeconds,
     gif: { file: "desktop.gif", bytes: gif.length, sha256: sha256(gif) },
     mp4: { file: "desktop.mp4", bytes: mp4.length, sha256: sha256(mp4) },
   };

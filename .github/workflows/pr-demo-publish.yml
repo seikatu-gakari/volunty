@@ -43,16 +43,21 @@ jobs:
           path: source
           persist-credentials: false
 
-      - name: Download untrusted PR demo artifact
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download and safely extract untrusted PR demo artifact
+        id: artifact
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository }}
         continue-on-error: true
-        uses: actions/download-artifact@v5
-        with:
-          name: pr-demo-results
-          path: artifact
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id || inputs.run_id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          PR_DEMO_ARCHIVE_PATH: ${{ runner.temp }}/pr-demo-download/pr-demo-results.zip
+          PR_DEMO_ARTIFACT_DIR: ${{ github.workspace }}/artifact
+        run: node source/.github/scripts/pr-demo/download-artifact.mjs
 
       - name: Checkout historyless Pages branch
         uses: actions/checkout@v4
@@ -61,10 +66,12 @@ jobs:
           path: site
           fetch-depth: 1
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
+      - name: Install trusted media validation tools
+        if: ${{ steps.artifact.outcome == 'success' && steps.artifact.outputs.has_media == 'true' }}
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
       - name: Validate artifact and prepare Pages tree
         id: prepare
@@ -116,6 +123,7 @@ jobs:
         env:
           PR_DEMO_MANIFEST_URL: ${{ steps.prepare.outputs.manifest_url }}
           PR_DEMO_HEAD_SHA: ${{ steps.prepare.outputs.head_sha }}
+          PR_DEMO_MANIFEST_SHA256: ${{ steps.prepare.outputs.manifest_sha256 }}
         run: node source/.github/scripts/pr-demo/wait-for-pages.mjs
 
       - name: Upsert PR comment and set demo-video status

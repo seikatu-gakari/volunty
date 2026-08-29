@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 
 import {
   buildFailureResult,
@@ -11,10 +11,13 @@ import {
   preparePublish,
   removePublishedDemoForResult,
 } from "./publisher.mjs";
+import { createTestMedia } from "./test-media-helper.mjs";
 
 const repository = "seikatu-gakari/volunty";
 const headSha = "b".repeat(40);
 const baseSha = "a".repeat(40);
+const testMedia = await createTestMedia();
+after(testMedia.cleanup);
 
 function createEvent(overrides = {}) {
   return {
@@ -82,8 +85,8 @@ async function createDecisionArtifact({ outcome = "skip" } = {}) {
 }
 
 async function addCaptureMedia(directory, decision) {
-  const gif = Buffer.from("GIF89a-publisher-demo");
-  const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom-demo")]);
+  const gif = testMedia.gif;
+  const mp4 = testMedia.mp4;
   const describe = (file, buffer) => ({
     file,
     bytes: buffer.length,
@@ -102,7 +105,7 @@ async function addCaptureMedia(directory, decision) {
     media: [
       {
         viewport: "desktop",
-        durationSeconds: 20,
+        durationSeconds: testMedia.durationSeconds,
         gif: describe("desktop.gif", gif),
         mp4: describe("desktop.mp4", mp4),
       },
@@ -238,6 +241,7 @@ test("検証済みcapture artifactだけをSHA固有Pages pathへ配置する", 
   assert.equal(result.outcome, "published");
   assert.equal(result.siteChanged, true);
   assert.match(result.manifestUrl, new RegExp(`pr/321/${headSha}/manifest\\.json$`));
+  assert.match(result.manifestSha256, /^[0-9a-f]{64}$/);
   assert.match(result.comment, /CIローカル環境/);
   const published = JSON.parse(
     await readFile(join(siteDirectory, "pr", "321", headSha, "manifest.json"), "utf8"),

@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
+import { validateMediaContent } from "./media.mjs";
+
 export const COMMENT_MARKER = "<!-- pr-demo-comment:v1 -->";
 export const RETENTION_DAYS = 7;
 
@@ -97,7 +99,13 @@ function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
-async function validateMediaFile(directory, descriptor, kind, viewport) {
+async function validateMediaFile(
+  directory,
+  descriptor,
+  kind,
+  viewport,
+  durationSeconds,
+) {
   const expectedFile = `${viewport}.${kind}`;
   if (descriptor?.file !== expectedFile) {
     throw new Error(`${viewport}の${kind} file名が不正です`);
@@ -125,6 +133,7 @@ async function validateMediaFile(directory, descriptor, kind, viewport) {
   if (sha256(buffer) !== descriptor.sha256) {
     throw new Error(`${expectedFile}のSHA-256が一致しません`);
   }
+  await validateMediaContent(path, { kind, viewport, durationSeconds });
 }
 
 async function assertOnlyAllowedFiles(directory, allowedFiles) {
@@ -160,7 +169,7 @@ export async function validateArtifactDirectory(directory, expected) {
       throw new Error("manifestに未対応viewportのmediaがあります");
     }
     if (
-      typeof media.durationSeconds !== "number" ||
+      !Number.isFinite(media.durationSeconds) ||
       media.durationSeconds < MIN_DURATION_SECONDS ||
       media.durationSeconds > MAX_DURATION_SECONDS
     ) {
@@ -168,8 +177,20 @@ export async function validateArtifactDirectory(directory, expected) {
     }
     allowedFiles.add(`${media.viewport}.gif`);
     allowedFiles.add(`${media.viewport}.mp4`);
-    await validateMediaFile(directory, media.gif, "gif", media.viewport);
-    await validateMediaFile(directory, media.mp4, "mp4", media.viewport);
+    await validateMediaFile(
+      directory,
+      media.gif,
+      "gif",
+      media.viewport,
+      media.durationSeconds,
+    );
+    await validateMediaFile(
+      directory,
+      media.mp4,
+      "mp4",
+      media.viewport,
+      media.durationSeconds,
+    );
   }
   await assertOnlyAllowedFiles(directory, allowedFiles);
 

@@ -103,6 +103,11 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Install PR demo media validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Run PR demo contract tests
         working-directory: .
         run: node --test .github/scripts/pr-demo/*.test.mjs
