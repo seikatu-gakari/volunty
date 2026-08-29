@@ -86,12 +86,13 @@ async function publishFailure({ result, reason, client }) {
 
 export async function finalizeHandoffFailure({ event, reason, client }) {
   const context = extractWorkflowRunContext(event);
+  const result = buildFailureResult(context, reason);
   const [latestRun, pullRequest] = await Promise.all([
     client.getLatestPullRequestCiRun(context.prNumber, context.headSha),
     client.getPullRequest(context.prNumber),
   ]);
-  return finalizePublish({
-    result: buildFailureResult(context, reason),
+  const outcome = await finalizePublish({
+    result,
     currentHeadSha: pullRequest?.head?.sha,
     latestRunId: latestRun?.id,
     latestRunAttempt: latestRun?.run_attempt,
@@ -99,6 +100,7 @@ export async function finalizeHandoffFailure({ event, reason, client }) {
     pagesReady: false,
     client,
   });
+  return { ...outcome, result };
 }
 
 export async function finalizePublish({

@@ -17,16 +17,12 @@ function jobBlock(name, nextName) {
   return workflow.slice(start, end);
 }
 
-test("stale invalidatorがfinalizerをcancelせず同じHEAD lockで直列化する", () => {
+test("invalidatorをfinalizerの単一pending枠から分離する", () => {
   const invalidate = jobBlock("invalidate", "publish");
   const publish = jobBlock("publish", "finalize");
   const finalize = jobBlock("finalize");
 
-  assert.match(
-    invalidate,
-    /group: \$\{\{ github\.repository \}\}-pr-demo-status-\$\{\{ github\.event\.workflow_run\.head_sha \}\}/,
-  );
-  assert.match(invalidate, /cancel-in-progress: false/);
+  assert.doesNotMatch(invalidate, /concurrency:/);
   assert.match(publish, /group: \$\{\{ github\.repository \}\}-pr-demo-pages/);
   assert.doesNotMatch(publish, /finalize-publish\.mjs/);
   assert.match(finalize, /needs: publish/);
@@ -34,6 +30,7 @@ test("stale invalidatorがfinalizerをcancelせず同じHEAD lockで直列化す
     finalize,
     /group: \$\{\{ github\.repository \}\}-pr-demo-status-\$\{\{ needs\.publish\.outputs\.head_sha \}\}/,
   );
+  assert.match(finalize, /cancel-in-progress: false/);
   assert.match(finalize, /id: handoff[\s\S]*continue-on-error: true/);
   assert.match(finalize, /finalize-publish\.mjs/);
 });

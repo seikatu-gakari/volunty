@@ -151,3 +151,54 @@ test("手動run解決失敗resultは追加のread APIなしでfailure statusを�
   assert.deepEqual(calls.map((call) => call.type), ["comment", "status"]);
   assert.equal(calls[1].status.state, "failure");
 });
+
+test("status更新中に新CIが始まった場合は最新runへpendingを復元する", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-finalize-race-"));
+  const resultPath = join(directory, "result.json");
+  await writeFile(
+    resultPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      outcome: "skip",
+      siteChanged: false,
+      prNumber: 321,
+      headSha,
+      repository,
+      runId: 987,
+      runAttempt: 1,
+      runUrl: `https://github.com/${repository}/actions/runs/987`,
+      reason: "動作ビデオ対象外",
+    }),
+  );
+  let latestRunCalls = 0;
+  const statuses = [];
+
+  const outcome = await main({
+    resultPath,
+    token: "test-token",
+    repository,
+    githubClient: {
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async getLatestPullRequestCiRun() {
+        latestRunCalls += 1;
+        return latestRunCalls === 1
+          ? { id: 987, run_attempt: 1, status: "completed" }
+          : { id: 988, run_attempt: 1, status: "in_progress" };
+      },
+      async upsertDemoComment() {},
+      async setDemoStatus(sha, status) {
+        statuses.push({ sha, status });
+      },
+    },
+  });
+
+  assert.equal(outcome.state, "pending");
+  assert.equal(latestRunCalls, 2);
+  assert.deepEqual(statuses.map(({ status }) => status.state), ["success", "pending"]);
+  assert.equal(
+    statuses[1].status.targetUrl,
+    `https://github.com/${repository}/actions/runs/988`,
+  );
+});

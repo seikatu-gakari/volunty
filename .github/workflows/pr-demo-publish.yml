@@ -40,9 +40,6 @@ jobs:
       contents: read
       pull-requests: read
       statuses: write
-    concurrency:
-      group: ${{ github.repository }}-pr-demo-status-${{ github.event.workflow_run.head_sha }}
-      cancel-in-progress: false
     steps:
       - name: Checkout trusted main scripts
         uses: actions/checkout@v4
