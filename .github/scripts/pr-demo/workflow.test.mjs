@@ -10,15 +10,19 @@ const cleanupWorkflow = await readFile(
   new URL("../../workflows/pr-demo-cleanup.yml", import.meta.url),
   "utf8",
 );
+const ciWorkflow = await readFile(
+  new URL("../../workflows/ci.yml", import.meta.url),
+  "utf8",
+);
 
-function jobBlock(name, nextName) {
-  const start = workflow.indexOf(`\n  ${name}:\n`);
+function jobBlock(name, nextName, source = workflow) {
+  const start = source.indexOf(`\n  ${name}:\n`);
   const end = nextName
-    ? workflow.indexOf(`\n  ${nextName}:\n`, start + 1)
-    : workflow.length;
+    ? source.indexOf(`\n  ${nextName}:\n`, start + 1)
+    : source.length;
   assert.notEqual(start, -1, `${name} jobが必要です`);
   assert.notEqual(end, -1, `${nextName} jobが必要です`);
-  return workflow.slice(start, end);
+  return source.slice(start, end);
 }
 
 test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lockで直列化する", () => {
@@ -83,6 +87,29 @@ test("finalize単独再実行でもpublish元attemptのhandoffを取得する", 
     /name: \$\{\{ needs\.publish\.outputs\.finalizer_artifact_name \}\}/,
   );
   assert.doesNotMatch(finalize, /pr-demo-finalizer-\$\{\{ github\.run_attempt \}\}/);
+});
+
+test("e2e単独再実行でもdemo-policy元attemptのdecisionを取得する", () => {
+  const demoPolicy = jobBlock("demo-policy", "quality", ciWorkflow);
+  const e2e = jobBlock("e2e", undefined, ciWorkflow);
+
+  assert.match(
+    demoPolicy,
+    /decision_artifact_name: \$\{\{ steps\.decision_artifact\.outputs\.name \}\}/,
+  );
+  assert.match(
+    demoPolicy,
+    /name=pr-demo-decision-\$\{GITHUB_RUN_ATTEMPT\}/,
+  );
+  assert.match(
+    demoPolicy,
+    /name: \$\{\{ steps\.decision_artifact\.outputs\.name \}\}/,
+  );
+  assert.match(
+    e2e,
+    /name: \$\{\{ needs\.demo-policy\.outputs\.decision_artifact_name \}\}/,
+  );
+  assert.doesNotMatch(e2e, /pr-demo-decision-\$\{\{ github\.run_attempt \}\}/);
 });
 
 test("fork手動承認はAPI障害時のfailure対象identityも必須入力にする", () => {

@@ -28,6 +28,7 @@ jobs:
     name: demo-policy
     runs-on: ubuntu-latest
     outputs:
+      decision_artifact_name: ${{ steps.decision_artifact.outputs.name }}
       outcome: ${{ steps.evaluate.outputs.outcome }}
       required: ${{ steps.evaluate.outputs.required }}
     steps:
@@ -41,6 +42,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Name PR demo decision artifact
+        id: decision_artifact
+        run: echo "name=pr-demo-decision-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
       - name: Evaluate PR demo contract
         id: evaluate
         continue-on-error: true
@@ -52,7 +57,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: pr-demo-decision-${{ github.run_attempt }}
+          name: ${{ steps.decision_artifact.outputs.name }}
           path: ${{ runner.temp }}/pr-demo/decision.json
           if-no-files-found: warn
           retention-days: 3
@@ -143,7 +148,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: pr-demo-decision-${{ github.run_attempt }}
+          name: ${{ needs.demo-policy.outputs.decision_artifact_name }}
           path: ${{ runner.temp }}/pr-demo
 
       - name: Enforce demo policy result
