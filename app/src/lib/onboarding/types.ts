@@ -1,3 +1,14 @@
+/** ロール選択の保存結果 */
+export type SelectRoleResult =
+  | {
+      success: true;
+      redirectTo: "/onboarding/participant" | "/onboarding/organization";
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
 /** 団体プロフィール登録フォームのデータ */
 export interface RegisterOrganizationData {
   // Step 1: 基本情報（必須）
