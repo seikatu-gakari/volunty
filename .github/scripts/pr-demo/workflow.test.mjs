@@ -141,6 +141,7 @@ test("fork手動承認はAPI障害時のfailure対象identityも必須入力に�
 
 test("cleanupも同じdurable Pages lock内で実行する", () => {
   assert.doesNotMatch(cleanupWorkflow, /^concurrency:/m);
+  assert.match(cleanupWorkflow, /timeout-minutes: 120/);
   assert.match(cleanupWorkflow, /pages-lock\.mjs acquire/);
   assert.ok(
     cleanupWorkflow.indexOf("pages-lock.mjs acquire") <
