@@ -32,6 +32,12 @@ test("trustedな同一repository CIの開始時に旧demo-video successをpendin
   const outcome = await invalidateDemoStatus({
     event: workflowRunEvent(),
     client: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987 };
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
       async setDemoStatus(sha, status) {
         statuses.push({ sha, status });
       },
@@ -51,21 +57,73 @@ test("trustedな同一repository CIの開始時に旧demo-video successをpendin
   ]);
 });
 
-test("fork由来CIは書き込みを行わずmaintainer承認待ちにする", async () => {
-  let statusCalls = 0;
+test("fork由来CIの開始時も手動承認済みの旧successをpendingへ戻す", async () => {
+  const statuses = [];
 
   const outcome = await invalidateDemoStatus({
     event: workflowRunEvent({
       head_repository: { full_name: "someone/volunty" },
     }),
     client: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987 };
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async setDemoStatus(sha, status) {
+        statuses.push({ sha, status });
+      },
+    },
+  });
+
+  assert.equal(outcome, "pending");
+  assert.equal(statuses.length, 1);
+  assert.equal(statuses[0].sha, headSha);
+  assert.equal(statuses[0].status.state, "pending");
+});
+
+test("同じHEADの古いCI runを再実行しても最新demo-video statusを上書きしない", async () => {
+  let statusCalls = 0;
+
+  const outcome = await invalidateDemoStatus({
+    event: workflowRunEvent(),
+    client: {
+      async getLatestPullRequestCiRun() {
+        return { id: 988 };
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
       async setDemoStatus() {
         statusCalls += 1;
       },
     },
   });
 
-  assert.equal(outcome, "fork");
+  assert.equal(outcome, "stale");
+  assert.equal(statusCalls, 0);
+});
+
+test("CI開始後にPR HEADが進んだ場合は古いSHAのstatusを更新しない", async () => {
+  let statusCalls = 0;
+
+  const outcome = await invalidateDemoStatus({
+    event: workflowRunEvent(),
+    client: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987 };
+      },
+      async getPullRequest() {
+        return { head: { sha: "c".repeat(40) } };
+      },
+      async setDemoStatus() {
+        statusCalls += 1;
+      },
+    },
+  });
+
+  assert.equal(outcome, "stale");
   assert.equal(statusCalls, 0);
 });
 

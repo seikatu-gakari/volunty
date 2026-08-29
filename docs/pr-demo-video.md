@@ -34,7 +34,7 @@ reason:
 
 ## CIと公開
 
-1. `Pull Request CI` が `in_progress` になると、main上のtrusted workflowが同一repository PRのcommit status `demo-video` を直ちにpendingへ戻す。これにより、PR本文・label編集や同一HEADの再実行中に前回のsuccessを流用できないようにする。
+1. `Pull Request CI` が `in_progress` になると、main上のtrusted workflowが対象PRのcurrent HEADと同一HEADの最新CI run IDを照合し、forkを含む最新runのcommit status `demo-video` を直ちにpendingへ戻す。これにより、PR本文・label編集や同一HEADの再実行中に前回のsuccessを流用できず、古いrunの手動再実行も最新statusを上書きしない。
 2. `demo-policy` がPR本文、label、変更pathを検証する。
 3. 通常の全E2Eを録画なしで実行する。
 4. DBを再初期化し、指定シナリオだけをdesktop 1280×720 / mobile 390×844で再実行する。

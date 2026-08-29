@@ -13,8 +13,16 @@ export async function invalidateDemoStatus({ event, client }) {
   }
 
   const context = extractWorkflowRunContext(event);
-  if (!context.sameRepository) {
-    return "fork";
+  const [latestRun, pullRequest] = await Promise.all([
+    client.getLatestPullRequestCiRun(context.prNumber, context.headSha),
+    client.getPullRequest(context.prNumber),
+  ]);
+  const currentHeadSha = pullRequest?.head?.sha;
+  if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
+    throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
+  }
+  if (latestRun.id !== context.runId || currentHeadSha !== context.headSha) {
+    return "stale";
   }
 
   await client.setDemoStatus(context.headSha, {
