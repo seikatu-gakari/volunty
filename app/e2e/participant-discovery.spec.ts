@@ -94,4 +94,26 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page).toHaveURL(/\/mypage$/);
     await expect(page.getByText("E2E 参加者(編集済み)")).toBeVisible();
   });
+
+  test("案件を後で見るへ追加し、一覧と詳細から解除できる", async ({ page }) => {
+    await page.goto("/opportunities");
+    const card = page
+      .locator("main > div.grid > div")
+      .filter({ hasText: FILTER_OPPORTUNITY_TITLE });
+    await card.getByRole("button", { name: "後で見る" }).click();
+    await expect(
+      card.getByRole("button", { name: "後で見るから解除" })
+    ).toBeVisible();
+
+    await page.goto("/mypage/bookmarks");
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
+    await page.getByRole("button", { name: "後で見るから解除" }).click();
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toHaveCount(0);
+
+    await page.goto("/opportunities");
+    await card.getByRole("button", { name: "後で見る" }).click();
+    await page.getByRole("link", { name: FILTER_OPPORTUNITY_TITLE }).click();
+    await page.getByRole("button", { name: "後で見るから解除" }).click();
+    await expect(page.getByRole("button", { name: "後で見る" })).toBeVisible();
+  });
 });

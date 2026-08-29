@@ -20,6 +20,29 @@ export interface BookmarksResult {
   error?: string;
 }
 
+export async function fetchBookmarkedOpportunityIds(
+  opportunityIds?: string[]
+): Promise<string[]> {
+  try {
+    const auth = await getParticipantUserId();
+    if ("error" in auth) return [];
+
+    const favorites = await prisma.engagementEvent.findMany({
+      where: {
+        userId: auth.userId,
+        event: "favorite",
+        ...(opportunityIds ? { opportunityId: { in: opportunityIds } } : {}),
+      },
+      select: { opportunityId: true },
+    });
+
+    return favorites.map(({ opportunityId }) => opportunityId);
+  } catch (err) {
+    console.error("[fetchBookmarkedOpportunityIds] 予期しないエラー:", err);
+    return [];
+  }
+}
+
 async function getParticipantUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createClient();
   const {

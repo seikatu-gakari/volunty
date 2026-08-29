@@ -21,6 +21,7 @@ import { fetchOpportunityDetail } from "@/lib/opportunities/actions";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
 import { applicationStatusLabel } from "@/lib/mypage/status";
+import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/actions";
 import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
 import { ApplicationStatusDate } from "./ApplicationStatusDate";
@@ -94,6 +95,9 @@ export default async function OpportunityDetailPage({
   // 応募フォーム表示条件: 参加者 かつ 未応募 かつ 募集中
   const showApplyForm =
     isParticipant && !existingApplication && !isClosed;
+  const isBookmarked = isParticipant
+    ? (await fetchBookmarkedOpportunityIds([opportunity.id])).length > 0
+    : false;
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -122,7 +126,12 @@ export default async function OpportunityDetailPage({
             {opportunity.title}
           </h1>
           <OpportunityPublicationDate createdAt={opportunity.created_at} />
-          {isParticipant && <BookmarkButton opportunityId={opportunity.id} />}
+          {isParticipant && (
+            <BookmarkButton
+              opportunityId={opportunity.id}
+              initialBookmarked={isBookmarked}
+            />
+          )}
         </div>
 
         {/* 案件説明 */}

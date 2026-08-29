@@ -11,6 +11,7 @@ import {
   CATEGORY_OPTIONS,
   PARTICIPATION_MODE_OPTIONS,
 } from "@/lib/opportunities/constants";
+import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/actions";
 
 type OpportunitiesPageProps = {
   searchParams?: Promise<{
@@ -54,6 +55,9 @@ export default async function OpportunitiesPage({
   const params = await searchParams;
   const filters = toFilters(params);
   const opportunities = await fetchPublicOpportunities(filters);
+  const bookmarkedOpportunityIds = new Set(
+    await fetchBookmarkedOpportunityIds(opportunities.map(({ id }) => id))
+  );
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -204,7 +208,10 @@ export default async function OpportunitiesPage({
                       詳細を見る
                       <ArrowRight className="size-4" />
                     </Link>
-                    <BookmarkButton opportunityId={opportunity.id} />
+                    <BookmarkButton
+                      opportunityId={opportunity.id}
+                      initialBookmarked={bookmarkedOpportunityIds.has(opportunity.id)}
+                    />
                   </div>
                 </div>
               </div>

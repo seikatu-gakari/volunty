@@ -2,20 +2,45 @@
 
 import { useState, useTransition } from "react";
 import { Bookmark, Loader2 } from "lucide-react";
-import { addBookmark } from "@/lib/bookmarks/actions";
+import { addBookmark, removeBookmark } from "@/lib/bookmarks/actions";
 
-export function BookmarkButton({ opportunityId }: { opportunityId: string }) {
+interface BookmarkButtonProps {
+  opportunityId: string;
+  initialBookmarked?: boolean;
+  onBookmarkedChange?: (isBookmarked: boolean) => void;
+}
+
+export function BookmarkButton({
+  opportunityId,
+  initialBookmarked = false,
+  onBookmarkedChange,
+}: BookmarkButtonProps) {
   const [isPending, startTransition] = useTransition();
+  const [isBookmarked, setIsBookmarked] = useState(initialBookmarked);
   const [message, setMessage] = useState<string | null>(null);
 
   function handleClick() {
     setMessage(null);
     startTransition(async () => {
-      const result = await addBookmark(opportunityId);
+      const nextBookmarked = !isBookmarked;
+      const result = nextBookmarked
+        ? await addBookmark(opportunityId)
+        : await removeBookmark(opportunityId);
+      if (result.success) {
+        setIsBookmarked(nextBookmarked);
+        setMessage(
+          nextBookmarked
+            ? "お気に入りに追加しました"
+            : "お気に入りを解除しました"
+        );
+        onBookmarkedChange?.(nextBookmarked);
+        return;
+      }
       setMessage(
-        result.success
-          ? "お気に入りに追加しました"
-          : (result.error ?? "お気に入りに追加できませんでした")
+        result.error ??
+          (nextBookmarked
+            ? "お気に入りに追加できませんでした"
+            : "お気に入りを解除できませんでした")
       );
     });
   }
@@ -26,14 +51,18 @@ export function BookmarkButton({ opportunityId }: { opportunityId: string }) {
         type="button"
         onClick={handleClick}
         disabled={isPending}
+        aria-pressed={isBookmarked}
         className="inline-flex items-center gap-2 rounded-lg border border-card-border bg-white px-3 py-2 text-sm font-medium text-text-dark hover:bg-background disabled:opacity-60"
       >
         {isPending ? (
           <Loader2 className="size-4 animate-spin" />
         ) : (
-          <Bookmark className="size-4" />
+          <Bookmark
+            className="size-4"
+            fill={isBookmarked ? "currentColor" : "none"}
+          />
         )}
-        後で見る
+        {isBookmarked ? "後で見るから解除" : "後で見る"}
       </button>
       {message && <p className="text-xs text-text-body">{message}</p>}
     </div>
