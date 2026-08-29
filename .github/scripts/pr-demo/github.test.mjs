@@ -54,6 +54,25 @@ test("既存demoコメントがなければ新規作成する", async () => {
   assert.match(calls[1].url, /issues\/321\/comments$/);
 });
 
+test("既存demoコメントだけを更新する指定では新規コメントを作らない", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url, options });
+    return jsonResponse([]);
+  };
+  const client = createGitHubClient({ token: "test-token", repository, fetchImpl });
+
+  const result = await client.upsertDemoComment(
+    321,
+    "<!-- pr-demo-comment:v1 -->\n対象外",
+    { createIfMissing: false },
+  );
+
+  assert.equal(result, null);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method, "GET");
+});
+
 test("100件を超えるPRでも既存demoコメントをpaginationして1件だけ更新する", async () => {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {

@@ -162,6 +162,33 @@ test("同じHEADでも最新ではないPull Request CI runをstaleにする", a
   assert.match(calls[0], /actions\/workflows\/ci\.yml\/runs/);
 });
 
+test("最新Pull Request CIの照会失敗をfailure resultとして保存する", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-run-api-failure-"));
+  const siteDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-run-api-site-"));
+  const event = failedWorkflowEvent();
+  event.workflow_run.conclusion = "success";
+  const eventPath = join(directory, "event.json");
+  const resultPath = join(directory, "result.json");
+  await writeFile(eventPath, JSON.stringify(event));
+
+  const result = await main({
+    eventPath,
+    artifactDirectory: join(directory, "missing-artifact"),
+    siteDirectory,
+    resultPath,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+    githubClient: {
+      async getLatestPullRequestCiRun() {
+        throw new Error("temporary GitHub API failure");
+      },
+    },
+  });
+
+  assert.equal(result.outcome, "failure");
+  assert.match(result.reason, /temporary GitHub API failure/);
+  assert.equal(JSON.parse(await readFile(resultPath, "utf8")).outcome, "failure");
+});
+
 test("prepare CLIはlive PR metadataをmainのpolicyで再評価する", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-trusted-policy-"));
   const artifactDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-trusted-artifact-"));

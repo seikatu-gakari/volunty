@@ -8,10 +8,14 @@ const headSha = "b".repeat(40);
 const runUrl = `https://github.com/${repository}/actions/runs/987`;
 const manifestUrl = `https://seikatu-gakari.github.io/volunty/pr/321/${headSha}/manifest.json`;
 
-function createClient(calls) {
+function createClient(calls, { demoCommentExists = false } = {}) {
   return {
-    async upsertDemoComment(prNumber, body) {
+    async upsertDemoComment(prNumber, body, options = {}) {
+      if (options.createIfMissing === false && !demoCommentExists) {
+        return null;
+      }
       calls.push({ type: "comment", prNumber, body });
+      return { id: 99 };
     },
     async setDemoStatus(sha, status) {
       calls.push({ type: "status", sha, status });
@@ -120,7 +124,30 @@ test("旧動画を削除した対象外PRはcommentも最新HEADの対象外表�
     }),
     siteReady: true,
     pagesReady: false,
-    client: createClient(calls),
+    client: createClient(calls, { demoCommentExists: true }),
+  });
+
+  assert.equal(outcome.success, true);
+  assert.deepEqual(calls.map((call) => call.type), ["comment", "status"]);
+  assert.match(calls[0].body, /対象外/);
+  assert.match(calls[0].body, new RegExp(headSha));
+  assert.equal(calls[1].status.state, "success");
+});
+
+test("既存failureコメントだけがある対象外PRも最新HEADの対象外表示へ更新する", async () => {
+  const calls = [];
+
+  const outcome = await finalizePublish({
+    result: baseResult({
+      outcome: "skip",
+      siteChanged: false,
+      reason: "最新差分はドキュメントだけです",
+      manifestUrl: undefined,
+      comment: undefined,
+    }),
+    siteReady: true,
+    pagesReady: false,
+    client: createClient(calls, { demoCommentExists: true }),
   });
 
   assert.equal(outcome.success, true);

@@ -97,17 +97,17 @@ export async function main({
   const event = resolved.event;
   const context = extractWorkflowRunContext(event);
   let result;
-  const latestRun = await client.getLatestPullRequestCiRun(
-    context.prNumber,
-    context.headSha,
-  );
-  if (latestRun.id !== context.runId) {
-    result = buildStaleResult(
-      context,
-      "同一HEADに新しいPull Request CI runがあるため公開しません",
+  try {
+    const latestRun = await client.getLatestPullRequestCiRun(
+      context.prNumber,
+      context.headSha,
     );
-  } else {
-    try {
+    if (latestRun.id !== context.runId) {
+      result = buildStaleResult(
+        context,
+        "同一HEADに新しいPull Request CI runがあるため公開しません",
+      );
+    } else {
       const pullRequest = await client.getPullRequest(context.prNumber);
       const currentHeadSha = pullRequest?.head?.sha;
       if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
@@ -145,9 +145,9 @@ export async function main({
         siteDirectory,
         pagesBaseUrl,
       });
-    } catch (error) {
-      result = buildFailureResult(context, error.message);
     }
+  } catch (error) {
+    result = buildFailureResult(context, error.message);
   }
   result = await removePublishedDemoForResult({ result, siteDirectory });
 

@@ -91,12 +91,11 @@ export async function finalizePublish({
         client,
       });
     }
-    if (result.siteChanged) {
-      await client.upsertDemoComment(
-        result.prNumber,
-        buildSkippedComment({ headSha: result.headSha, reason: result.reason }),
-      );
-    }
+    await client.upsertDemoComment(
+      result.prNumber,
+      buildSkippedComment({ headSha: result.headSha, reason: result.reason }),
+      { createIfMissing: false },
+    );
     await client.setDemoStatus(result.headSha, {
       state: "success",
       description: "動作ビデオ対象外",

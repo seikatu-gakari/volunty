@@ -32,8 +32,17 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
     return response.json();
   }
 
-  async function upsertDemoComment(prNumber, body) {
-    if (!Number.isSafeInteger(prNumber) || prNumber <= 0 || !body.startsWith(COMMENT_MARKER)) {
+  async function upsertDemoComment(
+    prNumber,
+    body,
+    { createIfMissing = true } = {},
+  ) {
+    if (
+      !Number.isSafeInteger(prNumber) ||
+      prNumber <= 0 ||
+      !body.startsWith(COMMENT_MARKER) ||
+      typeof createIfMissing !== "boolean"
+    ) {
       throw new Error("PR番号またはdemo comment bodyが不正です");
     }
     let existing;
@@ -62,6 +71,9 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
         method: "PATCH",
         body: { body },
       });
+    }
+    if (!createIfMissing) {
+      return null;
     }
     return request(`/issues/${prNumber}/comments`, {
       method: "POST",
