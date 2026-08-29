@@ -1,0 +1,76 @@
+# PR動作ビデオ運用
+
+ユーザーに見える変更を、PR上のGIFとMP4で短時間に確認するための運用です。録画はCIローカルSupabase、合成E2Eデータ、既存テスト認証だけを使用し、本番・Vercel Preview・実ユーザーデータには接続しません。
+
+## PR作成者の契約
+
+PRテンプレートの `pr-demo:v1` blockを必ず1件だけ残します。
+
+UI変更の例:
+
+```text
+<!-- pr-demo:v1
+required: true
+spec: e2e/participant-discovery.spec.ts
+tag: @demo-221
+viewports: desktop
+reason:
+-->
+```
+
+- `spec` は `app/e2e/` からの相対pathとして `e2e/*.spec.ts` を指定する。
+- `tag` は `@demo-<Issue番号>` とし、指定spec内の該当テストを正確に1件にする。
+- `viewports` は `desktop`、`mobile`、`desktop,mobile` のいずれかにする。通常は主対象1本、モバイル固有変更だけ2本にする。
+- テスト名にtagを含め、日本語の `test.step` で変更点と操作を示す。
+- 録画時間は15〜45秒、無音とする。通常E2Eとしても意味のある受入シナリオを既存テストへ追加または拡張する。
+
+次のpath変更は自動的にUI変更と判定します。
+
+- `app/src/app/**`（`app/src/app/api/**` とテストfileを除く）
+- `app/public/**`
+- `app/src/**` のCSS / SCSS
+
+上記以外でも、表示文言・画面へ出る計算結果・設定などユーザー表示が変わる場合は `demo-video` ラベルで録画を必須化します。UIを変えないrefactorなどを対象外にする場合は、`required: false`、具体的な `reason`、`demo-not-required` ラベルの3点を揃えます。
+
+## CIと公開
+
+1. `demo-policy` がPR本文、label、変更pathを検証する。
+2. 通常の全E2Eを録画なしで実行する。
+3. DBを再初期化し、指定シナリオだけをdesktop 1280×720 / mobile 390×844で再実行する。
+4. WebMをH.264 MP4と軽量GIFへ変換し、SHA-256・size・録画時間をmanifestへ記録する。
+5. `workflow_run` がmain上のtrusted codeだけをcheckoutし、GitHub APIのliveなPR本文・label・変更pathでpolicyを再評価してartifact decisionと照合する。さらにartifactのidentity、形式、件数、size、hashを再検証し、PR codeはcheckoutしない。
+6. `gh-pages` はPRごとの最新HEADだけを持つroot commitへ置き換え、同じtreeをGitHub Pagesへdeployする。
+7. SHA固有manifestの反映をHTTP確認した後、PR commentをupsertし、commit status `demo-video` を成功にする。
+
+生成失敗、tagの0件/複数件、不正path、古いSHA、Pages未反映は `demo-video` failureです。非UI PRは「対象外」としてsuccessになります。
+
+fork由来PRはread-only CIで録画まで行いますが、自動runではartifact自体をdownloadせず、公開もしません。maintainerが内容を確認後、Actionsの `Publish PR demo video` をmain refの `Run workflow` から開き、対象 `Pull Request CI` のrun IDを入力して手動承認します。workflow_dispatchを実行できるwrite権限とmain限定の `github-pages` environmentが承認境界になり、承認後もmain上のpublisherがartifactを再検証します。
+
+## Ready判定
+
+次がすべて同じHEADで成功した時だけReady扱いにします。
+
+- `quality`
+- `e2e`
+- `demo-video`
+- Vercel PreviewがReady
+- Codex Reviewに未解決の重大指摘がない
+
+通常のUI確認はPR内GIF / MP4で行います。OAuth、外部連携、本番固有設定、重大なresponsive変更は、上記に加えて人間がVercel Previewを確認します。`main` へのmergeは人間だけが行います。
+
+## 保存とcleanup
+
+Open中のPRは最新HEADだけを保持し、最新差分が対象外または生成失敗になった場合は旧HEAD動画も除去します。merge / closeから7日後、日次workflowがPagesから削除し、PR commentを「保存期間終了」へ更新します。Pagesの1GB上限に対し、publisherはmedia合計900MiBを安全marginとして超過を拒否します。動画をmainやfeature branchへcommitしません。
+
+## main merge後の有効化手順
+
+基盤PRを人間がmainへmergeした後、次の順番で有効化します。GitHub設定を保存する直前に対象repositoryと変更内容を再確認します。
+
+1. 空の `.nojekyll` だけを持つorphan `gh-pages` branchを作成する（最初のindexはpublisherが生成する）。
+2. GitHub PagesのBuild and deployment Sourceを「GitHub Actions」にし、`github-pages` environmentのdeployment branchをmainに限定する。
+3. `demo-video` と `demo-not-required` labelを作成する。
+4. mergeしない一時E2E Issue / PRで、GIF、MP4、追加commit時のHEAD更新、契約失敗、docs-only対象外を実証する。
+5. 実証後にmainのrequired status checksへ `demo-video` を追加する。
+6. Symphonyの `WORKFLOW.md` をbackupして本書のReady条件へ更新し、service再起動後にactive状態とlogを確認する。
+
+required check追加前にpilotを完了させることで、初期設定不足によるmainのlockoutを避けます。

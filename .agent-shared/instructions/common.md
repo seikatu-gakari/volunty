@@ -13,7 +13,8 @@
 - 実装・修正・リファクタリング完了前に `volunty-test-completion-gate` で UT/E2E の追加要否を判定し、必要なテストを追加・実行する。
 - 実装後に変更点、確認結果、残タスクをまとめる。
 - Codex Cloud の作業ブランチは `codex/<topic>`、Pull Request の base は `main` とする。`main` へのマージは人間が行う。
-- feature ブランチへの push で作成される Vercel Preview を確認し、CI と Codex Review が成功してから PR を完成扱いにする。
+- UI変更PRは `docs/pr-demo-video.md` に従って録画用E2EとPR demo contractを用意する。
+- `quality`、`e2e`、`demo-video`、Vercel Ready、Codex Reviewが同じHEADで成功してからPRを完成扱いにする。OAuth、外部連携、本番固有設定、重大なresponsive変更はPreviewも人間が確認する。
 - Codex Cloud のNext.js buildは `cd app && npm run build -- --webpack` を使用する。
 - Codex CloudではMCPブリッジを使わずCLIを優先する。ドキュメント検索は `ctx7`、ブラウザ/E2EはPlaywright、DBはPrisma、UTはVitest、lintはESLint、型チェックはTypeScript、コード検索は `rg` / `git grep` を使用する。ローカル環境のネイティブMCP設定は維持する。
 - Codex Cloudではセットアップ済みの `vercel` CLIを使用できるが、Vercel tokenをCloudへ登録せず、Previewデプロイはfeatureブランチへのpushで行う。

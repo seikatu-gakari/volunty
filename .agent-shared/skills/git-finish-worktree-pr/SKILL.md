@@ -29,8 +29,9 @@ feature/* → PR → preview（Vercel Preview確認）→ main（本番）
 ```
 
 - `main` への直接 push は禁止。
-- 作業は `feature/*` ブランチで行い、PR でレビュー・Preview 確認を経由する。
+- 作業は `feature/*` または `codex/*` ブランチで行い、PR でレビューを経由する。
 - 本番反映は `main` へのマージで行う。詳細は [docs/branch-workflow.md](../../../docs/branch-workflow.md) を参照する。
+- UI変更は [docs/pr-demo-video.md](../../../docs/pr-demo-video.md) に従い、録画用E2EとPR demo contractを用意する。
 
 ## 事前安全確認
 
@@ -218,7 +219,17 @@ PR 本文には以下を含める。
 
 - レビュー時に注意してほしい点
 - 既知の未対応事項
+
+<!-- pr-demo:v1
+required: false
+spec:
+tag:
+viewports:
+reason: ユーザー表示に影響する変更なし
+-->
 ```
+
+UI変更では `required: true`、`e2e/*.spec.ts`、`@demo-<Issue番号>`、`desktop` / `mobile` を実際の録画テストに合わせて設定する。UI変更を対象外にする場合だけ `demo-not-required` labelと具体的なreasonを使用する。
 
 ## 完了報告
 
@@ -230,6 +241,8 @@ PR 本文には以下を含める。
 - push 先ブランチ
 - PR URL
 - 実行した検証
+- PR demo contractと `demo-video` の結果
+- Vercel ReadyとCodex Reviewが同じHEADか
 - 失敗または未実行の検証があればその理由
 
 ## 絶対にやってはいけないこと

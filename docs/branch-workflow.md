@@ -28,8 +28,8 @@ git commit -m "feat: ○○機能を追加"
 git push origin codex/my-feature
 
 # 4. main向けPRを作成 → PRにVercelプレビューURLが表示される
-# 5. スマホブラウザでプレビューURLを開いてUIを確認
-# 6. GitHub ActionsとCodex Reviewの結果を確認
+# 5. UI変更はPR demo contractを記入し、PR内GIF / MP4を確認
+# 6. 同じHEADのCI、Vercel Ready、Codex Reviewを確認
 ```
 
 ### mainへマージするとき
@@ -45,8 +45,10 @@ git push origin codex/my-feature
 2. 設計案と実装計画を承認しながら実装を進める
 3. Codex Cloudが `codex/*` ブランチへpushし、main向けPRを作成
 4. Vercelがブランチpushを検知してプレビューデプロイ → URLが発行される
-5. スマホブラウザでPreview URLを開いてUIを確認
-6. GitHub ActionsとCodex Reviewが成功したら、人間がmainへマージ
+5. UI変更はPR内の動作ビデオで通常確認する
+6. `quality`、`e2e`、`demo-video`、Vercel Ready、Codex Reviewが同じHEADで成功したら、人間がmainへマージ
+
+PR demo contractと録画シナリオの作り方は [PR動作ビデオ運用](pr-demo-video.md) を参照してください。OAuth、外部連携、本番固有設定、重大なresponsive変更だけは、動作ビデオに加えて人間がPreviewを確認します。
 
 ## Vercelデプロイのトリガー
 
@@ -88,6 +90,7 @@ Vercel → プロジェクト → **Settings → Git** で、feature/codexブラ
 ## 注意事項
 
 - `main` への直接pushは行わない（PRマージのみ）
+- UI変更PRを `demo-video` が最新HEADで成功する前にReady扱いしない
 - 環境変数は [Vercelダッシュボード](https://vercel.com) → Settings → Environment Variables で管理
 - 本番とプレビューで同じ環境変数を使わない（将来バックエンド追加時に注意）
 - `.env.local` はローカル専用。gitにはコミットしない（`.gitignore` 済み）

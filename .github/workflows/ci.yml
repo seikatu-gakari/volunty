@@ -4,6 +4,14 @@ on:
   pull_request:
     branches:
       - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+      - labeled
+      - unlabeled
+      - ready_for_review
 
 permissions:
   contents: read
@@ -16,6 +24,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  demo-policy:
+    name: demo-policy
+    runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.evaluate.outputs.outcome }}
+      required: ${{ steps.evaluate.outputs.required }}
+    steps:
+      - name: Checkout repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Evaluate PR demo contract
+        id: evaluate
+        continue-on-error: true
+        env:
+          PR_DEMO_DECISION_PATH: ${{ runner.temp }}/pr-demo/decision.json
+        run: node .github/scripts/pr-demo/evaluate-pr.mjs
+
+      - name: Upload PR demo decision
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-demo-decision
+          path: ${{ runner.temp }}/pr-demo/decision.json
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Enforce PR demo contract
+        if: ${{ always() }}
+        env:
+          EVALUATION_OUTCOME: ${{ steps.evaluate.outcome }}
+        run: |
+          if [ "$EVALUATION_OUTCOME" != "success" ]; then
+            echo "PR demo contract is invalid." >&2
+            exit 1
+          fi
+
   quality:
     name: quality
     runs-on: ubuntu-latest
@@ -52,6 +103,10 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Run PR demo contract tests
+        working-directory: .
+        run: node --test .github/scripts/pr-demo/*.test.mjs
+
       - name: Run production build
         run: npm run build -- --webpack
 
@@ -66,16 +121,36 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql
-          echo "$(pg_config --bindir)" >> "$GITHUB_PATH"
+          pg_config --bindir >> "$GITHUB_PATH"
 
       - name: Run migration-only RLS contract
         run: bash supabase/rls.test.sh
 
   e2e:
     name: e2e
+    needs:
+      - demo-policy
+    if: ${{ always() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
+      - name: Download PR demo decision
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-demo-decision
+          path: ${{ runner.temp }}/pr-demo
+
+      - name: Enforce demo policy result
+        env:
+          DEMO_POLICY_RESULT: ${{ needs.demo-policy.result }}
+          PR_DEMO_DECISION_PATH: ${{ runner.temp }}/pr-demo/decision.json
+        run: |
+          if [ "$DEMO_POLICY_RESULT" != "success" ] || [ ! -f "$PR_DEMO_DECISION_PATH" ]; then
+            echo "demo-policy did not produce a valid decision." >&2
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -87,6 +162,7 @@ jobs:
           cache-dependency-path: app/package-lock.json
 
       - name: Setup Supabase CLI
+        id: supabase_cli
         uses: supabase/setup-cli@v2
 
       - name: Install dependencies
@@ -113,6 +189,21 @@ jobs:
         working-directory: app
         run: npm run test:e2e
 
+      - name: Install video conversion tools
+        if: ${{ needs.demo-policy.outputs.outcome == 'capture' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Reset database and record PR demo
+        if: ${{ needs.demo-policy.outputs.outcome == 'capture' }}
+        working-directory: app
+        env:
+          PR_DEMO_DECISION_PATH: ${{ runner.temp }}/pr-demo/decision.json
+          PR_DEMO_ARTIFACT_DIR: ${{ runner.temp }}/pr-demo
+          PR_DEMO_TEST_OUTPUT_ROOT: ${{ runner.temp }}/pr-demo-recordings
+        run: node ../.github/scripts/pr-demo/run-capture.mjs
+
       - name: Upload Playwright artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -123,6 +214,15 @@ jobs:
             app/test-results
           if-no-files-found: ignore
 
-      - name: Stop local Supabase
+      - name: Upload PR demo result
         if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-demo-results
+          path: ${{ runner.temp }}/pr-demo
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Stop local Supabase
+        if: ${{ always() && steps.supabase_cli.outcome == 'success' }}
         run: supabase stop --no-backup

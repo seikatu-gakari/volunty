@@ -1,0 +1,88 @@
+name: Cleanup PR demo videos
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  issues: write
+  pages: write
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.repository }}-pr-demo-pages
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: cleanup-pr-demo-videos
+    if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout trusted main scripts
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          persist-credentials: false
+
+      - name: Checkout historyless Pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepare expired demo cleanup
+        id: cleanup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_SITE_DIR: ${{ github.workspace }}/site
+          PR_DEMO_CLEANUP_RESULT_PATH: ${{ runner.temp }}/pr-demo-cleanup/result.json
+        run: node source/.github/scripts/pr-demo/run-cleanup.mjs
+
+      - name: Configure GitHub Pages
+        if: ${{ steps.cleanup.outputs.changed == 'true' }}
+        uses: actions/configure-pages@v5
+
+      - name: Upload cleaned Pages artifact
+        if: ${{ steps.cleanup.outputs.changed == 'true' }}
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - name: Deploy cleaned GitHub Pages
+        id: deploy
+        if: ${{ steps.cleanup.outputs.changed == 'true' }}
+        uses: actions/deploy-pages@v4
+
+      - name: Mark PR comments as expired
+        if: ${{ steps.cleanup.outputs.changed == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_CLEANUP_RESULT_PATH: ${{ runner.temp }}/pr-demo-cleanup/result.json
+        run: node source/.github/scripts/pr-demo/finalize-cleanup.mjs
+
+      - name: Replace gh-pages with cleaned historyless commit
+        if: ${{ steps.cleanup.outputs.changed == 'true' }}
+        working-directory: site
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          expected_sha="$(git rev-parse HEAD)"
+          tree_sha="$(git write-tree)"
+          commit_sha="$(printf 'Remove expired PR demos\n' | git commit-tree "$tree_sha")"
+          git push origin "$commit_sha:refs/heads/gh-pages" "--force-with-lease=refs/heads/gh-pages:$expected_sha"

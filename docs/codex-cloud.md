@@ -12,9 +12,10 @@ Codex Cloud は設計、実装、検証、Pull Request 作成までを担当す�
 6. Codexが `codex/<topic>` ブランチで実装し、lint、UT、buildを実行する。
 7. ブランチpushでVercel Previewが自動デプロイされる。
 8. Codexが `main` 向けPull Requestを作成する。
-9. GitHub Actionsのquality/e2e、Codex Review、Vercel Previewを確認する。
-10. 失敗があればCodexに同じPRブランチの修正を依頼する。
-11. 全チェック成功後、人間が `main` にマージする。
+9. UI変更では録画用E2EとPR demo contractを追加し、PR内のGIF / MP4を確認する。
+10. 同じHEADのquality/e2e/demo-video、Codex Review、Vercel Readyを確認する。
+11. 失敗があればCodexに同じPRブランチの修正を依頼する。
+12. 全チェック成功後、人間が `main` にマージする。
 
 ## Codex Cloud Environment
 
@@ -83,18 +84,20 @@ E2EはGitHub Actions上の一時Supabaseを使う。E2E用のservice role keyは
 `.github/workflows/ci.yml` は `main` 向けPull Requestで次を実行する。
 
 - `quality`: npm install、Prisma生成、lint、UT、`npm run build -- --webpack`
-- `e2e`: Supabase CLIでlocal環境を起動、DB reset（migration + seed）、Playwright E2E、結果artifact保存、Supabase停止
+- `demo-policy`: PR demo contract、変更path、labelを検証
+- `e2e`: Supabase CLIでlocal環境を起動、全Playwright E2Eを録画なしで実行。UI変更ではDB reset後に指定シナリオだけを録画し、結果artifactを保存
+- `demo-video`: main上のtrusted workflowがartifactを再検証し、GitHub Pages公開、PR comment、HEAD SHAのcommit statusを更新
 
 `quality` のbuildは実サービスへ接続しないplaceholder環境変数をjob限定で使う。`e2e` はSupabase CLIが発行する一時環境変数を `.env.local` に設定する。
 
-`quality` と `e2e` を `main` のrequired checksに登録する。
+`quality`、`e2e`、`demo-video` を `main` のrequired checksに登録する。`demo-video` は基盤merge後の一時PR実証が完了してから追加する。
 
 ### main branch protection
 
 GitHubの `Settings → Branches` で `main` に次を設定する。
 
 - Pull Request経由の変更を必須にする
-- `quality` と `e2e` をrequired checksにする
+- `quality`、`e2e`、`demo-video` をrequired checksにする
 - 必須reviewを設定する
 - 未解決reviewがある場合はマージ不可にする
 - force pushとbranch deletionを禁止する
@@ -104,7 +107,7 @@ Codex Cloudには `main` への直接push・マージ権限を与えない。
 
 ### Codex Code Review
 
-Codex設定で対象リポジトリのCode ReviewとAutomatic reviewsを有効にする。レビューはCIや人間の承認の代替ではないため、重大な指摘、CI結果、Previewをすべて確認する。
+Codex設定で対象リポジトリのCode ReviewとAutomatic reviewsを有効にする。レビューはCIや人間の承認の代替ではないため、重大な指摘とCI結果を確認する。通常のUI動作はPR内ビデオを使い、OAuth、外部連携、本番固有設定、重大なresponsive変更はPreviewも人間が確認する。
 
 ## Vercel Preview
 
@@ -120,7 +123,8 @@ Issue #123を対応してください。
 設計承認までは実装しないでください。
 設計承認後に実装計画を提示し、計画承認後に実装してください。
 作業ブランチは codex/cloud-setup とし、必要なUT/E2Eを追加・実行してください。
-lint、UT、build、E2E、Vercel Preview、Codex Reviewを確認したうえでmain向けPRを作成してください。
+UI変更では録画用E2EとPR demo contractを追加してください。
+lint、UT、build、E2E、demo-video、Vercel Ready、Codex Reviewを同じHEADで確認したうえでmain向けPRを作成してください。
 mainへのマージは行わないでください。
 ```
 
@@ -137,5 +141,6 @@ mainへのマージは行わないでください。
 - [Codex Cloud setup](../.codex/cloud/setup.sh)
 - [Codex Cloud maintenance](../.codex/cloud/maintenance.sh)
 - [Pull Request CI](../.github/workflows/ci.yml)
+- [PR動作ビデオ運用](pr-demo-video.md)
 - [ブランチ運用](branch-workflow.md)
 - [Codex Cloud設計書](superpowers/specs/2026-08-01-codex-cloud-development-design.md)
