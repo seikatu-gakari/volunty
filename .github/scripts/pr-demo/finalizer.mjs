@@ -125,6 +125,13 @@ export async function finalizePublish({
   if (result.outcome === "failure") {
     return publishFailure({ result, reason: result.reason, client });
   }
+  if (siteReady !== true) {
+    return publishFailure({
+      result,
+      reason: "動作ビデオをgh-pagesへ永続化できませんでした",
+      client,
+    });
+  }
   if (pagesReady !== true) {
     return publishFailure({
       result,

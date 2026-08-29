@@ -46,6 +46,7 @@ test("Pagesの最新HEAD確認後だけcommentを更新してstatusをsuccessに
 
   const outcome = await finalizePublish({
     result: baseResult(),
+    siteReady: true,
     pagesReady: true,
     client: createClient(calls),
   });
@@ -61,12 +62,28 @@ test("Pagesが最新HEADでなければfailure commentとstatusにする", async
 
   const outcome = await finalizePublish({
     result: baseResult(),
+    siteReady: true,
     pagesReady: false,
     client: createClient(calls),
   });
 
   assert.equal(outcome.success, false);
   assert.match(calls[0].body, /Pagesで最新HEAD/);
+  assert.equal(calls[1].status.state, "failure");
+});
+
+test("Pages確認済みでもgh-pages永続化に失敗したらfailureにする", async () => {
+  const calls = [];
+
+  const outcome = await finalizePublish({
+    result: baseResult(),
+    siteReady: false,
+    pagesReady: true,
+    client: createClient(calls),
+  });
+
+  assert.equal(outcome.success, false);
+  assert.match(calls[0].body, /gh-pages/);
   assert.equal(calls[1].status.state, "failure");
 });
 
@@ -183,6 +200,7 @@ test("公開処理中にPR HEADが進んだ場合もcommentとstatusを更新し
   const outcome = await finalizePublish({
     result: baseResult(),
     currentHeadSha: "c".repeat(40),
+    siteReady: true,
     pagesReady: true,
     client: createClient(calls),
   });
@@ -198,6 +216,7 @@ test("公開処理中に同じHEADの新しいCI runが始まった場合も更�
     result: baseResult(),
     currentHeadSha: headSha,
     latestRunId: 988,
+    siteReady: true,
     pagesReady: true,
     client: createClient(calls),
   });
