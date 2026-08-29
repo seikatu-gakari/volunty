@@ -33,7 +33,7 @@ jobs:
       pull-requests: read
       statuses: write
     concurrency:
-      group: ${{ github.repository }}-pr-demo-invalidate-${{ github.event.workflow_run.id }}
+      group: ${{ github.repository }}-pr-demo-status-${{ github.event.workflow_run.head_sha }}
       cancel-in-progress: true
     steps:
       - name: Checkout trusted main scripts
@@ -53,10 +53,14 @@ jobs:
         run: node .github/scripts/pr-demo/invalidate-status.mjs
 
   publish:
-    name: demo-video
+    name: Prepare PR demo Pages
     if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.action == 'completed' && github.event.workflow_run.event == 'pull_request') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      head_sha: ${{ steps.prepare.outputs.head_sha }}
+      pages_ready: ${{ steps.handoff.outputs.pages_ready }}
+      site_ready: ${{ steps.handoff.outputs.site_ready }}
     permissions:
       actions: read
       contents: write
@@ -171,11 +175,67 @@ jobs:
           PR_DEMO_MANIFEST_SHA256: ${{ steps.prepare.outputs.manifest_sha256 }}
         run: node source/.github/scripts/pr-demo/wait-for-pages.mjs
 
-      - name: Upsert PR comment and set demo-video status
-        if: ${{ always() }}
+      - name: Prepare trusted finalizer handoff
+        id: handoff
+        if: ${{ always() && steps.prepare.outputs.head_sha != '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_RESULT_PATH: ${{ runner.temp }}/pr-demo-publish/result.json
           PR_DEMO_SITE_READY: ${{ steps.prepare.outputs.site_changed != 'true' || (steps.deploy.outcome == 'success' && steps.persist.outcome == 'success') }}
           PR_DEMO_PAGES_READY: ${{ steps.pages.outcome == 'success' }}
+        run: |
+          test -f "$PR_DEMO_RESULT_PATH"
+          mkdir -p "$RUNNER_TEMP/pr-demo-finalizer"
+          cp -- "$PR_DEMO_RESULT_PATH" "$RUNNER_TEMP/pr-demo-finalizer/result.json"
+          echo "site_ready=$PR_DEMO_SITE_READY" >> "$GITHUB_OUTPUT"
+          echo "pages_ready=$PR_DEMO_PAGES_READY" >> "$GITHUB_OUTPUT"
+
+      - name: Upload trusted finalizer handoff
+        if: ${{ always() && steps.handoff.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-demo-finalizer-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pr-demo-finalizer/result.json
+          if-no-files-found: error
+          retention-days: 1
+
+  finalize:
+    name: Finalize demo-video status
+    needs: publish
+    if: ${{ always() && needs.publish.outputs.head_sha != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: read
+      statuses: write
+    concurrency:
+      group: ${{ github.repository }}-pr-demo-status-${{ needs.publish.outputs.head_sha }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout trusted main scripts
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download trusted finalizer handoff
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-demo-finalizer-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pr-demo-finalizer
+
+      - name: Upsert PR comment and set demo-video status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_RESULT_PATH: ${{ runner.temp }}/pr-demo-finalizer/result.json
+          PR_DEMO_SITE_READY: ${{ needs.publish.outputs.site_ready }}
+          PR_DEMO_PAGES_READY: ${{ needs.publish.outputs.pages_ready }}
         run: node source/.github/scripts/pr-demo/finalize-publish.mjs

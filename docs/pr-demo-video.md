@@ -40,8 +40,8 @@ reason:
 4. DBを再初期化し、指定シナリオだけをdesktop 1280×720 / mobile 390×844で再実行する。
 5. WebMをH.264 MP4と軽量GIFへ変換し、SHA-256・size・録画時間をmanifestへ記録する。decision、Playwright結果、demo結果のartifact名には `run_attempt` を含める。
 6. completed `workflow_run` がmain上のtrusted codeだけをcheckoutし、GitHub APIのliveなPR本文・label・変更pathでpolicyを再評価してartifact decisionと照合する。同一HEADに複数の `Pull Request CI` runまたは再実行attemptがある場合は、対象PRの最新run numberに対応するrun ID・`run_attempt` だけを公開処理へ進め、最新runの照会自体に失敗した場合もfail closedにする。artifactは対象attempt固有名だけを選び、download前にAPI上の個数・圧縮sizeを制限し、許可file名・展開後size・圧縮率・symlink・path traversalを検証する専用展開処理を通す。さらにMP4のH.264・無音・viewport・時間、GIFのviewport・時間と全frame decode、identity、件数、hashを検証し、PR codeはcheckoutしない。
-7. `gh-pages` はPRごとの最新HEADだけを持つroot commitへ置き換え、同じtreeをGitHub Pagesへdeployする。
-8. SHA固有manifestの反映をHTTP確認し、今回配置したmanifest本文のSHA-256、`gh-pages` の永続化、対象run ID・`run_attempt` が同一HEADの最新CIであることを再照会する。すべて一致した場合だけPR commentをupsertし、commit status `demo-video` を成功にする。
+7. `gh-pages` はPRごとの最新HEADだけを持つroot commitへ置き換え、公開対象だけを抽出・再検証したtreeをGitHub Pagesへdeployする。
+8. SHA固有manifestの反映をHTTP確認し、今回配置したmanifest本文のSHA-256、`gh-pages` の永続化、対象run ID・`run_attempt` が同一HEADの最新CIであることを再照会する。Pages処理とcomment / status更新を別jobに分け、最終更新jobとinvalidatorをHEAD単位の同じ排他lockで直列化する。新CIのinvalidatorは旧finalizerをcancelしてpendingへ戻す。すべて一致した場合だけPR commentをupsertし、commit status `demo-video` を成功にする。
 
 生成失敗、tagの0件/複数件、不正path、古いSHA、Pages未反映は `demo-video` failureです。非UI PRは「対象外」としてsuccessになり、新規commentは作らず、既存のdemo commentがある場合だけ最新HEADの対象外表示へ更新します。
 
