@@ -33,9 +33,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { addBookmark, fetchMyBookmarks, removeBookmark } = await import(
-  "./actions"
-);
+const {
+  addBookmark,
+  fetchBookmarkedOpportunityIds,
+  fetchMyBookmarks,
+  removeBookmark,
+} = await import("./actions");
 
 describe("bookmark actions", () => {
   beforeEach(() => {
@@ -92,6 +95,21 @@ describe("bookmark actions", () => {
         opportunityId: "opp-1",
         event: "favorite",
       },
+    });
+  });
+
+  it("本人のお気に入り案件 ID を取得できる", async () => {
+    mockFindFavorites.mockResolvedValue([
+      { opportunityId: "opp-1" },
+      { opportunityId: "opp-2" },
+    ]);
+
+    const result = await fetchBookmarkedOpportunityIds();
+
+    expect(result).toEqual(["opp-1", "opp-2"]);
+    expect(mockFindFavorites).toHaveBeenCalledWith({
+      where: { userId: "user-1", event: "favorite" },
+      select: { opportunityId: true },
     });
   });
 
