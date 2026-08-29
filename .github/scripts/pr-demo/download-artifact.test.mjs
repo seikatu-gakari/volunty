@@ -91,6 +91,45 @@ test("publisherは対象attempt固有のartifactだけを選ぶ", () => {
   assert.equal(artifact.id, 456);
 });
 
+test("failed-job再実行でE2Eが省略された場合は最新の成功済みattemptを選ぶ", () => {
+  const artifact = selectArtifactMetadata(
+    [
+      {
+        id: 123,
+        name: "pr-demo-results-1",
+        expired: false,
+        size_in_bytes: 1024,
+      },
+      { id: 999, name: "playwright-results-2", expired: false, size_in_bytes: 2048 },
+    ],
+    2,
+  );
+
+  assert.equal(artifact.id, 123);
+});
+
+test("current attemptより未来・重複・不正名のdemo artifactを拒否する", () => {
+  const artifact = {
+    id: 123,
+    name: "pr-demo-results-1",
+    expired: false,
+    size_in_bytes: 1024,
+  };
+
+  assert.throws(
+    () => selectArtifactMetadata([artifact, { ...artifact, id: 456, name: "pr-demo-results-3" }], 2),
+    /未来attempt/,
+  );
+  assert.throws(
+    () => selectArtifactMetadata([artifact, { ...artifact, id: 456 }], 2),
+    /正確に1件/,
+  );
+  assert.throws(
+    () => selectArtifactMetadata([{ ...artifact, name: "pr-demo-results-01" }], 2),
+    /artifact名/,
+  );
+});
+
 test("手動承認attemptとAPI上の最新attemptが違えばartifactをdownloadしない", async () => {
   const root = await mkdtemp(join(tmpdir(), "volunty-pr-demo-attempt-mismatch-"));
   let artifactsRequested = false;

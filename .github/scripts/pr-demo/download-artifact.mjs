@@ -21,15 +21,45 @@ function artifactNameForAttempt(runAttempt) {
 }
 
 export function selectArtifactMetadata(artifacts, runAttempt) {
-  const artifactName = artifactNameForAttempt(runAttempt);
+  artifactNameForAttempt(runAttempt);
   if (!Array.isArray(artifacts) || artifacts.length > 200) {
     throw new Error("workflow run artifact一覧が不正です");
   }
-  const matches = artifacts.filter((artifact) => artifact?.name === artifactName);
-  if (matches.length !== 1) {
-    throw new Error(`${artifactName} artifactは正確に1件必要です`);
+  const candidates = [];
+  for (const artifact of artifacts) {
+    if (
+      typeof artifact?.name !== "string" ||
+      !artifact.name.startsWith(ARTIFACT_NAME_PREFIX)
+    ) {
+      continue;
+    }
+    const match = /^pr-demo-results-([1-9][0-9]*)$/.exec(artifact.name);
+    if (!match) {
+      throw new Error("pr-demo-results artifact名が不正です");
+    }
+    const artifactAttempt = Number.parseInt(match[1], 10);
+    if (!Number.isSafeInteger(artifactAttempt)) {
+      throw new Error("pr-demo-results artifact attemptが大きすぎます");
+    }
+    if (artifactAttempt > runAttempt) {
+      throw new Error("current runより未来attemptのartifactは使用できません");
+    }
+    candidates.push({ artifact, artifactAttempt });
   }
-  const artifact = matches[0];
+  if (candidates.length === 0) {
+    throw new Error(`${artifactNameForAttempt(runAttempt)}以前のartifactが必要です`);
+  }
+  const counts = new Map();
+  for (const candidate of candidates) {
+    counts.set(candidate.artifactAttempt, (counts.get(candidate.artifactAttempt) ?? 0) + 1);
+  }
+  if ([...counts.values()].some((count) => count !== 1)) {
+    throw new Error("各pr-demo-results attemptのartifactは正確に1件必要です");
+  }
+  const latestAttempt = Math.max(...candidates.map(({ artifactAttempt }) => artifactAttempt));
+  const artifact = candidates.find(
+    ({ artifactAttempt }) => artifactAttempt === latestAttempt,
+  ).artifact;
   if (!Number.isSafeInteger(artifact.id) || artifact.id <= 0) {
     throw new Error("artifact IDが不正です");
   }
