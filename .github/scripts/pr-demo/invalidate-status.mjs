@@ -7,8 +7,14 @@ import { fileURLToPath } from "node:url";
 import { createGitHubClient } from "./github.mjs";
 import { extractWorkflowRunContext } from "./publisher.mjs";
 
+const DEFAULT_ATTEMPTS = 6;
+
+function sleepFor(milliseconds) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
+}
+
 export async function invalidateDemoStatus({ event, client }) {
-  if (event?.action !== "in_progress") {
+  if (!["requested", "in_progress"].includes(event?.action)) {
     return "ignored";
   }
 
@@ -37,6 +43,40 @@ export async function invalidateDemoStatus({ event, client }) {
   return "pending";
 }
 
+export async function invalidateDemoStatusWithRetry({
+  event,
+  client,
+  attempts = DEFAULT_ATTEMPTS,
+  sleep = sleepFor,
+}) {
+  if (
+    !Number.isSafeInteger(attempts) ||
+    attempts <= 0 ||
+    attempts > 10 ||
+    typeof sleep !== "function"
+  ) {
+    throw new Error("demo-video invalidatorの再試行設定が不正です");
+  }
+
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await invalidateDemoStatus({ event, client });
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) {
+        break;
+      }
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 16_000);
+      console.warn(
+        `[pr-demo] demo-video invalidation retry ${attempt}/${attempts}: ${error.message}`,
+      );
+      await sleep(delay);
+    }
+  }
+  throw lastError;
+}
+
 export async function main({
   eventPath = process.env.GITHUB_EVENT_PATH,
   token = process.env.GITHUB_TOKEN,
@@ -51,7 +91,7 @@ export async function main({
     throw new Error("workflow_runのrepositoryがworkflowと一致しません");
   }
   const client = githubClient ?? createGitHubClient({ token, repository });
-  const outcome = await invalidateDemoStatus({ event, client });
+  const outcome = await invalidateDemoStatusWithRetry({ event, client });
   console.log(`[pr-demo] invalidate demo-video=${outcome}`);
   return outcome;
 }

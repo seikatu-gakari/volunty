@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { invalidateDemoStatus } from "./invalidate-status.mjs";
+import {
+  invalidateDemoStatus,
+  invalidateDemoStatusWithRetry,
+} from "./invalidate-status.mjs";
 
 const repository = "seikatu-gakari/volunty";
 const headSha = "b".repeat(40);
@@ -164,4 +167,38 @@ test("in_progress以外のeventではstatusを更新しない", async () => {
 
   assert.equal(outcome, "ignored");
   assert.equal(statusCalls, 0);
+});
+
+test("一時的なGitHub API失敗後も再試行して旧successをpendingへ戻す", async () => {
+  let latestRunCalls = 0;
+  const retryDelays = [];
+  const statuses = [];
+
+  const outcome = await invalidateDemoStatusWithRetry({
+    event: workflowRunEvent(),
+    client: {
+      async getLatestPullRequestCiRun() {
+        latestRunCalls += 1;
+        if (latestRunCalls < 3) {
+          throw new Error("temporary GitHub API failure");
+        }
+        return { id: 987, run_attempt: 1 };
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async setDemoStatus(sha, status) {
+        statuses.push({ sha, status });
+      },
+    },
+    attempts: 3,
+    sleep: async (milliseconds) => {
+      retryDelays.push(milliseconds);
+    },
+  });
+
+  assert.equal(outcome, "pending");
+  assert.equal(latestRunCalls, 3);
+  assert.deepEqual(retryDelays, [1000, 2000]);
+  assert.equal(statuses.length, 1);
 });

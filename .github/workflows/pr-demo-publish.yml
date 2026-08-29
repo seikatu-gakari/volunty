@@ -5,6 +5,7 @@ on:
     workflows:
       - Pull Request CI
     types:
+      - requested
       - in_progress
       - completed
   workflow_dispatch:
@@ -13,17 +14,23 @@ on:
         description: Maintainerが公開を承認するPull Request CI run ID
         required: true
         type: string
+      run_attempt:
+        description: Maintainerが内容を確認したPull Request CI run attempt
+        required: true
+        type: string
 
 permissions: {}
 
 jobs:
   invalidate:
     name: Invalidate stale demo-video status
-    if: ${{ github.event_name == 'workflow_run' && github.event.action == 'in_progress' && github.event.workflow_run.event == 'pull_request' }}
+    if: ${{ github.event_name == 'workflow_run' && (github.event.action == 'requested' || github.event.action == 'in_progress') && github.event.workflow_run.event == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      actions: read
       contents: read
+      pull-requests: read
       statuses: write
     concurrency:
       group: ${{ github.repository }}-pr-demo-invalidate-${{ github.event.workflow_run.id }}
@@ -84,7 +91,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
-          PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.run_attempt }}
           PR_DEMO_ARCHIVE_PATH: ${{ runner.temp }}/pr-demo-download/pr-demo-results.zip
           PR_DEMO_ARTIFACT_DIR: ${{ github.workspace }}/artifact
         run: node source/.github/scripts/pr-demo/download-artifact.mjs
@@ -112,6 +119,7 @@ jobs:
           PR_DEMO_RESULT_PATH: ${{ runner.temp }}/pr-demo-publish/result.json
           PR_DEMO_PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
           PR_DEMO_SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.run_attempt }}
           PR_DEMO_MANUAL_FORK_APPROVAL: ${{ github.event_name == 'workflow_dispatch' }}
         run: node source/.github/scripts/pr-demo/prepare-publish.mjs
 

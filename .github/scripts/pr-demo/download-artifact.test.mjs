@@ -8,6 +8,7 @@ import test from "node:test";
 import {
   MAX_ARCHIVE_BYTES,
   downloadArtifactForRun,
+  main as downloadArtifactMain,
   safelyExtractArchive,
   selectArtifactMetadata,
 } from "./download-artifact.mjs";
@@ -88,6 +89,31 @@ test("publisherは対象attempt固有のartifactだけを選ぶ", () => {
   );
 
   assert.equal(artifact.id, 456);
+});
+
+test("手動承認attemptとAPI上の最新attemptが違えばartifactをdownloadしない", async () => {
+  const root = await mkdtemp(join(tmpdir(), "volunty-pr-demo-attempt-mismatch-"));
+  let artifactsRequested = false;
+
+  await assert.rejects(
+    downloadArtifactMain({
+      sourceRunId: "987",
+      sourceRunAttempt: "1",
+      archivePath: join(root, "artifact.zip"),
+      artifactDirectory: join(root, "artifact"),
+      githubClient: {
+        async getWorkflowRun() {
+          return { id: 987, run_attempt: 2 };
+        },
+        async getWorkflowRunArtifacts() {
+          artifactsRequested = true;
+          return [];
+        },
+      },
+    }),
+    /run attemptがAPI上の最新attemptと一致しません/,
+  );
+  assert.equal(artifactsRequested, false);
 });
 
 test("metadataの圧縮sizeが上限超過ならarchiveをdownloadしない", async () => {

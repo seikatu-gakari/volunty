@@ -36,6 +36,7 @@ test("workflow_dispatchは指定CI runをGitHub APIで解決しfork手動承認�
     event: { repository: { full_name: repository } },
     manualForkApproval: true,
     sourceRunId: "987",
+    sourceRunAttempt: "1",
     repository,
     client: {
       async getWorkflowRun() {
@@ -50,6 +51,31 @@ test("workflow_dispatchは指定CI runをGitHub APIで解決しfork手動承認�
   assert.equal(resolved.event.workflow_run.id, 987);
   assert.equal(resolved.event.workflow_run.pull_requests[0].number, 321);
   assert.equal(resolved.forkApproved, true);
+});
+
+test("workflow_dispatchは承認したrun attemptとAPI上の最新attemptが違えば拒否する", async () => {
+  const source = failedWorkflowEvent().workflow_run;
+  source.head_repository = { full_name: "someone/volunty" };
+  source.run_attempt = 2;
+
+  await assert.rejects(
+    resolveWorkflowRunEvent({
+      event: { repository: { full_name: repository } },
+      manualForkApproval: true,
+      sourceRunId: "987",
+      sourceRunAttempt: "1",
+      repository,
+      client: {
+        async getWorkflowRun() {
+          return { ...source, pull_requests: undefined };
+        },
+        async getWorkflowRunPullRequests() {
+          return source.pull_requests;
+        },
+      },
+    }),
+    /承認対象のrun attempt/,
+  );
 });
 
 test("prepare CLIはartifactがないCI失敗でもfinalizer用resultを必ず書く", async () => {

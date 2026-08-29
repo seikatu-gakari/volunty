@@ -34,7 +34,7 @@ reason:
 
 ## CIと公開
 
-1. `Pull Request CI` が `in_progress` になると、main上のtrusted workflowが対象PRのcurrent HEADと同一HEADの最新CI run ID・`run_attempt` を照合し、forkを含む最新attemptのcommit status `demo-video` を直ちにpendingへ戻す。これにより、PR本文・label編集や同一HEADの再実行中に前回のsuccessを流用できず、古いrun・attemptの手動再実行も最新statusを上書きしない。
+1. `Pull Request CI` が `requested` / `in_progress` になると、main上のtrusted workflowが対象PRのcurrent HEADと同一HEADの最新CI run ID・`run_attempt` を照合し、forkを含む最新attemptのcommit status `demo-video` を直ちにpendingへ戻す。GitHub APIまたはstatus更新の一時失敗は指数バックオフで6回まで再試行する。これにより、PR本文・label編集や同一HEADの再実行中に前回のsuccessを流用できず、古いrun・attemptの手動再実行も最新statusを上書きしない。
 2. `demo-policy` がPR本文、label、変更pathを検証する。
 3. 通常の全E2Eを録画なしで実行する。
 4. DBを再初期化し、指定シナリオだけをdesktop 1280×720 / mobile 390×844で再実行する。
@@ -45,7 +45,7 @@ reason:
 
 生成失敗、tagの0件/複数件、不正path、古いSHA、Pages未反映は `demo-video` failureです。非UI PRは「対象外」としてsuccessになり、新規commentは作らず、既存のdemo commentがある場合だけ最新HEADの対象外表示へ更新します。
 
-fork由来PRはread-only CIで録画まで行いますが、自動runではartifact自体をdownloadせず、公開もしません。maintainerが内容を確認後、Actionsの `Publish PR demo video` をmain refの `Run workflow` から開き、対象 `Pull Request CI` のrun IDを入力して手動承認します。workflow_dispatchを実行できるwrite権限とmain限定の `github-pages` environmentが承認境界になり、承認後もmain上のpublisherがartifactを再検証します。
+fork由来PRはread-only CIで録画まで行いますが、自動runではartifact自体をdownloadせず、公開もしません。maintainerが内容を確認後、Actionsの `Publish PR demo video` をmain refの `Run workflow` から開き、対象 `Pull Request CI` のrun IDと、確認したrun attemptを入力して手動承認します。publisherはdownload前・公開前・最終status更新前に承認attemptがAPI上の最新attemptと一致することを再確認します。workflow_dispatchを実行できるwrite権限とmain限定の `github-pages` environmentが承認境界になり、承認後もmain上のpublisherがartifactを再検証します。
 
 ## Ready判定
 

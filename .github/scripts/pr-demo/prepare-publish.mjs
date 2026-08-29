@@ -18,18 +18,26 @@ export async function resolveWorkflowRunEvent({
   event,
   manualForkApproval,
   sourceRunId,
+  sourceRunAttempt,
   repository,
   client,
 }) {
   if (event?.workflow_run) {
     return { event, forkApproved: false };
   }
-  if (manualForkApproval !== true || !/^[1-9][0-9]*$/.test(sourceRunId ?? "")) {
-    throw new Error("workflow_dispatchには承認対象のPull Request CI run IDが必要です");
+  if (
+    manualForkApproval !== true ||
+    !/^[1-9][0-9]*$/.test(sourceRunId ?? "") ||
+    !/^[1-9][0-9]*$/.test(sourceRunAttempt ?? "")
+  ) {
+    throw new Error(
+      "workflow_dispatchには承認対象のPull Request CI run IDとattemptが必要です",
+    );
   }
   const runId = Number.parseInt(sourceRunId, 10);
-  if (!Number.isSafeInteger(runId)) {
-    throw new Error("Pull Request CI run IDが大きすぎます");
+  const runAttempt = Number.parseInt(sourceRunAttempt, 10);
+  if (!Number.isSafeInteger(runId) || !Number.isSafeInteger(runAttempt)) {
+    throw new Error("Pull Request CI run IDまたはattemptが大きすぎます");
   }
   const [run, pullRequests] = await Promise.all([
     client.getWorkflowRun(runId),
@@ -37,6 +45,9 @@ export async function resolveWorkflowRunEvent({
   ]);
   if (run.id !== runId || (run.repository?.full_name && run.repository.full_name !== repository)) {
     throw new Error("指定workflow runが対象repositoryと一致しません");
+  }
+  if (run.run_attempt !== runAttempt) {
+    throw new Error("承認対象のrun attemptがAPI上の最新attemptと一致しません");
   }
   return {
     event: {
@@ -74,6 +85,7 @@ export async function main({
   githubClient,
   manualForkApproval = process.env.PR_DEMO_MANUAL_FORK_APPROVAL === "true",
   sourceRunId = process.env.PR_DEMO_SOURCE_RUN_ID,
+  sourceRunAttempt = process.env.PR_DEMO_SOURCE_RUN_ATTEMPT,
 } = {}) {
   if (!eventPath || !artifactDirectory || !siteDirectory || !resultPath || !pagesBaseUrl) {
     throw new Error("publisherのevent/artifact/site/result/Pages設定が不足しています");
@@ -91,6 +103,7 @@ export async function main({
     event: rawEvent,
     manualForkApproval,
     sourceRunId,
+    sourceRunAttempt,
     repository,
     client,
   });

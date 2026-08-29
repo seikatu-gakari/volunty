@@ -125,30 +125,30 @@ export async function main({
   githubOutputPath = process.env.GITHUB_OUTPUT,
   githubClient,
 } = {}) {
-  if (!archivePath || !artifactDirectory || !/^[1-9][0-9]*$/.test(sourceRunId ?? "")) {
-    throw new Error("artifact download設定またはrun IDが不正です");
+  if (
+    !archivePath ||
+    !artifactDirectory ||
+    !/^[1-9][0-9]*$/.test(sourceRunId ?? "") ||
+    !/^[1-9][0-9]*$/.test(sourceRunAttempt ?? "")
+  ) {
+    throw new Error("artifact download設定、run ID、attemptが不正です");
   }
   const runId = Number.parseInt(sourceRunId, 10);
+  const runAttempt = Number.parseInt(sourceRunAttempt, 10);
   const client = githubClient ?? createGitHubClient({ token, repository });
-  let runAttempt;
-  if (sourceRunAttempt) {
-    if (!/^[1-9][0-9]*$/.test(sourceRunAttempt)) {
-      throw new Error("artifact downloadのrun attemptが不正です");
-    }
-    runAttempt = Number.parseInt(sourceRunAttempt, 10);
-  } else {
-    const run = await client.getWorkflowRun(runId);
-    if (
-      run?.id !== runId ||
-      !Number.isSafeInteger(run.run_attempt) ||
-      run.run_attempt <= 0
-    ) {
-      throw new Error("GitHub APIからrun attemptを確認できません");
-    }
-    runAttempt = run.run_attempt;
+  if (!Number.isSafeInteger(runId) || !Number.isSafeInteger(runAttempt)) {
+    throw new Error("artifact downloadのrun IDまたはattemptが大きすぎます");
   }
-  if (!Number.isSafeInteger(runAttempt)) {
-    throw new Error("artifact downloadのrun attemptが大きすぎます");
+  const run = await client.getWorkflowRun(runId);
+  if (
+    run?.id !== runId ||
+    !Number.isSafeInteger(run.run_attempt) ||
+    run.run_attempt <= 0
+  ) {
+    throw new Error("GitHub APIからrun attemptを確認できません");
+  }
+  if (run.run_attempt !== runAttempt) {
+    throw new Error("run attemptがAPI上の最新attemptと一致しません");
   }
   const entries = await downloadArtifactForRun({
     runId,
