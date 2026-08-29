@@ -92,15 +92,17 @@ test("C-E4: 通常ログアウト後は公開トップへ戻り別ロールで�
   await expect(page).toHaveURL(/\/$/);
   await expect(page).not.toHaveURL(/\/forbidden$/);
   await expect(
-    page.getByRole("link", { name: "ダッシュボード" })
+    page.getByRole("link", { name: "ダッシュボード", exact: true })
   ).toBeVisible();
+  await context.close();
 
-  await page.goto("/auth/signout");
-  await page.goto("/diagnosis");
-  await expect(page).toHaveURL((url) =>
+  const unauthenticatedContext = await browser.newContext();
+  const unauthenticatedPage = await unauthenticatedContext.newPage();
+  await unauthenticatedPage.goto("/diagnosis");
+  await expect(unauthenticatedPage).toHaveURL((url) =>
     url.pathname === "/login" && url.searchParams.get("next") === "/diagnosis"
   );
-  await context.close();
+  await unauthenticatedContext.close();
 });
 
 test("C-E5: 団体審査待ち画面のログアウト後は公開トップへ戻る", async ({ browser }) => {
@@ -110,7 +112,10 @@ test("C-E5: 団体審査待ち画面のログアウト後は公開トップへ�
   );
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/onboarding\/pending$/);
-  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: "ログアウト" })
+    .click();
   await expect(page).toHaveURL((url) =>
     url.pathname === "/" && !url.searchParams.has("next")
   );
@@ -121,15 +126,15 @@ test("C-E5: 団体審査待ち画面のログアウト後は公開トップへ�
 test("C-E6: 権限エラーから別アカウントログインを選ぶと現在のセッションを削除する", async ({ browser }) => {
   const { context, page } = await openAuthenticatedPage(
     browser,
-    AUTH_STATE.participant
+    AUTH_STATE.organizationRejected
   );
-  await page.goto("/dashboard");
-  await expectForbidden(page, "募集案件一覧");
+  await page.goto("/mypage");
+  await expectForbidden(page, "マイページ");
   await page.getByRole("link", { name: "別のアカウントでログイン" }).click();
   await expect(page).toHaveURL(/\/login$/);
-  await page.goto("/mypage");
+  await page.goto("/dashboard");
   await expect(page).toHaveURL((url) =>
-    url.pathname === "/login" && url.searchParams.get("next") === "/mypage"
+    url.pathname === "/login" && url.searchParams.get("next") === "/dashboard"
   );
   await context.close();
 });
