@@ -28,7 +28,8 @@ export default function ForbiddenPage() {
             トップへ戻る
           </Link>
           <Link
-            href="/login"
+            href="/auth/signout?intent=switch-account"
+            prefetch={false}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark"
           >
             <LogIn className="size-4" />

@@ -78,22 +78,70 @@ test("C-E3: 団体審査状態に応じてダッシュボード利用可否を�
   await approved.context.close();
 });
 
-test("C-E4: ログアウト後は保護ルートへ戻れない", async ({ browser }) => {
+test("C-E4: 通常ログアウト後は公開トップへ戻り別ロールで再ログインできる", async ({ browser }) => {
   const { context, page } = await openAuthenticatedPage(
     browser,
     AUTH_STATE.participantLogout
   );
   await page.goto("/diagnosis");
   await page.getByRole("button", { name: "ログアウト" }).click();
-  await expect(page.getByRole("link", { name: "ログイン" })).toBeVisible();
-  await page.goto("/diagnosis");
   await expect(page).toHaveURL((url) =>
+    url.pathname === "/" && !url.searchParams.has("next")
+  );
+  await expect(page.getByRole("link", { name: "ログイン" })).toBeVisible();
+
+  await page.goto("/api/test-auth/login?persona=organization-approved");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page).not.toHaveURL(/\/forbidden$/);
+  await expect(
+    page.getByRole("link", { name: "ダッシュボード", exact: true })
+  ).toBeVisible();
+  await context.close();
+
+  const unauthenticatedContext = await browser.newContext();
+  const unauthenticatedPage = await unauthenticatedContext.newPage();
+  await unauthenticatedPage.goto("/diagnosis");
+  await expect(unauthenticatedPage).toHaveURL((url) =>
     url.pathname === "/login" && url.searchParams.get("next") === "/diagnosis"
+  );
+  await unauthenticatedContext.close();
+});
+
+test("C-E5: 団体審査待ち画面のログアウト後は公開トップへ戻る", async ({ browser }) => {
+  const { context, page } = await openAuthenticatedPage(
+    browser,
+    AUTH_STATE.organizationPendingReadonly
+  );
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/onboarding\/pending$/);
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: "ログアウト" })
+    .click();
+  await expect(page).toHaveURL((url) =>
+    url.pathname === "/" && !url.searchParams.has("next")
+  );
+  await expect(page.getByRole("link", { name: "ログイン" })).toBeVisible();
+  await context.close();
+});
+
+test("C-E6: 権限エラーから別アカウントログインを選ぶと現在のセッションを削除する", async ({ browser }) => {
+  const { context, page } = await openAuthenticatedPage(
+    browser,
+    AUTH_STATE.organizationRejected
+  );
+  await page.goto("/mypage");
+  await expectForbidden(page, "マイページ");
+  await page.getByRole("link", { name: "別のアカウントでログイン" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL((url) =>
+    url.pathname === "/login" && url.searchParams.get("next") === "/dashboard"
   );
   await context.close();
 });
 
-test("C-E5: 凍結済みユーザーを強制退出して理由を表示する", async ({ page }) => {
+test("C-E7: 凍結済みユーザーを強制退出して理由を表示する", async ({ page }) => {
   await page.goto(
     "/api/test-auth/login?persona=participant-suspended&next=/mypage"
   );
@@ -107,7 +155,7 @@ test("C-E5: 凍結済みユーザーを強制退出して理由を表示する",
   await expect(page).toHaveURL(/\/login(?:\?|$)/);
 });
 
-test("C-E6: 他団体の案件・応募者・証明書を閲覧更新できない", async ({ browser }) => {
+test("C-E8: 他団体の案件・応募者・証明書を閲覧更新できない", async ({ browser }) => {
   const owner = await openAuthenticatedPage(browser, AUTH_STATE.organization);
   await owner.page.goto("/dashboard");
   const opportunityHref = await owner.page
@@ -165,7 +213,7 @@ test("C-E6: 他団体の案件・応募者・証明書を閲覧更新できな�
   await other.context.close();
 });
 
-test("C-E7: モバイル表示で各ロールの主要導線を操作できる", async ({ browser }) => {
+test("C-E9: モバイル表示で各ロールの主要導線を操作できる", async ({ browser }) => {
   const viewport = { width: 390, height: 844 };
 
   const participantContext = await browser.newContext({
