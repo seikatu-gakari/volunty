@@ -30,6 +30,9 @@ export async function invalidateDemoStatus({ event, client }) {
   if (currentHeadSha !== context.headSha) {
     return "stale";
   }
+  if (!["queued", "in_progress"].includes(latestRun.status)) {
+    return "stale";
+  }
 
   let targetUrl = context.runUrl;
   let outcome = "pending";
@@ -37,9 +40,6 @@ export async function invalidateDemoStatus({ event, client }) {
     latestRun.id !== context.runId ||
     latestRun.run_attempt !== context.runAttempt
   ) {
-    if (!["queued", "in_progress"].includes(latestRun.status)) {
-      return "stale";
-    }
     const latestRunBaseUrl =
       `https://github.com/${context.repository}/actions/runs/${latestRun.id}`;
     targetUrl =

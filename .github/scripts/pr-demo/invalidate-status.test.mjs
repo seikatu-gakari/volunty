@@ -37,7 +37,7 @@ test("trustedな同一repository CIの開始時に旧demo-video successをpendin
     event: workflowRunEvent(),
     client: {
       async getLatestPullRequestCiRun() {
-        return { id: 987, run_attempt: 1 };
+        return { id: 987, run_attempt: 1, status: "in_progress" };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };
@@ -70,7 +70,7 @@ test("fork由来CIの開始時も手動承認済みの旧successをpendingへ戻
     }),
     client: {
       async getLatestPullRequestCiRun() {
-        return { id: 987, run_attempt: 1 };
+        return { id: 987, run_attempt: 1, status: "in_progress" };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };
@@ -95,6 +95,28 @@ test("最新CI完了後に古いrunを再実行してもdemo-video statusを上�
     client: {
       async getLatestPullRequestCiRun() {
         return { id: 988, run_attempt: 1, status: "completed" };
+      },
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async setDemoStatus() {
+        statusCalls += 1;
+      },
+    },
+  });
+
+  assert.equal(outcome, "stale");
+  assert.equal(statusCalls, 0);
+});
+
+test("同じrunの遅延invalidatorはCI完了後のsuccessをpendingへ戻さない", async () => {
+  let statusCalls = 0;
+
+  const outcome = await invalidateDemoStatus({
+    event: workflowRunEvent(),
+    client: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987, run_attempt: 1, status: "completed" };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };
@@ -213,7 +235,7 @@ test("一時的なGitHub API失敗後も再試行して旧successをpendingへ�
         if (latestRunCalls < 3) {
           throw new Error("temporary GitHub API failure");
         }
-        return { id: 987, run_attempt: 1 };
+        return { id: 987, run_attempt: 1, status: "in_progress" };
       },
       async getPullRequest() {
         return { head: { sha: headSha } };

@@ -6,22 +6,19 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
   id-token: write
   issues: write
   pages: write
   pull-requests: read
 
-concurrency:
-  group: ${{ github.repository }}-pr-demo-pages
-  cancel-in-progress: false
-
 jobs:
   cleanup:
     name: cleanup-pr-demo-videos
     if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -33,17 +30,23 @@ jobs:
           path: source
           persist-credentials: false
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Acquire GitHub Pages publish lock
+        id: pages_lock
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node source/.github/scripts/pr-demo/pages-lock.mjs acquire
+
       - name: Checkout historyless Pages branch
         uses: actions/checkout@v4
         with:
           ref: gh-pages
           path: site
           fetch-depth: 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
 
       - name: Prepare expired demo cleanup
         id: cleanup
@@ -114,3 +117,11 @@ jobs:
           tree_sha="$(git write-tree)"
           commit_sha="$(printf 'Complete expired PR demo cleanup\n' | git commit-tree "$tree_sha")"
           git push origin "$commit_sha:refs/heads/gh-pages" "--force-with-lease=refs/heads/gh-pages:$expected_sha"
+
+      - name: Release GitHub Pages publish lock
+        if: ${{ always() && steps.pages_lock.outputs.lock_ref_id != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_PAGES_LOCK_REF_ID: ${{ steps.pages_lock.outputs.lock_ref_id }}
+          PR_DEMO_PAGES_LOCK_SHA: ${{ steps.pages_lock.outputs.lock_sha }}
+        run: node source/.github/scripts/pr-demo/pages-lock.mjs release

@@ -6,6 +6,10 @@ const workflow = await readFile(
   new URL("../../workflows/pr-demo-publish.yml", import.meta.url),
   "utf8",
 );
+const cleanupWorkflow = await readFile(
+  new URL("../../workflows/pr-demo-cleanup.yml", import.meta.url),
+  "utf8",
+);
 
 function jobBlock(name, nextName) {
   const start = workflow.indexOf(`\n  ${name}:\n`);
@@ -23,7 +27,17 @@ test("invalidatorをfinalizerの単一pending枠から分離する", () => {
   const finalize = jobBlock("finalize");
 
   assert.doesNotMatch(invalidate, /concurrency:/);
-  assert.match(publish, /group: \$\{\{ github\.repository \}\}-pr-demo-pages/);
+  assert.doesNotMatch(publish, /concurrency:/);
+  assert.match(publish, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
+  assert.ok(
+    publish.indexOf("pages-lock.mjs acquire") <
+      publish.indexOf("Checkout historyless Pages branch"),
+  );
+  assert.match(
+    publish,
+    /Release GitHub Pages publish lock[\s\S]*if: \$\{\{ always\(\)/,
+  );
+  assert.match(publish, /pages-lock\.mjs release/);
   assert.doesNotMatch(publish, /finalize-publish\.mjs/);
   assert.match(finalize, /needs: publish/);
   assert.match(
@@ -42,4 +56,14 @@ test("fork手動承認はAPI障害時のfailure対象identityも必須入力に�
     workflow,
     /head_sha: \$\{\{ steps\.prepare\.outputs\.head_sha \|\| github\.event\.workflow_run\.head_sha \|\| inputs\.head_sha \}\}/,
   );
+});
+
+test("cleanupも同じdurable Pages lock内で実行する", () => {
+  assert.doesNotMatch(cleanupWorkflow, /^concurrency:/m);
+  assert.match(cleanupWorkflow, /pages-lock\.mjs acquire/);
+  assert.ok(
+    cleanupWorkflow.indexOf("pages-lock.mjs acquire") <
+      cleanupWorkflow.indexOf("Checkout historyless Pages branch"),
+  );
+  assert.match(cleanupWorkflow, /pages-lock\.mjs release/);
 });
