@@ -70,12 +70,35 @@ test("closeから7日経過したPRだけPagesから削除してcommentを期限
   await assert.rejects(stat(join(siteDirectory, "pr", "321")), /ENOENT/);
   assert.equal(comments.length, 0);
 
-  await finalizeExpiredComments({ expired: result.expired, client: {
-    async upsertDemoComment(prNumber, body) {
-      comments.push({ prNumber, body });
+  await finalizeExpiredComments({
+    expired: result.expired,
+    sitePersisted: true,
+    client: {
+      async upsertDemoComment(prNumber, body) {
+        comments.push({ prNumber, body });
+      },
     },
-  } });
+  });
   assert.match(comments[0].body, /保存期間（7日）が終了/);
+});
+
+test("gh-pagesの永続化失敗時は期限切れcommentを更新しない", async () => {
+  let commentCalls = 0;
+
+  await assert.rejects(
+    finalizeExpiredComments({
+      expired: [{ prNumber: 321, headSha }],
+      sitePersisted: false,
+      client: {
+        async upsertDemoComment() {
+          commentCalls += 1;
+        },
+      },
+    }),
+    /gh-pages.*永続化/,
+  );
+
+  assert.equal(commentCalls, 0);
 });
 
 test("open PRの最新HEAD動画は保持する", async () => {

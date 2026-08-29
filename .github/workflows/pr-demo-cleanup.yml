@@ -68,14 +68,8 @@ jobs:
         if: ${{ steps.cleanup.outputs.changed == 'true' }}
         uses: actions/deploy-pages@v4
 
-      - name: Mark PR comments as expired
-        if: ${{ steps.cleanup.outputs.changed == 'true' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_DEMO_CLEANUP_RESULT_PATH: ${{ runner.temp }}/pr-demo-cleanup/result.json
-        run: node source/.github/scripts/pr-demo/finalize-cleanup.mjs
-
       - name: Replace gh-pages with cleaned historyless commit
+        id: persist
         if: ${{ steps.cleanup.outputs.changed == 'true' }}
         working-directory: site
         run: |
@@ -86,3 +80,11 @@ jobs:
           tree_sha="$(git write-tree)"
           commit_sha="$(printf 'Remove expired PR demos\n' | git commit-tree "$tree_sha")"
           git push origin "$commit_sha:refs/heads/gh-pages" "--force-with-lease=refs/heads/gh-pages:$expected_sha"
+
+      - name: Mark PR comments as expired
+        if: ${{ steps.cleanup.outputs.changed == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_CLEANUP_RESULT_PATH: ${{ runner.temp }}/pr-demo-cleanup/result.json
+          PR_DEMO_SITE_PERSISTED: ${{ steps.persist.outcome == 'success' }}
+        run: node source/.github/scripts/pr-demo/finalize-cleanup.mjs

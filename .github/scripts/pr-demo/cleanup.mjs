@@ -42,7 +42,10 @@ export async function cleanupExpiredDemos({ siteDirectory, client, now = new Dat
   return { removed, expired };
 }
 
-export async function finalizeExpiredComments({ expired, client }) {
+export async function finalizeExpiredComments({ expired, sitePersisted, client }) {
+  if (sitePersisted !== true) {
+    throw new Error("gh-pagesを永続化するまで期限切れcommentは更新できません");
+  }
   for (const demo of expired) {
     await client.upsertDemoComment(
       demo.prNumber,
