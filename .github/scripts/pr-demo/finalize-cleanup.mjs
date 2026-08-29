@@ -6,10 +6,13 @@ import { finalizeExpiredComments } from "./cleanup.mjs";
 import { createGitHubClient } from "./github.mjs";
 
 const resultPath = process.env.PR_DEMO_CLEANUP_RESULT_PATH;
+const siteDirectory = process.env.PR_DEMO_SITE_DIR;
 const token = process.env.GITHUB_TOKEN;
 const repository = process.env.GITHUB_REPOSITORY;
-if (!resultPath || !token || !repository) {
-  throw new Error("PR_DEMO_CLEANUP_RESULT_PATH、GITHUB_TOKEN、GITHUB_REPOSITORYが必要です");
+if (!resultPath || !siteDirectory || !token || !repository) {
+  throw new Error(
+    "PR_DEMO_CLEANUP_RESULT_PATH、PR_DEMO_SITE_DIR、GITHUB_TOKEN、GITHUB_REPOSITORYが必要です",
+  );
 }
 const metadata = await stat(resultPath);
 if (!metadata.isFile() || metadata.size > 1024 * 1024) {
@@ -32,6 +35,7 @@ if (
 
 await finalizeExpiredComments({
   expired: result.expired,
+  siteDirectory,
   sitePersisted: process.env.PR_DEMO_SITE_PERSISTED === "true",
   client: createGitHubClient({ token, repository }),
 });

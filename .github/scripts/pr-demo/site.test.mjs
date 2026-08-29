@@ -7,10 +7,13 @@ import test from "node:test";
 
 import {
   assertSiteCapacity,
+  CLEANUP_PENDING_FILE,
   installDemoOnSite,
   listPublishedDemos,
+  readPendingCleanup,
   removeDemoFromSite,
   validateSiteDirectory,
+  writePendingCleanup,
 } from "./site.mjs";
 
 const headSha = "b".repeat(40);
@@ -103,6 +106,34 @@ test("Pages tree内のsymlinkを拒否する", async () => {
   await symlink("/etc/passwd", join(siteDirectory, "unexpected-link"));
 
   await assert.rejects(validateSiteDirectory(siteDirectory), /未許可|symlink/);
+});
+
+test("demo公開時は同じPRのcleanup再試行だけを解除する", async () => {
+  const { artifactDirectory, siteDirectory, manifest } = await fixture();
+  await writePendingCleanup(siteDirectory, [
+    { prNumber: 321, headSha },
+    { prNumber: 322, headSha: "c".repeat(40) },
+  ]);
+
+  await installDemoOnSite({ artifactDirectory, siteDirectory, manifest });
+
+  assert.deepEqual(await readPendingCleanup(siteDirectory), [
+    { prNumber: 322, headSha: "c".repeat(40) },
+  ]);
+});
+
+test("不正なcleanup再試行stateをPages tree検証で拒否する", async () => {
+  const { artifactDirectory, siteDirectory, manifest } = await fixture();
+  await installDemoOnSite({ artifactDirectory, siteDirectory, manifest });
+  await writeFile(
+    join(siteDirectory, CLEANUP_PENDING_FILE),
+    JSON.stringify({
+      schemaVersion: 1,
+      pending: [{ prNumber: 321, headSha: "../invalid" }],
+    }),
+  );
+
+  await assert.rejects(validateSiteDirectory(siteDirectory), /cleanup再試行state/);
 });
 
 test("Pages公開量が安全margin 900MiBを超えるtreeを拒否する", () => {

@@ -158,6 +158,78 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
     throw new Error("workflow run artifactが200件を超えています");
   }
 
+  async function getLatestPullRequestCiRun(prNumber, headSha) {
+    if (
+      !Number.isSafeInteger(prNumber) ||
+      prNumber <= 0 ||
+      !SHA_PATTERN.test(headSha)
+    ) {
+      throw new Error("Pull Request CIの検索条件が不正です");
+    }
+
+    const runs = [];
+    let expectedTotal;
+    for (let page = 1; page <= 10; page += 1) {
+      const pageSuffix = page === 1 ? "" : `&page=${page}`;
+      const response = await request(
+        `/actions/workflows/ci.yml/runs?event=pull_request&head_sha=${headSha}&per_page=100${pageSuffix}`,
+      );
+      if (
+        !Number.isSafeInteger(response?.total_count) ||
+        response.total_count < 1 ||
+        response.total_count > 1000 ||
+        !Array.isArray(response.workflow_runs) ||
+        response.workflow_runs.length > 100 ||
+        response.workflow_runs.some(
+          (run) =>
+            !Number.isSafeInteger(run.id) ||
+            run.id <= 0 ||
+            !Number.isSafeInteger(run.run_number) ||
+            run.run_number <= 0 ||
+            run.event !== "pull_request" ||
+            run.head_sha !== headSha ||
+            !Array.isArray(run.pull_requests) ||
+            run.pull_requests.some(
+              (pullRequest) =>
+                !Number.isSafeInteger(pullRequest.number) ||
+                pullRequest.number <= 0,
+            ),
+        )
+      ) {
+        throw new Error("Pull Request CI run APIのresponseが不正です");
+      }
+      expectedTotal ??= response.total_count;
+      if (response.total_count !== expectedTotal) {
+        throw new Error("Pull Request CI run一覧が取得中に変化しました");
+      }
+      runs.push(...response.workflow_runs);
+      if (response.workflow_runs.length < 100) {
+        if (
+          runs.length !== expectedTotal ||
+          new Set(runs.map((run) => run.id)).size !== runs.length
+        ) {
+          throw new Error("Pull Request CI run件数がAPIのtotal_countと一致しません");
+        }
+        const candidates = runs.filter((run) =>
+          run.pull_requests.some((pullRequest) => pullRequest.number === prNumber),
+        );
+        if (candidates.length === 0) {
+          throw new Error("対象PRのPull Request CI runを確認できません");
+        }
+        if (
+          new Set(candidates.map((run) => run.run_number)).size !==
+          candidates.length
+        ) {
+          throw new Error("対象PRのPull Request CI run_numberが重複しています");
+        }
+        return candidates.reduce((latest, run) =>
+          run.run_number > latest.run_number ? run : latest,
+        );
+      }
+    }
+    throw new Error("同一HEADのPull Request CI runが1000件を超えています");
+  }
+
   async function downloadArtifactArchive(artifactId, destination, maxBytes) {
     if (
       !Number.isSafeInteger(artifactId) ||
@@ -246,6 +318,7 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
       return request(`/pulls/${prNumber}`);
     },
     getPullRequestFiles,
+    getLatestPullRequestCiRun,
     getWorkflowRunArtifacts,
     downloadArtifactArchive,
     getWorkflowRun(runId) {

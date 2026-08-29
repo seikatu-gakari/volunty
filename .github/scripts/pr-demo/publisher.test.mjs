@@ -11,6 +11,7 @@ import {
   preparePublish,
   removePublishedDemoForResult,
 } from "./publisher.mjs";
+import { readPendingCleanup, writePendingCleanup } from "./site.mjs";
 import { createTestMedia } from "./test-media-helper.mjs";
 
 const repository = "seikatu-gakari/volunty";
@@ -223,6 +224,28 @@ test("対象外になった最新HEADでは同じPRの旧動画をPagesから除
     readFile(join(siteDirectory, "pr", "321", headSha, "manifest.json")),
     /ENOENT/,
   );
+});
+
+test("対象外になった最新HEADでは同じPRのcleanup再試行stateも解除する", async () => {
+  const siteDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-skip-pending-"));
+  await writePendingCleanup(siteDirectory, [{ prNumber: 321, headSha }]);
+  const { directory, decision } = await createDecisionArtifact();
+  const skipResult = await preparePublish({
+    event: createEvent(),
+    trustedDecision: decision,
+    artifactDirectory: directory,
+    siteDirectory,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+  });
+
+  const result = await removePublishedDemoForResult({
+    result: skipResult,
+    siteDirectory,
+  });
+
+  assert.equal(result.outcome, "skip");
+  assert.equal(result.siteChanged, true);
+  assert.deepEqual(await readPendingCleanup(siteDirectory), []);
 });
 
 test("検証済みcapture artifactだけをSHA固有Pages pathへ配置する", async () => {

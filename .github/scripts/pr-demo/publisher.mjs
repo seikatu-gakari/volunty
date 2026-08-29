@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { buildDemoComment, validateArtifactDirectory } from "./artifact.mjs";
 import {
+  clearPendingCleanupForPr,
   installDemoOnSite,
   removeDemoFromSite,
   validateSiteDirectory,
@@ -181,6 +182,19 @@ export function buildFailureResult(context, reason) {
   };
 }
 
+export function buildStaleResult(context, reason) {
+  return {
+    schemaVersion: 1,
+    outcome: "stale",
+    siteChanged: false,
+    prNumber: context.prNumber,
+    headSha: context.headSha,
+    repository: context.repository,
+    runUrl: context.runUrl,
+    reason: safeReason(reason, "このworkflow_runは最新ではありません"),
+  };
+}
+
 export async function removePublishedDemoForResult({ result, siteDirectory }) {
   if (!["skip", "failure"].includes(result.outcome)) {
     return result;
@@ -189,9 +203,13 @@ export async function removePublishedDemoForResult({ result, siteDirectory }) {
   try {
     await stat(siteDirectory);
     await validateSiteDirectory(siteDirectory);
-    const siteChanged = await removeDemoFromSite(siteDirectory, result.prNumber);
+    const demoRemoved = await removeDemoFromSite(siteDirectory, result.prNumber);
+    const pendingCleared = await clearPendingCleanupForPr(
+      siteDirectory,
+      result.prNumber,
+    );
     await validateSiteDirectory(siteDirectory);
-    return { ...result, siteChanged };
+    return { ...result, siteChanged: demoRemoved || pendingCleared };
   } catch (error) {
     const priorReason = result.outcome === "failure" ? `${result.reason}; ` : "";
     return buildFailureResult(
@@ -216,16 +234,10 @@ export async function preparePublish({
     throw new Error("PRのcurrent HEAD SHAが不正です");
   }
   if (liveHeadSha !== context.headSha) {
-    return {
-      schemaVersion: 1,
-      outcome: "stale",
-      siteChanged: false,
-      prNumber: context.prNumber,
-      headSha: context.headSha,
-      repository: context.repository,
-      runUrl: context.runUrl,
-      reason: "このworkflow_runはPRの最新HEADではありません",
-    };
+    return buildStaleResult(
+      context,
+      "このworkflow_runはPRの最新HEADではありません",
+    );
   }
   if (!context.sameRepository && forkApproved !== true) {
     return buildFailureResult(

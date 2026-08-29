@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   buildFailureResult,
+  buildStaleResult,
   extractWorkflowRunContext,
   preparePublish,
   removePublishedDemoForResult,
@@ -96,46 +97,57 @@ export async function main({
   const event = resolved.event;
   const context = extractWorkflowRunContext(event);
   let result;
-  try {
-    const pullRequest = await client.getPullRequest(context.prNumber);
-    const currentHeadSha = pullRequest?.head?.sha;
-    if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
-      throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
-    }
-    if (context.conclusion === "success" && currentHeadSha === context.headSha) {
-      await client.setDemoStatus(context.headSha, {
-        state: "pending",
-        description: "最新HEADの動作ビデオを検証しています",
-        targetUrl: context.runUrl,
+  const latestRun = await client.getLatestPullRequestCiRun(
+    context.prNumber,
+    context.headSha,
+  );
+  if (latestRun.id !== context.runId) {
+    result = buildStaleResult(
+      context,
+      "同一HEADに新しいPull Request CI runがあるため公開しません",
+    );
+  } else {
+    try {
+      const pullRequest = await client.getPullRequest(context.prNumber);
+      const currentHeadSha = pullRequest?.head?.sha;
+      if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
+        throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
+      }
+      if (context.conclusion === "success" && currentHeadSha === context.headSha) {
+        await client.setDemoStatus(context.headSha, {
+          state: "pending",
+          description: "最新HEADの動作ビデオを検証しています",
+          targetUrl: context.runUrl,
+        });
+      }
+      let trustedDecision;
+      if (
+        context.conclusion === "success" &&
+        currentHeadSha === context.headSha &&
+        (context.sameRepository || resolved.forkApproved)
+      ) {
+        const changedFiles = await client.getPullRequestFiles(context.prNumber);
+        trustedDecision = createDecision(
+          {
+            number: context.prNumber,
+            repository: { full_name: repository },
+            pull_request: pullRequest,
+          },
+          changedFiles,
+        );
+      }
+      result = await preparePublish({
+        event,
+        currentHeadSha,
+        forkApproved: resolved.forkApproved,
+        trustedDecision,
+        artifactDirectory,
+        siteDirectory,
+        pagesBaseUrl,
       });
+    } catch (error) {
+      result = buildFailureResult(context, error.message);
     }
-    let trustedDecision;
-    if (
-      context.conclusion === "success" &&
-      currentHeadSha === context.headSha &&
-      (context.sameRepository || resolved.forkApproved)
-    ) {
-      const changedFiles = await client.getPullRequestFiles(context.prNumber);
-      trustedDecision = createDecision(
-        {
-          number: context.prNumber,
-          repository: { full_name: repository },
-          pull_request: pullRequest,
-        },
-        changedFiles,
-      );
-    }
-    result = await preparePublish({
-      event,
-      currentHeadSha,
-      forkApproved: resolved.forkApproved,
-      trustedDecision,
-      artifactDirectory,
-      siteDirectory,
-      pagesBaseUrl,
-    });
-  } catch (error) {
-    result = buildFailureResult(context, error.message);
   }
   result = await removePublishedDemoForResult({ result, siteDirectory });
 

@@ -29,11 +29,18 @@ await writeFile(
 if (process.env.GITHUB_OUTPUT) {
   await appendFile(
     process.env.GITHUB_OUTPUT,
-    `changed=${result.removed.length > 0}\nremoved=${result.removed.join(",")}\n`,
+    [
+      `changed=${result.removed.length > 0}`,
+      `pending=${result.expired.length > 0}`,
+      `removed=${result.removed.join(",")}`,
+      "",
+    ].join("\n"),
   );
 }
 console.log(
   result.removed.length > 0
     ? `[pr-demo] 期限切れPRを削除しました: ${result.removed.join(", ")}`
-    : "[pr-demo] 期限切れPRはありません",
+    : result.expired.length > 0
+      ? `[pr-demo] ${result.expired.length}件の期限切れcommentを再試行します`
+      : "[pr-demo] 期限切れPRはありません",
 );

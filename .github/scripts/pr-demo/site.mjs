@@ -17,6 +17,8 @@ const VIEWPORTS = new Set(["desktop", "mobile"]);
 const MAX_GIF_BYTES = 8 * 1024 * 1024;
 const MAX_MP4_BYTES = 12 * 1024 * 1024;
 const MAX_SITE_BYTES = 900 * 1024 * 1024;
+const MAX_PENDING_CLEANUPS = 2000;
+export const CLEANUP_PENDING_FILE = ".pr-demo-cleanup-pending.json";
 
 function assertPrNumber(prNumber) {
   if (!Number.isSafeInteger(prNumber) || prNumber <= 0) {
@@ -34,6 +36,77 @@ async function pathExists(path) {
     }
     throw error;
   }
+}
+
+function normalizePendingCleanup(pending) {
+  if (
+    !Array.isArray(pending) ||
+    pending.length > MAX_PENDING_CLEANUPS ||
+    pending.some(
+      (entry) =>
+        !Number.isSafeInteger(entry?.prNumber) ||
+        entry.prNumber <= 0 ||
+        !SHA_PATTERN.test(entry.headSha ?? ""),
+    ) ||
+    new Set(pending.map((entry) => entry.prNumber)).size !== pending.length
+  ) {
+    throw new Error("cleanup再試行stateが不正です");
+  }
+  return pending
+    .map(({ prNumber, headSha }) => ({ prNumber, headSha }))
+    .sort((left, right) => left.prNumber - right.prNumber);
+}
+
+export async function readPendingCleanup(siteDirectory) {
+  const path = join(siteDirectory, CLEANUP_PENDING_FILE);
+  if (!(await pathExists(path))) {
+    return [];
+  }
+  const metadata = await lstat(path);
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.size <= 0 ||
+    metadata.size > 1024 * 1024
+  ) {
+    throw new Error("cleanup再試行stateは許可size内の通常fileである必要があります");
+  }
+  let document;
+  try {
+    document = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(`cleanup再試行stateをJSONとして読めません: ${error.message}`);
+  }
+  if (document?.schemaVersion !== 1) {
+    throw new Error("cleanup再試行stateのschemaが不正です");
+  }
+  return normalizePendingCleanup(document.pending);
+}
+
+export async function writePendingCleanup(siteDirectory, pending) {
+  const normalized = normalizePendingCleanup(pending);
+  const path = join(siteDirectory, CLEANUP_PENDING_FILE);
+  if (normalized.length === 0) {
+    await rm(path, { force: true });
+    return normalized;
+  }
+  await writeFile(
+    path,
+    `${JSON.stringify({ schemaVersion: 1, pending: normalized }, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+  return normalized;
+}
+
+export async function clearPendingCleanupForPr(siteDirectory, prNumber) {
+  assertPrNumber(prNumber);
+  const pending = await readPendingCleanup(siteDirectory);
+  const remaining = pending.filter((entry) => entry.prNumber !== prNumber);
+  if (remaining.length === pending.length) {
+    return false;
+  }
+  await writePendingCleanup(siteDirectory, remaining);
+  return true;
 }
 
 function renderIndex(demos) {
@@ -220,7 +293,13 @@ export function assertSiteCapacity(demos) {
 
 export async function validateSiteDirectory(siteDirectory) {
   const entries = await readdir(siteDirectory, { withFileTypes: true });
-  const allowedEntries = new Set([".git", ".nojekyll", "index.html", "pr"]);
+  const allowedEntries = new Set([
+    ".git",
+    ".nojekyll",
+    CLEANUP_PENDING_FILE,
+    "index.html",
+    "pr",
+  ]);
   for (const entry of entries) {
     if (!allowedEntries.has(entry.name) || entry.isSymbolicLink()) {
       throw new Error(`Pages rootに未許可entryまたはsymlinkがあります: ${entry.name}`);
@@ -235,6 +314,7 @@ export async function validateSiteDirectory(siteDirectory) {
   }
 
   const demos = await scanPublishedDemos(siteDirectory);
+  await readPendingCleanup(siteDirectory);
   assertSiteCapacity(demos);
   if (await pathExists(join(siteDirectory, ".nojekyll"))) {
     if ((await readFile(join(siteDirectory, ".nojekyll"))).length !== 0) {
@@ -270,6 +350,7 @@ export async function installDemoOnSite({ artifactDirectory, siteDirectory, mani
     await copyFile(join(artifactDirectory, media.gif.file), join(destination, media.gif.file));
     await copyFile(join(artifactDirectory, media.mp4.file), join(destination, media.mp4.file));
   }
+  await clearPendingCleanupForPr(siteDirectory, manifest.prNumber);
   await refreshIndex(siteDirectory);
   return destination;
 }

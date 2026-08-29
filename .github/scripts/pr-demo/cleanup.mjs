@@ -1,8 +1,14 @@
-import { RETENTION_DAYS, buildExpiredComment, shouldExpireDemo } from "./artifact.mjs";
+import {
+  RETENTION_DAYS,
+  buildExpiredComment,
+  shouldExpireDemo,
+} from "./artifact.mjs";
 import {
   listPublishedDemos,
+  readPendingCleanup,
   removeDemoFromSite,
   validateSiteDirectory,
+  writePendingCleanup,
 } from "./site.mjs";
 
 export async function cleanupExpiredDemos({ siteDirectory, client, now = new Date() }) {
@@ -12,9 +18,12 @@ export async function cleanupExpiredDemos({ siteDirectory, client, now = new Dat
 
   await validateSiteDirectory(siteDirectory);
   const demos = await listPublishedDemos(siteDirectory);
+  const pending = await readPendingCleanup(siteDirectory);
+  const pendingByPrNumber = new Map(
+    pending.map((entry) => [entry.prNumber, entry]),
+  );
   const seenPrNumbers = new Set();
   const removed = [];
-  const expired = [];
   for (const demo of demos) {
     if (seenPrNumbers.has(demo.prNumber)) {
       throw new Error(`PR #${demo.prNumber}に複数の公開HEADがあります`);
@@ -35,16 +44,40 @@ export async function cleanupExpiredDemos({ siteDirectory, client, now = new Dat
 
     await removeDemoFromSite(siteDirectory, demo.prNumber);
     removed.push(demo.prNumber);
-    expired.push({ prNumber: demo.prNumber, headSha: demo.headSha });
+    const existing = pendingByPrNumber.get(demo.prNumber);
+    if (existing && existing.headSha !== demo.headSha) {
+      throw new Error(`PR #${demo.prNumber}のcleanup再試行HEADが一致しません`);
+    }
+    pendingByPrNumber.set(demo.prNumber, {
+      prNumber: demo.prNumber,
+      headSha: demo.headSha,
+    });
   }
 
+  const expired = await writePendingCleanup(
+    siteDirectory,
+    [...pendingByPrNumber.values()],
+  );
   await validateSiteDirectory(siteDirectory);
   return { removed, expired };
 }
 
-export async function finalizeExpiredComments({ expired, sitePersisted, client }) {
+export async function finalizeExpiredComments({
+  expired,
+  siteDirectory,
+  sitePersisted,
+  client,
+}) {
   if (sitePersisted !== true) {
     throw new Error("gh-pagesを永続化するまで期限切れcommentは更新できません");
+  }
+  await validateSiteDirectory(siteDirectory);
+  const pending = await readPendingCleanup(siteDirectory);
+  const expected = [...expired].sort(
+    (left, right) => left.prNumber - right.prNumber,
+  );
+  if (JSON.stringify(pending) !== JSON.stringify(expected)) {
+    throw new Error("cleanup resultとgh-pagesの再試行stateが一致しません");
   }
   for (const demo of expired) {
     await client.upsertDemoComment(
@@ -52,4 +85,6 @@ export async function finalizeExpiredComments({ expired, sitePersisted, client }
       buildExpiredComment({ headSha: demo.headSha }),
     );
   }
+  await writePendingCleanup(siteDirectory, []);
+  await validateSiteDirectory(siteDirectory);
 }

@@ -168,6 +168,40 @@ test("workflow run artifact metadataをpaginationして取得する", async () =
   assert.match(calls[1], /actions\/runs\/987\/artifacts\?per_page=100&page=2$/);
 });
 
+test("同一HEADの対象PRからrun_numberが最新のPull Request CIを選ぶ", async () => {
+  const calls = [];
+  const run = (id, runNumber, prNumber) => ({
+    id,
+    run_number: runNumber,
+    event: "pull_request",
+    head_sha: "b".repeat(40),
+    pull_requests: [{ number: prNumber }],
+  });
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url.includes("page=2")) {
+      return jsonResponse({
+        total_count: 101,
+        workflow_runs: [run(900, 52, 321)],
+      });
+    }
+    return jsonResponse({
+      total_count: 101,
+      workflow_runs: [
+        run(999, 51, 321),
+        ...Array.from({ length: 99 }, (_, index) => run(index + 1, index + 1, 999)),
+      ],
+    });
+  };
+  const client = createGitHubClient({ token: "test-token", repository, fetchImpl });
+
+  const latest = await client.getLatestPullRequestCiRun(321, "b".repeat(40));
+
+  assert.equal(latest.id, 900);
+  assert.equal(latest.run_number, 52);
+  assert.match(calls[1], /actions\/workflows\/ci\.yml\/runs\?.*page=2$/);
+});
+
 test("artifact archiveのredirect先へtokenを送らずsizeを制限して保存する", async () => {
   const calls = [];
   const archive = Buffer.from("PK-safe-archive");

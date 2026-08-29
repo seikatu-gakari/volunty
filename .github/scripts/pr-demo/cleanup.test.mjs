@@ -9,8 +9,8 @@ import { cleanupExpiredDemos, finalizeExpiredComments } from "./cleanup.mjs";
 
 const headSha = "b".repeat(40);
 
-async function createPublishedDemo(prNumber) {
-  const siteDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-cleanup-"));
+async function createPublishedDemo(prNumber, siteDirectory) {
+  siteDirectory ??= await mkdtemp(join(tmpdir(), "volunty-pr-demo-cleanup-"));
   const directory = join(siteDirectory, "pr", String(prNumber), headSha);
   await mkdir(directory, { recursive: true });
   const gif = Buffer.from("GIF89a-cleanup-demo");
@@ -72,6 +72,7 @@ test("closeから7日経過したPRだけPagesから削除してcommentを期限
 
   await finalizeExpiredComments({
     expired: result.expired,
+    siteDirectory,
     sitePersisted: true,
     client: {
       async upsertDemoComment(prNumber, body) {
@@ -99,6 +100,52 @@ test("gh-pagesの永続化失敗時は期限切れcommentを更新しない", as
   );
 
   assert.equal(commentCalls, 0);
+});
+
+test("comment更新の途中失敗を次回cleanupで再試行し全件成功後に完了する", async () => {
+  const siteDirectory = await createPublishedDemo(321);
+  await createPublishedDemo(322, siteDirectory);
+  const cleanupOptions = {
+    siteDirectory,
+    now: new Date("2026-08-30T00:00:00.000Z"),
+    client: {
+      async getPullRequest() {
+        return { state: "closed", closed_at: "2026-08-22T23:59:59.000Z" };
+      },
+    },
+  };
+  const first = await cleanupExpiredDemos(cleanupOptions);
+  const firstAttempts = [];
+
+  await assert.rejects(
+    finalizeExpiredComments({
+      expired: first.expired,
+      siteDirectory,
+      sitePersisted: true,
+      client: {
+        async upsertDemoComment(prNumber) {
+          firstAttempts.push(prNumber);
+          if (prNumber === 322) {
+            throw new Error("temporary GitHub API failure");
+          }
+        },
+      },
+    }),
+    /temporary GitHub API failure/,
+  );
+  assert.deepEqual(firstAttempts, [321, 322]);
+
+  const retry = await cleanupExpiredDemos(cleanupOptions);
+  assert.deepEqual(retry.expired, first.expired);
+  await finalizeExpiredComments({
+    expired: retry.expired,
+    siteDirectory,
+    sitePersisted: true,
+    client: { async upsertDemoComment() {} },
+  });
+
+  const completed = await cleanupExpiredDemos(cleanupOptions);
+  assert.deepEqual(completed.expired, []);
 });
 
 test("open PRの最新HEAD動画は保持する", async () => {

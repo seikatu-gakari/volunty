@@ -38,7 +38,7 @@ reason:
 2. 通常の全E2Eを録画なしで実行する。
 3. DBを再初期化し、指定シナリオだけをdesktop 1280×720 / mobile 390×844で再実行する。
 4. WebMをH.264 MP4と軽量GIFへ変換し、SHA-256・size・録画時間をmanifestへ記録する。
-5. `workflow_run` がmain上のtrusted codeだけをcheckoutし、GitHub APIのliveなPR本文・label・変更pathでpolicyを再評価してartifact decisionと照合する。artifactはdownload前にAPI上の個数・圧縮sizeを制限し、許可file名・展開後size・圧縮率・symlink・path traversalを検証する専用展開処理を通す。さらにMP4のH.264・無音・viewport・時間、GIFのviewport・時間と全frame decode、identity、件数、hashを検証し、PR codeはcheckoutしない。
+5. `workflow_run` がmain上のtrusted codeだけをcheckoutし、GitHub APIのliveなPR本文・label・変更pathでpolicyを再評価してartifact decisionと照合する。同一HEADに複数の `Pull Request CI` runがある場合は、対象PRの最新run numberに対応するrun IDだけを公開処理へ進める。artifactはdownload前にAPI上の個数・圧縮sizeを制限し、許可file名・展開後size・圧縮率・symlink・path traversalを検証する専用展開処理を通す。さらにMP4のH.264・無音・viewport・時間、GIFのviewport・時間と全frame decode、identity、件数、hashを検証し、PR codeはcheckoutしない。
 6. `gh-pages` はPRごとの最新HEADだけを持つroot commitへ置き換え、同じtreeをGitHub Pagesへdeployする。
 7. SHA固有manifestの反映をHTTP確認し、今回配置したmanifest本文のSHA-256まで一致した後、PR commentをupsertし、commit status `demo-video` を成功にする。
 
@@ -60,7 +60,7 @@ fork由来PRはread-only CIで録画まで行いますが、自動runではartif
 
 ## 保存とcleanup
 
-Open中のPRは最新HEADだけを保持し、最新差分が対象外または生成失敗になった場合は旧HEAD動画も除去します。merge / closeから7日後、日次workflowがPagesから削除し、PR commentを「保存期間終了」へ更新します。Pagesの1GB上限に対し、publisherはmedia合計900MiBを安全marginとして超過を拒否します。動画をmainやfeature branchへcommitしません。
+Open中のPRは最新HEADだけを保持し、最新差分が対象外または生成失敗になった場合は旧HEAD動画も除去します。merge / closeから7日後、日次workflowがPagesから削除し、削除treeを `gh-pages` へ永続化してからPR commentを「保存期間終了」へ更新します。複数commentの途中でGitHub APIが失敗した場合は、hiddenな検証済み再試行stateを `gh-pages` に残し、次回runで全件を再試行します。全件成功後だけstateを除去します。Pages artifactはhidden fileを含めないため、この運用stateは公開siteへdeployしません。Pagesの1GB上限に対し、publisherはmedia合計900MiBを安全marginとして超過を拒否します。動画をmainやfeature branchへcommitしません。
 
 ## main merge後の有効化手順
 

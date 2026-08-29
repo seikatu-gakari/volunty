@@ -80,11 +80,30 @@ jobs:
           tree_sha="$(git write-tree)"
           commit_sha="$(printf 'Remove expired PR demos\n' | git commit-tree "$tree_sha")"
           git push origin "$commit_sha:refs/heads/gh-pages" "--force-with-lease=refs/heads/gh-pages:$expected_sha"
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
 
       - name: Mark PR comments as expired
-        if: ${{ steps.cleanup.outputs.changed == 'true' }}
+        if: ${{ steps.cleanup.outputs.pending == 'true' && (steps.cleanup.outputs.changed != 'true' || steps.persist.outcome == 'success') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_CLEANUP_RESULT_PATH: ${{ runner.temp }}/pr-demo-cleanup/result.json
-          PR_DEMO_SITE_PERSISTED: ${{ steps.persist.outcome == 'success' }}
+          PR_DEMO_SITE_DIR: ${{ github.workspace }}/site
+          PR_DEMO_SITE_PERSISTED: ${{ steps.cleanup.outputs.changed != 'true' || steps.persist.outcome == 'success' }}
         run: node source/.github/scripts/pr-demo/finalize-cleanup.mjs
+
+      - name: Persist completed cleanup state
+        if: ${{ steps.cleanup.outputs.pending == 'true' }}
+        working-directory: site
+        env:
+          PR_DEMO_EXPECTED_SHA: ${{ steps.persist.outputs.commit_sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          expected_sha="$PR_DEMO_EXPECTED_SHA"
+          if [ -z "$expected_sha" ]; then
+            expected_sha="$(git rev-parse HEAD)"
+          fi
+          tree_sha="$(git write-tree)"
+          commit_sha="$(printf 'Complete expired PR demo cleanup\n' | git commit-tree "$tree_sha")"
+          git push origin "$commit_sha:refs/heads/gh-pages" "--force-with-lease=refs/heads/gh-pages:$expected_sha"

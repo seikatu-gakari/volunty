@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { main, resolveWorkflowRunEvent } from "./prepare-publish.mjs";
 import { createDecision } from "./decision.mjs";
+import { createGitHubClient } from "./github.mjs";
 
 const repository = "seikatu-gakari/volunty";
 const headSha = "b".repeat(40);
@@ -66,6 +67,9 @@ test("prepare CLIはartifactがないCI失敗でもfinalizer用resultを必ず�
     githubOutputPath: outputPath,
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
     githubClient: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987 };
+      },
       async getPullRequest() {
         return { head: { sha: headSha } };
       },
@@ -93,6 +97,9 @@ test("prepare CLIはGitHub上のcurrent HEADと異なるrunをstaleにする", a
     resultPath,
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
     githubClient: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987 };
+      },
       async getPullRequest() {
         return { head: { sha: "c".repeat(40) } };
       },
@@ -100,6 +107,59 @@ test("prepare CLIはGitHub上のcurrent HEADと異なるrunをstaleにする", a
   });
 
   assert.equal(result.outcome, "stale");
+});
+
+test("同じHEADでも最新ではないPull Request CI runをstaleにする", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-old-run-"));
+  const event = failedWorkflowEvent();
+  event.workflow_run.conclusion = "success";
+  const eventPath = join(directory, "event.json");
+  const resultPath = join(directory, "result.json");
+  await writeFile(eventPath, JSON.stringify(event));
+  const calls = [];
+  const githubClient = createGitHubClient({
+    token: "test-token",
+    repository,
+    fetchImpl: async (url) => {
+      calls.push(url);
+      return new Response(
+        JSON.stringify({
+          total_count: 2,
+          workflow_runs: [
+            {
+              id: 988,
+              run_number: 52,
+              event: "pull_request",
+              head_sha: headSha,
+              pull_requests: [{ number: 321 }],
+            },
+            {
+              id: 987,
+              run_number: 51,
+              event: "pull_request",
+              head_sha: headSha,
+              pull_requests: [{ number: 321 }],
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    },
+  });
+
+  const result = await main({
+    eventPath,
+    artifactDirectory: join(directory, "missing-artifact"),
+    siteDirectory: join(directory, "missing-site"),
+    resultPath,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+    githubClient,
+  });
+
+  assert.equal(result.outcome, "stale");
+  assert.equal(result.siteChanged, false);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /actions\/workflows\/ci\.yml\/runs/);
 });
 
 test("prepare CLIはlive PR metadataをmainのpolicyで再評価する", async () => {
@@ -145,6 +205,9 @@ reason: ドキュメントのみ
     resultPath,
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
     githubClient: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987 };
+      },
       async getPullRequest() {
         return pullRequest;
       },
