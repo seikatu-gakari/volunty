@@ -176,6 +176,7 @@ export async function main({
     prNumber: decision.prNumber,
     headSha: decision.headSha,
     repository: decision.baseRepository,
+    headRepository: decision.headRepository,
   });
   console.log(
     `[pr-demo] ${decision.contract.viewports.join(",")}の動画とmanifestを生成しました`,
