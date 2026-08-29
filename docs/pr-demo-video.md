@@ -45,7 +45,7 @@ reason:
 
 生成失敗、tagの0件/複数件、不正path、古いSHA、Pages未反映は `demo-video` failureです。非UI PRは「対象外」としてsuccessになり、新規commentは作らず、既存のdemo commentがある場合だけ最新HEADの対象外表示へ更新します。
 
-fork由来PRはread-only CIで録画まで行いますが、自動runではartifact自体をdownloadせず、公開もしません。maintainerが内容を確認後、Actionsの `Publish PR demo video` をmain refの `Run workflow` から開き、対象 `Pull Request CI` のrun ID、確認したrun attempt、PR番号、40文字のHEAD SHAを入力して手動承認します。PR番号とHEAD SHAは、run APIの解決に失敗しても対象HEADをpendingのまま残さずfailureへ確定するためのtrusted fallbackで、通常時の公開identityにはGitHub APIのrun実体を使用します。publisherはdownload前・公開前・最終status更新前に承認attemptがAPI上の最新attemptと一致することを再確認します。workflow_dispatchを実行できるwrite権限とmain限定の `github-pages` environmentが承認境界になり、承認後もmain上のpublisherがartifactを再検証します。
+fork由来PRはread-only CIで録画まで行いますが、自動runではartifact自体をdownloadせず、公開もしません。maintainerが内容を確認後、Actionsの `Publish PR demo video` をmain refの `Run workflow` から開き、対象 `Pull Request CI` のrun ID、確認したrun attempt、PR番号、40文字のHEAD SHAを入力して手動承認します。PR番号とHEAD SHAは、run APIの解決に失敗しても対象HEADをpendingのまま残さずfailureへ確定するためのtrusted fallbackで、通常時の公開identityにはGitHub APIのrun実体を使用します。fallback finalizerもAPI回復時はcurrent HEADと最新run ID・attemptを再照合し、後続runがあればstaleとしてcomment/statusを更新しません。publisherはdownload前・公開前・最終status更新前に承認attemptがAPI上の最新attemptと一致することを再確認します。workflow_dispatchを実行できるwrite権限とmain限定の `github-pages` environmentが承認境界になり、承認後もmain上のpublisherがartifactを再検証します。
 
 ## Ready判定
 

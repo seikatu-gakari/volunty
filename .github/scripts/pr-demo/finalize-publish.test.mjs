@@ -105,7 +105,7 @@ test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをf
   assert.equal(calls[1].status.state, "failure");
 });
 
-test("手動run解決失敗resultは追加のread APIなしでfailure statusを確定する", async () => {
+test("手動run解決失敗resultはAPI再照合不能でもfailure statusを確定する", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-result-"));
   const resultPath = join(directory, "result.json");
   await writeFile(
@@ -137,6 +137,9 @@ test("手動run解決失敗resultは追加のread APIなしでfailure statusを�
       manualPrNumber: "321",
       manualHeadSha: headSha,
       githubClient: {
+        async getPullRequest() {
+          throw new Error("temporary GitHub API failure");
+        },
         async upsertDemoComment(prNumber, body) {
           calls.push({ type: "comment", prNumber, body });
         },
@@ -150,6 +153,56 @@ test("手動run解決失敗resultは追加のread APIなしでfailure statusを�
 
   assert.deepEqual(calls.map((call) => call.type), ["comment", "status"]);
   assert.equal(calls[1].status.state, "failure");
+});
+
+test("手動fallbackより新しい同一HEADのrunがあればstaleとしてfailureを上書きしない", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-stale-"));
+  const resultPath = join(directory, "result.json");
+  await writeFile(
+    resultPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      outcome: "failure",
+      siteChanged: false,
+      manualFallback: true,
+      prNumber: 321,
+      headSha,
+      repository,
+      runId: 987,
+      runAttempt: 1,
+      runUrl: `https://github.com/${repository}/actions/runs/987`,
+      reason: "手動承認runを解決できませんでした",
+    }),
+  );
+  const writes = [];
+
+  const outcome = await main({
+    resultPath,
+    token: "test-token",
+    repository,
+    manualForkApproval: true,
+    sourceRunId: "987",
+    sourceRunAttempt: "1",
+    manualPrNumber: "321",
+    manualHeadSha: headSha,
+    githubClient: {
+      async getPullRequest() {
+        return { head: { sha: headSha } };
+      },
+      async getLatestPullRequestCiRun() {
+        return { id: 988, run_attempt: 1, status: "completed" };
+      },
+      async upsertDemoComment(...args) {
+        writes.push({ type: "comment", args });
+      },
+      async setDemoStatus(...args) {
+        writes.push({ type: "status", args });
+      },
+    },
+  });
+
+  assert.equal(outcome.state, "stale");
+  assert.deepEqual(writes, []);
 });
 
 test("status更新中に新CIが始まった場合は最新runへpendingを復元する", async () => {
