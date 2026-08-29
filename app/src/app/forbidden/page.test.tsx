@@ -25,4 +25,17 @@ describe("ForbiddenPage", () => {
     ).toBeDefined();
     expect(screen.queryByText(/role が admin/)).toBeNull();
   });
+
+  it("トップとアカウント切り替えの固定導線を表示する", () => {
+    render(<ForbiddenPage />);
+
+    expect(
+      screen.getByRole("link", { name: "トップへ戻る" }).getAttribute("href"),
+    ).toBe("/");
+    expect(
+      screen
+        .getByRole("link", { name: "別のアカウントでログイン" })
+        .getAttribute("href"),
+    ).toBe("/auth/signout?intent=switch-account");
+  });
 });
