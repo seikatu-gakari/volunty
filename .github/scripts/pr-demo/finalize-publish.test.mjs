@@ -303,3 +303,57 @@ test("status更新中に新CIが始まった場合は最新runへpendingを復�
     `https://github.com/${repository}/actions/runs/988`,
   );
 });
+
+test("success後の最終再照会失敗はfailureへ戻してfail closedにする", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-finalize-api-race-"));
+  const resultPath = join(directory, "result.json");
+  await writeFile(
+    resultPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      outcome: "skip",
+      siteChanged: false,
+      prNumber: 321,
+      headSha,
+      repository,
+      runId: 987,
+      runAttempt: 1,
+      runUrl: `https://github.com/${repository}/actions/runs/987`,
+      reason: "動作ビデオ対象外",
+    }),
+  );
+  let pullRequestCalls = 0;
+  const statuses = [];
+
+  await assert.rejects(
+    main({
+      resultPath,
+      token: "test-token",
+      repository,
+      githubClient: {
+        async getPullRequest() {
+          pullRequestCalls += 1;
+          if (pullRequestCalls === 2) {
+            throw new Error("temporary final freshness API failure");
+          }
+          return { head: { sha: headSha } };
+        },
+        async getLatestPullRequestCiRun() {
+          return { id: 987, run_attempt: 1, status: "completed" };
+        },
+        async upsertDemoComment() {},
+        async setDemoStatus(sha, status) {
+          statuses.push({ sha, status });
+        },
+      },
+    }),
+    /temporary final freshness API failure/,
+  );
+
+  assert.equal(pullRequestCalls, 2);
+  assert.deepEqual(statuses.map(({ status }) => status.state), [
+    "success",
+    "failure",
+  ]);
+  assert.match(statuses[1].status.description, /最終確認/);
+});

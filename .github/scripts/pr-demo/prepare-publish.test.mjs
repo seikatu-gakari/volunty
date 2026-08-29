@@ -7,6 +7,7 @@ import test from "node:test";
 import { main, resolveWorkflowRunEvent } from "./prepare-publish.mjs";
 import { createDecision } from "./decision.mjs";
 import { createGitHubClient } from "./github.mjs";
+import { readPendingCleanup, writePendingCleanup } from "./site.mjs";
 
 const repository = "seikatu-gakari/volunty";
 const headSha = "b".repeat(40);
@@ -258,7 +259,7 @@ test("同じrun IDでも古いattemptのpublisherをstaleにする", async () =>
   assert.equal(result.runAttempt, 1);
 });
 
-test("最新Pull Request CIの照会失敗をfailure resultとして保存する", async () => {
+test("最新Pull Request CIの照会失敗はfailureにするが公開treeを変更しない", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-run-api-failure-"));
   const siteDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-run-api-site-"));
   const event = failedWorkflowEvent();
@@ -266,6 +267,7 @@ test("最新Pull Request CIの照会失敗をfailure resultとして保存する
   const eventPath = join(directory, "event.json");
   const resultPath = join(directory, "result.json");
   await writeFile(eventPath, JSON.stringify(event));
+  await writePendingCleanup(siteDirectory, [{ prNumber: 321, headSha }]);
 
   const result = await main({
     eventPath,
@@ -281,8 +283,12 @@ test("最新Pull Request CIの照会失敗をfailure resultとして保存する
   });
 
   assert.equal(result.outcome, "failure");
+  assert.equal(result.siteChanged, false);
   assert.match(result.reason, /temporary GitHub API failure/);
   assert.equal(JSON.parse(await readFile(resultPath, "utf8")).outcome, "failure");
+  assert.deepEqual(await readPendingCleanup(siteDirectory), [
+    { prNumber: 321, headSha },
+  ]);
 });
 
 test("prepare CLIはlive PR metadataをmainのpolicyで再評価する", async () => {

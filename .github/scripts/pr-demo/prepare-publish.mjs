@@ -143,6 +143,7 @@ export async function main({
   let context;
   let result;
   let resolutionFailed = false;
+  let freshnessVerified = false;
   try {
     resolved = await resolveWorkflowRunEvent({
       event: rawEvent,
@@ -195,6 +196,7 @@ export async function main({
         if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
           throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
         }
+        freshnessVerified = currentHeadSha === context.headSha;
         if (context.conclusion === "success" && currentHeadSha === context.headSha) {
           await client.setDemoStatus(context.headSha, {
             state: "pending",
@@ -231,7 +233,9 @@ export async function main({
     } catch (error) {
       result = buildFailureResult(context, error.message);
     }
-    result = await removePublishedDemoForResult({ result, siteDirectory });
+    if (freshnessVerified) {
+      result = await removePublishedDemoForResult({ result, siteDirectory });
+    }
   }
 
   await mkdir(dirname(resultPath), { recursive: true });

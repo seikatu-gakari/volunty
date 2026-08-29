@@ -61,44 +61,62 @@ async function reconcileFinalStatus({ result, outcome, client }) {
   if (outcome.state === "stale") {
     return outcome;
   }
-  const pullRequest = await client.getPullRequest(result.prNumber);
-  const currentHeadSha = pullRequest?.head?.sha;
-  if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
-    throw new Error("GitHub APIからPRのcurrent HEAD SHAを再確認できません");
+  try {
+    const pullRequest = await client.getPullRequest(result.prNumber);
+    const currentHeadSha = pullRequest?.head?.sha;
+    if (!SHA_PATTERN.test(currentHeadSha ?? "")) {
+      throw new Error("GitHub APIからPRのcurrent HEAD SHAを再確認できません");
+    }
+    if (currentHeadSha !== result.headSha) {
+      return outcome;
+    }
+    const latestRun = await client.getLatestPullRequestCiRun(
+      result.prNumber,
+      result.headSha,
+    );
+    if (
+      latestRun.id === result.runId &&
+      latestRun.run_attempt === result.runAttempt
+    ) {
+      return outcome;
+    }
+    if (
+      !Number.isSafeInteger(latestRun.id) ||
+      latestRun.id <= 0 ||
+      !Number.isSafeInteger(latestRun.run_attempt) ||
+      latestRun.run_attempt <= 0
+    ) {
+      throw new Error("最新Pull Request CI run IDを再確認できません");
+    }
+    const latestRunBaseUrl =
+      `https://github.com/${result.repository}/actions/runs/${latestRun.id}`;
+    const targetUrl =
+      latestRun.run_attempt === 1
+        ? latestRunBaseUrl
+        : `${latestRunBaseUrl}/attempts/${latestRun.run_attempt}`;
+    await client.setDemoStatus(result.headSha, {
+      state: "pending",
+      description: "最新CIの動作ビデオを待機しています",
+      targetUrl,
+    });
+    return { ...outcome, state: "pending", superseded: true };
+  } catch (error) {
+    if (outcome.state === "success") {
+      try {
+        await client.setDemoStatus(result.headSha, {
+          state: "failure",
+          description: "動作ビデオの最終確認に失敗しました",
+          targetUrl: result.runUrl,
+        });
+      } catch (statusError) {
+        throw new AggregateError(
+          [error, statusError],
+          "demo-video successのfail-closed更新にも失敗しました",
+        );
+      }
+    }
+    throw error;
   }
-  if (currentHeadSha !== result.headSha) {
-    return outcome;
-  }
-  const latestRun = await client.getLatestPullRequestCiRun(
-    result.prNumber,
-    result.headSha,
-  );
-  if (
-    latestRun.id === result.runId &&
-    latestRun.run_attempt === result.runAttempt
-  ) {
-    return outcome;
-  }
-  if (
-    !Number.isSafeInteger(latestRun.id) ||
-    latestRun.id <= 0 ||
-    !Number.isSafeInteger(latestRun.run_attempt) ||
-    latestRun.run_attempt <= 0
-  ) {
-    throw new Error("最新Pull Request CI run IDを再確認できません");
-  }
-  const latestRunBaseUrl =
-    `https://github.com/${result.repository}/actions/runs/${latestRun.id}`;
-  const targetUrl =
-    latestRun.run_attempt === 1
-      ? latestRunBaseUrl
-      : `${latestRunBaseUrl}/attempts/${latestRun.run_attempt}`;
-  await client.setDemoStatus(result.headSha, {
-    state: "pending",
-    description: "最新CIの動作ビデオを待機しています",
-    targetUrl,
-  });
-  return { ...outcome, state: "pending", superseded: true };
 }
 
 async function resolveManualFallbackFreshness({ result, client }) {
