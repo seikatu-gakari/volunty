@@ -26,10 +26,15 @@ const currentHeadSha = pullRequest?.head?.sha;
 if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
   throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
 }
+const latestRun =
+  currentHeadSha === result.headSha
+    ? await client.getLatestPullRequestCiRun(result.prNumber, result.headSha)
+    : undefined;
 
 const outcome = await finalizePublish({
   result,
   currentHeadSha,
+  latestRunId: latestRun?.id,
   siteReady: process.env.PR_DEMO_SITE_READY === "true",
   pagesReady: process.env.PR_DEMO_PAGES_READY === "true",
   client,

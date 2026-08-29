@@ -15,14 +15,23 @@ function validateResult(result) {
     result.prNumber <= 0 ||
     !SHA_PATTERN.test(result.headSha ?? "") ||
     !REPOSITORY_PATTERN.test(result.repository ?? "") ||
+    !Number.isSafeInteger(result.runId) ||
+    result.runId <= 0 ||
     typeof result.reason !== "string" ||
     result.reason.length > 300 ||
     typeof result.siteChanged !== "boolean"
   ) {
     throw new Error("publish resultのschemaが不正です");
   }
-  const runPrefix = `https://github.com/${result.repository}/actions/runs/`;
-  if (!result.runUrl?.startsWith(runPrefix)) {
+  const expectedRunUrl = `https://github.com/${result.repository}/actions/runs/${result.runId}`;
+  const attemptsPrefix = `${expectedRunUrl}/attempts/`;
+  if (
+    result.runUrl !== expectedRunUrl &&
+    !(
+      result.runUrl?.startsWith(attemptsPrefix) &&
+      /^[1-9][0-9]*$/.test(result.runUrl.slice(attemptsPrefix.length))
+    )
+  ) {
     throw new Error("publish resultのrun URLが不正です");
   }
 
@@ -69,6 +78,7 @@ async function publishFailure({ result, reason, client }) {
 export async function finalizePublish({
   result: unvalidatedResult,
   currentHeadSha,
+  latestRunId,
   siteReady,
   pagesReady,
   client,
@@ -77,10 +87,19 @@ export async function finalizePublish({
   if (currentHeadSha !== undefined && !SHA_PATTERN.test(currentHeadSha)) {
     throw new Error("PRのcurrent HEAD SHAが不正です");
   }
+  if (
+    latestRunId !== undefined &&
+    (!Number.isSafeInteger(latestRunId) || latestRunId <= 0)
+  ) {
+    throw new Error("最新Pull Request CI run IDが不正です");
+  }
   if (currentHeadSha && currentHeadSha !== result.headSha) {
     return { success: true, state: "stale" };
   }
   if (result.outcome === "stale") {
+    return { success: true, state: "stale" };
+  }
+  if (latestRunId !== undefined && latestRunId !== result.runId) {
     return { success: true, state: "stale" };
   }
   if (result.outcome === "skip") {

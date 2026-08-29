@@ -177,6 +177,7 @@ export function buildFailureResult(context, reason) {
     prNumber: context.prNumber,
     headSha: context.headSha,
     repository: context.repository,
+    runId: context.runId,
     runUrl: context.runUrl,
     reason: safeReason(reason, "動作ビデオの公開に失敗しました"),
   };
@@ -190,6 +191,7 @@ export function buildStaleResult(context, reason) {
     prNumber: context.prNumber,
     headSha: context.headSha,
     repository: context.repository,
+    runId: context.runId,
     runUrl: context.runUrl,
     reason: safeReason(reason, "このworkflow_runは最新ではありません"),
   };
@@ -265,6 +267,7 @@ export async function preparePublish({
       prNumber: context.prNumber,
       headSha: context.headSha,
       repository: context.repository,
+      runId: context.runId,
       runUrl: context.runUrl,
       reason: safeReason(decision.reason, "ユーザー表示に影響する変更がありません"),
     };
@@ -291,6 +294,7 @@ export async function preparePublish({
     prNumber: context.prNumber,
     headSha: context.headSha,
     repository: context.repository,
+    runId: context.runId,
     runUrl: context.runUrl,
     reason: "動作ビデオを公開しました",
     manifestUrl: `${assetBase}/manifest.json`,

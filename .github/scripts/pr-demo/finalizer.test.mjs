@@ -31,6 +31,7 @@ function baseResult(overrides) {
     prNumber: 321,
     headSha,
     repository,
+    runId: 987,
     runUrl,
     reason: "動作ビデオを公開しました",
     manifestUrl,
@@ -182,6 +183,21 @@ test("公開処理中にPR HEADが進んだ場合もcommentとstatusを更新し
   const outcome = await finalizePublish({
     result: baseResult(),
     currentHeadSha: "c".repeat(40),
+    pagesReady: true,
+    client: createClient(calls),
+  });
+
+  assert.equal(outcome.state, "stale");
+  assert.deepEqual(calls, []);
+});
+
+test("公開処理中に同じHEADの新しいCI runが始まった場合も更新しない", async () => {
+  const calls = [];
+
+  const outcome = await finalizePublish({
+    result: baseResult(),
+    currentHeadSha: headSha,
+    latestRunId: 988,
     pagesReady: true,
     client: createClient(calls),
   });
