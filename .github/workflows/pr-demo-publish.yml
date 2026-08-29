@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      head_sha: ${{ steps.prepare.outputs.head_sha }}
+      head_sha: ${{ steps.prepare.outputs.head_sha || github.event.workflow_run.head_sha }}
       pages_ready: ${{ steps.handoff.outputs.pages_ready }}
       site_ready: ${{ steps.handoff.outputs.site_ready }}
     permissions:
@@ -227,15 +227,21 @@ jobs:
           node-version: 22
 
       - name: Download trusted finalizer handoff
+        id: handoff
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: pr-demo-finalizer-${{ github.run_attempt }}
           path: ${{ runner.temp }}/pr-demo-finalizer
 
       - name: Upsert PR comment and set demo-video status
+        if: ${{ always() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_RESULT_PATH: ${{ runner.temp }}/pr-demo-finalizer/result.json
           PR_DEMO_SITE_READY: ${{ needs.publish.outputs.site_ready }}
           PR_DEMO_PAGES_READY: ${{ needs.publish.outputs.pages_ready }}
+          PR_DEMO_SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.run_attempt }}
+          PR_DEMO_MANUAL_FORK_APPROVAL: ${{ github.event_name == 'workflow_dispatch' }}
         run: node source/.github/scripts/pr-demo/finalize-publish.mjs

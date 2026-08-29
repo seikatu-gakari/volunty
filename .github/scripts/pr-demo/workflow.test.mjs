@@ -34,5 +34,6 @@ test("publisher finalizerとinvalidatorのstatus更新を同じHEAD lockで直�
     finalize,
     /group: \$\{\{ github\.repository \}\}-pr-demo-status-\$\{\{ needs\.publish\.outputs\.head_sha \}\}/,
   );
+  assert.match(finalize, /id: handoff[\s\S]*continue-on-error: true/);
   assert.match(finalize, /finalize-publish\.mjs/);
 });

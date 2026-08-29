@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { finalizePublish } from "./finalizer.mjs";
+import { finalizeHandoffFailure, finalizePublish } from "./finalizer.mjs";
 
 const repository = "seikatu-gakari/volunty";
 const headSha = "b".repeat(40);
@@ -283,5 +283,42 @@ test("生成失敗時の旧動画削除をdeploy・永続化できなければ�
   assert.equal(outcome.success, false);
   assert.match(calls[0].body, /対象テストが0件でした/);
   assert.match(calls[0].body, /旧動画.*削除できませんでした/);
+  assert.equal(calls[1].status.state, "failure");
+});
+
+test("finalizer handoff取得失敗でも最新HEADのfailure statusを確定する", async () => {
+  const calls = [];
+  const event = {
+    repository: { full_name: repository },
+    workflow_run: {
+      id: 987,
+      run_attempt: 1,
+      name: "Pull Request CI",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: repository },
+      html_url: runUrl,
+      pull_requests: [{ number: 321, head: { sha: headSha } }],
+    },
+  };
+  const client = {
+    ...createClient(calls),
+    async getLatestPullRequestCiRun() {
+      return { id: 987, run_attempt: 1 };
+    },
+    async getPullRequest() {
+      return { head: { sha: headSha } };
+    },
+  };
+
+  const outcome = await finalizeHandoffFailure({
+    event,
+    reason: "finalizer handoffを取得できませんでした",
+    client,
+  });
+
+  assert.equal(outcome.success, false);
+  assert.match(calls[0].body, /handoff/);
   assert.equal(calls[1].status.state, "failure");
 });

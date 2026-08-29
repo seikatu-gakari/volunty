@@ -3,6 +3,10 @@ import {
   buildFailureComment,
   buildSkippedComment,
 } from "./artifact.mjs";
+import {
+  buildFailureResult,
+  extractWorkflowRunContext,
+} from "./publisher.mjs";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -72,6 +76,23 @@ async function publishFailure({ result, reason, client }) {
     throw commentError;
   }
   return { success: false, state: "failure" };
+}
+
+export async function finalizeHandoffFailure({ event, reason, client }) {
+  const context = extractWorkflowRunContext(event);
+  const [latestRun, pullRequest] = await Promise.all([
+    client.getLatestPullRequestCiRun(context.prNumber, context.headSha),
+    client.getPullRequest(context.prNumber),
+  ]);
+  return finalizePublish({
+    result: buildFailureResult(context, reason),
+    currentHeadSha: pullRequest?.head?.sha,
+    latestRunId: latestRun?.id,
+    latestRunAttempt: latestRun?.run_attempt,
+    siteReady: false,
+    pagesReady: false,
+    client,
+  });
 }
 
 export async function finalizePublish({
