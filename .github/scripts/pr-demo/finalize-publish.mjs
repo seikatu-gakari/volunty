@@ -16,6 +16,11 @@ import {
 import { buildFailureResult } from "./publisher.mjs";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const DEFAULT_FRESHNESS_ATTEMPTS = 6;
+
+function sleepFor(milliseconds) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
+}
 
 async function readPublishResult(resultPath, repository) {
   if (!resultPath) {
@@ -170,6 +175,76 @@ async function finalizeManualFallback({ result, client }) {
   return outcome;
 }
 
+async function resolveInitialFreshnessWithRetry({
+  result,
+  client,
+  attempts = DEFAULT_FRESHNESS_ATTEMPTS,
+  sleep = sleepFor,
+}) {
+  if (
+    !Number.isSafeInteger(attempts) ||
+    attempts <= 0 ||
+    attempts > 10 ||
+    typeof sleep !== "function"
+  ) {
+    throw new Error("finalizer初回freshnessの再試行設定が不正です");
+  }
+
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const pullRequest = await client.getPullRequest(result.prNumber);
+      const currentHeadSha = pullRequest?.head?.sha;
+      if (!SHA_PATTERN.test(currentHeadSha ?? "")) {
+        throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
+      }
+      if (currentHeadSha !== result.headSha) {
+        return { currentHeadSha, latestRun: undefined };
+      }
+      const latestRun = await client.getLatestPullRequestCiRun(
+        result.prNumber,
+        result.headSha,
+      );
+      if (
+        !Number.isSafeInteger(latestRun?.id) ||
+        latestRun.id <= 0 ||
+        !Number.isSafeInteger(latestRun.run_attempt) ||
+        latestRun.run_attempt <= 0
+      ) {
+        throw new Error("最新Pull Request CI run IDを確認できません");
+      }
+      return { currentHeadSha, latestRun };
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) {
+        break;
+      }
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 16_000);
+      console.warn(
+        `[pr-demo] initial freshness retry ${attempt}/${attempts}: ${error.message}`,
+      );
+      await sleep(delay);
+    }
+  }
+  throw lastError;
+}
+
+async function failInitialFreshness({ result, client, cause }) {
+  const failureResult = {
+    ...result,
+    outcome: "failure",
+    siteChanged: false,
+    reason: "動作ビデオの初回最新性確認に失敗しました",
+  };
+  await finalizePublish({
+    result: failureResult,
+    siteReady: false,
+    pagesReady: false,
+    client,
+  });
+  throw new Error("demo-videoをfailureに設定しました", { cause });
+}
+
 export async function main({
   resultPath = process.env.PR_DEMO_RESULT_PATH,
   eventPath = process.env.GITHUB_EVENT_PATH,
@@ -182,6 +257,8 @@ export async function main({
   manualHeadSha = process.env.PR_DEMO_MANUAL_HEAD_SHA,
   siteReady = process.env.PR_DEMO_SITE_READY === "true",
   pagesReady = process.env.PR_DEMO_PAGES_READY === "true",
+  freshnessAttempts = DEFAULT_FRESHNESS_ATTEMPTS,
+  freshnessSleep = sleepFor,
   githubClient,
 } = {}) {
   if (!token || !repository) {
@@ -271,21 +348,23 @@ export async function main({
     return outcome;
   }
 
-  const pullRequest = await client.getPullRequest(result.prNumber);
-  const currentHeadSha = pullRequest?.head?.sha;
-  if (!/^[0-9a-f]{40}$/.test(currentHeadSha ?? "")) {
-    throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
+  let freshness;
+  try {
+    freshness = await resolveInitialFreshnessWithRetry({
+      result,
+      client,
+      attempts: freshnessAttempts,
+      sleep: freshnessSleep,
+    });
+  } catch (error) {
+    return failInitialFreshness({ result, client, cause: error });
   }
-  const latestRun =
-    currentHeadSha === result.headSha
-      ? await client.getLatestPullRequestCiRun(result.prNumber, result.headSha)
-      : undefined;
 
   let outcome = await finalizePublish({
     result,
-    currentHeadSha,
-    latestRunId: latestRun?.id,
-    latestRunAttempt: latestRun?.run_attempt,
+    currentHeadSha: freshness.currentHeadSha,
+    latestRunId: freshness.latestRun?.id,
+    latestRunAttempt: freshness.latestRun?.run_attempt,
     siteReady,
     pagesReady,
     client,

@@ -33,11 +33,26 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   assert.doesNotMatch(invalidate, /concurrency:/);
   assert.match(invalidate, /timeout-minutes: 90/);
   assert.match(invalidate, /contents: write/);
-  assert.match(invalidate, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
-  assert.ok(
-    invalidate.indexOf("pages-lock.mjs acquire") <
-      invalidate.indexOf("invalidate-status.mjs"),
+  assert.match(
+    invalidate,
+    /Mark demo-video pending before lock wait[\s\S]*continue-on-error: true[\s\S]*invalidate-status\.mjs/,
   );
+  assert.match(invalidate, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
+  assert.match(
+    invalidate,
+    /Acquire PR demo operation lock[\s\S]*if: \$\{\{ always\(\) \}\}/,
+  );
+  const firstInvalidation = invalidate.indexOf("invalidate-status.mjs");
+  const lockAcquisition = invalidate.indexOf("pages-lock.mjs acquire");
+  const synchronizedInvalidation = invalidate.indexOf(
+    "invalidate-status.mjs",
+    firstInvalidation + 1,
+  );
+  assert.ok(
+    firstInvalidation < lockAcquisition &&
+      lockAcquisition < synchronizedInvalidation,
+  );
+  assert.equal(invalidate.match(/invalidate-status\.mjs/g)?.length, 2);
   assert.match(invalidate, /pages-lock\.mjs release/);
   assert.doesNotMatch(publish, /concurrency:/);
   assert.match(publish, /timeout-minutes: 120/);

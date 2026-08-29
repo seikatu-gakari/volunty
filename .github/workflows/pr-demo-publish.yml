@@ -52,13 +52,21 @@ jobs:
         with:
           node-version: 22
 
+      - name: Mark demo-video pending before lock wait
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/pr-demo/invalidate-status.mjs
+
       - name: Acquire PR demo operation lock
         id: pages_lock
+        if: ${{ always() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/pr-demo/pages-lock.mjs acquire
 
-      - name: Mark demo-video pending for the current CI run
+      - name: Synchronize demo-video pending inside operation lock
+        if: ${{ always() && steps.pages_lock.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/pr-demo/invalidate-status.mjs

@@ -253,6 +253,112 @@ test("手動fallbackより新しい同一HEADのrunがあればstaleとしてfai
   assert.deepEqual(writes, []);
 });
 
+test("finalizer初回freshness照会の一時障害を指数backoffで再試行する", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-initial-freshness-"));
+  const resultPath = join(directory, "result.json");
+  await writeFile(
+    resultPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      outcome: "skip",
+      siteChanged: false,
+      prNumber: 321,
+      headSha,
+      repository,
+      runId: 987,
+      runAttempt: 1,
+      runUrl: `https://github.com/${repository}/actions/runs/987`,
+      reason: "動作ビデオ対象外",
+    }),
+  );
+  let pullRequestCalls = 0;
+  let latestRunCalls = 0;
+  const sleeps = [];
+  const statuses = [];
+
+  const outcome = await main({
+    resultPath,
+    token: "test-token",
+    repository,
+    freshnessAttempts: 3,
+    freshnessSleep: async (milliseconds) => sleeps.push(milliseconds),
+    githubClient: {
+      async getPullRequest() {
+        pullRequestCalls += 1;
+        if (pullRequestCalls <= 2) {
+          throw new Error("temporary initial freshness API failure");
+        }
+        return { head: { sha: headSha } };
+      },
+      async getLatestPullRequestCiRun() {
+        latestRunCalls += 1;
+        return { id: 987, run_attempt: 1, status: "completed" };
+      },
+      async upsertDemoComment() {},
+      async setDemoStatus(sha, status) {
+        statuses.push({ sha, status });
+      },
+    },
+  });
+
+  assert.equal(outcome.state, "success");
+  assert.equal(pullRequestCalls, 4);
+  assert.equal(latestRunCalls, 2);
+  assert.deepEqual(sleeps, [1000, 2000]);
+  assert.deepEqual(statuses.map(({ status }) => status.state), ["success"]);
+});
+
+test("finalizer初回freshness照会の恒久障害はfailure statusを確定する", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-initial-failure-"));
+  const resultPath = join(directory, "result.json");
+  await writeFile(
+    resultPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      outcome: "skip",
+      siteChanged: false,
+      prNumber: 321,
+      headSha,
+      repository,
+      runId: 987,
+      runAttempt: 1,
+      runUrl: `https://github.com/${repository}/actions/runs/987`,
+      reason: "動作ビデオ対象外",
+    }),
+  );
+  let pullRequestCalls = 0;
+  const sleeps = [];
+  const writes = [];
+
+  await assert.rejects(
+    main({
+      resultPath,
+      token: "test-token",
+      repository,
+      freshnessSleep: async (milliseconds) => sleeps.push(milliseconds),
+      githubClient: {
+        async getPullRequest() {
+          pullRequestCalls += 1;
+          throw new Error("persistent initial freshness API failure");
+        },
+        async upsertDemoComment(prNumber, body) {
+          writes.push({ type: "comment", prNumber, body });
+        },
+        async setDemoStatus(sha, status) {
+          writes.push({ type: "status", sha, status });
+        },
+      },
+    }),
+    /demo-videoをfailureに設定しました/,
+  );
+
+  assert.equal(pullRequestCalls, 6);
+  assert.deepEqual(sleeps, [1000, 2000, 4000, 8000, 16_000]);
+  assert.deepEqual(writes.map(({ type }) => type), ["comment", "status"]);
+  assert.equal(writes[1].sha, headSha);
+  assert.equal(writes[1].status.state, "failure");
+});
+
 test("status更新中に新CIが始まった場合は最新runへpendingを復元する", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-finalize-race-"));
   const resultPath = join(directory, "result.json");
