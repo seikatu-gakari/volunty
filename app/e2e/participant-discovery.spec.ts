@@ -42,6 +42,9 @@ test.describe.serial("参加者の案件探索と応募", () => {
       page.getByRole("heading", { name: APPLICATION_OPPORTUNITY_TITLE })
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "募集情報" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "おすすめ案件に戻る" })
+    ).toHaveAttribute("href", "/recommendations");
     await page.getByRole("link", { name: "E2E承認済み団体" }).click();
     await expect(
       page.getByRole("heading", { name: "E2E承認済み団体" })
@@ -93,6 +96,25 @@ test.describe.serial("参加者の案件探索と応募", () => {
 
     await expect(page).toHaveURL(/\/mypage$/);
     await expect(page.getByText("E2E 参加者(編集済み)")).toBeVisible();
+  });
+
+  test("検索条件を保持したまま案件詳細から検索結果へ戻れる", async ({ page }) => {
+    const searchUrl =
+      "/opportunities?q=E2E+%E3%82%AA%E3%83%B3%E3%83%A9%E3%82%A4%E3%83%B3&category=%E7%92%B0%E5%A2%83%E4%BF%9D%E5%85%A8&region=%E6%96%B0%E5%AE%BF%E5%8C%BA&participationMode=online";
+    await page.goto(searchUrl);
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
+
+    await page.getByRole("link", { name: FILTER_OPPORTUNITY_TITLE }).click();
+    const backLink = page.getByRole("link", { name: "案件検索結果に戻る" });
+    await expect(backLink).toHaveAttribute("href", searchUrl);
+    await backLink.click();
+
+    await expect(page).toHaveURL(`http://localhost:3000${searchUrl}`);
+    await expect(page.getByLabel("キーワード")).toHaveValue("E2E オンライン");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("環境保全");
+    await expect(page.getByLabel("地域")).toHaveValue("新宿区");
+    await expect(page.getByLabel("参加形態")).toHaveValue("online");
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
   });
 
   test("案件を後で見るへ追加し、一覧と詳細から解除できる", async ({ page }) => {

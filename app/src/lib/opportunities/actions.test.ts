@@ -147,7 +147,7 @@ describe("fetchOpportunityDetail", () => {
     });
 
     const result: OpportunityDetailResult =
-      await fetchOpportunityDetail("opp-1");
+      await fetchOpportunityDetail("opp-1", "search");
 
     expect(result.opportunity).not.toBeNull();
     expect(result.opportunity?.title).toBe("環境保全ボランティア");
@@ -179,6 +179,7 @@ describe("fetchOpportunityDetail", () => {
           userId: "user-123",
           opportunityId: "opp-1",
           event: "view",
+          source: "search",
         }),
       })
     );
@@ -275,6 +276,11 @@ describe("fetchOpportunityDetail", () => {
         status: { in: ["applied", "accepted", "completed"] },
       },
     });
+    expect(mockEngagementCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ source: "direct" }),
+      })
+    );
   });
 
   it("応募済みの場合、existingApplication を含める", async () => {

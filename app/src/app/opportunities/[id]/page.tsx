@@ -22,6 +22,11 @@ import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
 import { applicationStatusLabel } from "@/lib/mypage/status";
 import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/actions";
+import {
+  getOpportunityBackLink,
+  getOpportunityViewSource,
+  type OpportunitySearchParams,
+} from "@/lib/opportunities/navigation";
 import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
 import { ApplicationStatusDate } from "./ApplicationStatusDate";
@@ -62,12 +67,20 @@ export default async function OpportunityDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ from?: string; rlog?: string }>;
+  searchParams?: Promise<
+    OpportunitySearchParams & {
+      from?: string | string[];
+      rlog?: string | string[];
+    }
+  >;
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const viewSource = query?.from === "rec" ? "recommendation" : "direct";
-  const recommendationLogId = query?.rlog ?? null;
+  const viewSource = getOpportunityViewSource(query?.from);
+  const recommendationLogId = Array.isArray(query?.rlog)
+    ? query.rlog[0] ?? null
+    : query?.rlog ?? null;
+  const backLink = getOpportunityBackLink(viewSource, query);
 
   // 認証チェック
   let isAuthenticated = false;
@@ -106,11 +119,11 @@ export default async function OpportunityDetailPage({
       <main className="mx-auto max-w-3xl px-6 py-8">
         {/* 戻るリンク */}
         <Link
-          href="/recommendations"
+          href={backLink.href}
           className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
           <ArrowLeft className="size-4" />
-          おすすめ案件に戻る
+          {backLink.label}
         </Link>
 
         {/* 募集終了メッセージ */}

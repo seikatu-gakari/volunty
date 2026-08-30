@@ -12,48 +12,22 @@ import {
   PARTICIPATION_MODE_OPTIONS,
 } from "@/lib/opportunities/constants";
 import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/actions";
+import {
+  buildOpportunityDetailHref,
+  normalizeOpportunitySearchFilters,
+  type OpportunitySearchParams,
+} from "@/lib/opportunities/navigation";
 
 type OpportunitiesPageProps = {
-  searchParams?: Promise<{
-    q?: string | string[];
-    category?: string | string[];
-    region?: string | string[];
-    participationMode?: string | string[];
-    schedule?: string | string[];
-    beginner?: string | string[];
-  }>;
+  searchParams?: Promise<OpportunitySearchParams>;
 };
-
-function pick(value?: string | string[]) {
-  const raw = Array.isArray(value) ? value[0] : value;
-  const trimmed = raw?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function toFilters(
-  params?: Awaited<NonNullable<OpportunitiesPageProps["searchParams"]>>
-): PublicOpportunityFilters {
-  const participationMode = pick(params?.participationMode);
-  return {
-    q: pick(params?.q),
-    category: pick(params?.category),
-    region: pick(params?.region),
-    participationMode:
-      participationMode === "online" ||
-      participationMode === "offline" ||
-      participationMode === "hybrid"
-        ? participationMode
-        : undefined,
-    schedule: pick(params?.schedule) === "weekend" ? "weekend" : undefined,
-    beginner: pick(params?.beginner) === "true",
-  };
-}
 
 export default async function OpportunitiesPage({
   searchParams,
 }: OpportunitiesPageProps) {
   const params = await searchParams;
-  const filters = toFilters(params);
+  const filters: PublicOpportunityFilters =
+    normalizeOpportunitySearchFilters(params);
   const opportunities = await fetchPublicOpportunities(filters);
   const bookmarkedOpportunityIds = new Set(
     await fetchBookmarkedOpportunityIds(opportunities.map(({ id }) => id))
@@ -167,55 +141,63 @@ export default async function OpportunitiesPage({
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {opportunities.map((opportunity) => (
-              <div
-                key={opportunity.id}
-                className="rounded-lg border border-card-border bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-              >
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <Link
-                      href={`/opportunities/${opportunity.id}?from=search`}
-                      className="text-lg font-bold text-text-dark hover:text-primary"
-                    >
-                      {opportunity.title}
-                    </Link>
-                    <p className="text-sm text-text-body">
-                      {opportunity.organizationName}
-                    </p>
-                  </div>
-                  {opportunity.description && (
-                    <p className="line-clamp-2 text-sm leading-6 text-text-body">
-                      {opportunity.description}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {opportunity.badges.map((badge) => (
-                      <span
-                        key={badge}
-                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+            {opportunities.map((opportunity) => {
+              const detailHref = buildOpportunityDetailHref(
+                opportunity.id,
+                params
+              );
+              return (
+                <div
+                  key={opportunity.id}
+                  className="rounded-lg border border-card-border bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                >
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <Link
+                        href={detailHref}
+                        className="text-lg font-bold text-text-dark hover:text-primary"
                       >
-                        <Calendar className="size-3" />
-                        {badge}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-auto flex flex-wrap items-center justify-between gap-3">
-                    <Link
-                      href={`/opportunities/${opportunity.id}?from=search`}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-primary"
-                    >
-                      詳細を見る
-                      <ArrowRight className="size-4" />
-                    </Link>
-                    <BookmarkButton
-                      opportunityId={opportunity.id}
-                      initialBookmarked={bookmarkedOpportunityIds.has(opportunity.id)}
-                    />
+                        {opportunity.title}
+                      </Link>
+                      <p className="text-sm text-text-body">
+                        {opportunity.organizationName}
+                      </p>
+                    </div>
+                    {opportunity.description && (
+                      <p className="line-clamp-2 text-sm leading-6 text-text-body">
+                        {opportunity.description}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {opportunity.badges.map((badge) => (
+                        <span
+                          key={badge}
+                          className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                        >
+                          <Calendar className="size-3" />
+                          {badge}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-3">
+                      <Link
+                        href={detailHref}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-primary"
+                      >
+                        詳細を見る
+                        <ArrowRight className="size-4" />
+                      </Link>
+                      <BookmarkButton
+                        opportunityId={opportunity.id}
+                        initialBookmarked={bookmarkedOpportunityIds.has(
+                          opportunity.id
+                        )}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
