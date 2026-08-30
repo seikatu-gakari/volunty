@@ -128,6 +128,62 @@ test("demo-video statusを指定HEADへ送る", async () => {
   });
 });
 
+test("最新demo-video statusをreverse chronological responseの先頭から取得する", async () => {
+  const headSha = "b".repeat(40);
+  const fetchImpl = async (url) => {
+    assert.match(url, new RegExp(`/commits/${headSha}/statuses\\?per_page=100$`));
+    return jsonResponse([
+      {
+        id: 3,
+        context: "quality",
+        state: "success",
+        target_url: "https://example.com/quality",
+      },
+      {
+        id: 2,
+        context: "demo-video",
+        state: "pending",
+        target_url: `https://github.com/${repository}/actions/runs/987/attempts/2`,
+      },
+      {
+        id: 1,
+        context: "demo-video",
+        state: "success",
+        target_url: "https://example.com/old-demo",
+      },
+    ]);
+  };
+  const client = createGitHubClient({ token: "test-token", repository, fetchImpl });
+
+  assert.deepEqual(await client.getLatestDemoStatus(headSha), {
+    id: 2,
+    context: "demo-video",
+    state: "pending",
+    target_url: `https://github.com/${repository}/actions/runs/987/attempts/2`,
+  });
+});
+
+test("不正な最新demo-video status responseを拒否する", async () => {
+  const client = createGitHubClient({
+    token: "test-token",
+    repository,
+    fetchImpl: async () =>
+      jsonResponse([
+        {
+          id: 1,
+          context: "demo-video",
+          state: "success",
+          target_url: "javascript:alert(1)",
+        },
+      ]),
+  });
+
+  await assert.rejects(
+    client.getLatestDemoStatus("b".repeat(40)),
+    /demo-video status APIのresponseが不正/,
+  );
+});
+
 test("PR変更fileをpaginationしてtrusted classifierへ渡す", async () => {
   const calls = [];
   const fetchImpl = async (url) => {

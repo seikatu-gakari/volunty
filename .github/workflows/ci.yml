@@ -75,6 +75,10 @@ jobs:
   quality:
     name: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      statuses: read
     env:
       TZ: Asia/Tokyo
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:1
@@ -95,6 +99,15 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: app/package-lock.json
+
+      - name: Wait for current CI demo-video invalidation
+        working-directory: .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_DEMO_SOURCE_RUN_ID: ${{ github.run_id }}
+          PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: node .github/scripts/pr-demo/wait-for-invalidation.mjs
 
       - name: Install dependencies
         run: npm ci --no-audit

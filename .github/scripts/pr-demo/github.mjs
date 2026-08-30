@@ -96,6 +96,42 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
     });
   }
 
+  async function getLatestDemoStatus(sha) {
+    if (!SHA_PATTERN.test(sha)) {
+      throw new Error("commit status取得対象のSHAが不正です");
+    }
+    const statuses = await request(`/commits/${sha}/statuses?per_page=100`);
+    if (!Array.isArray(statuses) || statuses.length > 100) {
+      throw new Error("demo-video status APIのresponseが不正です");
+    }
+    const latest = statuses.find((status) => status?.context === "demo-video");
+    if (!latest) {
+      return undefined;
+    }
+    let targetUrl;
+    try {
+      targetUrl = new URL(latest.target_url);
+    } catch {
+      throw new Error("demo-video status APIのresponseが不正です");
+    }
+    if (
+      !Number.isSafeInteger(latest.id) ||
+      latest.id <= 0 ||
+      !["error", "failure", "pending", "success"].includes(latest.state) ||
+      targetUrl.protocol !== "https:" ||
+      targetUrl.username ||
+      targetUrl.password
+    ) {
+      throw new Error("demo-video status APIのresponseが不正です");
+    }
+    return {
+      id: latest.id,
+      context: latest.context,
+      state: latest.state,
+      target_url: targetUrl.toString(),
+    };
+  }
+
   async function getPullRequestFiles(prNumber) {
     if (!Number.isSafeInteger(prNumber) || prNumber <= 0) {
       throw new Error("PR番号が不正です");
@@ -347,6 +383,7 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
       }
       return request(`/actions/runs/${runId}/pull_requests`);
     },
+    getLatestDemoStatus,
     setDemoStatus,
     upsertDemoComment,
   };

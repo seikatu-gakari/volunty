@@ -120,6 +120,28 @@ test("e2e単独再実行でもdemo-policy元attemptのdecisionを取得する", 
   assert.doesNotMatch(e2e, /pr-demo-decision-\$\{\{ github\.run_attempt \}\}/);
 });
 
+test("qualityは現在runのdemo-video pending確認後だけ成功経路へ進む", () => {
+  const quality = jobBlock("quality", "rls", ciWorkflow);
+
+  assert.match(quality, /timeout-minutes: 120/);
+  assert.match(quality, /statuses: read/);
+  assert.match(
+    quality,
+    /PR_DEMO_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/,
+  );
+  assert.match(quality, /PR_DEMO_SOURCE_RUN_ID: \$\{\{ github\.run_id \}\}/);
+  assert.match(
+    quality,
+    /PR_DEMO_SOURCE_RUN_ATTEMPT: \$\{\{ github\.run_attempt \}\}/,
+  );
+  assert.match(quality, /wait-for-invalidation\.mjs/);
+  assert.ok(
+    quality.indexOf("wait-for-invalidation.mjs") <
+      quality.indexOf("Install dependencies"),
+  );
+  assert.doesNotMatch(quality, /needs:/);
+});
+
 test("fork手動承認はAPI障害時のfailure対象identityも必須入力にする", () => {
   assert.match(workflow, /pr_number:[\s\S]*required: true/);
   assert.match(workflow, /head_sha:[\s\S]*required: true/);
