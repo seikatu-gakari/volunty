@@ -308,7 +308,7 @@ test("finalizer初回freshness照会の一時障害を指数backoffで再試行�
   assert.deepEqual(statuses.map(({ status }) => status.state), ["success"]);
 });
 
-test("finalizer初回freshness照会の恒久障害はfailure statusを確定する", async () => {
+test("finalizer初回freshness照会の恒久障害は既存statusを上書きしない", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-initial-failure-"));
   const resultPath = join(directory, "result.json");
   await writeFile(
@@ -349,14 +349,12 @@ test("finalizer初回freshness照会の恒久障害はfailure statusを確定す
         },
       },
     }),
-    /demo-videoをfailureに設定しました/,
+    /最新性を確認できないためdemo-video statusを変更しません/,
   );
 
   assert.equal(pullRequestCalls, 6);
   assert.deepEqual(sleeps, [1000, 2000, 4000, 8000, 16_000]);
-  assert.deepEqual(writes.map(({ type }) => type), ["comment", "status"]);
-  assert.equal(writes[1].sha, headSha);
-  assert.equal(writes[1].status.state, "failure");
+  assert.deepEqual(writes, []);
 });
 
 test("status更新中に新CIが始まった場合は最新runへpendingを復元する", async () => {

@@ -229,20 +229,11 @@ async function resolveInitialFreshnessWithRetry({
   throw lastError;
 }
 
-async function failInitialFreshness({ result, client, cause }) {
-  const failureResult = {
-    ...result,
-    outcome: "failure",
-    siteChanged: false,
-    reason: "動作ビデオの初回最新性確認に失敗しました",
-  };
-  await finalizePublish({
-    result: failureResult,
-    siteReady: false,
-    pagesReady: false,
-    client,
-  });
-  throw new Error("demo-videoをfailureに設定しました", { cause });
+function failInitialFreshness({ cause }) {
+  throw new Error(
+    "最新性を確認できないためdemo-video statusを変更しません",
+    { cause },
+  );
 }
 
 export async function main({
@@ -357,7 +348,7 @@ export async function main({
       sleep: freshnessSleep,
     });
   } catch (error) {
-    return failInitialFreshness({ result, client, cause: error });
+    return failInitialFreshness({ cause: error });
   }
 
   let outcome = await finalizePublish({
