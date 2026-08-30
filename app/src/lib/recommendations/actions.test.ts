@@ -129,6 +129,22 @@ describe("fetchRecommendations", () => {
     expect(mockGetUser).not.toHaveBeenCalled()
   })
 
+  it("参加者プロフィールが未解決でも公開案件取得を並列に開始する", async () => {
+    let resolveParticipant: ((value: ReturnType<typeof participantRecord>) => void) | undefined
+    mockFindParticipant.mockImplementation(
+      () => new Promise((resolve) => { resolveParticipant = resolve })
+    )
+    mockFindOpportunities.mockResolvedValue([createOpportunity({ id: "opp-1" })])
+
+    const resultPromise = fetchRecommendations("user-1")
+    await vi.waitFor(() => expect(mockFindOpportunities).toHaveBeenCalledTimes(1))
+
+    resolveParticipant?.(participantRecord())
+    await expect(resultPromise).resolves.toMatchObject({
+      recommendations: [expect.objectContaining({ id: "opp-1" })],
+    })
+  })
+
   it("未診断でも推薦は返り、hasCompletedDiagnosis は false になる", async () => {
     mockFindParticipant.mockResolvedValue(
       participantRecord({ latestDiagnosisResult: null })
@@ -191,41 +207,72 @@ describe("fetchRecommendations", () => {
     )
   })
 
-  it("表示した推薦を推薦ログとして記録する", async () => {
-    mockFindOpportunities.mockResolvedValue([createOpportunity({ id: "opp-1" })])
+  it("返却した推薦ログ ID と createMany payload の UUID を案件ごとに一致させる", async () => {
+    const randomUuidSpy = vi
+      .spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("log-opp-1")
+      .mockReturnValueOnce("log-opp-2")
+    mockFindOpportunities.mockResolvedValue([
+      createOpportunity({ id: "opp-1" }),
+      createOpportunity({ id: "opp-2" }),
+    ])
 
-    await fetchRecommendations("user-1")
+    const result = await fetchRecommendations("user-1")
 
     expect(mockAfter).toHaveBeenCalledTimes(1)
     const callback = mockAfter.mock.calls[0]?.[0] as () => Promise<void>
     await callback()
-    expect(mockRecommendationLogCreateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          0: expect.objectContaining({
-            userId: "user-1",
-            opportunityId: "opp-1",
-            rank: 1,
-            matchingRuleVersion: expect.stringMatching(/^\d+\.\d+\.\d+$/),
-            diagnosisResultId: "diag-1",
-          }),
-        }),
-      })
+    const createManyInput = mockRecommendationLogCreateMany.mock.calls[0]?.[0] as {
+      data: Array<{ id: string; opportunityId: string; userId: string; rank: number }>
+    }
+    const logIdByOpportunity = new Map(
+      createManyInput.data.map((row) => [row.opportunityId, row.id])
     )
+    expect(createManyInput.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: "user-1", opportunityId: "opp-1", rank: 1 }),
+        expect.objectContaining({ userId: "user-1", opportunityId: "opp-2", rank: 2 }),
+      ])
+    )
+    for (const recommendation of result.recommendations) {
+      expect(recommendation.recommendationLogId).toBe(
+        logIdByOpportunity.get(recommendation.id)
+      )
+    }
     expect(mockTransaction).not.toHaveBeenCalled()
     expect(mockRecommendationLogCreate).not.toHaveBeenCalled()
+    randomUuidSpy.mockRestore()
   })
 
-  it("推薦ログの記録に失敗しても推薦は返る", async () => {
+  it("after callback の createMany が未解決でも推薦結果を返す", async () => {
+    let resolveCreateMany: (() => void) | undefined
     mockFindOpportunities.mockResolvedValue([createOpportunity({ id: "opp-1" })])
-    mockRecommendationLogCreateMany.mockRejectedValue(new Error("log failed"))
+    mockRecommendationLogCreateMany.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveCreateMany = resolve })
+    )
+    mockAfter.mockImplementation((callback: () => Promise<void>) => {
+      void callback()
+    })
 
     const result = await fetchRecommendations("user-1")
-    const callback = mockAfter.mock.calls[0]?.[0] as () => Promise<void>
-    await expect(callback()).resolves.toBeUndefined()
+
+    expect(result.recommendations).toHaveLength(1)
+    await vi.waitFor(() => expect(mockRecommendationLogCreateMany).toHaveBeenCalledTimes(1))
+    resolveCreateMany?.()
+  })
+
+  it("after callback の推薦ログ記録に失敗しても表示結果を維持する", async () => {
+    mockFindOpportunities.mockResolvedValue([createOpportunity({ id: "opp-1" })])
+    mockRecommendationLogCreateMany.mockRejectedValue(new Error("log failed"))
+    mockAfter.mockImplementation((callback: () => Promise<void>) => {
+      void callback()
+    })
+
+    const result = await fetchRecommendations("user-1")
 
     expect(result.recommendations).toHaveLength(1)
     expect(result.recommendations[0].recommendationLogId).toEqual(expect.any(String))
+    await vi.waitFor(() => expect(mockRecommendationLogCreateMany).toHaveBeenCalledTimes(1))
   })
 
   it("予期しないエラー時は空の結果を返す", async () => {

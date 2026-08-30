@@ -4,6 +4,8 @@ import type { MyPageData } from "./types";
 vi.mock("server-only", () => ({}));
 
 const mockGetUser = vi.fn();
+const mockFrom = vi.fn();
+const mockSelect = vi.fn();
 const mockFetchParticipantProfileByUserIdWithDebug = vi.fn();
 const mockDeleteManyUser = vi.fn();
 const mockDeleteAuthUser = vi.fn();
@@ -46,8 +48,12 @@ vi.mock("@/lib/supabase/server", () => ({
       getUser: () => mockGetUser(),
     },
     from: (table: string) => {
+      mockFrom(table);
       const query = {
-        select: () => query,
+        select: (...args: unknown[]) => {
+          mockSelect(...args);
+          return query;
+        },
         eq: () => query,
         in: () => {
           if (table === "t_matching_candidate") {
@@ -196,13 +202,25 @@ describe("fetchMyPageData", () => {
     );
 
     const resultPromise = fetchMyPageData("verified-user");
-    await Promise.resolve();
+    await vi.waitFor(() =>
+      expect(mockFrom).toHaveBeenCalledWith("t_matching_candidate")
+    );
 
     expect(mockGetUser).not.toHaveBeenCalled();
     expect(mockFetchParticipantProfileByUserIdWithDebug).toHaveBeenCalledWith(
       "verified-user"
     );
-    expect(mockMatchingRows).toEqual([]);
+    expect(
+      mockFrom.mock.calls.filter(([table]) => table === "t_matching_candidate")
+    ).toHaveLength(1);
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining("m_opportunity(id, title")
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "m_organization_profile(organization_name, contact_line_id)"
+      )
+    );
 
     resolveProfile?.({
       profile: null,
