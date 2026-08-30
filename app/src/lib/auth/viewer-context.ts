@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export type ViewerRole = "participant" | "organization" | "admin";
@@ -77,11 +78,15 @@ export const getViewerContext = cache(async (): Promise<ViewerContext> => {
   let supabase;
   try {
     supabase = await createClient();
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     return { status: "error", errorCode: "auth_unavailable" };
   }
 
-  const claimsResult = await supabase.auth.getClaims().catch(() => null);
+  const claimsResult = await supabase.auth.getClaims().catch((error: unknown) => {
+    unstable_rethrow(error);
+    return null;
+  });
   if (!claimsResult) {
     return { status: "error", errorCode: "auth_unavailable" };
   }

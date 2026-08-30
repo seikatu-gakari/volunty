@@ -8,9 +8,23 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   eq: vi.fn(),
   maybeSingle: vi.fn(),
+  unstableRethrow: vi.fn((error: unknown) => {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "digest" in error &&
+      error.digest === "DYNAMIC_SERVER_USAGE"
+    ) {
+      throw error;
+    }
+  }),
 }));
 
 vi.mock("server-only", () => ({}));
+
+vi.mock("next/navigation", () => ({
+  unstable_rethrow: mocks.unstableRethrow,
+}));
 
 vi.mock("react", async (importOriginal) => {
   const react = await importOriginal<typeof import("react")>();
@@ -111,6 +125,15 @@ describe("getViewerContext", () => {
     });
   });
 
+  it("Supabase初期化中のNext dynamic bailoutは同じ例外を再送出する", async () => {
+    const dynamicBailout = Object.assign(new Error("dynamic server usage"), {
+      digest: "DYNAMIC_SERVER_USAGE",
+    });
+    mocks.createClient.mockRejectedValue(dynamicBailout);
+
+    await expect(getViewerContext()).rejects.toBe(dynamicBailout);
+  });
+
   it("claims検証がrejectした場合はguestへ偽装せずerrorを返す", async () => {
     mocks.getClaims.mockRejectedValue(new Error("Auth transport failed"));
 
@@ -118,6 +141,15 @@ describe("getViewerContext", () => {
       status: "error",
       errorCode: "auth_unavailable",
     });
+  });
+
+  it("claims検証中のNext dynamic bailoutは同じ例外を再送出する", async () => {
+    const dynamicBailout = Object.assign(new Error("dynamic server usage"), {
+      digest: "DYNAMIC_SERVER_USAGE",
+    });
+    mocks.getClaims.mockRejectedValue(dynamicBailout);
+
+    await expect(getViewerContext()).rejects.toBe(dynamicBailout);
   });
 
   it("claims検証がerrorを返した場合はDBを読まずerrorを返す", async () => {
