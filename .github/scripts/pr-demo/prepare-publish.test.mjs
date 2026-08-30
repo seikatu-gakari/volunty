@@ -291,7 +291,7 @@ test("最新Pull Request CIの照会失敗はfailureにするが公開treeを変
   ]);
 });
 
-test("prepare CLIはlive PR metadataをmainのpolicyで再評価する", async () => {
+test("prepare CLIはstatusを更新せずlive PR metadataをmainのpolicyで再評価する", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-trusted-policy-"));
   const artifactDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-trusted-artifact-"));
   const siteDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-trusted-site-"));
@@ -351,6 +351,5 @@ reason: ドキュメントのみ
 
   assert.equal(result.outcome, "skip");
   assert.match(result.reason, /ドキュメントのみ/);
-  assert.equal(statuses[0].sha, headSha);
-  assert.equal(statuses[0].status.state, "pending");
+  assert.deepEqual(statuses, []);
 });

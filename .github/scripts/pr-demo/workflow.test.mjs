@@ -33,28 +33,18 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   assert.doesNotMatch(invalidate, /concurrency:/);
   assert.match(invalidate, /timeout-minutes: 90/);
   assert.match(invalidate, /contents: write/);
-  assert.match(
-    invalidate,
-    /Mark demo-video pending before lock wait[\s\S]*continue-on-error: true[\s\S]*invalidate-status\.mjs/,
-  );
-  assert.match(invalidate, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
-  assert.match(
-    invalidate,
-    /Acquire PR demo operation lock[\s\S]*if: \$\{\{ always\(\) \}\}/,
-  );
-  const firstInvalidation = invalidate.indexOf("invalidate-status.mjs");
-  const lockAcquisition = invalidate.indexOf("pages-lock.mjs acquire");
-  const synchronizedInvalidation = invalidate.indexOf(
-    "invalidate-status.mjs",
-    firstInvalidation + 1,
-  );
+  assert.doesNotMatch(invalidate, /before lock wait/);
+  assert.match(invalidate, /PR_DEMO_LOCK_SCOPE: status[\s\S]*pages-lock\.mjs acquire/);
+  assert.match(invalidate, /id: status_lock[\s\S]*pages-lock\.mjs acquire/);
   assert.ok(
-    firstInvalidation < lockAcquisition &&
-      lockAcquisition < synchronizedInvalidation,
+    invalidate.indexOf("pages-lock.mjs acquire") <
+      invalidate.indexOf("invalidate-status.mjs"),
   );
-  assert.equal(invalidate.match(/invalidate-status\.mjs/g)?.length, 2);
+  assert.equal(invalidate.match(/invalidate-status\.mjs/g)?.length, 1);
+  assert.equal(invalidate.match(/PR_DEMO_LOCK_SCOPE: status/g)?.length, 2);
   assert.match(invalidate, /pages-lock\.mjs release/);
   assert.doesNotMatch(publish, /concurrency:/);
+  assert.doesNotMatch(publish, /PR_DEMO_LOCK_SCOPE: status/);
   assert.match(publish, /timeout-minutes: 120/);
   assert.match(publish, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
   assert.ok(
@@ -70,14 +60,15 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   assert.match(finalize, /needs: publish/);
   assert.match(finalize, /timeout-minutes: 90/);
   assert.doesNotMatch(finalize, /concurrency:/);
-  assert.match(finalize, /id: pages_lock[\s\S]*pages-lock\.mjs acquire/);
+  assert.equal(finalize.match(/PR_DEMO_LOCK_SCOPE: status/g)?.length, 2);
+  assert.match(finalize, /id: status_lock[\s\S]*pages-lock\.mjs acquire/);
   assert.ok(
     finalize.indexOf("pages-lock.mjs acquire") <
       finalize.indexOf("finalize-publish.mjs"),
   );
   assert.match(
     finalize,
-    /Release PR demo operation lock[\s\S]*if: \$\{\{ always\(\)/,
+    /Release PR demo status lock[\s\S]*if: \$\{\{ always\(\)/,
   );
   assert.match(finalize, /pages-lock\.mjs release/);
   assert.match(finalize, /id: handoff[\s\S]*continue-on-error: true/);

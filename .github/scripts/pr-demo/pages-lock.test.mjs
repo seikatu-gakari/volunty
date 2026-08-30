@@ -5,6 +5,7 @@ import {
   acquirePagesLock,
   createPagesLockClient,
   formatLockMessage,
+  main as pagesLockMain,
   parseLockMessage,
   releasePagesLock,
 } from "./pages-lock.mjs";
@@ -37,6 +38,15 @@ test("Pages lock commit metadataを厳格に往復する", () => {
     () => parseLockMessage(`${message}\nextra:injection`),
     /metadataが不正/,
   );
+  assert.throws(() => parseLockMessage({ message }), /metadataが不正/);
+});
+
+test("status lockはPages lockと独立したmetadataとして検証する", () => {
+  const message = formatLockMessage(identity, acquiredAt, "status");
+
+  assert.match(message, /^pr-demo-status-lock:v1\n/);
+  assert.deepEqual(parseLockMessage(message, "status"), { ...identity, acquiredAt });
+  assert.throws(() => parseLockMessage(message, "pages"), /metadataが不正/);
 });
 
 test("GitHub refとcommit APIからlock所有者を検証する", async () => {
@@ -63,6 +73,54 @@ test("GitHub refとcommit APIからlock所有者を検証する", async () => {
   });
 
   assert.deepEqual(await client.getLock(), lock);
+});
+
+test("status scopeは独立したGit refからlock所有者を検証する", async () => {
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    if (url.endsWith("/git/ref/heads/pr-demo-status-lock")) {
+      return jsonResponse({
+        ref: "refs/heads/pr-demo-status-lock",
+        node_id: lock.refId,
+        object: { type: "commit", sha: lock.sha },
+      });
+    }
+    if (url.endsWith(`/git/commits/${lock.sha}`)) {
+      return jsonResponse({
+        sha: lock.sha,
+        message: formatLockMessage(identity, acquiredAt, "status"),
+      });
+    }
+    throw new Error(`unexpected URL: ${url}`);
+  };
+  const client = createPagesLockClient({
+    token: "test-token",
+    repository: identity.repository,
+    lockScope: "status",
+    fetchImpl,
+  });
+
+  assert.deepEqual(await client.getLock(), lock);
+  assert.ok(urls[0].endsWith("/git/ref/heads/pr-demo-status-lock"));
+});
+
+test("未定義のlock scopeはclient注入時も拒否する", async () => {
+  await assert.rejects(
+    pagesLockMain({
+      action: "acquire",
+      repository: identity.repository,
+      runIdValue: String(identity.runId),
+      runAttemptValue: String(identity.runAttempt),
+      lockScope: "unknown",
+      client: {
+        async getLock() {
+          throw new Error("未定義scopeではclientを呼んではいけません");
+        },
+      },
+    }),
+    /lock scopeが不正/,
+  );
 });
 
 test("GitHub APIでlock refを原子的に作成してref ID指定で削除する", async () => {

@@ -197,13 +197,6 @@ export async function main({
           throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
         }
         freshnessVerified = currentHeadSha === context.headSha;
-        if (context.conclusion === "success" && currentHeadSha === context.headSha) {
-          await client.setDemoStatus(context.headSha, {
-            state: "pending",
-            description: "最新HEADの動作ビデオを検証しています",
-            targetUrl: context.runUrl,
-          });
-        }
         let trustedDecision;
         if (
           context.conclusion === "success" &&

@@ -52,31 +52,25 @@ jobs:
         with:
           node-version: 22
 
-      - name: Mark demo-video pending before lock wait
-        continue-on-error: true
+      - name: Acquire PR demo status lock
+        id: status_lock
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node .github/scripts/pr-demo/invalidate-status.mjs
-
-      - name: Acquire PR demo operation lock
-        id: pages_lock
-        if: ${{ always() }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_LOCK_SCOPE: status
         run: node .github/scripts/pr-demo/pages-lock.mjs acquire
 
-      - name: Synchronize demo-video pending inside operation lock
-        if: ${{ always() && steps.pages_lock.outcome == 'success' }}
+      - name: Mark demo-video pending for the current CI run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/pr-demo/invalidate-status.mjs
 
-      - name: Release PR demo operation lock
-        if: ${{ always() && steps.pages_lock.outputs.lock_ref_id != '' }}
+      - name: Release PR demo status lock
+        if: ${{ always() && steps.status_lock.outputs.lock_ref_id != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_DEMO_PAGES_LOCK_REF_ID: ${{ steps.pages_lock.outputs.lock_ref_id }}
-          PR_DEMO_PAGES_LOCK_SHA: ${{ steps.pages_lock.outputs.lock_sha }}
+          PR_DEMO_LOCK_SCOPE: status
+          PR_DEMO_PAGES_LOCK_REF_ID: ${{ steps.status_lock.outputs.lock_ref_id }}
+          PR_DEMO_PAGES_LOCK_SHA: ${{ steps.status_lock.outputs.lock_sha }}
         run: node .github/scripts/pr-demo/pages-lock.mjs release
 
   publish:
@@ -275,14 +269,15 @@ jobs:
           name: ${{ needs.publish.outputs.finalizer_artifact_name }}
           path: ${{ runner.temp }}/pr-demo-finalizer
 
-      - name: Acquire PR demo operation lock
-        id: pages_lock
+      - name: Acquire PR demo status lock
+        id: status_lock
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_LOCK_SCOPE: status
         run: node source/.github/scripts/pr-demo/pages-lock.mjs acquire
 
       - name: Upsert PR comment and set demo-video status
-        if: ${{ always() && steps.pages_lock.outcome == 'success' }}
+        if: ${{ always() && steps.status_lock.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_RESULT_PATH: ${{ runner.temp }}/pr-demo-finalizer/result.json
@@ -295,10 +290,11 @@ jobs:
           PR_DEMO_MANUAL_HEAD_SHA: ${{ inputs.head_sha }}
         run: node source/.github/scripts/pr-demo/finalize-publish.mjs
 
-      - name: Release PR demo operation lock
-        if: ${{ always() && steps.pages_lock.outputs.lock_ref_id != '' }}
+      - name: Release PR demo status lock
+        if: ${{ always() && steps.status_lock.outputs.lock_ref_id != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_DEMO_PAGES_LOCK_REF_ID: ${{ steps.pages_lock.outputs.lock_ref_id }}
-          PR_DEMO_PAGES_LOCK_SHA: ${{ steps.pages_lock.outputs.lock_sha }}
+          PR_DEMO_LOCK_SCOPE: status
+          PR_DEMO_PAGES_LOCK_REF_ID: ${{ steps.status_lock.outputs.lock_ref_id }}
+          PR_DEMO_PAGES_LOCK_SHA: ${{ steps.status_lock.outputs.lock_sha }}
         run: node source/.github/scripts/pr-demo/pages-lock.mjs release
