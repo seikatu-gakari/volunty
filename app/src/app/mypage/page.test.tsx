@@ -52,6 +52,10 @@ vi.mock("@/lib/mypage/actions", () => ({
   fetchMyPageData: (...args: unknown[]) => mocks.fetchMyPageData(...args),
 }));
 
+vi.mock("@/lib/account-deletion/config", () => ({
+  isAccountDeletionEnabled: () => true,
+}));
+
 import MyPage from "./page";
 
 const profile: NonNullable<MyPageData["profile"]> = {

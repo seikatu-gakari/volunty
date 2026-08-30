@@ -11,6 +11,8 @@ const mockFindOrganizations = vi.fn();
 const mockFindOrganizationById = vi.fn();
 const mockUpdateOrganization = vi.fn();
 const mockRevalidatePath = vi.fn();
+const mockFindDeletionRequests = vi.fn();
+const mockProcessAccountDeletion = vi.fn();
 
 vi.mock("next/cache", () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
@@ -41,7 +43,14 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: (...args: unknown[]) => mockFindOrganizationById(...args),
       update: (...args: unknown[]) => mockUpdateOrganization(...args),
     },
+    accountDeletionRequest: {
+      findMany: (...args: unknown[]) => mockFindDeletionRequests(...args),
+    },
   },
+}));
+
+vi.mock("@/lib/account-deletion/orchestrator", () => ({
+  processAccountDeletion: (...args: unknown[]) => mockProcessAccountDeletion(...args),
 }));
 
 const {
@@ -52,6 +61,8 @@ const {
   fetchOrganizationById,
   approveOrganization,
   rejectOrganization,
+  fetchPendingAccountDeletions,
+  retryPendingAccountDeletion,
 } = await import("./actions");
 
 describe("admin/actions", () => {
@@ -59,6 +70,57 @@ describe("admin/actions", () => {
     vi.clearAllMocks();
     mockGetUser.mockReturnValue({ data: { user: { id: "admin-1" } } });
     mockFindUser.mockResolvedValue({ role: "admin" });
+    mockFindDeletionRequests.mockResolvedValue([]);
+    mockProcessAccountDeletion.mockResolvedValue({ status: "completed" });
+  });
+
+  it("管理者は削除処理保留一覧を確認できる", async () => {
+    mockFindDeletionRequests.mockResolvedValue([
+      {
+        userId: "participant-1",
+        createdAt: new Date("2026-08-30T05:00:00.000Z"),
+        attemptCount: 2,
+        lastErrorCode: "data_cleanup_failed",
+      },
+    ]);
+    mockFindUsers.mockResolvedValue([
+      {
+        id: "participant-1",
+        name: null,
+        participantProfile: { name: "参加者 太郎" },
+        organizationProfile: null,
+      },
+    ]);
+
+    await expect(fetchPendingAccountDeletions()).resolves.toEqual([
+      {
+        userId: "participant-1",
+        displayName: "参加者 太郎",
+        createdAt: "2026-08-30T05:00:00.000Z",
+        attemptCount: 2,
+        lastErrorCode: "data_cleanup_failed",
+      },
+    ]);
+  });
+
+  it("非管理者は削除処理保留一覧と再処理を利用できない", async () => {
+    mockFindUser.mockResolvedValue({ role: "participant" });
+    const formData = new FormData();
+    formData.set("userId", "participant-1");
+
+    await expect(fetchPendingAccountDeletions()).rejects.toThrow("管理者権限が必要です");
+    await expect(retryPendingAccountDeletion(formData)).rejects.toThrow("管理者権限が必要です");
+    expect(mockProcessAccountDeletion).not.toHaveBeenCalled();
+  });
+
+  it("管理者の再処理は共通 saga を呼び管理画面を再検証する", async () => {
+    const formData = new FormData();
+    formData.set("userId", "participant-1");
+
+    await retryPendingAccountDeletion(formData);
+
+    expect(mockProcessAccountDeletion).toHaveBeenCalledWith("participant-1");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/users");
   });
 
   it("団体一覧取得時に審査ステータスを含めて整形する", async () => {

@@ -140,6 +140,21 @@ model User {
   @@map("m_user")
 }
 
+/// アカウント削除の部分失敗を再処理するための一時台帳。
+/// m_user への外部キーは張らず、cleanup 完了時に同一 transaction で削除する。
+model AccountDeletionRequest {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @unique @map("user_id") @db.Uuid
+  authDeletedAt  DateTime? @map("auth_deleted_at")
+  attemptCount   Int       @default(0) @map("attempt_count")
+  lastErrorCode  String?   @map("last_error_code") @db.VarChar(50)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("t_account_deletion_request")
+}
+
 /// 参加者プロフィール — ボランティア参加希望者の詳細情報
 /// 診断結果は t_diagnosis_result に保存し、最新結果への参照のみ持つ
 model ParticipantProfile {

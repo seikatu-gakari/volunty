@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isAccountDeletionEnabled } from "@/lib/account-deletion/config";
+import { processAccountDeletion } from "@/lib/account-deletion/orchestrator";
 import { fetchParticipantProfileByUserIdWithDebug } from "@/lib/participant-profile/server";
 import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
 import type {
@@ -219,6 +220,10 @@ export async function deleteMyAccount(
   _prevState: DeleteAccountState,
   formData: FormData
 ): Promise<DeleteAccountState> {
+  if (!isAccountDeletionEnabled()) {
+    return { error: "現在、アカウント削除を一時停止しています。" };
+  }
+
   if (formData.get("confirmation") !== DELETE_ACCOUNT_CONFIRMATION) {
     return { error: "確認欄に「削除する」と入力してください。" };
   }
@@ -235,48 +240,25 @@ export async function deleteMyAccount(
     };
   }
 
-  let adminClient: ReturnType<typeof createAdminClient>;
+  let deletionStatus: "completed" | "auth_failed" | "cleanup_pending";
   try {
-    adminClient = createAdminClient();
-  } catch (err) {
-    console.error("[deleteMyAccount] Supabase管理クライアント作成に失敗:", err);
-    return {
-      error: "アカウント削除の準備に失敗しました。管理用環境変数を確認してください。",
-    };
-  }
-
-  try {
-    await prisma.user.deleteMany({
-      where: { id: user.id },
-    });
-  } catch (err) {
-    console.error("[deleteMyAccount] m_user の物理削除に失敗:", err);
-    return {
-      error: "アカウント削除に失敗しました。時間をおいて再度お試しください。",
-    };
-  }
-
-  try {
-    const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(
-      user.id,
-      false
-    );
-
-    if (deleteAuthError) {
-      console.error(
-        "[deleteMyAccount] Supabase Auth ユーザー削除に失敗:",
-        deleteAuthError
-      );
+    const result = await processAccountDeletion(user.id);
+    deletionStatus = result.status;
+    if (result.status === "auth_failed") {
       return {
         error:
           "認証アカウントの削除に失敗しました。時間をおいて再度お試しください。",
       };
     }
   } catch (err) {
-    console.error("[deleteMyAccount] Supabase Auth ユーザー削除で例外:", err);
+    console.error("[deleteMyAccount] アカウント削除処理の開始に失敗:", err);
     return {
-      error: "認証アカウントの削除に失敗しました。時間をおいて再度お試しください。",
+      error: "アカウント削除に失敗しました。時間をおいて再度お試しください。",
     };
+  }
+
+  if (deletionStatus === "cleanup_pending") {
+    redirect("/login?accountDeletionPending=1");
   }
 
   redirect("/login?accountDeleted=1");

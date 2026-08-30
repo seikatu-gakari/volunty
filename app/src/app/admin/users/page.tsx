@@ -3,8 +3,9 @@ import { Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { Header } from "@/app/components/Header";
-import { fetchUsers } from "@/lib/admin/actions";
+import { fetchPendingAccountDeletions, fetchUsers } from "@/lib/admin/actions";
 import { AdminUserList } from "./AdminUserList";
+import { PendingAccountDeletions } from "./PendingAccountDeletions";
 
 export default async function AdminUsersPage() {
   // 管理者チェック
@@ -26,7 +27,10 @@ export default async function AdminUsersPage() {
     redirect("/forbidden");
   }
 
-  const users = await fetchUsers();
+  const [users, pendingDeletions] = await Promise.all([
+    fetchUsers(),
+    fetchPendingAccountDeletions(),
+  ]);
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -46,6 +50,7 @@ export default async function AdminUsersPage() {
           </div>
         </div>
 
+        <PendingAccountDeletions requests={pendingDeletions} />
         <AdminUserList users={users} />
       </main>
     </div>

@@ -235,6 +235,38 @@ DROP POLICY IF EXISTS "団体は自分の案件を更新可能"
 SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830000000_issue230_opportunity_data_api_authz_repair.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830050000_account_deletion_saga.sql" >/dev/null
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+DO $$
+BEGIN
+  IF has_table_privilege('anon', 'public.t_account_deletion_request', 'SELECT')
+    OR has_table_privilege('authenticated', 'public.t_account_deletion_request', 'SELECT')
+    OR has_table_privilege('anon', 'public.t_account_deletion_request', 'INSERT')
+    OR has_table_privilege('authenticated', 'public.t_account_deletion_request', 'INSERT')
+    OR has_table_privilege('anon', 'public.t_account_deletion_request', 'UPDATE')
+    OR has_table_privilege('authenticated', 'public.t_account_deletion_request', 'UPDATE')
+    OR has_table_privilege('anon', 'public.t_account_deletion_request', 'DELETE')
+    OR has_table_privilege('authenticated', 'public.t_account_deletion_request', 'DELETE') THEN
+    RAISE EXCEPTION '削除処理台帳を Data API ロールから操作できてはいけません';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.t_account_deletion_request'::regclass
+      AND contype = 'f'
+  ) THEN
+    RAISE EXCEPTION '削除処理台帳は m_user への外部キーを持ってはいけません';
+  END IF;
+END
+$$;
+
+INSERT INTO public.t_account_deletion_request (
+  user_id, attempt_count, updated_at
+) VALUES (
+  '77777777-1111-1111-1111-111111111111', 1, NOW()
+);
+SQL
 
 # seedなしのmigration-only契約: ownerの案件作成・更新がData APIロールで成立する。
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
