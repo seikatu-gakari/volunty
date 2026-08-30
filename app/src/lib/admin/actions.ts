@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { processAccountDeletion } from "@/lib/account-deletion/orchestrator";
 
 /** 管理者かどうかを検証する */
 async function requireAdmin() {
@@ -62,6 +63,69 @@ export interface AdminUserListItem {
   organizationVerified: boolean | null;
   lastLoginAt: string | null;
   createdAt: string;
+}
+
+export interface PendingAccountDeletion {
+  userId: string;
+  displayName: string | null;
+  createdAt: string;
+  attemptCount: number;
+  lastErrorCode: string | null;
+}
+
+/** 部分失敗して運用再処理を待つアカウント削除一覧を取得する。 */
+export async function fetchPendingAccountDeletions(): Promise<
+  PendingAccountDeletion[]
+> {
+  await requireAdmin();
+  const requests = await prisma.accountDeletionRequest.findMany({
+    orderBy: { createdAt: "asc" },
+  });
+  const users = await prisma.user.findMany({
+    where: { id: { in: requests.map((request) => request.userId) } },
+    select: {
+      id: true,
+      name: true,
+      participantProfile: { select: { name: true } },
+      organizationProfile: { select: { organizationName: true } },
+    },
+  });
+  const names = new Map(
+    users.map((user) => [
+      user.id,
+      resolveDisplayName(
+        user.name,
+        user.participantProfile?.name,
+        user.organizationProfile?.organizationName
+      ),
+    ])
+  );
+
+  return requests.map((request) => ({
+    userId: request.userId,
+    displayName: names.get(request.userId) ?? null,
+    createdAt: request.createdAt.toISOString(),
+    attemptCount: request.attemptCount,
+    lastErrorCode: request.lastErrorCode,
+  }));
+}
+
+/** 管理者として保留中の削除 saga を冪等に再処理する。 */
+export async function retryPendingAccountDeletion(formData: FormData) {
+  await requireAdmin();
+  const userId = formData.get("userId");
+  if (typeof userId !== "string" || userId.length === 0) {
+    throw new Error("再処理対象が不正です");
+  }
+  const pendingRequest = await prisma.accountDeletionRequest.findUnique({
+    where: { userId },
+    select: { userId: true },
+  });
+  if (!pendingRequest) {
+    throw new Error("保留中の削除処理が見つかりません");
+  }
+  await processAccountDeletion(userId);
+  revalidatePath("/admin/users");
 }
 
 function resolveDisplayName(

@@ -59,6 +59,20 @@ describe("ToastProvider", () => {
     expect(searchParams.get("next")).toBe("/mypage");
   });
 
+  it("cleanup 保留を削除完了と区別して表示する", async () => {
+    navigationState.search = "accountDeletionPending=1";
+    window.history.replaceState(null, "", "/login?accountDeletionPending=1");
+
+    render(
+      <ToastProvider>
+        <div>ログインページ</div>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText("削除申請を受け付けました")).toBeDefined();
+    expect(screen.queryByText("アカウントを削除しました")).toBeNull();
+  });
+
   it("error=auth パラメータからログイン失敗トーストを表示する", async () => {
     navigationState.search = "error=auth";
     window.history.replaceState(null, "", "/login?error=auth");

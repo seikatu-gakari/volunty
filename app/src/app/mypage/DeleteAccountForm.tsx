@@ -13,7 +13,7 @@ const initialState: DeleteAccountState = {
 
 const CONFIRMATION_TEXT = "削除する";
 
-export function DeleteAccountForm() {
+export function DeleteAccountForm({ enabled }: { enabled: boolean }) {
   const [state, formAction, isPending] = useActionState(
     deleteMyAccount,
     initialState
@@ -38,7 +38,9 @@ export function DeleteAccountForm() {
           この操作は取り消せません
         </div>
         <p className="text-sm leading-6 text-red-900">
-          アカウント、プロフィール、診断結果、応募履歴を物理削除します。
+          {enabled
+            ? "アカウント、プロフィール、診断結果、応募履歴を物理削除します。"
+            : "現在、アカウント削除を一時停止しています。"}
         </p>
       </div>
 
@@ -51,6 +53,7 @@ export function DeleteAccountForm() {
           type="text"
           autoComplete="off"
           required
+          disabled={!enabled}
           className="h-11 rounded-lg border border-card-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary"
         />
       </label>
@@ -64,10 +67,14 @@ export function DeleteAccountForm() {
           type="submit"
           variant="outline"
           icon={Trash2}
-          disabled={isPending}
+          disabled={isPending || !enabled}
           className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
         >
-          {isPending ? "削除中..." : "アカウントを削除"}
+          {isPending
+            ? "削除中..."
+            : enabled
+              ? "アカウントを削除"
+              : "現在利用できません"}
         </Button>
       </div>
     </form>

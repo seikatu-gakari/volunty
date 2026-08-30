@@ -27,8 +27,11 @@ const mocks = vi.hoisted(() => ({
   listUsers: vi.fn(),
   createUser: vi.fn(),
   updateUserById: vi.fn(),
+  deleteUser: vi.fn(),
   userUpsert: vi.fn(),
   userUpdate: vi.fn(),
+  userFindMany: vi.fn(),
+  userDeleteMany: vi.fn(),
   participantProfileUpsert: vi.fn(),
   participantProfileUpdate: vi.fn(),
   participantProfileDeleteMany: vi.fn(),
@@ -49,12 +52,19 @@ const mocks = vi.hoisted(() => ({
   approachUpsert: vi.fn(),
   certificateUpsert: vi.fn(),
   certificateDeleteMany: vi.fn(),
+  accountDeletionRequestUpsert: vi.fn(),
+  accountDeletionRequestDeleteMany: vi.fn(),
   disconnect: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    user: { upsert: mocks.userUpsert, update: mocks.userUpdate },
+    user: {
+      upsert: mocks.userUpsert,
+      update: mocks.userUpdate,
+      findMany: mocks.userFindMany,
+      deleteMany: mocks.userDeleteMany,
+    },
     participantProfile: {
       upsert: mocks.participantProfileUpsert,
       update: mocks.participantProfileUpdate,
@@ -89,6 +99,10 @@ vi.mock("@/lib/prisma", () => ({
       upsert: mocks.certificateUpsert,
       deleteMany: mocks.certificateDeleteMany,
     },
+    accountDeletionRequest: {
+      upsert: mocks.accountDeletionRequestUpsert,
+      deleteMany: mocks.accountDeletionRequestDeleteMany,
+    },
     $disconnect: mocks.disconnect,
   },
 }));
@@ -100,6 +114,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         listUsers: mocks.listUsers,
         createUser: mocks.createUser,
         updateUserById: mocks.updateUserById,
+        deleteUser: mocks.deleteUser,
       },
     },
   }),
@@ -141,6 +156,12 @@ const personaDefinitions = {
     email: "e2e-participant-delete@example.com",
     role: "participant",
     description: "delete",
+  },
+  "participant-deletion-pending": {
+    key: "participant-deletion-pending",
+    email: "e2e-participant-deletion-pending@example.com",
+    role: "participant",
+    description: "deletion pending",
   },
   "participant-logout": {
     key: "participant-logout",
@@ -276,8 +297,11 @@ describe("seedE2eUsers", () => {
       createResult(personaId(personaByEmail(email)?.key ?? email), email)
     );
     mocks.updateUserById.mockResolvedValue({ data: { user: {} }, error: null });
+    mocks.deleteUser.mockResolvedValue({ data: { user: null }, error: null });
     mocks.userUpsert.mockResolvedValue({});
     mocks.userUpdate.mockResolvedValue({});
+    mocks.userFindMany.mockResolvedValue([]);
+    mocks.userDeleteMany.mockResolvedValue({ count: 0 });
     mocks.participantProfileUpsert.mockImplementation(
       async ({
         where,
@@ -342,6 +366,8 @@ describe("seedE2eUsers", () => {
     mocks.approachUpsert.mockResolvedValue({});
     mocks.certificateUpsert.mockResolvedValue({});
     mocks.certificateDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.accountDeletionRequestUpsert.mockResolvedValue({});
+    mocks.accountDeletionRequestDeleteMany.mockResolvedValue({ count: 0 });
   });
 
   afterEach(() => {
@@ -412,6 +438,19 @@ describe("seedE2eUsers", () => {
         role: null,
         onboarding_completed: false,
       },
+    });
+  });
+
+  it("前回の cleanup 保留 persona を台帳と業務ユーザーから清掃する", async () => {
+    mocks.userFindMany.mockResolvedValue([{ id: "stale-pending-id" }]);
+
+    await seedE2eUsers();
+
+    expect(mocks.accountDeletionRequestDeleteMany).toHaveBeenCalledWith({
+      where: { userId: { in: ["stale-pending-id"] } },
+    });
+    expect(mocks.userDeleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["stale-pending-id"] } },
     });
   });
 

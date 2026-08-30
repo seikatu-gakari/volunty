@@ -77,6 +77,15 @@ function collectUrlToasts(searchParams: URLSearchParams): UrlToastResult {
     consumedParams.push("accountDeleted");
   }
 
+  if (searchParams.get("accountDeletionPending") === "1") {
+    toasts.push({
+      type: "success",
+      title: "削除申請を受け付けました",
+      description: "残りの削除処理を運用側で継続しています。再ログインは不要です。",
+    });
+    consumedParams.push("accountDeletionPending");
+  }
+
   return { toasts, consumedParams };
 }
 

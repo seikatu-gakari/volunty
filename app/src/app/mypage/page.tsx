@@ -25,6 +25,7 @@ import type { ApplicationStatus } from "@/lib/mypage/types";
 import { formatDateInJapan } from "@/lib/date/format-date";
 import { applicationStatusLabel } from "@/lib/mypage/status";
 import { DeleteAccountForm } from "./DeleteAccountForm";
+import { isAccountDeletionEnabled } from "@/lib/account-deletion/config";
 
 /** ステータスに応じたラベル・アイコン・カラー */
 function statusDisplay(status: ApplicationStatus) {
@@ -377,7 +378,7 @@ export default async function MyPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <DeleteAccountForm />
+            <DeleteAccountForm enabled={isAccountDeletionEnabled()} />
           </CardContent>
         </Card>
       </main>
