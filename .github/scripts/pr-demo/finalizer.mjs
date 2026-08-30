@@ -11,7 +11,7 @@ import {
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-function validateResult(result) {
+export function validateResult(result) {
   if (
     result?.schemaVersion !== 1 ||
     !["published", "skip", "failure", "stale"].includes(result.outcome) ||

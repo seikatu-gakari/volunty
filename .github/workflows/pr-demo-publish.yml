@@ -157,9 +157,18 @@ jobs:
         with:
           path: ${{ runner.temp }}/pr-demo-pages-site
 
+      - name: Confirm publish freshness before persistence
+        id: freshness_before_persist
+        if: ${{ steps.prepare.outputs.site_changed == 'true' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_RESULT_PATH: ${{ runner.temp }}/pr-demo-publish/result.json
+        run: node source/.github/scripts/pr-demo/confirm-publish-freshness.mjs
+
       - name: Replace gh-pages with one historyless commit
         id: persist
-        if: ${{ steps.prepare.outputs.site_changed == 'true' }}
+        if: ${{ steps.prepare.outputs.site_changed == 'true' && steps.freshness_before_persist.outcome == 'success' }}
         working-directory: site
         run: |
           git config user.name "github-actions[bot]"
@@ -174,14 +183,23 @@ jobs:
           commit_sha="$(printf 'Update PR demo for %s\n' '${{ steps.prepare.outputs.head_sha }}' | git commit-tree "$tree_sha")"
           git push origin "$commit_sha:refs/heads/gh-pages" "--force-with-lease=refs/heads/gh-pages:$expected_sha"
 
+      - name: Confirm publish freshness before deploy
+        id: freshness_before_deploy
+        if: ${{ steps.persist.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_DEMO_RESULT_PATH: ${{ runner.temp }}/pr-demo-publish/result.json
+        run: node source/.github/scripts/pr-demo/confirm-publish-freshness.mjs
+
       - name: Deploy GitHub Pages
         id: deploy
-        if: ${{ steps.prepare.outputs.site_changed == 'true' }}
+        if: ${{ steps.persist.outcome == 'success' && steps.freshness_before_deploy.outcome == 'success' }}
         uses: actions/deploy-pages@v4
 
       - name: Confirm latest HEAD on Pages
         id: pages
-        if: ${{ steps.prepare.outputs.outcome == 'published' }}
+        if: ${{ steps.prepare.outputs.outcome == 'published' && steps.persist.outcome == 'success' && steps.deploy.outcome == 'success' }}
         env:
           PR_DEMO_MANIFEST_URL: ${{ steps.prepare.outputs.manifest_url }}
           PR_DEMO_HEAD_SHA: ${{ steps.prepare.outputs.head_sha }}

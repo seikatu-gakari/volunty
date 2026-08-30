@@ -123,7 +123,7 @@ test("e2e単独再実行でもdemo-policy元attemptのdecisionを取得する", 
 test("qualityは現在runのdemo-video pending確認後だけ成功経路へ進む", () => {
   const quality = jobBlock("quality", "rls", ciWorkflow);
 
-  assert.match(quality, /timeout-minutes: 120/);
+  assert.match(quality, /timeout-minutes: 150/);
   assert.match(quality, /statuses: read/);
   assert.match(
     quality,
@@ -140,6 +140,42 @@ test("qualityは現在runのdemo-video pending確認後だけ成功経路へ進�
       quality.indexOf("Install dependencies"),
   );
   assert.doesNotMatch(quality, /needs:/);
+});
+
+test("Pages永続化とdeployの直前に最新HEADとrunを再確認する", () => {
+  const publish = jobBlock("publish", "finalize");
+  const beforePersist = publish.indexOf(
+    "Confirm publish freshness before persistence",
+  );
+  const persist = publish.indexOf("Replace gh-pages with one historyless commit");
+  const beforeDeploy = publish.indexOf("Confirm publish freshness before deploy");
+  const deploy = publish.indexOf("Deploy GitHub Pages");
+
+  assert.notEqual(beforePersist, -1);
+  assert.notEqual(beforeDeploy, -1);
+  assert.ok(beforePersist < persist);
+  assert.ok(persist < beforeDeploy);
+  assert.ok(beforeDeploy < deploy);
+  assert.equal(
+    publish.match(/confirm-publish-freshness\.mjs/g)?.length,
+    2,
+  );
+  assert.match(
+    publish,
+    /id: freshness_before_persist[\s\S]*continue-on-error: true/,
+  );
+  assert.match(
+    publish,
+    /id: freshness_before_deploy[\s\S]*continue-on-error: true/,
+  );
+  assert.match(
+    publish,
+    /Replace gh-pages with one historyless commit[\s\S]*steps\.freshness_before_persist\.outcome == 'success'/,
+  );
+  assert.match(
+    publish,
+    /Deploy GitHub Pages[\s\S]*steps\.freshness_before_deploy\.outcome == 'success'/,
+  );
 });
 
 test("fork手動承認はAPI障害時のfailure対象identityも必須入力にする", () => {
