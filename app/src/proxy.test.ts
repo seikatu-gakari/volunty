@@ -35,26 +35,47 @@ function createRequest(pathname: string): NextRequest {
 function mockGuestSession(request: NextRequest) {
   mocks.updateSession.mockResolvedValue({
     response: NextResponse.next({ request }),
-    user: null,
+    identity: null,
   });
 }
 
 function mockAuthenticatedSession(
   request: NextRequest,
   userId: string,
-  role: "participant" | "organization" | "admin" = "participant",
-  onboardingCompleted = true
+  _role: "participant" | "organization" | "admin" = "participant",
+  _onboardingCompleted = true
 ) {
+  void _role;
+  void _onboardingCompleted;
   mocks.updateSession.mockResolvedValue({
     response: NextResponse.next({ request }),
-    user: {
+    identity: {
       id: userId,
-      user_metadata: {
-        role,
-        onboarding_completed: onboardingCompleted,
-      },
+      email: `${userId}@example.com`,
+      displayName: null,
     },
   });
+}
+
+function authorizationAccount(
+  role: "participant" | "organization" | "admin",
+  options: { isActive?: boolean; hasProfile?: boolean; reviewStatus?: string } = {},
+) {
+  const hasProfile = options.hasProfile ?? true;
+  return {
+    is_active: options.isActive ?? true,
+    role,
+    m_participant_profile:
+      role === "participant" && hasProfile ? { id: "participant-profile-1" } : null,
+    m_organization_profile:
+      role === "organization" && hasProfile
+        ? {
+            id: "organization-profile-1",
+            verified: false,
+            review_status: options.reviewStatus ?? "approved",
+          }
+        : null,
+  };
 }
 
 describe("proxy", () => {
@@ -74,7 +95,12 @@ describe("proxy", () => {
     mocks.getSupabaseServerUrl.mockReturnValue("https://supabase.example.com");
     mocks.getSupabaseAnonKey.mockReturnValue("anon-key");
     mocks.maybeSingle.mockResolvedValue({
-      data: { is_active: true, role: "participant" },
+      data: {
+        is_active: true,
+        role: "participant",
+        m_participant_profile: { id: "participant-profile-1" },
+        m_organization_profile: null,
+      },
     });
     mocks.eq.mockReturnValue({ maybeSingle: mocks.maybeSingle });
     mocks.select.mockReturnValue({ eq: mocks.eq });
@@ -90,6 +116,16 @@ describe("proxy", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("認証callbackはsession lookupより前に通過する", async () => {
+    const request = createRequest("/auth/callback?code=test-code");
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateSession).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it("認証済みでもトップページは公開ページとして通過する", async () => {
@@ -156,7 +192,7 @@ describe("proxy", () => {
     const request = createRequest("/mypage");
     mockAuthenticatedSession(request, "active-1");
     mocks.maybeSingle.mockResolvedValueOnce({
-      data: { is_active: true, role: "participant" },
+      data: authorizationAccount("participant"),
     });
 
     const response = await proxy(request);
@@ -164,23 +200,56 @@ describe("proxy", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
     expect(mocks.from).toHaveBeenCalledWith("m_user");
-    expect(mocks.select).toHaveBeenCalledWith("is_active,role");
+    expect(mocks.select).toHaveBeenCalledWith(
+      "is_active,role,m_participant_profile(id),m_organization_profile(id,verified,review_status)",
+    );
     expect(mocks.eq).toHaveBeenCalledWith("id", "active-1");
+  });
+
+  it("保護ルートは埋め込みプロフィールを含む1 client・1 queryで参加者を判定する", async () => {
+    const request = createRequest("/mypage");
+    mockAuthenticatedSession(request, "participant-array-1");
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: {
+        ...authorizationAccount("participant"),
+        m_participant_profile: [{ id: "participant-profile-1" }],
+      },
+      error: null,
+    });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(mocks.createServerClient).toHaveBeenCalledTimes(1);
+    expect(mocks.from).toHaveBeenCalledTimes(1);
+  });
+
+  it("未承認団体は埋め込み審査状態によりpending画面へ送る", async () => {
+    const request = createRequest("/dashboard");
+    mockAuthenticatedSession(request, "organization-pending-1");
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: authorizationAccount("organization", { reviewStatus: "pending" }),
+      error: null,
+    });
+
+    const response = await proxy(request);
+    const location = new URL(response.headers.get("location") ?? "", request.url);
+
+    expect(location.pathname).toBe("/onboarding/pending");
   });
 
   it("metadata role が無くても DB role があれば保護ルートを通過する", async () => {
     const request = createRequest("/mypage");
     mocks.updateSession.mockResolvedValue({
       response: NextResponse.next({ request }),
-      user: {
+      identity: {
         id: "metadata-role-missing-1",
-        user_metadata: {
-          onboarding_completed: true,
-        },
+        email: "metadata-role-missing-1@example.com",
+        displayName: null,
       },
     });
     mocks.maybeSingle.mockResolvedValueOnce({
-      data: { is_active: true, role: "participant" },
+      data: authorizationAccount("participant"),
     });
 
     const response = await proxy(request);
@@ -193,7 +262,7 @@ describe("proxy", () => {
     const request = createRequest("/mypage");
     mockAuthenticatedSession(request, "suspended-1");
     mocks.maybeSingle.mockResolvedValueOnce({
-      data: { is_active: false, role: "participant" },
+      data: authorizationAccount("participant", { isActive: false }),
     });
 
     const response = await proxy(request);
@@ -211,7 +280,7 @@ describe("proxy", () => {
     const request = createRequest("/admin");
     mockAuthenticatedSession(request, "participant-1", "admin");
     mocks.maybeSingle.mockResolvedValueOnce({
-      data: { is_active: true, role: "participant" },
+      data: authorizationAccount("participant"),
     });
 
     const response = await proxy(request);
@@ -227,7 +296,7 @@ describe("proxy", () => {
     const request = createRequest("/admin");
     mockAuthenticatedSession(request, "admin-1", "participant");
     mocks.maybeSingle.mockResolvedValueOnce({
-      data: { is_active: true, role: "admin" },
+      data: authorizationAccount("admin"),
     });
 
     const response = await proxy(request);
@@ -240,9 +309,8 @@ describe("proxy", () => {
     const request = createRequest("/mypage");
     mockAuthenticatedSession(request, "participant-1", "admin", false);
     mocks.maybeSingle.mockResolvedValueOnce({
-      data: { is_active: true, role: "participant" },
+      data: authorizationAccount("participant", { hasProfile: false }),
     });
-    mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
     const response = await proxy(request);
     const location = new URL(
@@ -257,9 +325,8 @@ describe("proxy", () => {
     const request = createRequest("/dashboard");
     mockAuthenticatedSession(request, "organization-1", "participant", false);
     mocks.maybeSingle.mockResolvedValueOnce({
-      data: { is_active: true, role: "organization" },
+      data: authorizationAccount("organization", { hasProfile: false }),
     });
-    mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
 
     const response = await proxy(request);
     const location = new URL(
@@ -275,10 +342,9 @@ describe("proxy", () => {
     mockAuthenticatedSession(request, "participant-incomplete-1", "participant", true);
     mocks.maybeSingle
       .mockResolvedValueOnce({
-        data: { is_active: true, role: "participant" },
+        data: authorizationAccount("participant", { hasProfile: false }),
         error: null,
-      })
-      .mockResolvedValueOnce({ data: null, error: null });
+      });
 
     const response = await proxy(request);
     const location = new URL(
@@ -294,10 +360,9 @@ describe("proxy", () => {
     mockAuthenticatedSession(request, "participant-complete-1", "participant", false);
     mocks.maybeSingle
       .mockResolvedValueOnce({
-        data: { is_active: true, role: "participant" },
+        data: authorizationAccount("participant"),
         error: null,
-      })
-      .mockResolvedValueOnce({ data: { id: "participant-profile-1" }, error: null });
+      });
 
     const response = await proxy(request);
 
@@ -309,10 +374,6 @@ describe("proxy", () => {
     const request = createRequest("/mypage");
     mockAuthenticatedSession(request, "profile-error-1", "participant");
     mocks.maybeSingle
-      .mockResolvedValueOnce({
-        data: { is_active: true, role: "participant" },
-        error: null,
-      })
       .mockResolvedValueOnce({
         data: null,
         error: { code: "42501", message: "permission denied" },
@@ -326,8 +387,8 @@ describe("proxy", () => {
     );
 
     expect(location.pathname).toBe("/forbidden");
-    expect(errorSpy).toHaveBeenCalledWith("[proxy] プロフィール照会に失敗", {
-      code: "profile_lookup_error",
+    expect(errorSpy).toHaveBeenCalledWith("[proxy] m_user lookup failed", {
+      code: "m_user_lookup_error",
     });
   });
 
@@ -430,7 +491,7 @@ describe("proxy", () => {
     const request = createRequest(pathname);
     mockAuthenticatedSession(request, `${role}-1`, role);
     mocks.maybeSingle.mockResolvedValueOnce({
-      data: { is_active: true, role },
+      data: authorizationAccount(role),
     });
 
     const response = await proxy(request);

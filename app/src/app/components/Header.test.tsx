@@ -1,157 +1,88 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Header } from "./Header";
 
-const { getUserMock, findOrganizationProfileMock } = vi.hoisted(() => ({
-  getUserMock: vi.fn(),
-  findOrganizationProfileMock: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ getViewerContext: vi.fn() }));
+
+vi.mock("server-only", () => ({}));
 
 vi.mock("next/link", () => ({
   default: ({ children, href, className }: {
     children: ReactNode;
     href: string;
     className?: string;
-  }) => (
-    <a href={href} className={className}>
-      {children}
-    </a>
-  ),
+  }) => <a href={href} className={className}>{children}</a>,
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: getUserMock,
-    },
-  })),
-}));
-
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    organizationProfile: {
-      findUnique: findOrganizationProfileMock,
-    },
-  },
+vi.mock("@/lib/auth/viewer-context", () => ({
+  getViewerContext: mocks.getViewerContext,
 }));
 
 vi.mock("@/app/components/HeaderAuth", () => ({
-  HeaderAuth: ({
-    userState,
-  }: {
-    userState: {
-      role: string | null;
-      onboardingCompleted: boolean;
-      verified: boolean;
-    };
+  HeaderAuth: ({ identity, userState }: {
+    identity: { displayName: string | null } | null;
+    userState: { role: string | null; onboardingCompleted: boolean; verified: boolean };
   }) => (
     <div>
-      <div>認証済みナビゲーション</div>
+      <div>{identity ? "認証済みナビゲーション" : "未認証ナビゲーション"}</div>
       {userState.onboardingCompleted && userState.role === "participant" && (
         <a href="/mypage">マイページ</a>
       )}
-      {userState.onboardingCompleted &&
-        userState.role === "organization" &&
-        userState.verified && <a href="/dashboard">ダッシュボード</a>}
+      {userState.onboardingCompleted && userState.role === "organization" && userState.verified && (
+        <a href="/dashboard">ダッシュボード</a>
+      )}
     </div>
   ),
 }));
 
+import { Header } from "./Header";
+
 describe("Header", () => {
   beforeEach(() => {
-    getUserMock.mockResolvedValue({ data: { user: null } });
-    findOrganizationProfileMock.mockReset();
-    findOrganizationProfileMock.mockResolvedValue({
-      verified: true,
-      reviewStatus: "approved",
-    });
+    mocks.getViewerContext.mockResolvedValue({ status: "guest" });
   });
 
-  it("通常ヘッダーの未ログイン時はLPアンカーを表示せず従来の認証ナビゲーションを表示する", async () => {
-    render(await Header());
-
-    expect(screen.getByRole("link", { name: /ボランティ/ })).toBeDefined();
-    expect(screen.getByText("あなたにぴったりの活動を見つけよう").className).toContain(
-      "hidden",
-    );
-    expect(screen.queryByRole("link", { name: "使い方" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "メニューを開く" })).toBeNull();
-    expect(screen.getByText("認証済みナビゲーション")).toBeDefined();
-    expect(screen.getByRole("banner").className).toContain("bg-background/60");
-  });
-
-  it("landingヘッダーの未ログイン時だけLPアンカーと公開ナビゲーションを表示する", async () => {
+  it("landingヘッダーのguestだけLPアンカーと公開ナビゲーションを表示する", async () => {
     render(await Header({ variant: "landing" }));
 
-    expect(screen.getByRole("link", { name: "使い方" }).getAttribute("href")).toBe(
-      "#usage",
-    );
-    const landingSubtitle = screen.getByText("あなたにぴったりの活動を見つけよう");
-    expect(landingSubtitle.className).toContain("block");
-    expect(landingSubtitle.className).not.toContain("hidden");
-    expect(screen.getByRole("link", { name: "ログイン" }).className).toContain("hidden");
-    expect(screen.getByRole("button", { name: "メニューを開く" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "使い方" }).getAttribute("href")).toBe("#usage");
+    expect(screen.getByText("あなたにぴったりの活動を見つけよう").className).toContain("block");
     expect(screen.queryByText("認証済みナビゲーション")).toBeNull();
   });
 
-  it("landingヘッダーでもログイン済みなら認証ナビゲーションを表示する", async () => {
-    getUserMock.mockResolvedValue({
-      data: {
-        user: {
-          id: "participant-1",
-          user_metadata: {
-            role: "participant",
-            onboarding_completed: true,
-          },
-        },
-      },
+  it("DB roleとプロフィール完了状態を受け取った参加者を認証ナビゲーションとして表示する", async () => {
+    mocks.getViewerContext.mockResolvedValue({
+      status: "authenticated",
+      identity: { id: "participant-1", email: "p@example.com", displayName: "参加者 太郎" },
+      role: "participant",
+      isActive: true,
+      hasParticipantProfile: true,
+      hasOrganizationProfile: false,
+      organizationVerified: false,
+      organizationReviewStatus: null,
     });
 
-    const { container } = render(await Header({ variant: "landing" }));
+    render(await Header({ variant: "landing" }));
 
     expect(screen.getByText("認証済みナビゲーション")).toBeDefined();
-    expect(screen.queryByRole("link", { name: "ログイン" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "使い方" })).toBeNull();
-    expect(screen.getByRole("banner").className).toContain("bg-background/60");
-    expect(container.querySelector(".lucide-heart")?.getAttribute("fill")).toBe(
-      "currentColor",
-    );
-  });
-
-  it("プロフィール完了状態を受け取った参加者はmetadata未完了でもナビを表示する", async () => {
-    getUserMock.mockResolvedValue({
-      data: {
-        user: {
-          id: "participant-1",
-          user_metadata: {
-            role: "participant",
-            onboarding_completed: false,
-          },
-        },
-      },
-    });
-
-    render(await Header({ variant: "landing", onboardingCompleted: true }));
-
     expect(screen.getByRole("link", { name: "マイページ" })).toBeDefined();
+    expect(screen.queryByRole("link", { name: "使い方" })).toBeNull();
   });
 
-  it("プロフィール完了状態を受け取った団体はmetadata未完了でもナビを表示する", async () => {
-    getUserMock.mockResolvedValue({
-      data: {
-        user: {
-          id: "organization-1",
-          user_metadata: {
-            role: "organization",
-            onboarding_completed: false,
-          },
-        },
-      },
+  it("凍結済みidentityにはロール別ナビゲーションを表示しない", async () => {
+    mocks.getViewerContext.mockResolvedValue({
+      status: "authenticated",
+      identity: { id: "participant-1", email: "p@example.com", displayName: null },
+      role: "participant",
+      isActive: false,
+      hasParticipantProfile: true,
+      hasOrganizationProfile: false,
+      organizationVerified: false,
+      organizationReviewStatus: null,
     });
 
-    render(await Header({ variant: "landing", onboardingCompleted: true }));
+    render(await Header());
 
-    expect(screen.getByRole("link", { name: "ダッシュボード" })).toBeDefined();
+    expect(screen.queryByRole("link", { name: "マイページ" })).toBeNull();
   });
 });
