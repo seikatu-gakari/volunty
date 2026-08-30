@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   listUsers: vi.fn(),
   createUser: vi.fn(),
   updateUserById: vi.fn(),
+  deleteUser: vi.fn(),
   userUpsert: vi.fn(),
   userUpdate: vi.fn(),
   participantProfileUpsert: vi.fn(),
@@ -49,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   approachUpsert: vi.fn(),
   certificateUpsert: vi.fn(),
   certificateDeleteMany: vi.fn(),
+  accountDeletionRequestUpsert: vi.fn(),
   disconnect: vi.fn(),
 }));
 
@@ -89,6 +91,9 @@ vi.mock("@/lib/prisma", () => ({
       upsert: mocks.certificateUpsert,
       deleteMany: mocks.certificateDeleteMany,
     },
+    accountDeletionRequest: {
+      upsert: mocks.accountDeletionRequestUpsert,
+    },
     $disconnect: mocks.disconnect,
   },
 }));
@@ -100,6 +105,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         listUsers: mocks.listUsers,
         createUser: mocks.createUser,
         updateUserById: mocks.updateUserById,
+        deleteUser: mocks.deleteUser,
       },
     },
   }),
@@ -141,6 +147,12 @@ const personaDefinitions = {
     email: "e2e-participant-delete@example.com",
     role: "participant",
     description: "delete",
+  },
+  "participant-deletion-pending": {
+    key: "participant-deletion-pending",
+    email: "e2e-participant-deletion-pending@example.com",
+    role: "participant",
+    description: "deletion pending",
   },
   "participant-logout": {
     key: "participant-logout",
@@ -276,6 +288,7 @@ describe("seedE2eUsers", () => {
       createResult(personaId(personaByEmail(email)?.key ?? email), email)
     );
     mocks.updateUserById.mockResolvedValue({ data: { user: {} }, error: null });
+    mocks.deleteUser.mockResolvedValue({ data: { user: null }, error: null });
     mocks.userUpsert.mockResolvedValue({});
     mocks.userUpdate.mockResolvedValue({});
     mocks.participantProfileUpsert.mockImplementation(
@@ -342,6 +355,7 @@ describe("seedE2eUsers", () => {
     mocks.approachUpsert.mockResolvedValue({});
     mocks.certificateUpsert.mockResolvedValue({});
     mocks.certificateDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.accountDeletionRequestUpsert.mockResolvedValue({});
   });
 
   afterEach(() => {
