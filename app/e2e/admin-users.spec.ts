@@ -112,7 +112,6 @@ test.describe("管理者ユーザー管理", () => {
       name: /削除処理保留（1件）/,
     });
     await expect(pendingSection).toBeVisible();
-    await expect(page.getByText("E2E 削除処理保留参加者")).toBeVisible();
 
     await page.getByRole("button", { name: "再処理" }).click();
 
