@@ -124,54 +124,33 @@ async function reconcileFinalStatus({ result, outcome, client }) {
   }
 }
 
-async function resolveManualFallbackFreshness({ result, client }) {
+async function finalizeManualFallback({
+  result,
+  client,
+  freshnessAttempts,
+  freshnessSleep,
+}) {
+  let freshness;
   try {
-    const pullRequest = await client.getPullRequest(result.prNumber);
-    const currentHeadSha = pullRequest?.head?.sha;
-    if (!SHA_PATTERN.test(currentHeadSha ?? "")) {
-      throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
-    }
-    if (currentHeadSha !== result.headSha) {
-      return { verified: true, currentHeadSha };
-    }
-    const latestRun = await client.getLatestPullRequestCiRun(
-      result.prNumber,
-      result.headSha,
-    );
-    if (
-      !Number.isSafeInteger(latestRun?.id) ||
-      latestRun.id <= 0 ||
-      !Number.isSafeInteger(latestRun.run_attempt) ||
-      latestRun.run_attempt <= 0
-    ) {
-      throw new Error("最新Pull Request CI run IDを確認できません");
-    }
-    return {
-      verified: true,
-      currentHeadSha,
-      latestRunId: latestRun.id,
-      latestRunAttempt: latestRun.run_attempt,
-    };
+    freshness = await resolveInitialFreshnessWithRetry({
+      result,
+      client,
+      attempts: freshnessAttempts,
+      sleep: freshnessSleep,
+    });
   } catch (error) {
-    console.warn(`[pr-demo] manual fallback freshness check failed: ${error.message}`);
-    return { verified: false };
+    return failInitialFreshness({ cause: error });
   }
-}
-
-async function finalizeManualFallback({ result, client }) {
-  const freshness = await resolveManualFallbackFreshness({ result, client });
   let outcome = await finalizePublish({
     result,
     currentHeadSha: freshness.currentHeadSha,
-    latestRunId: freshness.latestRunId,
-    latestRunAttempt: freshness.latestRunAttempt,
+    latestRunId: freshness.latestRun?.id,
+    latestRunAttempt: freshness.latestRun?.run_attempt,
     siteReady: false,
     pagesReady: false,
     client,
   });
-  if (freshness.verified) {
-    outcome = await reconcileFinalStatus({ result, outcome, client });
-  }
+  outcome = await reconcileFinalStatus({ result, outcome, client });
   return outcome;
 }
 
@@ -299,7 +278,12 @@ export async function main({
         ),
         manualFallback: true,
       };
-      outcome = await finalizeManualFallback({ result: fallbackResult, client });
+      outcome = await finalizeManualFallback({
+        result: fallbackResult,
+        client,
+        freshnessAttempts,
+        freshnessSleep,
+      });
     }
     if (!outcome.success) {
       throw new Error("demo-videoをfailureに設定しました");
@@ -331,7 +315,12 @@ export async function main({
         throw new Error("手動承認fallback resultがworkflow入力と一致しません");
       }
     }
-    const outcome = await finalizeManualFallback({ result, client });
+    const outcome = await finalizeManualFallback({
+      result,
+      client,
+      freshnessAttempts,
+      freshnessSleep,
+    });
     if (!outcome.success) {
       throw new Error("demo-videoをfailureに設定しました");
     }

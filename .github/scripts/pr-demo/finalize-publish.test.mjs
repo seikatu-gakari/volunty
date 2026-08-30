@@ -61,7 +61,7 @@ test("handoff fileがなくてもtrusted eventから最新HEADを解決してfai
   assert.equal(calls[1].status.state, "failure");
 });
 
-test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをfailureにする", async () => {
+test("手動run APIとhandoffの両方が失敗しfreshnessも未確認ならstatusを上書きしない", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-finalize-"));
   const eventPath = join(directory, "event.json");
   await writeFile(
@@ -69,6 +69,8 @@ test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをf
     JSON.stringify({ repository: { full_name: repository } }),
   );
   const calls = [];
+  const sleeps = [];
+  let pullRequestCalls = 0;
 
   await assert.rejects(
     main({
@@ -81,6 +83,8 @@ test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをf
       sourceRunAttempt: "1",
       manualPrNumber: "321",
       manualHeadSha: headSha,
+      freshnessAttempts: 3,
+      freshnessSleep: async (milliseconds) => sleeps.push(milliseconds),
       githubClient: {
         async getWorkflowRun() {
           throw new Error("temporary GitHub API failure");
@@ -89,6 +93,7 @@ test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをf
           throw new Error("temporary GitHub API failure");
         },
         async getPullRequest() {
+          pullRequestCalls += 1;
           throw new Error("temporary GitHub API failure");
         },
         async upsertDemoComment(prNumber, body) {
@@ -99,13 +104,12 @@ test("手動run APIとhandoffの両方が失敗してもmaintainer入力HEADをf
         },
       },
     }),
-    /demo-videoをfailure/,
+    /最新性を確認できないためdemo-video statusを変更しません/,
   );
 
-  assert.deepEqual(calls.map((call) => call.type), ["comment", "status"]);
-  assert.equal(calls[0].prNumber, 321);
-  assert.equal(calls[1].sha, headSha);
-  assert.equal(calls[1].status.state, "failure");
+  assert.equal(pullRequestCalls, 3);
+  assert.deepEqual(sleeps, [1000, 2000]);
+  assert.deepEqual(calls, []);
 });
 
 test("handoff欠落時の手動fallbackも後続runがあればstaleとして上書きしない", async () => {
@@ -153,7 +157,7 @@ test("handoff欠落時の手動fallbackも後続runがあればstaleとして上
   assert.deepEqual(writes, []);
 });
 
-test("手動run解決失敗resultはAPI再照合不能でもfailure statusを確定する", async () => {
+test("手動run解決失敗resultは一時的なfreshness障害から回復してfailureを確定する", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-result-"));
   const resultPath = join(directory, "result.json");
   await writeFile(
@@ -173,6 +177,9 @@ test("手動run解決失敗resultはAPI再照合不能でもfailure statusを確
     }),
   );
   const calls = [];
+  const sleeps = [];
+  let pullRequestCalls = 0;
+  let latestRunCalls = 0;
 
   await assert.rejects(
     main({
@@ -184,9 +191,19 @@ test("手動run解決失敗resultはAPI再照合不能でもfailure statusを確
       sourceRunAttempt: "1",
       manualPrNumber: "321",
       manualHeadSha: headSha,
+      freshnessAttempts: 3,
+      freshnessSleep: async (milliseconds) => sleeps.push(milliseconds),
       githubClient: {
         async getPullRequest() {
-          throw new Error("temporary GitHub API failure");
+          pullRequestCalls += 1;
+          if (pullRequestCalls <= 2) {
+            throw new Error("temporary GitHub API failure");
+          }
+          return { head: { sha: headSha } };
+        },
+        async getLatestPullRequestCiRun() {
+          latestRunCalls += 1;
+          return { id: 987, run_attempt: 1, status: "completed" };
         },
         async upsertDemoComment(prNumber, body) {
           calls.push({ type: "comment", prNumber, body });
@@ -199,6 +216,9 @@ test("手動run解決失敗resultはAPI再照合不能でもfailure statusを確
     /demo-videoをfailure/,
   );
 
+  assert.equal(pullRequestCalls, 4);
+  assert.equal(latestRunCalls, 2);
+  assert.deepEqual(sleeps, [1000, 2000]);
   assert.deepEqual(calls.map((call) => call.type), ["comment", "status"]);
   assert.equal(calls[1].status.state, "failure");
 });
