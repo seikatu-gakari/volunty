@@ -35,7 +35,7 @@ reason:
 ## CIと公開
 
 1. `Pull Request CI` が `requested` / `in_progress` になると、main上のtrusted workflowが対象PRのcurrent HEADと同一HEADの最新CI run ID・`run_attempt` を照合し、forkを含む最新attemptのcommit status `demo-video` をpendingへ戻す。GitHub APIまたはstatus更新の一時失敗は指数バックオフで6回まで再試行する。これにより、PR本文・label編集や同一HEADの再実行中に前回のsuccessを流用できず、古いrun・attemptの手動再実行も最新statusを上書きしない。
-2. 必須checkの `quality` は開始直後、`demo-video` の最新statusが自身のrun ID・`run_attempt` を指すpendingになったことをread-only APIで確認するまで待機する。status lockが競合しても新しいqualityは成功できないため、最新quality / e2eと旧runのdemo successが同時にReady条件を満たさない。105分以内に確認できなければqualityをfail closedにし、job全体は待機後のlint・UT・build用の余裕を含む150分上限とする。
+2. 必須checkの `quality` は開始直後、`demo-video` の最新statusが自身のrun ID・`run_attempt` を指すpendingになったことをread-only APIで確認するまで待機する。status lockが競合しても新しいqualityは成功できないため、最新quality / e2eと旧runのdemo successが同時にReady条件を満たさない。105分以内に確認できなければqualityをfail closedにし、job全体は待機後のlint・UT・build用の余裕を含む150分上限とする。ただし基盤の初回導入PRだけは、検証済みbase commitにtrusted publisher workflowが存在しないことをshellなしのGit object照会で確認して待機をskipする。base commit自体を確認できない場合は初回導入扱いにせず失敗し、mainへ導入後はPR側でworkflowを削除してもbase基準で待機を維持する。
 3. `demo-policy` がPR本文、label、変更pathを検証する。
 4. 通常の全E2Eを録画なしで実行する。
 5. DBを再初期化し、指定シナリオだけをdesktop 1280×720 / mobile 390×844で再実行する。

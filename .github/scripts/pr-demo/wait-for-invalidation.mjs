@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
+import { execFile } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { createGitHubClient } from "./github.mjs";
 
@@ -9,6 +11,51 @@ const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const DEFAULT_TIMEOUT_MS = 105 * 60 * 1000;
 const DEFAULT_POLL_MS = 10 * 1000;
+const TRUSTED_PUBLISHER_PATH = ".github/workflows/pr-demo-publish.yml";
+const execFileAsync = promisify(execFile);
+
+async function runGit(args) {
+  await execFileAsync("git", args, {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+    windowsHide: true,
+  });
+}
+
+function isMissingGitPath(error) {
+  return error?.code === 1 || error?.code === 128;
+}
+
+export async function baseContainsTrustedPublisher({
+  baseSha,
+  gitRunner = runGit,
+}) {
+  if (!SHA_PATTERN.test(baseSha ?? "") || typeof gitRunner !== "function") {
+    throw new Error("初回導入判定のbase SHAまたはGit runnerが不正です");
+  }
+  try {
+    await gitRunner(["cat-file", "-e", `${baseSha}^{commit}`]);
+  } catch (error) {
+    throw new Error("初回導入判定のbase commitを確認できません", {
+      cause: error,
+    });
+  }
+  try {
+    await gitRunner([
+      "cat-file",
+      "-e",
+      `${baseSha}:${TRUSTED_PUBLISHER_PATH}`,
+    ]);
+    return true;
+  } catch (error) {
+    if (isMissingGitPath(error)) {
+      return false;
+    }
+    throw new Error("base上のtrusted publisherを確認できません", {
+      cause: error,
+    });
+  }
+}
 
 function buildRunUrl(repository, runId, runAttempt) {
   const baseUrl = `https://github.com/${repository}/actions/runs/${runId}`;
@@ -112,16 +159,31 @@ export async function main({
   token = process.env.GITHUB_TOKEN,
   repository = process.env.GITHUB_REPOSITORY,
   headSha = process.env.PR_DEMO_HEAD_SHA,
+  baseSha = process.env.PR_DEMO_BASE_SHA,
   sourceRunId = process.env.PR_DEMO_SOURCE_RUN_ID,
   sourceRunAttempt = process.env.PR_DEMO_SOURCE_RUN_ATTEMPT,
   githubClient,
+  gitRunner,
 } = {}) {
   if (
     !token ||
+    !REPOSITORY_PATTERN.test(repository ?? "") ||
+    !SHA_PATTERN.test(headSha ?? "") ||
+    !SHA_PATTERN.test(baseSha ?? "") ||
     !/^[1-9][0-9]*$/.test(sourceRunId ?? "") ||
     !/^[1-9][0-9]*$/.test(sourceRunAttempt ?? "")
   ) {
     throw new Error("demo-video invalidation待機のGitHub設定が不正です");
+  }
+  const hasTrustedPublisher = await baseContainsTrustedPublisher({
+    baseSha,
+    ...(gitRunner ? { gitRunner } : {}),
+  });
+  if (!hasTrustedPublisher) {
+    console.log(
+      "[pr-demo] trusted publisher is absent on base; first-rollout invalidation wait skipped",
+    );
+    return { state: "bootstrap-skip" };
   }
   const runId = Number.parseInt(sourceRunId, 10);
   const runAttempt = Number.parseInt(sourceRunAttempt, 10);

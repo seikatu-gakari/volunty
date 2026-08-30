@@ -125,6 +125,7 @@ test("qualityは現在runのdemo-video pending確認後だけ成功経路へ進�
 
   assert.match(quality, /timeout-minutes: 150/);
   assert.match(quality, /statuses: read/);
+  assert.match(quality, /fetch-depth: 2/);
   assert.match(
     quality,
     /PR_DEMO_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/,
@@ -133,6 +134,10 @@ test("qualityは現在runのdemo-video pending確認後だけ成功経路へ進�
   assert.match(
     quality,
     /PR_DEMO_SOURCE_RUN_ATTEMPT: \$\{\{ github\.run_attempt \}\}/,
+  );
+  assert.match(
+    quality,
+    /PR_DEMO_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/,
   );
   assert.match(quality, /wait-for-invalidation\.mjs/);
   assert.ok(

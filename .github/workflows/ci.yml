@@ -92,6 +92,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -105,6 +107,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_DEMO_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_DEMO_SOURCE_RUN_ID: ${{ github.run_id }}
           PR_DEMO_SOURCE_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: node .github/scripts/pr-demo/wait-for-invalidation.mjs
