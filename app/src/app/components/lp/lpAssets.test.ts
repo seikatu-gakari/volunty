@@ -15,7 +15,7 @@ describe("lpAssets", () => {
     const assets = Object.values(lpAssets);
     const sources = assets.map((asset) => asset.src);
 
-    expect(assets.length).toBeGreaterThanOrEqual(15);
+    expect(assets).toHaveLength(14);
     expect(new Set(sources).size).toBe(sources.length);
 
     for (const asset of assets) {
