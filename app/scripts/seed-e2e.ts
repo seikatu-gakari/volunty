@@ -335,6 +335,22 @@ export async function seedE2eUsers(): Promise<void> {
   );
   const idByEmail = new Map<string, string>();
 
+  const deletionPendingEmail =
+    PERSONAS["participant-deletion-pending"].email;
+  const staleDeletionUsers = await prisma.user.findMany({
+    where: { email: deletionPendingEmail },
+    select: { id: true },
+  });
+  const staleDeletionUserIds = staleDeletionUsers.map((user) => user.id);
+  if (staleDeletionUserIds.length > 0) {
+    await prisma.accountDeletionRequest.deleteMany({
+      where: { userId: { in: staleDeletionUserIds } },
+    });
+    await prisma.user.deleteMany({
+      where: { id: { in: staleDeletionUserIds } },
+    });
+  }
+
   for (const persona of Object.values(PERSONAS)) {
     const existingUser = usersByEmail.get(persona.email);
     const userMetadata = buildUserMetadata(persona);

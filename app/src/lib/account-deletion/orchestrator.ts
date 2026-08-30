@@ -131,10 +131,20 @@ export async function processAccountDeletion(
       }
     }
 
-    const authStateUpdate = await prisma.accountDeletionRequest.updateMany({
-      where: { userId },
-      data: { authDeletedAt: new Date(), lastErrorCode: null },
-    });
+    let authStateUpdate: { count: number };
+    try {
+      authStateUpdate = await prisma.accountDeletionRequest.updateMany({
+        where: { userId },
+        data: { authDeletedAt: new Date(), lastErrorCode: null },
+      });
+    } catch {
+      logPending(
+        request.id,
+        "auth_state",
+        ACCOUNT_DELETION_ERROR_CODES.dataCleanupFailed
+      );
+      return { status: "cleanup_pending" };
+    }
     if (authStateUpdate.count === 0) {
       return { status: "completed" };
     }

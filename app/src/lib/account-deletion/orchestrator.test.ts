@@ -124,4 +124,14 @@ describe("processAccountDeletion", () => {
       status: "cleanup_pending",
     });
   });
+
+  it("Auth 不存在確認後の状態保存に失敗しても処理保留を返す", async () => {
+    mockGetUserById.mockResolvedValue(notFound);
+    mockUpdateMany.mockRejectedValue(new Error("DB unavailable"));
+
+    await expect(processAccountDeletion("user-1")).resolves.toEqual({
+      status: "cleanup_pending",
+    });
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
 });
