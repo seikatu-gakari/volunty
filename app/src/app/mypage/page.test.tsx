@@ -5,7 +5,7 @@ import type { MyPageData } from "@/lib/mypage/types";
 
 const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
-  getUser: vi.fn(),
+  getViewerContext: vi.fn(),
   fetchMyPageData: vi.fn(),
 }));
 
@@ -32,12 +32,8 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn().mockResolvedValue({
-    auth: {
-      getUser: () => mocks.getUser(),
-    },
-  }),
+vi.mock("@/lib/auth/viewer-context", () => ({
+  getViewerContext: () => mocks.getViewerContext(),
 }));
 
 vi.mock("@/app/components/Header", () => ({
@@ -48,7 +44,7 @@ vi.mock("./DeleteAccountForm", () => ({
   DeleteAccountForm: () => <div>削除フォーム</div>,
 }));
 
-vi.mock("@/lib/mypage/actions", () => ({
+vi.mock("@/lib/mypage/queries", () => ({
   fetchMyPageData: (...args: unknown[]) => mocks.fetchMyPageData(...args),
 }));
 
@@ -70,8 +66,15 @@ const profile: NonNullable<MyPageData["profile"]> = {
 describe("MyPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getUser.mockResolvedValue({
-      data: { user: { id: "user-1" } },
+    mocks.getViewerContext.mockResolvedValue({
+      status: "authenticated",
+      identity: { id: "user-1", email: null, displayName: null },
+      role: "participant",
+      isActive: true,
+      hasParticipantProfile: true,
+      hasOrganizationProfile: false,
+      organizationVerified: false,
+      organizationReviewStatus: null,
     });
     mocks.fetchMyPageData.mockResolvedValue({
       profile,
@@ -138,7 +141,7 @@ describe("MyPage", () => {
   });
 
   it("未ログインユーザーはログイン画面へリダイレクトする", async () => {
-    mocks.getUser.mockResolvedValueOnce({ data: { user: null } });
+    mocks.getViewerContext.mockResolvedValueOnce({ status: "guest" });
 
     await expect(MyPage()).rejects.toThrow("NEXT_REDIRECT:/login");
 

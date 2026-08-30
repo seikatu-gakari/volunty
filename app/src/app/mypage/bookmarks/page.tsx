@@ -3,22 +3,24 @@ import { ArrowLeft, Bookmark } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchMyBookmarks } from "@/lib/bookmarks/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchMyBookmarks } from "@/lib/bookmarks/queries";
 import { BookmarkList } from "./BookmarkList";
 
 export default async function MyBookmarksPage() {
-  const { bookmarks, error } = await fetchMyBookmarks();
-
-  if (error === "ログインが必要です") {
-    redirect("/login");
-  }
-  if (error === "参加者登録が必要です") {
-    redirect("/onboarding/participant");
-  }
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") throw new Error("閲覧者情報を確認できませんでした");
+  if (
+    !viewer.isActive ||
+    viewer.role !== "participant" ||
+    !viewer.hasParticipantProfile
+  ) redirect("/onboarding/participant");
+  const { bookmarks } = await fetchMyBookmarks(viewer.identity.id);
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link
           href="/mypage"

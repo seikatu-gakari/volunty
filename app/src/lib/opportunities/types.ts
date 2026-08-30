@@ -70,6 +70,8 @@ export interface OpportunityDetailResult {
   existingApplication: ExistingApplication | null;
   /** ログインユーザーが参加者であるか */
   isParticipant: boolean;
+  /** ログイン中の参加者がお気に入りに追加済みか */
+  isBookmarked: boolean;
 }
 
 /** applyToOpportunity の戻り値 */
