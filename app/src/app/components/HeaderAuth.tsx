@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { HeaderUserState } from "@/app/components/Header";
+import { HeaderNavigationPendingIndicator } from "@/app/components/HeaderNavigationPendingIndicator";
 import type { ViewerIdentity } from "@/lib/auth/viewer-context";
 
 /** ナビリンク定義 */
@@ -98,6 +99,7 @@ export function HeaderAuth({
               >
                 <item.icon className="size-4" />
                 {item.label}
+                <HeaderNavigationPendingIndicator />
               </Link>
             ))}
           </nav>
@@ -144,7 +146,6 @@ export function HeaderAuth({
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={closeMenu}
                     className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${isActive(item.href)
                       ? "bg-primary/10 font-medium text-primary"
                       : "text-text-body hover:bg-primary/5"
@@ -152,6 +153,7 @@ export function HeaderAuth({
                   >
                     <item.icon className="size-4" />
                     {item.label}
+                    <HeaderNavigationPendingIndicator />
                   </Link>
                 ))}
               </nav>

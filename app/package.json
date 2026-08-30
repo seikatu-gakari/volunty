@@ -11,6 +11,7 @@
     "lint:fix": "eslint --fix",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:performance": "playwright test --config=playwright.performance.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "seed:e2e": "NODE_OPTIONS=--conditions=react-server tsx -r tsconfig-paths/register scripts/seed-e2e.ts",

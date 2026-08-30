@@ -6,6 +6,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["html", { open: "never" }], ["list"]],
   globalSetup: "./e2e/global-setup.ts",
+  testIgnore: "**/*.perf.spec.ts",
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
