@@ -40,9 +40,25 @@ async function recordFailure(
       data: { lastErrorCode: errorCode },
     });
     return result.count > 0;
+  } catch {
+    return null;
   } finally {
     logPending(requestId, phase, errorCode);
   }
+}
+
+async function authFailureResult(
+  userId: string,
+  requestId: string,
+  phase: string
+): Promise<AccountDeletionResult> {
+  const recorded = await recordFailure(
+    userId,
+    requestId,
+    phase,
+    ACCOUNT_DELETION_ERROR_CODES.authDeleteFailed
+  );
+  return recorded === false ? { status: "completed" } : { status: "auth_failed" };
 }
 
 /** Auth の不存在を確認してから業務データを物理削除する冪等 saga。 */
@@ -65,13 +81,7 @@ export async function processAccountDeletion(
     try {
       adminClient = createAdminClient();
     } catch {
-      await recordFailure(
-        userId,
-        request.id,
-        "auth_client",
-        ACCOUNT_DELETION_ERROR_CODES.authDeleteFailed
-      );
-      return { status: "auth_failed" };
+      return authFailureResult(userId, request.id, "auth_client");
     }
 
     let lookup: Awaited<
@@ -80,22 +90,10 @@ export async function processAccountDeletion(
     try {
       lookup = await adminClient.auth.admin.getUserById(userId);
     } catch {
-      await recordFailure(
-        userId,
-        request.id,
-        "auth_lookup",
-        ACCOUNT_DELETION_ERROR_CODES.authDeleteFailed
-      );
-      return { status: "auth_failed" };
+      return authFailureResult(userId, request.id, "auth_lookup");
     }
     if (lookup.error && !isNotFoundError(lookup.error)) {
-      await recordFailure(
-        userId,
-        request.id,
-        "auth_lookup",
-        ACCOUNT_DELETION_ERROR_CODES.authDeleteFailed
-      );
-      return { status: "auth_failed" };
+      return authFailureResult(userId, request.id, "auth_lookup");
     }
 
     if (lookup.data.user) {
@@ -113,22 +111,10 @@ export async function processAccountDeletion(
         try {
           verification = await adminClient.auth.admin.getUserById(userId);
         } catch {
-          await recordFailure(
-            userId,
-            request.id,
-            "auth_verify",
-            ACCOUNT_DELETION_ERROR_CODES.authDeleteFailed
-          );
-          return { status: "auth_failed" };
+          return authFailureResult(userId, request.id, "auth_verify");
         }
         if (verification.data.user || !isNotFoundError(verification.error)) {
-          await recordFailure(
-            userId,
-            request.id,
-            "auth_delete",
-            ACCOUNT_DELETION_ERROR_CODES.authDeleteFailed
-          );
-          return { status: "auth_failed" };
+          return authFailureResult(userId, request.id, "auth_delete");
         }
       } else {
         let verification: Awaited<
@@ -137,22 +123,10 @@ export async function processAccountDeletion(
         try {
           verification = await adminClient.auth.admin.getUserById(userId);
         } catch {
-          await recordFailure(
-            userId,
-            request.id,
-            "auth_verify",
-            ACCOUNT_DELETION_ERROR_CODES.authDeleteFailed
-          );
-          return { status: "auth_failed" };
+          return authFailureResult(userId, request.id, "auth_verify");
         }
         if (verification.data.user || !isNotFoundError(verification.error)) {
-          await recordFailure(
-            userId,
-            request.id,
-            "auth_verify",
-            ACCOUNT_DELETION_ERROR_CODES.authDeleteFailed
-          );
-          return { status: "auth_failed" };
+          return authFailureResult(userId, request.id, "auth_verify");
         }
       }
     }
@@ -182,6 +156,8 @@ export async function processAccountDeletion(
       "data_cleanup",
       ACCOUNT_DELETION_ERROR_CODES.dataCleanupFailed
     );
-    return recorded ? { status: "cleanup_pending" } : { status: "completed" };
+    return recorded === false
+      ? { status: "completed" }
+      : { status: "cleanup_pending" };
   }
 }

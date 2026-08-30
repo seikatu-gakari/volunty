@@ -107,4 +107,21 @@ describe("processAccountDeletion", () => {
     await expect(processAccountDeletion("user-1")).resolves.toEqual({ status: "completed" });
     expect(mockTransaction).not.toHaveBeenCalled();
   });
+
+  it("Auth 失敗時に並行処理が台帳を削除済みなら成功として扱う", async () => {
+    mockGetUserById.mockRejectedValue(new Error("temporary auth failure"));
+    mockUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(processAccountDeletion("user-1")).resolves.toEqual({ status: "completed" });
+  });
+
+  it("cleanup 失敗コードを記録できなくても処理保留を返す", async () => {
+    mockUpsert.mockResolvedValue({ id: "request-1", authDeletedAt: new Date() });
+    mockTransaction.mockRejectedValue(new Error("DB unavailable"));
+    mockUpdateMany.mockRejectedValue(new Error("DB unavailable"));
+
+    await expect(processAccountDeletion("user-1")).resolves.toEqual({
+      status: "cleanup_pending",
+    });
+  });
 });
