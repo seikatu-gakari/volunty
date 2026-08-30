@@ -19,7 +19,9 @@ const MAX_GIF_BYTES = 8 * 1024 * 1024;
 const MAX_MP4_BYTES = 12 * 1024 * 1024;
 const MAX_SITE_BYTES = 900 * 1024 * 1024;
 const MAX_PENDING_CLEANUPS = 2000;
+const MAX_MANUAL_FORK_APPROVALS = 2000;
 export const CLEANUP_PENDING_FILE = ".pr-demo-cleanup-pending.json";
+export const MANUAL_FORK_APPROVALS_FILE = ".pr-demo-manual-fork-approvals.json";
 
 function assertPrNumber(prNumber) {
   if (!Number.isSafeInteger(prNumber) || prNumber <= 0) {
@@ -107,6 +109,121 @@ export async function clearPendingCleanupForPr(siteDirectory, prNumber) {
     return false;
   }
   await writePendingCleanup(siteDirectory, remaining);
+  return true;
+}
+
+function normalizeManualForkApprovals(approvals) {
+  if (
+    !Array.isArray(approvals) ||
+    approvals.length > MAX_MANUAL_FORK_APPROVALS ||
+    approvals.some(
+      (entry) =>
+        !Number.isSafeInteger(entry?.prNumber) ||
+        entry.prNumber <= 0 ||
+        !SHA_PATTERN.test(entry.headSha ?? "") ||
+        !Number.isSafeInteger(entry.runId) ||
+        entry.runId <= 0 ||
+        !Number.isSafeInteger(entry.runAttempt) ||
+        entry.runAttempt <= 0,
+    ) ||
+    new Set(approvals.map((entry) => entry.prNumber)).size !== approvals.length
+  ) {
+    throw new Error("fork手動承認stateが不正です");
+  }
+  return approvals
+    .map(({ prNumber, headSha, runId, runAttempt }) => ({
+      prNumber,
+      headSha,
+      runId,
+      runAttempt,
+    }))
+    .sort((left, right) => left.prNumber - right.prNumber);
+}
+
+export function validateManualForkApprovalsDocument(document) {
+  if (document?.schemaVersion !== 1) {
+    throw new Error("fork手動承認stateのschemaが不正です");
+  }
+  return normalizeManualForkApprovals(document.approvals);
+}
+
+export function matchesManualForkApproval(approvals, identity) {
+  const normalized = normalizeManualForkApprovals(approvals);
+  const [expected] = normalizeManualForkApprovals([identity]);
+  return normalized.some(
+    (approval) =>
+      approval.prNumber === expected.prNumber &&
+      approval.headSha === expected.headSha &&
+      approval.runId === expected.runId &&
+      approval.runAttempt === expected.runAttempt,
+  );
+}
+
+export async function readManualForkApprovals(siteDirectory) {
+  const path = join(siteDirectory, MANUAL_FORK_APPROVALS_FILE);
+  if (!(await pathExists(path))) {
+    return [];
+  }
+  const metadata = await lstat(path);
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.size <= 0 ||
+    metadata.size > 1024 * 1024
+  ) {
+    throw new Error("fork手動承認stateは許可size内の通常fileである必要があります");
+  }
+  let document;
+  try {
+    document = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(`fork手動承認stateをJSONとして読めません: ${error.message}`);
+  }
+  return validateManualForkApprovalsDocument(document);
+}
+
+export async function writeManualForkApprovals(siteDirectory, approvals) {
+  const normalized = normalizeManualForkApprovals(approvals);
+  const path = join(siteDirectory, MANUAL_FORK_APPROVALS_FILE);
+  if (normalized.length === 0) {
+    await rm(path, { force: true });
+    return normalized;
+  }
+  await writeFile(
+    path,
+    `${JSON.stringify({ schemaVersion: 1, approvals: normalized }, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+  return normalized;
+}
+
+export async function hasManualForkApproval(siteDirectory, identity) {
+  const approvals = await readManualForkApprovals(siteDirectory);
+  return matchesManualForkApproval(approvals, identity);
+}
+
+export async function recordManualForkApproval(siteDirectory, identity) {
+  const [approval] = normalizeManualForkApprovals([identity]);
+  const current = await readManualForkApprovals(siteDirectory);
+  const next = normalizeManualForkApprovals([
+    ...current.filter((entry) => entry.prNumber !== approval.prNumber),
+    approval,
+  ]);
+  if (JSON.stringify(current) === JSON.stringify(next)) {
+    return false;
+  }
+  await writeManualForkApprovals(siteDirectory, next);
+  return true;
+}
+
+export async function clearManualForkApprovalForPr(siteDirectory, prNumber) {
+  assertPrNumber(prNumber);
+  const approvals = await readManualForkApprovals(siteDirectory);
+  const remaining = approvals.filter((entry) => entry.prNumber !== prNumber);
+  if (remaining.length === approvals.length) {
+    return false;
+  }
+  await writeManualForkApprovals(siteDirectory, remaining);
   return true;
 }
 
@@ -298,6 +415,7 @@ export async function validateSiteDirectory(siteDirectory) {
     ".git",
     ".nojekyll",
     CLEANUP_PENDING_FILE,
+    MANUAL_FORK_APPROVALS_FILE,
     "index.html",
     "pr",
   ]);
@@ -316,6 +434,7 @@ export async function validateSiteDirectory(siteDirectory) {
 
   const demos = await scanPublishedDemos(siteDirectory);
   await readPendingCleanup(siteDirectory);
+  await readManualForkApprovals(siteDirectory);
   assertSiteCapacity(demos);
   if (await pathExists(join(siteDirectory, ".nojekyll"))) {
     if ((await readFile(join(siteDirectory, ".nojekyll"))).length !== 0) {
@@ -368,6 +487,9 @@ export async function preparePublicSiteDirectory({
   if (await pathExists(join(destination, CLEANUP_PENDING_FILE))) {
     throw new Error("公開用Pages treeにcleanup再試行stateを含められません");
   }
+  if (await pathExists(join(destination, MANUAL_FORK_APPROVALS_FILE))) {
+    throw new Error("公開用Pages treeにfork手動承認stateを含められません");
+  }
   return demos;
 }
 
@@ -391,6 +513,7 @@ export async function installDemoOnSite({ artifactDirectory, siteDirectory, mani
     await copyFile(join(artifactDirectory, media.mp4.file), join(destination, media.mp4.file));
   }
   await clearPendingCleanupForPr(siteDirectory, manifest.prNumber);
+  await clearManualForkApprovalForPr(siteDirectory, manifest.prNumber);
   await refreshIndex(siteDirectory);
   return destination;
 }

@@ -13,6 +13,11 @@ import {
 } from "./publisher.mjs";
 import { createGitHubClient } from "./github.mjs";
 import { createDecision } from "./decision.mjs";
+import {
+  hasManualForkApproval,
+  recordManualForkApproval,
+  validateSiteDirectory,
+} from "./site.mjs";
 
 export async function resolveWorkflowRunEvent({
   event,
@@ -198,39 +203,89 @@ export async function main({
           throw new Error("GitHub APIからPRのcurrent HEAD SHAを確認できません");
         }
         freshnessVerified = currentHeadSha === context.headSha;
-        let trustedDecision;
+        let protectedByManualForkApproval = false;
         if (
-          context.conclusion === "success" &&
-          currentHeadSha === context.headSha &&
-          (context.sameRepository || resolved.forkApproved)
+          freshnessVerified &&
+          !context.sameRepository &&
+          resolved.forkApproved !== true
         ) {
-          const changedFiles = await client.getPullRequestFiles(context.prNumber);
-          trustedDecision = createDecision(
-            {
-              number: context.prNumber,
-              repository: { full_name: repository },
-              pull_request: pullRequest,
-            },
-            changedFiles,
+          await validateSiteDirectory(siteDirectory);
+          protectedByManualForkApproval = await hasManualForkApproval(
+            siteDirectory,
+            context,
           );
         }
-        result = await preparePublish({
-          event,
-          currentHeadSha,
-          currentPullRequest: pullRequest,
-          forkApproved: resolved.forkApproved,
-          trustedDecision,
-          artifactDirectory,
-          siteDirectory,
-          pagesBaseUrl,
-          now,
-        });
+        if (protectedByManualForkApproval) {
+          result = buildStaleResult(
+            context,
+            "同じCI run/attemptはmaintainer承認済みのため自動fork publisherでは上書きしません",
+          );
+        } else {
+          let trustedDecision;
+          if (
+            context.conclusion === "success" &&
+            currentHeadSha === context.headSha &&
+            (context.sameRepository || resolved.forkApproved)
+          ) {
+            const changedFiles = await client.getPullRequestFiles(context.prNumber);
+            trustedDecision = createDecision(
+              {
+                number: context.prNumber,
+                repository: { full_name: repository },
+                pull_request: pullRequest,
+              },
+              changedFiles,
+            );
+          }
+          result = await preparePublish({
+            event,
+            currentHeadSha,
+            currentPullRequest: pullRequest,
+            forkApproved: resolved.forkApproved,
+            trustedDecision,
+            artifactDirectory,
+            siteDirectory,
+            pagesBaseUrl,
+            now,
+          });
+        }
       }
     } catch (error) {
       result = buildFailureResult(context, error.message);
     }
     if (freshnessVerified) {
       result = await removePublishedDemoForResult({ result, siteDirectory });
+    }
+    if (
+      freshnessVerified &&
+      resolved.forkApproved === true &&
+      !context.sameRepository &&
+      ["published", "skip"].includes(result.outcome)
+    ) {
+      try {
+        const approvalChanged = await recordManualForkApproval(
+          siteDirectory,
+          context,
+        );
+        await validateSiteDirectory(siteDirectory);
+        result = {
+          ...result,
+          siteChanged: result.siteChanged || approvalChanged,
+        };
+      } catch (error) {
+        result = buildFailureResult(
+          context,
+          `fork手動承認stateを保存できませんでした: ${error.message}`,
+        );
+        result = await removePublishedDemoForResult({ result, siteDirectory });
+      }
+    }
+    if (
+      !context.sameRepository &&
+      resolved.forkApproved !== true &&
+      result.outcome === "failure"
+    ) {
+      result = { ...result, unapprovedFork: true };
     }
   }
 

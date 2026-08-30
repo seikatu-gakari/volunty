@@ -264,6 +264,125 @@ test("CIまたはartifact失敗は理由付きcommentとfailure statusにする"
   assert.equal(calls[1].status.state, "failure");
 });
 
+test("手動承認後に遅延した自動fork finalizerはsuccessを上書きしない", async () => {
+  const calls = [];
+  const client = {
+    ...createClient(calls),
+    async getLatestDemoStatus() {
+      return {
+        context: "demo-video",
+        state: "pending",
+        target_url: runUrl,
+      };
+    },
+    async hasManualForkApproval(identity) {
+      assert.equal(identity.prNumber, 321);
+      assert.equal(identity.headSha, headSha);
+      assert.equal(identity.runId, 987);
+      assert.equal(identity.runAttempt, 1);
+      return true;
+    },
+  };
+
+  const outcome = await finalizePublish({
+    result: baseResult({
+      outcome: "failure",
+      siteChanged: false,
+      reason: "fork由来のPRは自動公開しません",
+      manifestUrl: undefined,
+      comment: undefined,
+      unapprovedFork: true,
+    }),
+    currentHeadSha: headSha,
+    latestRunId: 987,
+    latestRunAttempt: 1,
+    siteReady: true,
+    pagesReady: false,
+    client,
+  });
+
+  assert.deepEqual(outcome, { success: true, state: "stale" });
+  assert.deepEqual(calls, []);
+});
+
+test("手動承認stateがない自動fork finalizerはfailureを維持する", async () => {
+  const calls = [];
+  const client = {
+    ...createClient(calls),
+    async getLatestDemoStatus() {
+      return {
+        context: "demo-video",
+        state: "pending",
+        target_url: runUrl,
+      };
+    },
+    async hasManualForkApproval() {
+      return false;
+    },
+  };
+
+  const outcome = await finalizePublish({
+    result: baseResult({
+      outcome: "failure",
+      siteChanged: false,
+      reason: "fork由来のPRは自動公開しません",
+      manifestUrl: undefined,
+      comment: undefined,
+      unapprovedFork: true,
+    }),
+    currentHeadSha: headSha,
+    latestRunId: 987,
+    latestRunAttempt: 1,
+    siteReady: true,
+    pagesReady: false,
+    client,
+  });
+
+  assert.equal(outcome.success, false);
+  assert.deepEqual(calls.map((call) => call.type), ["comment", "status"]);
+  assert.equal(calls[1].status.state, "failure");
+});
+
+test("手動承認success済みならstate fileの反映待ちでも自動fork finalizerをstaleにする", async () => {
+  const calls = [];
+  let approvalStateCalls = 0;
+  const client = {
+    ...createClient(calls),
+    async getLatestDemoStatus() {
+      return {
+        context: "demo-video",
+        state: "success",
+        target_url: manifestUrl,
+      };
+    },
+    async hasManualForkApproval() {
+      approvalStateCalls += 1;
+      return false;
+    },
+  };
+
+  const outcome = await finalizePublish({
+    result: baseResult({
+      outcome: "failure",
+      siteChanged: false,
+      reason: "fork由来のPRは自動公開しません",
+      manifestUrl: undefined,
+      comment: undefined,
+      unapprovedFork: true,
+    }),
+    currentHeadSha: headSha,
+    latestRunId: 987,
+    latestRunAttempt: 1,
+    siteReady: true,
+    pagesReady: false,
+    client,
+  });
+
+  assert.deepEqual(outcome, { success: true, state: "stale" });
+  assert.equal(approvalStateCalls, 0);
+  assert.deepEqual(calls, []);
+});
+
 test("生成失敗時の旧動画削除をdeploy・永続化できなければ明示的にfailureにする", async () => {
   const calls = [];
 
@@ -321,4 +440,50 @@ test("finalizer handoff取得失敗でも最新HEADのfailure statusを確定す
   assert.equal(outcome.success, false);
   assert.match(calls[0].body, /handoff/);
   assert.equal(calls[1].status.state, "failure");
+});
+
+test("forkのhandoff欠落finalizerも手動承認済みなら上書きしない", async () => {
+  const calls = [];
+  const event = {
+    repository: { full_name: repository },
+    workflow_run: {
+      id: 987,
+      run_attempt: 1,
+      name: "Pull Request CI",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: "someone/volunty" },
+      html_url: runUrl,
+      pull_requests: [{ number: 321, head: { sha: headSha } }],
+    },
+  };
+  const client = {
+    ...createClient(calls),
+    async getLatestPullRequestCiRun() {
+      return { id: 987, run_attempt: 1 };
+    },
+    async getPullRequest() {
+      return { head: { sha: headSha } };
+    },
+    async getLatestDemoStatus() {
+      return {
+        context: "demo-video",
+        state: "pending",
+        target_url: runUrl,
+      };
+    },
+    async hasManualForkApproval() {
+      return true;
+    },
+  };
+
+  const outcome = await finalizeHandoffFailure({
+    event,
+    reason: "finalizer handoffを取得できませんでした",
+    client,
+  });
+
+  assert.equal(outcome.state, "stale");
+  assert.deepEqual(calls, []);
 });

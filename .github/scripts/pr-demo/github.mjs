@@ -2,6 +2,11 @@ import { mkdir, open, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { COMMENT_MARKER } from "./artifact.mjs";
+import {
+  MANUAL_FORK_APPROVALS_FILE,
+  matchesManualForkApproval,
+  validateManualForkApprovalsDocument,
+} from "./site.mjs";
 
 const API_ROOT = "https://api.github.com";
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
@@ -23,6 +28,9 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     if (!response.ok) {
+      if (response.status === 404 && options.allowNotFound === true) {
+        return undefined;
+      }
       const detail = (await response.text()).slice(0, 1000);
       throw new Error(`GitHub API ${options.method ?? "GET"} ${path} failed: ${response.status} ${detail}`);
     }
@@ -130,6 +138,51 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
       state: latest.state,
       target_url: targetUrl.toString(),
     };
+  }
+
+  async function hasManualForkApproval(identity) {
+    const response = await request(
+      `/contents/${MANUAL_FORK_APPROVALS_FILE}?ref=gh-pages`,
+      { allowNotFound: true },
+    );
+    if (response === undefined) {
+      return false;
+    }
+    if (
+      response?.type !== "file" ||
+      response.name !== MANUAL_FORK_APPROVALS_FILE ||
+      response.path !== MANUAL_FORK_APPROVALS_FILE ||
+      response.encoding !== "base64" ||
+      typeof response.content !== "string" ||
+      !Number.isSafeInteger(response.size) ||
+      response.size <= 0 ||
+      response.size > 1024 * 1024 ||
+      !/^[0-9a-f]{40}$/.test(response.sha ?? "")
+    ) {
+      throw new Error("gh-pagesのfork手動承認state responseが不正です");
+    }
+    const encoded = response.content.replace(/\n/g, "");
+    if (
+      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+        encoded,
+      )
+    ) {
+      throw new Error("gh-pagesのfork手動承認state encodingが不正です");
+    }
+    const content = Buffer.from(encoded, "base64");
+    if (content.length !== response.size || content.toString("base64") !== encoded) {
+      throw new Error("gh-pagesのfork手動承認state sizeが不正です");
+    }
+    let document;
+    try {
+      document = JSON.parse(content.toString("utf8"));
+    } catch (error) {
+      throw new Error(
+        `gh-pagesのfork手動承認stateをJSONとして読めません: ${error.message}`,
+      );
+    }
+    const approvals = validateManualForkApprovalsDocument(document);
+    return matchesManualForkApproval(approvals, identity);
   }
 
   async function getPullRequestFiles(prNumber) {
@@ -383,6 +436,7 @@ export function createGitHubClient({ token, repository, fetchImpl = fetch }) {
       }
       return request(`/actions/runs/${runId}/pull_requests`);
     },
+    hasManualForkApproval,
     getLatestDemoStatus,
     setDemoStatus,
     upsertDemoComment,

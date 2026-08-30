@@ -254,6 +254,7 @@ export async function main({
         event: resolved.event,
         reason: "finalizer handoffを取得できませんでした",
         client,
+        forkApproved: resolved.forkApproved,
       });
       outcome = await reconcileFinalStatus({
         result: outcome.result,

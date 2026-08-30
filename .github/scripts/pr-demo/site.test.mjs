@@ -7,11 +7,16 @@ import test from "node:test";
 
 import {
   assertSiteCapacity,
+  clearManualForkApprovalForPr,
   CLEANUP_PENDING_FILE,
+  hasManualForkApproval,
   installDemoOnSite,
   listPublishedDemos,
+  MANUAL_FORK_APPROVALS_FILE,
   preparePublicSiteDirectory,
+  readManualForkApprovals,
   readPendingCleanup,
+  recordManualForkApproval,
   removeDemoFromSite,
   validateSiteDirectory,
   writePendingCleanup,
@@ -123,6 +128,33 @@ test("demo公開時は同じPRのcleanup再試行だけを解除する", async (
   ]);
 });
 
+test("fork手動承認stateをPR・HEAD・run・attempt単位で厳格に管理する", async () => {
+  const siteDirectory = await mkdtemp(
+    join(tmpdir(), "volunty-pr-demo-manual-approval-"),
+  );
+  const identity = {
+    prNumber: 321,
+    headSha,
+    runId: 987,
+    runAttempt: 2,
+  };
+
+  assert.equal(await recordManualForkApproval(siteDirectory, identity), true);
+  assert.equal(await recordManualForkApproval(siteDirectory, identity), false);
+  assert.equal(await hasManualForkApproval(siteDirectory, identity), true);
+  assert.equal(
+    await hasManualForkApproval(siteDirectory, {
+      ...identity,
+      runAttempt: 1,
+    }),
+    false,
+  );
+  assert.deepEqual(await readManualForkApprovals(siteDirectory), [identity]);
+  assert.equal(await clearManualForkApprovalForPr(siteDirectory, 321), true);
+  assert.equal(await clearManualForkApprovalForPr(siteDirectory, 321), false);
+  assert.deepEqual(await readManualForkApprovals(siteDirectory), []);
+});
+
 test("Pages artifact用treeにはcleanup再試行stateを含めない", async () => {
   const { artifactDirectory, siteDirectory, manifest } = await fixture();
   const publicDirectory = join(siteDirectory, "..", "public-site");
@@ -130,6 +162,12 @@ test("Pages artifact用treeにはcleanup再試行stateを含めない", async ()
   await writePendingCleanup(siteDirectory, [
     { prNumber: 322, headSha: "c".repeat(40) },
   ]);
+  await recordManualForkApproval(siteDirectory, {
+    prNumber: 321,
+    headSha,
+    runId: 987,
+    runAttempt: 1,
+  });
 
   await preparePublicSiteDirectory({ siteDirectory, publicDirectory });
 
@@ -138,9 +176,22 @@ test("Pages artifact用treeにはcleanup再試行stateを含めない", async ()
     readFile(join(publicDirectory, CLEANUP_PENDING_FILE), "utf8"),
     /ENOENT/,
   );
+  await assert.rejects(
+    readFile(join(publicDirectory, MANUAL_FORK_APPROVALS_FILE), "utf8"),
+    /ENOENT/,
+  );
   assert.deepEqual(await readPendingCleanup(siteDirectory), [
     { prNumber: 322, headSha: "c".repeat(40) },
   ]);
+  assert.equal(
+    await hasManualForkApproval(siteDirectory, {
+      prNumber: 321,
+      headSha,
+      runId: 987,
+      runAttempt: 1,
+    }),
+    true,
+  );
 });
 
 test("不正なcleanup再試行stateをPages tree検証で拒否する", async () => {
@@ -155,6 +206,22 @@ test("不正なcleanup再試行stateをPages tree検証で拒否する", async (
   );
 
   await assert.rejects(validateSiteDirectory(siteDirectory), /cleanup再試行state/);
+});
+
+test("不正なfork手動承認stateをPages tree検証で拒否する", async () => {
+  const { artifactDirectory, siteDirectory, manifest } = await fixture();
+  await installDemoOnSite({ artifactDirectory, siteDirectory, manifest });
+  await writeFile(
+    join(siteDirectory, MANUAL_FORK_APPROVALS_FILE),
+    JSON.stringify({
+      schemaVersion: 1,
+      approvals: [
+        { prNumber: 321, headSha, runId: 987, runAttempt: 0 },
+      ],
+    }),
+  );
+
+  await assert.rejects(validateSiteDirectory(siteDirectory), /fork手動承認state/);
 });
 
 test("Pages公開量が安全margin 900MiBを超えるtreeを拒否する", () => {

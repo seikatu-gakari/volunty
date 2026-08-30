@@ -4,7 +4,9 @@ import {
   shouldExpireDemo,
 } from "./artifact.mjs";
 import {
+  clearManualForkApprovalForPr,
   listPublishedDemos,
+  readManualForkApprovals,
   readPendingCleanup,
   removeDemoFromSite,
   validateSiteDirectory,
@@ -18,19 +20,41 @@ export async function cleanupExpiredDemos({ siteDirectory, client, now = new Dat
 
   await validateSiteDirectory(siteDirectory);
   const demos = await listPublishedDemos(siteDirectory);
+  const approvals = await readManualForkApprovals(siteDirectory);
   const pending = await readPendingCleanup(siteDirectory);
   const pendingByPrNumber = new Map(
     pending.map((entry) => [entry.prNumber, entry]),
   );
-  const seenPrNumbers = new Set();
-  const removed = [];
-  for (const demo of demos) {
-    if (seenPrNumbers.has(demo.prNumber)) {
-      throw new Error(`PR #${demo.prNumber}に複数の公開HEADがあります`);
+  const demosByPrNumber = new Map(
+    demos.map((demo) => [demo.prNumber, demo]),
+  );
+  const candidatesByPrNumber = new Map(
+    demos.map((demo) => [
+      demo.prNumber,
+      {
+        prNumber: demo.prNumber,
+        headSha: demo.headSha,
+      },
+    ]),
+  );
+  for (const approval of approvals) {
+    const demo = demosByPrNumber.get(approval.prNumber);
+    if (demo && demo.headSha !== approval.headSha) {
+      throw new Error(
+        `PR #${approval.prNumber}の公開動画とfork手動承認HEADが一致しません`,
+      );
     }
-    seenPrNumbers.add(demo.prNumber);
-
-    const pullRequest = await client.getPullRequest(demo.prNumber);
+    candidatesByPrNumber.set(approval.prNumber, {
+      prNumber: approval.prNumber,
+      headSha: approval.headSha,
+    });
+  }
+  const removed = [];
+  const candidates = [...candidatesByPrNumber.values()].sort(
+    (left, right) => left.prNumber - right.prNumber,
+  );
+  for (const candidate of candidates) {
+    const pullRequest = await client.getPullRequest(candidate.prNumber);
     if (
       !shouldExpireDemo({
         state: pullRequest.state,
@@ -42,16 +66,27 @@ export async function cleanupExpiredDemos({ siteDirectory, client, now = new Dat
       continue;
     }
 
-    await removeDemoFromSite(siteDirectory, demo.prNumber);
-    removed.push(demo.prNumber);
-    const existing = pendingByPrNumber.get(demo.prNumber);
-    if (existing && existing.headSha !== demo.headSha) {
-      throw new Error(`PR #${demo.prNumber}のcleanup再試行HEADが一致しません`);
+    const hadDemo = demosByPrNumber.has(candidate.prNumber);
+    const demoRemoved = await removeDemoFromSite(
+      siteDirectory,
+      candidate.prNumber,
+    );
+    const approvalRemoved = await clearManualForkApprovalForPr(
+      siteDirectory,
+      candidate.prNumber,
+    );
+    if (demoRemoved || approvalRemoved) {
+      removed.push(candidate.prNumber);
     }
-    pendingByPrNumber.set(demo.prNumber, {
-      prNumber: demo.prNumber,
-      headSha: demo.headSha,
-    });
+    if (hadDemo) {
+      const existing = pendingByPrNumber.get(candidate.prNumber);
+      if (existing && existing.headSha !== candidate.headSha) {
+        throw new Error(
+          `PR #${candidate.prNumber}のcleanup再試行HEADが一致しません`,
+        );
+      }
+      pendingByPrNumber.set(candidate.prNumber, candidate);
+    }
   }
 
   const expired = await writePendingCleanup(
@@ -62,7 +97,7 @@ export async function cleanupExpiredDemos({ siteDirectory, client, now = new Dat
   return {
     removed,
     expired,
-    requiresDeployment: expired.length > 0,
+    requiresDeployment: removed.length > 0 || expired.length > 0,
   };
 }
 

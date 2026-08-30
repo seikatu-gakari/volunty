@@ -9,6 +9,7 @@ import {
   validateArtifactDirectory,
 } from "./artifact.mjs";
 import {
+  clearManualForkApprovalForPr,
   clearPendingCleanupForPr,
   installDemoOnSite,
   removeDemoFromSite,
@@ -227,8 +228,15 @@ export async function removePublishedDemoForResult({ result, siteDirectory }) {
       siteDirectory,
       result.prNumber,
     );
+    const approvalCleared = await clearManualForkApprovalForPr(
+      siteDirectory,
+      result.prNumber,
+    );
     await validateSiteDirectory(siteDirectory);
-    return { ...result, siteChanged: demoRemoved || pendingCleared };
+    return {
+      ...result,
+      siteChanged: demoRemoved || pendingCleared || approvalCleared,
+    };
   } catch (error) {
     const priorReason = result.outcome === "failure" ? `${result.reason}; ` : "";
     return buildFailureResult(
@@ -261,10 +269,13 @@ export async function preparePublish({
     );
   }
   if (!context.sameRepository && forkApproved !== true) {
-    return buildFailureResult(
-      context,
-      "fork由来のPRは自動公開しません。maintainer確認後にPublish PR demo videoを対象CI run IDで手動実行してください",
-    );
+    return {
+      ...buildFailureResult(
+        context,
+        "fork由来のPRは自動公開しません。maintainer確認後にPublish PR demo videoを対象CI run IDで手動実行してください",
+      ),
+      unapprovedFork: true,
+    };
   }
   if (context.conclusion !== "success") {
     return buildFailureResult(

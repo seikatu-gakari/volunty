@@ -46,7 +46,7 @@ reason:
 
 生成失敗、tagの0件/複数件、不正path、古いSHA、Pages未反映は `demo-video` failureです。非UI PRは「対象外」としてsuccessになり、新規commentは作らず、既存のdemo commentがある場合だけ最新HEADの対象外表示へ更新します。
 
-fork由来PRはread-only CIで録画まで行いますが、自動runではartifact自体をdownloadせず、公開もしません。maintainerが内容を確認後、Actionsの `Publish PR demo video` をmain refの `Run workflow` から開き、対象 `Pull Request CI` のrun ID、確認したrun attempt、PR番号、40文字のHEAD SHAを入力して手動承認します。PR番号とHEAD SHAは、run APIの解決に失敗しても対象HEADをpendingのまま残さずfailureへ確定するためのtrusted fallbackで、通常時の公開identityにはGitHub APIのrun実体を使用します。fallback finalizerもAPI回復時はcurrent HEADと最新run ID・attemptを再照合し、後続runがあればstaleとしてcomment/statusを更新しません。publisherはdownload前・公開前・最終status更新前に承認attemptがAPI上の最新attemptと一致することを再確認します。workflow_dispatchを実行できるwrite権限とmain限定の `github-pages` environmentが承認境界になり、承認後もmain上のpublisherがartifactを再検証します。
+fork由来PRはread-only CIで録画まで行いますが、自動runではartifact自体をdownloadせず、公開もしません。maintainerが内容を確認後、Actionsの `Publish PR demo video` をmain refの `Run workflow` から開き、対象 `Pull Request CI` のrun ID、確認したrun attempt、PR番号、40文字のHEAD SHAを入力して手動承認します。PR番号とHEAD SHAは、run APIの解決に失敗しても対象HEADをpendingのまま残さずfailureへ確定するためのtrusted fallbackで、通常時の公開identityにはGitHub APIのrun実体を使用します。fallback finalizerもAPI回復時はcurrent HEADと最新run ID・attemptを再照合し、後続runがあればstaleとしてcomment/statusを更新しません。publisherはdownload前・公開前・最終status更新前に承認attemptがAPI上の最新attemptと一致することを再確認します。手動承認が成功したPR・HEAD・source run ID・attemptはPages lock内でhiddenな検証済みstateとして `gh-pages` へ永続化し、公開Pages artifactには含めません。遅延した同一identityの自動publisherはPages変更前にこのstateを確認し、自動finalizerもstatus lock内でliveなstateと最新success statusを確認してstaleになります。これにより手動承認のPages公開後からstatus確定までのどの順序でも、自動failureが動画・comment・statusを上書きしません。workflow_dispatchを実行できるwrite権限とmain限定の `github-pages` environmentが承認境界になり、承認後もmain上のpublisherがartifactを再検証します。
 
 ## Ready判定
 
@@ -62,7 +62,7 @@ fork由来PRはread-only CIで録画まで行いますが、自動runではartif
 
 ## 保存とcleanup
 
-Open中のPRは最新HEADだけを保持し、最新差分が対象外または生成失敗になった場合は旧HEAD動画も除去します。merge / closeから7日後、日次workflowがPagesから削除します。削除treeとhiddenな検証済み再試行stateを履歴なし `gh-pages` へ先に永続化し、公開対象だけの別treeをPagesへdeployできた場合だけPR commentを「保存期間終了」へ更新します。永続化・deploy・複数commentのいずれかが失敗した場合はstateを残し、次回runで再deployと全commentを冪等に再試行します。全件成功後だけstateを除去します。保存期間終了後のclosed PRは、古い成功CIを再実行しても再公開しません。再試行stateはPages artifactへ含めません。Pagesの1GB上限に対し、publisherはmedia合計900MiBを安全marginとして超過を拒否します。動画をmainやfeature branchへcommitしません。
+Open中のPRは最新HEADだけを保持し、最新差分が対象外または生成失敗になった場合は旧HEAD動画と古いfork手動承認stateも除去します。merge / closeから7日後、日次workflowがPages動画とfork手動承認stateを削除します。削除treeとhiddenな検証済み再試行stateを履歴なし `gh-pages` へ先に永続化し、公開対象だけの別treeをPagesへdeployできた場合だけPR commentを「保存期間終了」へ更新します。永続化・deploy・複数commentのいずれかが失敗した場合はstateを残し、次回runで再deployと全commentを冪等に再試行します。全件成功後だけstateを除去します。保存期間終了後のclosed PRは、古い成功CIを再実行しても再公開しません。再試行stateとfork手動承認stateはPages artifactへ含めません。Pagesの1GB上限に対し、publisherはmedia合計900MiBを安全marginとして超過を拒否します。動画をmainやfeature branchへcommitしません。
 
 ## main merge後の有効化手順
 

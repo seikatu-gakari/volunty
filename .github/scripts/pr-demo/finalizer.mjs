@@ -11,6 +11,18 @@ import {
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
+function isMatchingManualForkSuccess(status, result) {
+  if (status === undefined || status.state !== "success") {
+    return false;
+  }
+  const [owner, name] = result.repository.split("/");
+  const manifestUrl = new URL(
+    `/${name}/pr/${result.prNumber}/${result.headSha}/manifest.json`,
+    `https://${owner}.github.io`,
+  ).toString();
+  return status.target_url === result.runUrl || status.target_url === manifestUrl;
+}
+
 export function validateResult(result) {
   if (
     result?.schemaVersion !== 1 ||
@@ -26,7 +38,8 @@ export function validateResult(result) {
     typeof result.reason !== "string" ||
     result.reason.length > 300 ||
     typeof result.siteChanged !== "boolean" ||
-    (result.manualFallback !== undefined && result.manualFallback !== true)
+    (result.manualFallback !== undefined && result.manualFallback !== true) ||
+    (result.unapprovedFork !== undefined && result.unapprovedFork !== true)
   ) {
     throw new Error("publish resultのschemaが不正です");
   }
@@ -57,6 +70,11 @@ export function validateResult(result) {
     (result.outcome !== "failure" || result.siteChanged !== false)
   ) {
     throw new Error("手動承認fallback resultが不正です");
+  } else if (
+    result.unapprovedFork === true &&
+    (result.outcome !== "failure" || result.manualFallback === true)
+  ) {
+    throw new Error("未承認fork resultが不正です");
   }
   return result;
 }
@@ -84,9 +102,19 @@ async function publishFailure({ result, reason, client }) {
   return { success: false, state: "failure" };
 }
 
-export async function finalizeHandoffFailure({ event, reason, client }) {
+export async function finalizeHandoffFailure({
+  event,
+  reason,
+  client,
+  forkApproved = false,
+}) {
   const context = extractWorkflowRunContext(event);
-  const result = buildFailureResult(context, reason);
+  const result = {
+    ...buildFailureResult(context, reason),
+    ...(!context.sameRepository && forkApproved !== true
+      ? { unapprovedFork: true }
+      : {}),
+  };
   const [latestRun, pullRequest] = await Promise.all([
     client.getLatestPullRequestCiRun(context.prNumber, context.headSha),
     client.getPullRequest(context.prNumber),
@@ -139,6 +167,21 @@ export async function finalizePublish({
     (latestRunId !== result.runId || latestRunAttempt !== result.runAttempt)
   ) {
     return { success: true, state: "stale" };
+  }
+  if (result.unapprovedFork === true) {
+    if (
+      typeof client.getLatestDemoStatus !== "function" ||
+      typeof client.hasManualForkApproval !== "function"
+    ) {
+      throw new Error("fork手動承認stateを確認できません");
+    }
+    const latestStatus = await client.getLatestDemoStatus(result.headSha);
+    if (
+      isMatchingManualForkSuccess(latestStatus, result) ||
+      (await client.hasManualForkApproval(result))
+    ) {
+      return { success: true, state: "stale" };
+    }
   }
   if (result.outcome === "skip") {
     if (result.siteChanged && siteReady !== true) {

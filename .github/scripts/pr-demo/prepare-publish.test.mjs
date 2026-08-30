@@ -79,6 +79,110 @@ test("workflow_dispatchは承認したrun attemptとAPI上の最新attemptが違
   );
 });
 
+test("手動承認済みforkと同じrunの遅延自動publisherは公開結果を上書きしない", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-fork-race-"));
+  const artifactDirectory = await mkdtemp(
+    join(tmpdir(), "volunty-pr-demo-fork-race-artifact-"),
+  );
+  const siteDirectory = await mkdtemp(
+    join(tmpdir(), "volunty-pr-demo-fork-race-site-"),
+  );
+  const manualEventPath = join(directory, "manual-event.json");
+  const automaticEventPath = join(directory, "automatic-event.json");
+  const manualResultPath = join(directory, "manual-result.json");
+  const automaticResultPath = join(directory, "automatic-result.json");
+  const forkRepository = "someone/volunty";
+  const source = failedWorkflowEvent().workflow_run;
+  source.conclusion = "success";
+  source.head_repository = { full_name: forkRepository };
+  source.pull_requests[0].base = { sha: baseSha };
+  const pullRequest = {
+    number: 321,
+    state: "open",
+    closed_at: null,
+    body: `<!-- pr-demo:v1
+required: false
+spec:
+tag:
+viewports:
+reason: ドキュメントのみ
+-->`,
+    labels: [],
+    base: { sha: baseSha, repo: { full_name: repository } },
+    head: { sha: headSha, repo: { full_name: forkRepository } },
+  };
+  const decision = {
+    ...createDecision(
+      {
+        number: 321,
+        repository: { full_name: repository },
+        pull_request: pullRequest,
+      },
+      ["docs/pr-demo-video.md"],
+    ),
+    evaluatedAt: "2026-08-30T00:00:00.000Z",
+  };
+  await writeFile(
+    join(artifactDirectory, "decision.json"),
+    `${JSON.stringify(decision)}\n`,
+  );
+  await writeFile(
+    manualEventPath,
+    JSON.stringify({ repository: { full_name: repository } }),
+  );
+  await writeFile(
+    automaticEventPath,
+    JSON.stringify({
+      repository: { full_name: repository },
+      workflow_run: source,
+    }),
+  );
+  const githubClient = {
+    async getWorkflowRun() {
+      return { ...source, pull_requests: undefined };
+    },
+    async getWorkflowRunPullRequests() {
+      return source.pull_requests;
+    },
+    async getLatestPullRequestCiRun() {
+      return { id: 987, run_attempt: 1 };
+    },
+    async getPullRequest() {
+      return pullRequest;
+    },
+    async getPullRequestFiles() {
+      return ["docs/pr-demo-video.md"];
+    },
+  };
+
+  const approved = await main({
+    eventPath: manualEventPath,
+    artifactDirectory,
+    siteDirectory,
+    resultPath: manualResultPath,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+    manualForkApproval: true,
+    sourceRunId: "987",
+    sourceRunAttempt: "1",
+    manualPrNumber: "321",
+    manualHeadSha: headSha,
+    githubClient,
+  });
+  const delayedAutomatic = await main({
+    eventPath: automaticEventPath,
+    artifactDirectory: join(directory, "not-downloaded-for-fork"),
+    siteDirectory,
+    resultPath: automaticResultPath,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+    githubClient,
+  });
+
+  assert.equal(approved.outcome, "skip");
+  assert.equal(approved.siteChanged, true);
+  assert.equal(delayedAutomatic.outcome, "stale");
+  assert.equal(delayedAutomatic.siteChanged, false);
+});
+
 test("workflow_dispatchのrun解決失敗をmaintainer入力identity付きfailure resultにする", async () => {
   const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-manual-failure-"));
   const eventPath = join(directory, "event.json");

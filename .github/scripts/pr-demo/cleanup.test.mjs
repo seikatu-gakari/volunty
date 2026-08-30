@@ -6,6 +6,10 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { cleanupExpiredDemos, finalizeExpiredComments } from "./cleanup.mjs";
+import {
+  readManualForkApprovals,
+  recordManualForkApproval,
+} from "./site.mjs";
 
 const headSha = "b".repeat(40);
 
@@ -204,6 +208,33 @@ test("open PRの最新HEAD動画は保持する", async () => {
   assert.deepEqual(result.removed, []);
   assert.equal(commentCalls, 0);
   assert.equal((await stat(join(siteDirectory, "pr", "321"))).isDirectory(), true);
+});
+
+test("動画がない対象外forkの手動承認stateもcloseから7日後に削除する", async () => {
+  const siteDirectory = await mkdtemp(
+    join(tmpdir(), "volunty-pr-demo-approval-cleanup-"),
+  );
+  await recordManualForkApproval(siteDirectory, {
+    prNumber: 321,
+    headSha,
+    runId: 987,
+    runAttempt: 1,
+  });
+
+  const result = await cleanupExpiredDemos({
+    siteDirectory,
+    now: new Date("2026-08-30T00:00:00.000Z"),
+    client: {
+      async getPullRequest() {
+        return { state: "closed", closed_at: "2026-08-22T23:59:59.000Z" };
+      },
+    },
+  });
+
+  assert.deepEqual(result.removed, [321]);
+  assert.deepEqual(result.expired, []);
+  assert.equal(result.requiresDeployment, true);
+  assert.deepEqual(await readManualForkApprovals(siteDirectory), []);
 });
 
 test("cleanup前にPages tree全体を検証してsymlinkを拒否する", async () => {

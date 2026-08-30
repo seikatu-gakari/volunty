@@ -184,6 +184,102 @@ test("不正な最新demo-video status responseを拒否する", async () => {
   );
 });
 
+test("gh-pagesのfork手動承認stateをsource run identityと照合する", async () => {
+  const headSha = "b".repeat(40);
+  const document = Buffer.from(
+    `${JSON.stringify({
+      schemaVersion: 1,
+      approvals: [
+        { prNumber: 321, headSha, runId: 987, runAttempt: 2 },
+      ],
+    })}\n`,
+  );
+  const client = createGitHubClient({
+    token: "test-token",
+    repository,
+    fetchImpl: async (url) => {
+      assert.match(
+        url,
+        /contents\/\.pr-demo-manual-fork-approvals\.json\?ref=gh-pages$/,
+      );
+      return jsonResponse({
+        type: "file",
+        name: ".pr-demo-manual-fork-approvals.json",
+        path: ".pr-demo-manual-fork-approvals.json",
+        encoding: "base64",
+        content: document.toString("base64"),
+        size: document.length,
+        sha: "d".repeat(40),
+      });
+    },
+  });
+
+  assert.equal(
+    await client.hasManualForkApproval({
+      prNumber: 321,
+      headSha,
+      runId: 987,
+      runAttempt: 2,
+    }),
+    true,
+  );
+  assert.equal(
+    await client.hasManualForkApproval({
+      prNumber: 321,
+      headSha,
+      runId: 987,
+      runAttempt: 1,
+    }),
+    false,
+  );
+});
+
+test("fork手動承認stateがgh-pagesにない場合は未承認として扱う", async () => {
+  const client = createGitHubClient({
+    token: "test-token",
+    repository,
+    fetchImpl: async () => new Response("not found", { status: 404 }),
+  });
+
+  assert.equal(
+    await client.hasManualForkApproval({
+      prNumber: 321,
+      headSha: "b".repeat(40),
+      runId: 987,
+      runAttempt: 1,
+    }),
+    false,
+  );
+});
+
+test("不正なgh-pages fork手動承認stateはfail closedにする", async () => {
+  const content = Buffer.from('{"schemaVersion":1,"approvals":[]}\n');
+  const client = createGitHubClient({
+    token: "test-token",
+    repository,
+    fetchImpl: async () =>
+      jsonResponse({
+        type: "file",
+        name: ".pr-demo-manual-fork-approvals.json",
+        path: ".pr-demo-manual-fork-approvals.json",
+        encoding: "base64",
+        content: content.toString("base64"),
+        size: content.length + 1,
+        sha: "d".repeat(40),
+      }),
+  });
+
+  await assert.rejects(
+    client.hasManualForkApproval({
+      prNumber: 321,
+      headSha: "b".repeat(40),
+      runId: 987,
+      runAttempt: 1,
+    }),
+    /fork手動承認state size/,
+  );
+});
+
 test("PR変更fileをpaginationしてtrusted classifierへ渡す", async () => {
   const calls = [];
   const fetchImpl = async (url) => {
