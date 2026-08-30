@@ -6,6 +6,7 @@ export type PersonaKey =
   | "participant-diagnosis"
   | "participant-lifecycle"
   | "participant-delete"
+  | "participant-deletion-pending"
   | "participant-logout"
   | "user-suspendable"
   | "participant-suspended"
@@ -62,6 +63,12 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-participant-delete@example.com",
     role: "participant",
     description: "アカウント物理削除フロー専用（seedで毎回再作成）",
+  },
+  "participant-deletion-pending": {
+    key: "participant-deletion-pending",
+    email: "e2e-participant-deletion-pending@example.com",
+    role: "participant",
+    description: "管理者による削除 cleanup 再処理E2E専用",
   },
   "participant-logout": {
     key: "participant-logout",

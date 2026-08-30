@@ -393,6 +393,10 @@ export async function seedE2eUsers(): Promise<void> {
   const diagnosisId = requirePersonaId(idByEmail, "participant-diagnosis");
   const lifecycleId = requirePersonaId(idByEmail, "participant-lifecycle");
   const deleteId = requirePersonaId(idByEmail, "participant-delete");
+  const deletionPendingId = requirePersonaId(
+    idByEmail,
+    "participant-deletion-pending"
+  );
   const suspendableId = requirePersonaId(idByEmail, "user-suspendable");
   const suspendedId = requirePersonaId(idByEmail, "participant-suspended");
   const orgApprovedId = requirePersonaId(idByEmail, "organization-approved");
@@ -542,6 +546,42 @@ export async function seedE2eUsers(): Promise<void> {
   });
   // アカウント削除E2Eで診断データの連鎖削除を検証するため、診断結果を付与する
   await ensureDiagnosisResult(deleteId);
+
+  await prisma.participantProfile.upsert({
+    where: { userId: deletionPendingId },
+    update: {
+      name: "E2E 削除処理保留参加者",
+      birthday: new Date("1991-08-05"),
+      region: "東京都",
+    },
+    create: {
+      userId: deletionPendingId,
+      name: "E2E 削除処理保留参加者",
+      birthday: new Date("1991-08-05"),
+      region: "東京都",
+    },
+  });
+  await prisma.accountDeletionRequest.upsert({
+    where: { userId: deletionPendingId },
+    update: {
+      authDeletedAt: new Date(),
+      attemptCount: 1,
+      lastErrorCode: "data_cleanup_failed",
+    },
+    create: {
+      userId: deletionPendingId,
+      authDeletedAt: new Date(),
+      attemptCount: 1,
+      lastErrorCode: "data_cleanup_failed",
+    },
+  });
+  const { error: deletionPendingAuthError } =
+    await supabase.auth.admin.deleteUser(deletionPendingId, false);
+  if (deletionPendingAuthError) {
+    throw new Error(
+      `[seed] cleanup保留personaのAuth削除失敗: ${deletionPendingAuthError.message}`
+    );
+  }
 
   // 凍結・解除E2Eは、通常利用可能な参加者として再ログインできる状態を維持する。
   await prisma.participantProfile.upsert({

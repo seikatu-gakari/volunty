@@ -35,10 +35,11 @@ async function recordFailure(
   errorCode: string
 ) {
   try {
-    await prisma.accountDeletionRequest.update({
+    const result = await prisma.accountDeletionRequest.updateMany({
       where: { userId },
       data: { lastErrorCode: errorCode },
     });
+    return result.count > 0;
   } finally {
     logPending(requestId, phase, errorCode);
   }
@@ -156,10 +157,13 @@ export async function processAccountDeletion(
       }
     }
 
-    await prisma.accountDeletionRequest.update({
+    const authStateUpdate = await prisma.accountDeletionRequest.updateMany({
       where: { userId },
       data: { authDeletedAt: new Date(), lastErrorCode: null },
     });
+    if (authStateUpdate.count === 0) {
+      return { status: "completed" };
+    }
     authDeleted = true;
   }
 
@@ -172,12 +176,12 @@ export async function processAccountDeletion(
     });
     return { status: "completed" };
   } catch {
-    await recordFailure(
+    const recorded = await recordFailure(
       userId,
       request.id,
       "data_cleanup",
       ACCOUNT_DELETION_ERROR_CODES.dataCleanupFailed
     );
-    return { status: "cleanup_pending" };
+    return recorded ? { status: "cleanup_pending" } : { status: "completed" };
   }
 }

@@ -5,12 +5,40 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { resolve } from "node:path";
+import { config } from "dotenv";
+import { Client } from "pg";
+
+config({ path: resolve(process.cwd(), ".env.local"), quiet: true });
 
 const USER_SUSPENDABLE_NAME = "E2E user-suspendable";
 const USER_SUSPENDABLE_EMAIL = "e2e-user-suspendable@example.com";
 const ADMIN_REVIEW_EMAIL = "e2e-admin-review@example.com";
 const ORGANIZATION_REVIEW_APPROVE_EMAIL =
   "e2e-org-review-approve@example.com";
+const DELETION_PENDING_EMAIL =
+  "e2e-participant-deletion-pending@example.com";
+
+async function countPendingDeletionRows() {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ users: string; requests: string }>(
+      `SELECT
+         (SELECT COUNT(*) FROM m_user WHERE email = $1) AS users,
+         (SELECT COUNT(*) FROM t_account_deletion_request r
+            JOIN m_user u ON u.id = r.user_id
+           WHERE u.email = $1) AS requests`,
+      [DELETION_PENDING_EMAIL]
+    );
+    return {
+      users: Number(rows[0].users),
+      requests: Number(rows[0].requests),
+    };
+  } finally {
+    await client.end();
+  }
+}
 
 function suspendableUserCard(page: Page): Locator {
   return page.getByRole("article", {
@@ -74,6 +102,22 @@ test.describe("管理者ユーザー管理", () => {
     await expect(
       page.getByText("条件に一致するユーザーはありません")
     ).toBeVisible();
+  });
+
+  test("A-E7: cleanup 保留台帳を確認して冪等に再処理できる", async ({ page }) => {
+    expect(await countPendingDeletionRows()).toEqual({ users: 1, requests: 1 });
+
+    await page.goto("/admin/users");
+    const pendingSection = page.getByRole("heading", {
+      name: /削除処理保留（1件）/,
+    });
+    await expect(pendingSection).toBeVisible();
+    await expect(page.getByText("E2E 削除処理保留参加者")).toBeVisible();
+
+    await page.getByRole("button", { name: "再処理" }).click();
+
+    await expect(pendingSection).toHaveCount(0);
+    expect(await countPendingDeletionRows()).toEqual({ users: 0, requests: 0 });
   });
 });
 

@@ -12,6 +12,7 @@ const mockFindOrganizationById = vi.fn();
 const mockUpdateOrganization = vi.fn();
 const mockRevalidatePath = vi.fn();
 const mockFindDeletionRequests = vi.fn();
+const mockFindDeletionRequest = vi.fn();
 const mockProcessAccountDeletion = vi.fn();
 
 vi.mock("next/cache", () => ({
@@ -45,6 +46,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     accountDeletionRequest: {
       findMany: (...args: unknown[]) => mockFindDeletionRequests(...args),
+      findUnique: (...args: unknown[]) => mockFindDeletionRequest(...args),
     },
   },
 }));
@@ -71,6 +73,7 @@ describe("admin/actions", () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "admin-1" } } });
     mockFindUser.mockResolvedValue({ role: "admin" });
     mockFindDeletionRequests.mockResolvedValue([]);
+    mockFindDeletionRequest.mockResolvedValue({ userId: "participant-1" });
     mockProcessAccountDeletion.mockResolvedValue({ status: "completed" });
   });
 
@@ -121,6 +124,17 @@ describe("admin/actions", () => {
 
     expect(mockProcessAccountDeletion).toHaveBeenCalledWith("participant-1");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/admin/users");
+  });
+
+  it("台帳にない対象は管理者でも削除処理を開始できない", async () => {
+    mockFindDeletionRequest.mockResolvedValue(null);
+    const formData = new FormData();
+    formData.set("userId", "participant-1");
+
+    await expect(retryPendingAccountDeletion(formData)).rejects.toThrow(
+      "保留中の削除処理が見つかりません"
+    );
+    expect(mockProcessAccountDeletion).not.toHaveBeenCalled();
   });
 
   it("団体一覧取得時に審査ステータスを含めて整形する", async () => {

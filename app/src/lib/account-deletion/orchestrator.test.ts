@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUpsert = vi.fn();
 const mockUpdate = vi.fn();
+const mockUpdateMany = vi.fn();
 const mockDeleteManyRequest = vi.fn();
 const mockDeleteManyUser = vi.fn();
 const mockTransaction = vi.fn();
@@ -10,7 +11,11 @@ const mockDeleteUser = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    accountDeletionRequest: { upsert: mockUpsert, update: mockUpdate },
+    accountDeletionRequest: {
+      upsert: mockUpsert,
+      update: mockUpdate,
+      updateMany: mockUpdateMany,
+    },
     $transaction: mockTransaction,
   },
 }));
@@ -32,6 +37,7 @@ describe("processAccountDeletion", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockUpsert.mockResolvedValue({ id: "request-1", authDeletedAt: null });
     mockUpdate.mockResolvedValue({});
+    mockUpdateMany.mockResolvedValue({ count: 1 });
     mockDeleteManyUser.mockResolvedValue({ count: 1 });
     mockDeleteManyRequest.mockResolvedValue({ count: 1 });
     mockTransaction.mockImplementation(async (callback) =>
@@ -59,7 +65,7 @@ describe("processAccountDeletion", () => {
     await expect(processAccountDeletion("user-1")).resolves.toEqual({ status: "auth_failed" });
 
     expect(mockTransaction).not.toHaveBeenCalled();
-    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mockUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: { lastErrorCode: "auth_delete_failed" },
     }));
   });
@@ -80,7 +86,7 @@ describe("processAccountDeletion", () => {
     mockTransaction.mockRejectedValue(new Error("DB error"));
 
     await expect(processAccountDeletion("user-1")).resolves.toEqual({ status: "cleanup_pending" });
-    expect(mockUpdate).toHaveBeenLastCalledWith(expect.objectContaining({
+    expect(mockUpdateMany).toHaveBeenLastCalledWith(expect.objectContaining({
       data: { lastErrorCode: "data_cleanup_failed" },
     }));
   });
@@ -92,5 +98,13 @@ describe("processAccountDeletion", () => {
     await expect(processAccountDeletion("user-1")).resolves.toEqual({ status: "completed" });
     expect(mockGetUserById).not.toHaveBeenCalled();
     expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+
+  it("並行処理が台帳を削除済みなら冪等な成功として扱う", async () => {
+    mockGetUserById.mockResolvedValue(notFound);
+    mockUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(processAccountDeletion("user-1")).resolves.toEqual({ status: "completed" });
+    expect(mockTransaction).not.toHaveBeenCalled();
   });
 });

@@ -117,6 +117,13 @@ export async function retryPendingAccountDeletion(formData: FormData) {
   if (typeof userId !== "string" || userId.length === 0) {
     throw new Error("再処理対象が不正です");
   }
+  const pendingRequest = await prisma.accountDeletionRequest.findUnique({
+    where: { userId },
+    select: { userId: true },
+  });
+  if (!pendingRequest) {
+    throw new Error("保留中の削除処理が見つかりません");
+  }
   await processAccountDeletion(userId);
   revalidatePath("/admin/users");
 }
