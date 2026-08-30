@@ -24,7 +24,7 @@ export function PainPointsSection() {
       <LPSectionHeading
         eyebrow="はじめの一歩を、もっと軽やかに"
         title="「やってみたい」のに、一歩を踏み出せない。"
-        description="ボランティアに関心はあっても、参加までには小さな不安がいくつも。その「つまずき」を、ボランティーはひとつずつ解消します。"
+        description="ボランティアに関心はあっても、参加までには小さな不安がいくつも。その「つまずき」を、ボランティはひとつずつ解消します。"
       />
 
       <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">

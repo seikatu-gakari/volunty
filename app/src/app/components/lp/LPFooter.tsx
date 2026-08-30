@@ -25,7 +25,7 @@ export function LPFooter() {
     <footer className="mt-20 border-t border-card-border py-12">
       <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]">
         <div>
-          <Link href="/" className="inline-flex items-center gap-3" aria-label="ボランティー">
+          <Link href="/" className="inline-flex items-center gap-3" aria-label="ボランティ">
             <Image
               src={lpAssets.brandMark.src}
               alt={lpAssets.brandMark.alt}
@@ -33,7 +33,7 @@ export function LPFooter() {
               height={lpAssets.brandMark.height}
               className="size-11 object-contain"
             />
-            <span className="text-xl font-black tracking-tight text-text-dark">ボランティー</span>
+            <span className="text-xl font-black tracking-tight text-text-dark">ボランティ</span>
           </Link>
           <p className="mt-4 text-sm leading-7 text-text-body">
             つながる、みつかる、変わっていく。<br />
@@ -58,7 +58,7 @@ export function LPFooter() {
       </div>
 
       <div className="mt-10 border-t border-card-border pt-6">
-        <p className="text-xs text-text-body">© 2026 ボランティー. All rights reserved.</p>
+        <p className="text-xs text-text-body">© 2026 ボランティ. All rights reserved.</p>
       </div>
     </footer>
   );

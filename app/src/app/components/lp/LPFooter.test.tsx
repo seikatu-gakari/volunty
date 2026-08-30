@@ -56,8 +56,8 @@ describe("LPFooter", () => {
   it("カタカナのブランド名と現在年を表示する", () => {
     render(<LPFooter />);
 
-    expect(screen.getByRole("link", { name: "ボランティー" })).toBeDefined();
-    expect(screen.getByText(/© 2026 ボランティー/)).toBeDefined();
+    expect(screen.getByRole("link", { name: "ボランティ" })).toBeDefined();
+    expect(screen.getByText(/© 2026 ボランティ/)).toBeDefined();
     expect(screen.queryByText(/Volunty/)).toBeNull();
   });
 });

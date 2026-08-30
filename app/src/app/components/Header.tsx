@@ -111,7 +111,7 @@ export async function Header({
           className={
             showLandingHeader ? "flex items-center gap-2.5" : "flex items-center gap-2"
           }
-          aria-label={showLandingHeader ? "ボランティー ホーム" : undefined}
+          aria-label={showLandingHeader ? "ボランティ ホーム" : undefined}
         >
           {showLandingHeader ? (
             <Image
@@ -135,7 +135,7 @@ export async function Header({
                   : "text-lg font-medium leading-7 text-text-dark"
               }
             >
-              ボランティー
+              ボランティ
             </span>
             <span
               className={

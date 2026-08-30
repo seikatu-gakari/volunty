@@ -71,7 +71,7 @@ describe("Header", () => {
   it("通常ヘッダーの未ログイン時はLPアンカーを表示せず従来の認証ナビゲーションを表示する", async () => {
     render(await Header());
 
-    expect(screen.getByRole("link", { name: /ボランティー/ })).toBeDefined();
+    expect(screen.getByRole("link", { name: /ボランティ/ })).toBeDefined();
     expect(screen.getByText("あなたにぴったりの活動を見つけよう").className).toContain(
       "hidden",
     );

@@ -34,7 +34,7 @@ export function VoicesSection() {
       <LPSectionHeading
         eyebrow="こんな使われ方"
         title="ひとりひとりの「ちょうどいい」参加へ。"
-        description="ボランティーが目指す利用シーンのイメージ例です。"
+        description="ボランティが目指す利用シーンのイメージ例です。"
       />
 
       <div className="grid gap-6 md:grid-cols-3">
