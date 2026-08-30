@@ -494,7 +494,12 @@ export async function createOpportunity(
       });
 
     if (insertError) {
-      console.error("[createOpportunity] INSERT エラー:", insertError);
+      console.error("[createOpportunity] INSERT failed", {
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+      });
       return { success: false, error: "案件の作成に失敗しました" };
     }
   } catch {
