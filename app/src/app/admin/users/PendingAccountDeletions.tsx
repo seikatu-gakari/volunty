@@ -30,7 +30,11 @@ export function PendingAccountDeletions({
               <p className="font-medium text-text-dark">
                 {request.displayName ?? "ユーザー情報削除済み"}
               </p>
-              <p>受付: {new Date(request.createdAt).toLocaleString("ja-JP")}</p>
+              <p>
+                受付: {new Date(request.createdAt).toLocaleString("ja-JP", {
+                  timeZone: "Asia/Tokyo",
+                })}
+              </p>
               <p>
                 試行: {request.attemptCount}回 / エラー: {request.lastErrorCode ?? "なし"}
               </p>
