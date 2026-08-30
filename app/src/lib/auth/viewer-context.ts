@@ -25,7 +25,10 @@ export type ViewerContext =
   | {
       status: "error";
       identity?: ViewerIdentity;
-      errorCode: "claims_invalid" | "account_lookup_failed";
+      errorCode:
+        | "claims_invalid"
+        | "auth_unavailable"
+        | "account_lookup_failed";
     };
 
 type RecordValue = Record<string, unknown>;
@@ -75,10 +78,14 @@ export const getViewerContext = cache(async (): Promise<ViewerContext> => {
   try {
     supabase = await createClient();
   } catch {
-    return { status: "guest" };
+    return { status: "error", errorCode: "auth_unavailable" };
   }
 
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const claimsResult = await supabase.auth.getClaims().catch(() => null);
+  if (!claimsResult) {
+    return { status: "error", errorCode: "auth_unavailable" };
+  }
+  const { data: claimsData, error: claimsError } = claimsResult;
   if (claimsError) {
     return { status: "error", errorCode: "claims_invalid" };
   }

@@ -90,15 +90,14 @@ describe("Home", () => {
     expect(mocks.getViewerContext).toHaveBeenCalledTimes(1);
   });
 
-  it("viewer解決エラーでは認証済みホームを表示しない", async () => {
+  it("認証済みviewerのaccount照会エラーをLPへフォールバックせず送出する", async () => {
     mocks.getViewerContext.mockResolvedValue({
       status: "error",
+      identity: { id: "user-1", email: "user@example.com", displayName: "利用者" },
       errorCode: "account_lookup_failed",
     });
 
-    render(await Home());
-
-    expect(screen.queryByText(/認証済みホーム/)).toBeNull();
-    expect(mocks.redirect).not.toHaveBeenCalled();
+    await expect(Home()).rejects.toThrow("認証状態の確認に失敗しました");
+    expect(mocks.header).not.toHaveBeenCalled();
   });
 });

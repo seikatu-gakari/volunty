@@ -49,4 +49,26 @@ describe("updateSession", () => {
     });
     expect(mocks.getClaims).toHaveBeenCalledTimes(1);
   });
+
+  it("claims更新で発行されたcookieをレスポンスへ引き継ぐ", async () => {
+    mocks.createServerClient.mockImplementation((_url, _key, options) => {
+      options.cookies.setAll([
+        {
+          name: "sb-test-auth-token",
+          value: "refreshed-token",
+          options: { httpOnly: true, path: "/" },
+        },
+      ]);
+      return { auth: { getClaims: mocks.getClaims } };
+    });
+    mocks.getClaims.mockResolvedValue({ data: null, error: null });
+
+    const result = await updateSession(
+      new NextRequest("http://localhost:3000/opportunities"),
+    );
+
+    expect(result.response.cookies.get("sb-test-auth-token")?.value).toBe(
+      "refreshed-token",
+    );
+  });
 });

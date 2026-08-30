@@ -18,6 +18,10 @@ import { getViewerContext } from "@/lib/auth/viewer-context";
 
 export default async function Home() {
   const viewer = await getViewerContext();
+  if (viewer.status === "error") {
+    throw new Error("認証状態の確認に失敗しました");
+  }
+
   const shouldRedirectToRoleSelection =
     viewer.status === "authenticated" &&
     ((viewer.role === "participant" && !viewer.hasParticipantProfile) ||
