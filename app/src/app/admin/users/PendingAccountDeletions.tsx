@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import {
