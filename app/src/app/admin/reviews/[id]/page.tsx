@@ -2,9 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Shield } from "lucide-react";
 import { Header } from "@/app/components/Header";
-import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
-import { fetchOrganizationById } from "@/lib/admin/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchOrganizationByIdQuery } from "@/lib/admin/queries";
 import { OrganizationReviewDetail } from "./OrganizationReviewDetail";
 
 export default async function AdminReviewDetailPage({
@@ -14,26 +13,16 @@ export default async function AdminReviewDetailPage({
 }) {
   const { id } = await params;
 
-  // 管理者チェック
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
   }
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { role: true },
-  });
-
-  if (!dbUser || dbUser.role !== "admin") {
+  if (!viewer.isActive || viewer.role !== "admin") {
     redirect("/forbidden");
   }
 
-  const organization = await fetchOrganizationById(id);
+  const organization = await fetchOrganizationByIdQuery(id);
 
   if (!organization) {
     notFound();
@@ -41,7 +30,7 @@ export default async function AdminReviewDetailPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link
           href="/admin/reviews"

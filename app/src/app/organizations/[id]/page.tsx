@@ -3,8 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { Building2, ArrowLeft, ArrowRight } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { createClient } from "@/lib/supabase/server";
-import { fetchOrganizationDetail } from "@/lib/organizations/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchOrganizationDetailQuery } from "@/lib/organizations/queries";
 
 export default async function OrganizationDetailPage({
   params,
@@ -13,22 +13,20 @@ export default async function OrganizationDetailPage({
 }) {
   const { id } = await params;
 
-  // 認証チェック
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
-  } catch {
-    // Supabase 未設定時
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
   }
-
-  if (!isAuthenticated) {
-    redirect("/login");
+  if (!viewer.isActive || viewer.role !== "participant") {
+    redirect("/forbidden");
+  }
+  if (!viewer.hasParticipantProfile) {
+    redirect("/onboarding/role");
   }
 
   const { organization, opportunities } =
-    await fetchOrganizationDetail(id);
+    await fetchOrganizationDetailQuery(viewer.identity.id, id);
 
   // 団体が存在しない場合は 404
   if (!organization) {
@@ -37,7 +35,7 @@ export default async function OrganizationDetailPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         {/* 戻るリンク */}

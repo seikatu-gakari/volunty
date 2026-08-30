@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { Header } from "@/app/components/Header";
-import { createClient } from "@/lib/supabase/server";
-import { fetchOpportunityForEdit } from "@/lib/dashboard/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchOpportunityForEditQuery } from "@/lib/dashboard/queries";
 import { EditFormWrapper } from "./components/EditFormWrapper";
 
 export default async function EditOpportunityPage({
@@ -12,22 +12,23 @@ export default async function EditOpportunityPage({
 }) {
   const { id } = await params;
 
-  // 認証チェック
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
-  } catch {
-    // Supabase 未設定時
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
   }
-
-  if (!isAuthenticated) {
-    redirect("/login");
+  if (!viewer.isActive || viewer.role !== "organization") {
+    redirect("/forbidden");
+  }
+  if (!viewer.hasOrganizationProfile) {
+    redirect("/onboarding/role");
+  }
+  if (viewer.organizationReviewStatus !== "approved") {
+    redirect("/onboarding/pending");
   }
 
   // 案件データの取得（自団体の案件のみ）
-  const { opportunity } = await fetchOpportunityForEdit(id);
+  const { opportunity } = await fetchOpportunityForEditQuery(viewer.identity.id, id);
 
   // 案件が存在しない or 他団体の案件の場合は 404
   if (!opportunity) {
@@ -36,7 +37,7 @@ export default async function EditOpportunityPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <EditFormWrapper
