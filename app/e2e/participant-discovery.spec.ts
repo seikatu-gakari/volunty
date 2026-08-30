@@ -112,7 +112,9 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page).toHaveURL(`http://localhost:3000${searchUrl}`);
     await expect(page.getByLabel("キーワード")).toHaveValue("E2E オンライン");
     await expect(page.getByLabel("カテゴリ")).toHaveValue("環境保全");
-    await expect(page.getByLabel("地域")).toHaveValue("新宿区");
+    await expect(
+      page.getByRole("textbox", { name: "地域", exact: true })
+    ).toHaveValue("新宿区");
     await expect(page.getByLabel("参加形態")).toHaveValue("online");
     await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
   });
