@@ -12,7 +12,7 @@ describe("LPBottomCTA", () => {
     expect(
       screen.getByRole("link", { name: /募集中の活動を見る/ }).getAttribute("href"),
     ).toBe("/opportunities");
-    expect(screen.getByText(/ボランティーで見つけよう/)).toBeDefined();
+    expect(screen.getByText(/ボランティで見つけよう/)).toBeDefined();
     expect(container.querySelector("section")?.className).toContain("bg-primary-dark");
     expect(screen.getByText("START YOUR ACTION").className).toContain("text-white");
     expect(screen.getByText(/まずは約2分の簡易診断から/).className).toContain(

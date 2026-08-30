@@ -3,7 +3,7 @@ import { ToastProvider } from "@/app/components/ui/ToastProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ボランティー | あなたにぴったりの活動を見つけよう",
+  title: "ボランティ | あなたにぴったりの活動を見つけよう",
   description:
     "簡単な診断を通じて、あなたの特性に最も適したボランティア活動をご提案します",
 };

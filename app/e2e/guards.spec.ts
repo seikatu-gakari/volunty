@@ -193,7 +193,7 @@ test.describe("未ログインLP（モバイル）", () => {
   test("主要コンテンツと操作導線を一画面幅で利用できる", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("link", { name: "ボランティー ホーム" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toBeVisible();

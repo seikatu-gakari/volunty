@@ -25,7 +25,7 @@ describe("PainPointsSection", () => {
   it("カタカナのサービス名を使用する", () => {
     render(<PainPointsSection />);
 
-    expect(screen.getByText(/ボランティーはひとつずつ解消/)).toBeDefined();
+    expect(screen.getByText(/ボランティはひとつずつ解消/)).toBeDefined();
     expect(screen.queryByText(/Volunty/)).toBeNull();
   });
 

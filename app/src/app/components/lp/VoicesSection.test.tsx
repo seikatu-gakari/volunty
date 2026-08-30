@@ -24,7 +24,7 @@ describe("VoicesSection", () => {
   it("サービス名をカタカナで表示する", () => {
     render(<VoicesSection />);
 
-    expect(screen.getByText(/ボランティーが目指す/)).toBeDefined();
+    expect(screen.getByText(/ボランティが目指す/)).toBeDefined();
     expect(screen.queryByText(/Volunty/)).toBeNull();
   });
 
