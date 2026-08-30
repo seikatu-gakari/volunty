@@ -6,7 +6,6 @@ const LP_SECTION_IDS = [
   "usage",
   "types",
   "benefits",
-  "voices",
   "features",
   "faq",
   "start",
@@ -23,7 +22,7 @@ async function expectLandingPageIntegrity(
       locator: page.locator(`#${sectionId}`),
     })),
   ];
-  expect(sections).toHaveLength(10);
+  expect(sections).toHaveLength(9);
 
   for (const section of sections) {
     const { locator } = section;
@@ -39,7 +38,16 @@ async function expectLandingPageIntegrity(
   }
 
   const images = page.locator("main img");
-  await expect(images).toHaveCount(17);
+  await expect(images).toHaveCount(14);
+
+  await expect(page.locator("#voices")).toHaveCount(0);
+  await expect(page.getByText("こんな使われ方", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/実際のご利用者の声ではありません/)).toHaveCount(0);
+
+  const sectionOrder = await page.locator("main section[id]").evaluateAll((elements) =>
+    elements.map((element) => element.id),
+  );
+  expect(sectionOrder.indexOf("features")).toBe(sectionOrder.indexOf("benefits") + 1);
 
   const photoFrame = page.getByTestId("lp-hero-photo-frame");
   await expect(photoFrame.locator("img")).toHaveCount(1);

@@ -55,7 +55,6 @@ vi.mock("./components/lp/UsageSection", () => ({ UsageSection: () => null }));
 vi.mock("./components/lp/BenefitsSection", () => ({
   BenefitsSection: () => null,
 }));
-vi.mock("./components/lp/VoicesSection", () => ({ VoicesSection: () => null }));
 vi.mock("./components/lp/FeaturesSection", () => ({
   FeaturesSection: () => null,
 }));

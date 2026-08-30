@@ -93,22 +93,4 @@ export const lpAssets = {
     width: 1448,
     height: 1086,
   },
-  voiceFirst: {
-    src: "/lp/mobile/voice-first.png",
-    alt: "初めての活動をスマートフォンで探す参加者",
-    width: 1254,
-    height: 1254,
-  },
-  voiceMonthly: {
-    src: "/lp/mobile/voice-monthly.png",
-    alt: "月に一度ボランティアへ参加する人",
-    width: 1254,
-    height: 1254,
-  },
-  voiceOrganization: {
-    src: "/lp/mobile/voice-organization.png",
-    alt: "地域活動について相談するNPOスタッフ",
-    width: 1448,
-    height: 1086,
-  },
 } as const satisfies Record<string, LPAsset>;
