@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
+import { spawn } from "node:child_process";
 import { appendFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const API_ROOT = "https://api.github.com";
@@ -20,11 +21,19 @@ const LOCK_SCOPES = Object.freeze({
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const DEFAULT_MAX_WAIT_MS = 100 * 60 * 1000;
+const DEFAULT_LOCKED_COMMAND_TIMEOUT_MS = 15 * 60 * 1000;
+const LOCKED_COMMAND_KILL_GRACE_MS = 30 * 1000;
 const DEFAULT_POLL_MS = 5000;
 const DEFAULT_API_RETRY_ATTEMPTS = 6;
 const API_RETRY_BASE_MS = 1000;
 const API_RETRY_MAX_MS = 16_000;
 const STALE_GRACE_MS = 60 * 1000;
+const MODULE_PATH = fileURLToPath(import.meta.url);
+const SCRIPT_DIRECTORY = dirname(MODULE_PATH);
+const TRUSTED_STATUS_SCRIPTS = new Set([
+  resolve(SCRIPT_DIRECTORY, "invalidate-status.mjs"),
+  resolve(SCRIPT_DIRECTORY, "finalize-publish.mjs"),
+]);
 
 function lockConfig(lockScope) {
   if (!Object.hasOwn(LOCK_SCOPES, lockScope)) {
@@ -378,6 +387,133 @@ export async function releasePagesLock({ identity, expectedRefId, expectedSha, c
   return "released";
 }
 
+function validateCommandInvocation({ command, args, timeoutMs }) {
+  if (
+    typeof command !== "string" ||
+    command.length === 0 ||
+    !Array.isArray(args) ||
+    args.some((argument) => typeof argument !== "string") ||
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs <= 0 ||
+    timeoutMs > DEFAULT_LOCKED_COMMAND_TIMEOUT_MS
+  ) {
+    throw new Error("Pages lock内commandの実行設定が不正です");
+  }
+}
+
+async function runCommandWithTimeout({ command, args, timeoutMs }) {
+  validateCommandInvocation({ command, args, timeoutMs });
+
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    let timedOut = false;
+    let killTimer;
+    const child = spawn(command, args, {
+      env: process.env,
+      shell: false,
+      stdio: "inherit",
+    });
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      killTimer = setTimeout(() => child.kill("SIGKILL"), LOCKED_COMMAND_KILL_GRACE_MS);
+    }, timeoutMs);
+
+    const settle = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutTimer);
+      clearTimeout(killTimer);
+      if (error) {
+        rejectPromise(error);
+      } else {
+        resolvePromise();
+      }
+    };
+
+    child.once("error", (error) => {
+      settle(new Error("Pages lock内commandを起動できません", { cause: error }));
+    });
+    child.once("close", (code, signal) => {
+      if (timedOut) {
+        settle(
+          new Error(
+            `Pages lock内commandが${timeoutMs}msでtimeoutしました` +
+              (signal ? ` (signal: ${signal})` : ""),
+          ),
+        );
+        return;
+      }
+      if (code !== 0) {
+        settle(
+          new Error(
+            `Pages lock内commandが失敗しました: exit=${code ?? "null"}` +
+              (signal ? ` signal=${signal}` : ""),
+          ),
+        );
+        return;
+      }
+      settle();
+    });
+  });
+}
+
+export async function runWithPagesLock({
+  identity,
+  client,
+  command,
+  args = [],
+  commandTimeoutMs = DEFAULT_LOCKED_COMMAND_TIMEOUT_MS,
+  runCommand = runCommandWithTimeout,
+  maxWaitMs = DEFAULT_MAX_WAIT_MS,
+  pollMs = DEFAULT_POLL_MS,
+  apiRetryAttempts = DEFAULT_API_RETRY_ATTEMPTS,
+  now = () => new Date(),
+  sleep = (milliseconds) =>
+    new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds)),
+}) {
+  validateCommandInvocation({ command, args, timeoutMs: commandTimeoutMs });
+  if (typeof runCommand !== "function") {
+    throw new Error("Pages lock内command runnerが不正です");
+  }
+
+  const lock = await acquirePagesLock({
+    identity,
+    client,
+    maxWaitMs,
+    pollMs,
+    apiRetryAttempts,
+    now,
+    sleep,
+  });
+  let commandError;
+  try {
+    return await runCommand({ command, args, timeoutMs: commandTimeoutMs });
+  } catch (error) {
+    commandError = error;
+    throw error;
+  } finally {
+    try {
+      await releasePagesLock({
+        identity,
+        expectedRefId: lock.refId,
+        expectedSha: lock.sha,
+        client,
+      });
+    } catch (releaseError) {
+      if (commandError) {
+        throw new AggregateError(
+          [commandError, releaseError],
+          "Pages lock内command失敗後のlock解放にも失敗しました",
+        );
+      }
+      throw releaseError;
+    }
+  }
+}
+
 async function writeOutputs(path, lock) {
   if (!path) {
     return;
@@ -387,6 +523,8 @@ async function writeOutputs(path, lock) {
 
 export async function main({
   action = process.argv[2],
+  lockedScriptPathValue = process.argv[3],
+  lockedCommandTimeoutMsValue = process.env.PR_DEMO_LOCKED_COMMAND_TIMEOUT_MS,
   token = process.env.GITHUB_TOKEN,
   repository = process.env.GITHUB_REPOSITORY,
   runIdValue = process.env.GITHUB_RUN_ID,
@@ -396,6 +534,7 @@ export async function main({
   expectedSha = process.env.PR_DEMO_PAGES_LOCK_SHA,
   lockScope = process.env.PR_DEMO_LOCK_SCOPE ?? "pages",
   client,
+  runCommand,
 } = {}) {
   lockConfig(lockScope);
   if (!/^[1-9][0-9]*$/.test(runIdValue ?? "") || !/^[1-9][0-9]*$/.test(runAttemptValue ?? "")) {
@@ -429,11 +568,34 @@ export async function main({
     console.log(`[pr-demo] ${lockScope} lock ${outcome} run=${identity.runId}`);
     return outcome;
   }
-  throw new Error("Pages lock actionはacquire/releaseだけを許可します");
+  if (action === "run-status") {
+    if (lockScope !== "status") {
+      throw new Error("run-statusはstatus lockだけを許可します");
+    }
+    if (!/^[1-9][0-9]*$/.test(lockedCommandTimeoutMsValue ?? "")) {
+      throw new Error("Pages lock内commandのtimeout設定が不正です");
+    }
+    const commandTimeoutMs = Number.parseInt(lockedCommandTimeoutMsValue, 10);
+    const lockedScriptPath = resolve(lockedScriptPathValue ?? "");
+    if (!TRUSTED_STATUS_SCRIPTS.has(lockedScriptPath)) {
+      throw new Error("run-statusのtrusted script pathが不正です");
+    }
+    const result = await runWithPagesLock({
+      identity,
+      client: pagesLockClient,
+      command: process.execPath,
+      args: [lockedScriptPath],
+      commandTimeoutMs,
+      ...(runCommand ? { runCommand } : {}),
+    });
+    console.log(`[pr-demo] ${lockScope} lock command completed run=${identity.runId}`);
+    return result;
+  }
+  throw new Error("Pages lock actionはacquire/release/run-statusだけを許可します");
 }
 
 const isDirectExecution =
-  process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] && resolve(process.argv[1]) === MODULE_PATH;
 if (isDirectExecution) {
   await main();
 }

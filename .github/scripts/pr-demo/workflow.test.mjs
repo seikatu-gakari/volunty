@@ -33,16 +33,15 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   assert.doesNotMatch(invalidate, /concurrency:/);
   assert.match(invalidate, /timeout-minutes: 120/);
   assert.match(invalidate, /contents: write/);
-  assert.doesNotMatch(invalidate, /before lock wait/);
-  assert.match(invalidate, /PR_DEMO_LOCK_SCOPE: status[\s\S]*pages-lock\.mjs acquire/);
-  assert.match(invalidate, /id: status_lock[\s\S]*pages-lock\.mjs acquire/);
-  assert.ok(
-    invalidate.indexOf("pages-lock.mjs acquire") <
-      invalidate.indexOf("invalidate-status.mjs"),
+  assert.match(invalidate, /PR_DEMO_LOCK_SCOPE: status/);
+  assert.match(invalidate, /PR_DEMO_LOCKED_COMMAND_TIMEOUT_MS: 900000/);
+  assert.match(
+    invalidate,
+    /pages-lock\.mjs run-status \.github\/scripts\/pr-demo\/invalidate-status\.mjs/,
   );
   assert.equal(invalidate.match(/invalidate-status\.mjs/g)?.length, 1);
-  assert.equal(invalidate.match(/PR_DEMO_LOCK_SCOPE: status/g)?.length, 2);
-  assert.match(invalidate, /pages-lock\.mjs release/);
+  assert.equal(invalidate.match(/PR_DEMO_LOCK_SCOPE: status/g)?.length, 1);
+  assert.doesNotMatch(invalidate, /pages-lock\.mjs (?:acquire|release)/);
   assert.doesNotMatch(publish, /concurrency:/);
   assert.doesNotMatch(publish, /PR_DEMO_LOCK_SCOPE: status/);
   assert.match(publish, /timeout-minutes: 120/);
@@ -62,19 +61,15 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
   assert.match(publish, /pages-lock\.mjs release/);
   assert.doesNotMatch(publish, /finalize-publish\.mjs/);
   assert.match(finalize, /needs: publish/);
-  assert.match(finalize, /timeout-minutes: 90/);
+  assert.match(finalize, /timeout-minutes: 120/);
   assert.doesNotMatch(finalize, /concurrency:/);
-  assert.equal(finalize.match(/PR_DEMO_LOCK_SCOPE: status/g)?.length, 2);
-  assert.match(finalize, /id: status_lock[\s\S]*pages-lock\.mjs acquire/);
-  assert.ok(
-    finalize.indexOf("pages-lock.mjs acquire") <
-      finalize.indexOf("finalize-publish.mjs"),
-  );
+  assert.equal(finalize.match(/PR_DEMO_LOCK_SCOPE: status/g)?.length, 1);
+  assert.match(finalize, /PR_DEMO_LOCKED_COMMAND_TIMEOUT_MS: 900000/);
   assert.match(
     finalize,
-    /Release PR demo status lock[\s\S]*if: \$\{\{ always\(\)/,
+    /pages-lock\.mjs run-status source\/\.github\/scripts\/pr-demo\/finalize-publish\.mjs/,
   );
-  assert.match(finalize, /pages-lock\.mjs release/);
+  assert.doesNotMatch(finalize, /pages-lock\.mjs (?:acquire|release)/);
   assert.match(finalize, /id: handoff[\s\S]*continue-on-error: true/);
   assert.match(finalize, /finalize-publish\.mjs/);
 });

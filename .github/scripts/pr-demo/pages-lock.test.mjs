@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -8,6 +9,7 @@ import {
   main as pagesLockMain,
   parseLockMessage,
   releasePagesLock,
+  runWithPagesLock,
 } from "./pages-lock.mjs";
 
 const identity = {
@@ -22,6 +24,9 @@ const lock = {
   ...identity,
   acquiredAt,
 };
+const trustedStatusScript = fileURLToPath(
+  new URL("./invalidate-status.mjs", import.meta.url),
+);
 
 function jsonResponse(value, status = 200) {
   return new Response(JSON.stringify(value), {
@@ -320,6 +325,155 @@ test("90分ownerを上回る100分のlock待機上限を受理する", async () 
   });
 
   assert.equal(result.refId, lock.refId);
+});
+
+test("status lock内のcommandを15分上限で実行し失敗時もlockを解放する", async () => {
+  let existing;
+  const calls = [];
+
+  await assert.rejects(
+    runWithPagesLock({
+      identity,
+      client: {
+        async getLock() {
+          calls.push(existing ? "get-owned" : "get-empty");
+          return existing;
+        },
+        async createLock() {
+          calls.push("create");
+          existing = lock;
+          return lock;
+        },
+        async deleteLock(refId) {
+          calls.push(`delete:${refId}`);
+          existing = undefined;
+        },
+      },
+      command: process.execPath,
+      args: ["trusted-status-script.mjs"],
+      commandTimeoutMs: 15 * 60 * 1000,
+      runCommand: async ({ command, args, timeoutMs }) => {
+        calls.push(`run:${command}:${args.join(",")}:${timeoutMs}`);
+        throw new Error("trusted status command failed");
+      },
+      maxWaitMs: 1000,
+      pollMs: 1,
+      now: () => acquiredAt,
+      sleep: async () => {},
+    }),
+    /trusted status command failed/,
+  );
+
+  assert.deepEqual(calls, [
+    "get-empty",
+    "create",
+    `run:${process.execPath}:trusted-status-script.mjs:${15 * 60 * 1000}`,
+    "get-owned",
+    `delete:${lock.refId}`,
+  ]);
+  assert.equal(existing, undefined);
+});
+
+test("run-statusはallowlist内scriptをshellなしの引数として実行する", async () => {
+  let existing;
+  const calls = [];
+
+  await pagesLockMain({
+    action: "run-status",
+    lockedScriptPathValue: trustedStatusScript,
+    lockedCommandTimeoutMsValue: String(15 * 60 * 1000),
+    repository: identity.repository,
+    runIdValue: String(identity.runId),
+    runAttemptValue: String(identity.runAttempt),
+    lockScope: "status",
+    client: {
+      async getLock() {
+        return existing;
+      },
+      async createLock() {
+        existing = lock;
+        return lock;
+      },
+      async deleteLock() {
+        existing = undefined;
+      },
+    },
+    runCommand: async (invocation) => calls.push(invocation),
+  });
+
+  assert.deepEqual(calls, [
+    {
+      command: process.execPath,
+      args: [trustedStatusScript],
+      timeoutMs: 15 * 60 * 1000,
+    },
+  ]);
+  assert.equal(existing, undefined);
+});
+
+test("run-statusはallowlist外scriptと15分超のtimeoutをlock取得前に拒否する", async () => {
+  const client = {
+    async getLock() {
+      throw new Error("不正入力ではlock APIを呼んではいけません");
+    },
+  };
+  const baseOptions = {
+    action: "run-status",
+    lockedCommandTimeoutMsValue: String(15 * 60 * 1000),
+    repository: identity.repository,
+    runIdValue: String(identity.runId),
+    runAttemptValue: String(identity.runAttempt),
+    lockScope: "status",
+    client,
+  };
+
+  await assert.rejects(
+    pagesLockMain({
+      ...baseOptions,
+      lockedScriptPathValue: "./untrusted-status-script.mjs",
+    }),
+    /trusted script pathが不正/,
+  );
+  await assert.rejects(
+    pagesLockMain({
+      ...baseOptions,
+      lockedScriptPathValue: trustedStatusScript,
+      lockedCommandTimeoutMsValue: String(15 * 60 * 1000 + 1),
+    }),
+    /commandの実行設定が不正/,
+  );
+});
+
+test("実processが上限を超えた場合は終了を待ってからlockを解放する", async () => {
+  let existing;
+
+  await assert.rejects(
+    runWithPagesLock({
+      identity,
+      client: {
+        async getLock() {
+          return existing;
+        },
+        async createLock() {
+          existing = lock;
+          return lock;
+        },
+        async deleteLock() {
+          existing = undefined;
+        },
+      },
+      command: process.execPath,
+      args: ["-e", "setInterval(() => {}, 1000)"],
+      commandTimeoutMs: 50,
+      maxWaitMs: 1000,
+      pollMs: 1,
+      now: () => acquiredAt,
+      sleep: async () => {},
+    }),
+    /50msでtimeout/,
+  );
+
+  assert.equal(existing, undefined);
 });
 
 test("別runのlockが解放されるまでjobを失わず待機する", async () => {
