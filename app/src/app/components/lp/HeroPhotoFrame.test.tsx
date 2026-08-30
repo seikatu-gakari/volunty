@@ -56,7 +56,7 @@ describe("HeroPhotoFrame", () => {
     expect(image.getAttribute("data-sizes")).toContain("48vw");
   });
 
-  it("白縁・有機的な角丸・3つの装飾をCSSで表現する", () => {
+  it("写真右上の装飾を表示せず、写真フレームの見た目とクロップを維持する", () => {
     render(<HeroPhotoFrame />);
 
     const frame = screen.getByTestId("lp-hero-photo-frame");
@@ -67,15 +67,18 @@ describe("HeroPhotoFrame", () => {
     expect(frame.className).toContain("border-white");
     expect(frame.className).toContain("shadow-xl");
     expect(frame.className).toContain("ring-1");
+    expect(frame.className).toContain("xl:w-[calc(100%+80px)]");
+    expect(frame.className).not.toContain("relative");
+    expect(frame.className).not.toContain("overflow-visible");
     expect(frame.className).toContain(
       "rounded-[28%_34%_26%_31%/16%_18%_16%_20%]",
     );
     expect(image.className).toContain(
       "rounded-[28%_34%_26%_31%/16%_18%_16%_20%]",
     );
-    expect(decorations).toHaveLength(3);
-    expect(Array.from(decorations).every((decoration) => decoration.className)).toBe(
-      true,
-    );
+    expect(image.className).toContain("aspect-[6/5]");
+    expect(image.className).toContain("lg:aspect-[11/10]");
+    expect(image.className).toContain("object-cover");
+    expect(decorations).toHaveLength(0);
   });
 });

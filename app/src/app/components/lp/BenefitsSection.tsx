@@ -35,7 +35,7 @@ export function BenefitsSection() {
       <LPSectionHeading
         eyebrow="参加して、変わっていく"
         title="義務じゃない。楽しいから続く。"
-        description="交流、小さな承認、目に見える成果。ボランティーのボランティアは、自分のための時間にもなります。"
+        description="交流、小さな承認、目に見える成果。ボランティのボランティアは、自分のための時間にもなります。"
       />
 
       <div className="grid gap-6 md:grid-cols-3">

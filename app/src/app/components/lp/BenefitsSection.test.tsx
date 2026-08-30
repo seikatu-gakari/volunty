@@ -15,7 +15,7 @@ describe("BenefitsSection", () => {
   it("サービス名をカタカナで表示する", () => {
     render(<BenefitsSection />);
 
-    expect(screen.getByText(/ボランティーのボランティア/)).toBeDefined();
+    expect(screen.getByText(/ボランティのボランティア/)).toBeDefined();
     expect(screen.queryByText(/Volunty/)).toBeNull();
   });
 });
