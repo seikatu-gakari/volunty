@@ -171,11 +171,6 @@ jobs:
         with:
           path: ${{ runner.temp }}/pr-demo-pages-site
 
-      - name: Deploy GitHub Pages
-        id: deploy
-        if: ${{ steps.prepare.outputs.site_changed == 'true' }}
-        uses: actions/deploy-pages@v4
-
       - name: Replace gh-pages with one historyless commit
         id: persist
         if: ${{ steps.prepare.outputs.site_changed == 'true' }}
@@ -192,6 +187,11 @@ jobs:
           tree_sha="$(git write-tree)"
           commit_sha="$(printf 'Update PR demo for %s\n' '${{ steps.prepare.outputs.head_sha }}' | git commit-tree "$tree_sha")"
           git push origin "$commit_sha:refs/heads/gh-pages" "--force-with-lease=refs/heads/gh-pages:$expected_sha"
+
+      - name: Deploy GitHub Pages
+        id: deploy
+        if: ${{ steps.prepare.outputs.site_changed == 'true' }}
+        uses: actions/deploy-pages@v4
 
       - name: Confirm latest HEAD on Pages
         id: pages

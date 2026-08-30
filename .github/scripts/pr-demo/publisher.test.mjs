@@ -17,6 +17,7 @@ import { createTestMedia } from "./test-media-helper.mjs";
 const repository = "seikatu-gakari/volunty";
 const headSha = "b".repeat(40);
 const baseSha = "a".repeat(40);
+const openPullRequest = Object.freeze({ state: "open", closed_at: null });
 const testMedia = await createTestMedia();
 after(testMedia.cleanup);
 
@@ -143,6 +144,7 @@ test("fork由来workflow_runはartifactを読む前に公開対象外と判定�
 
   const result = await preparePublish({
     event,
+    currentPullRequest: openPullRequest,
     artifactDirectory: "/does/not/exist",
     siteDirectory: "/does/not/exist",
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
@@ -165,6 +167,7 @@ test("maintainer承認済みforkはidentity検証後に公開できる", async (
       workflow_run: { head_repository: { full_name: forkRepository } },
     }),
     forkApproved: true,
+    currentPullRequest: openPullRequest,
     trustedDecision: decision,
     artifactDirectory: directory,
     siteDirectory,
@@ -178,6 +181,7 @@ test("古いworkflow_runは最新HEADのsite・comment・statusを上書きし�
   const result = await preparePublish({
     event: createEvent(),
     currentHeadSha: "c".repeat(40),
+    currentPullRequest: openPullRequest,
     artifactDirectory: "/does/not/exist",
     siteDirectory: "/does/not/exist",
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
@@ -192,6 +196,7 @@ test("成功した非UI PRは対象外success用resultになる", async () => {
 
   const result = await preparePublish({
     event: createEvent(),
+    currentPullRequest: openPullRequest,
     trustedDecision: decision,
     artifactDirectory: directory,
     siteDirectory: "/does/not/exist",
@@ -209,6 +214,7 @@ test("対象外になった最新HEADでは同じPRの旧動画をPagesから除
   const siteDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-skip-site-"));
   await preparePublish({
     event: createEvent(),
+    currentPullRequest: openPullRequest,
     trustedDecision: captureArtifact.decision,
     artifactDirectory: captureArtifact.directory,
     siteDirectory,
@@ -218,6 +224,7 @@ test("対象外になった最新HEADでは同じPRの旧動画をPagesから除
   const { directory, decision } = await createDecisionArtifact();
   const skipResult = await preparePublish({
     event: createEvent(),
+    currentPullRequest: openPullRequest,
     trustedDecision: decision,
     artifactDirectory: directory,
     siteDirectory,
@@ -242,6 +249,7 @@ test("対象外になった最新HEADでは同じPRのcleanup再試行stateも�
   const { directory, decision } = await createDecisionArtifact();
   const skipResult = await preparePublish({
     event: createEvent(),
+    currentPullRequest: openPullRequest,
     trustedDecision: decision,
     artifactDirectory: directory,
     siteDirectory,
@@ -265,6 +273,7 @@ test("検証済みcapture artifactだけをSHA固有Pages pathへ配置する", 
 
   const result = await preparePublish({
     event: createEvent(),
+    currentPullRequest: openPullRequest,
     trustedDecision: decision,
     artifactDirectory: directory,
     siteDirectory,
@@ -282,6 +291,64 @@ test("検証済みcapture artifactだけをSHA固有Pages pathへ配置する", 
   assert.equal(published.headSha, headSha);
 });
 
+test("closeから7日を過ぎたPRは成功CIを再実行しても再公開しない", async () => {
+  const { directory, decision } = await createDecisionArtifact({ outcome: "capture" });
+  await addCaptureMedia(directory, decision);
+  const siteDirectory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-expired-site-"));
+
+  const result = await preparePublish({
+    event: createEvent(),
+    currentPullRequest: {
+      state: "closed",
+      closed_at: "2026-08-22T23:59:59.000Z",
+    },
+    now: new Date("2026-08-30T00:00:00.000Z"),
+    trustedDecision: decision,
+    artifactDirectory: directory,
+    siteDirectory,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+  });
+
+  assert.equal(result.outcome, "stale");
+  assert.match(result.reason, /保存期間/);
+  await assert.rejects(
+    readFile(join(siteDirectory, "pr", "321", headSha, "manifest.json")),
+    /ENOENT/,
+  );
+});
+
+test("close後7日以内のPRは保存期間内として処理を継続する", async () => {
+  const { directory, decision } = await createDecisionArtifact();
+
+  const result = await preparePublish({
+    event: createEvent(),
+    currentPullRequest: {
+      state: "closed",
+      closed_at: "2026-08-23T00:00:01.000Z",
+    },
+    now: new Date("2026-08-30T00:00:00.000Z"),
+    trustedDecision: decision,
+    artifactDirectory: directory,
+    siteDirectory: "/does/not/exist",
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+  });
+
+  assert.equal(result.outcome, "skip");
+});
+
+test("GitHub APIのPR保存期間metadataが不正ならfail closedにする", async () => {
+  await assert.rejects(
+    preparePublish({
+      event: createEvent(),
+      currentPullRequest: { state: "closed", closed_at: null },
+      artifactDirectory: "/does/not/exist",
+      siteDirectory: "/does/not/exist",
+      pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+    }),
+    /stateまたはclosed_atが不正/,
+  );
+});
+
 test("PR側が偽装したskip decisionをtrusted PR metadataとの不一致で拒否する", async () => {
   const captureArtifact = await createDecisionArtifact({ outcome: "capture" });
   await addCaptureMedia(captureArtifact.directory, captureArtifact.decision);
@@ -291,6 +358,7 @@ test("PR側が偽装したskip decisionをtrusted PR metadataとの不一致で�
   await assert.rejects(
     preparePublish({
       event: createEvent(),
+      currentPullRequest: openPullRequest,
       trustedDecision: trustedArtifact.decision,
       artifactDirectory: captureArtifact.directory,
       siteDirectory,
@@ -309,6 +377,7 @@ test("既存Pages treeにsymlinkがあればartifact公開前に拒否する", a
   await assert.rejects(
     preparePublish({
       event: createEvent(),
+      currentPullRequest: openPullRequest,
       trustedDecision: decision,
       artifactDirectory: directory,
       siteDirectory,
@@ -323,6 +392,7 @@ test("CI失敗時はartifactがなくても最新HEADのfailure resultを返す"
 
   const result = await preparePublish({
     event,
+    currentPullRequest: openPullRequest,
     artifactDirectory: "/does/not/exist",
     siteDirectory: "/does/not/exist",
     pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",

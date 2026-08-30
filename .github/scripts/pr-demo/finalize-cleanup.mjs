@@ -37,6 +37,7 @@ await finalizeExpiredComments({
   expired: result.expired,
   siteDirectory,
   sitePersisted: process.env.PR_DEMO_SITE_PERSISTED === "true",
+  pagesDeployed: process.env.PR_DEMO_PAGES_DEPLOYED === "true",
   client: createGitHubClient({ token, repository }),
 });
 console.log(`[pr-demo] ${result.expired.length}件の期限切れcommentを更新しました`);

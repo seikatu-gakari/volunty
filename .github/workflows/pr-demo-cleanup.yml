@@ -73,11 +73,6 @@ jobs:
         with:
           path: ${{ runner.temp }}/pr-demo-pages-site
 
-      - name: Deploy cleaned GitHub Pages
-        id: deploy
-        if: ${{ steps.cleanup.outputs.changed == 'true' }}
-        uses: actions/deploy-pages@v4
-
       - name: Replace gh-pages with cleaned historyless commit
         id: persist
         if: ${{ steps.cleanup.outputs.changed == 'true' }}
@@ -92,17 +87,24 @@ jobs:
           git push origin "$commit_sha:refs/heads/gh-pages" "--force-with-lease=refs/heads/gh-pages:$expected_sha"
           echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
 
+      - name: Deploy cleaned GitHub Pages
+        id: deploy
+        if: ${{ steps.cleanup.outputs.changed == 'true' }}
+        uses: actions/deploy-pages@v4
+
       - name: Mark PR comments as expired
-        if: ${{ steps.cleanup.outputs.pending == 'true' && (steps.cleanup.outputs.changed != 'true' || steps.persist.outcome == 'success') }}
+        id: comments
+        if: ${{ steps.cleanup.outputs.pending == 'true' && steps.persist.outcome == 'success' && steps.deploy.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_DEMO_CLEANUP_RESULT_PATH: ${{ runner.temp }}/pr-demo-cleanup/result.json
           PR_DEMO_SITE_DIR: ${{ github.workspace }}/site
-          PR_DEMO_SITE_PERSISTED: ${{ steps.cleanup.outputs.changed != 'true' || steps.persist.outcome == 'success' }}
+          PR_DEMO_SITE_PERSISTED: ${{ steps.persist.outcome == 'success' }}
+          PR_DEMO_PAGES_DEPLOYED: ${{ steps.deploy.outcome == 'success' }}
         run: node source/.github/scripts/pr-demo/finalize-cleanup.mjs
 
       - name: Persist completed cleanup state
-        if: ${{ steps.cleanup.outputs.pending == 'true' }}
+        if: ${{ steps.cleanup.outputs.pending == 'true' && steps.comments.outcome == 'success' }}
         working-directory: site
         env:
           PR_DEMO_EXPECTED_SHA: ${{ steps.persist.outputs.commit_sha }}

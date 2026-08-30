@@ -30,7 +30,7 @@ if (process.env.GITHUB_OUTPUT) {
   await appendFile(
     process.env.GITHUB_OUTPUT,
     [
-      `changed=${result.removed.length > 0}`,
+      `changed=${result.requiresDeployment}`,
       `pending=${result.expired.length > 0}`,
       `removed=${result.removed.join(",")}`,
       "",

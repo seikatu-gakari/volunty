@@ -299,6 +299,8 @@ test("prepare CLIはstatusを更新せずlive PR metadataをmainのpolicyで再�
   const resultPath = join(directory, "result.json");
   const pullRequest = {
     number: 321,
+    state: "open",
+    closed_at: null,
     body: `<!-- pr-demo:v1
 required: false
 spec:
@@ -352,4 +354,51 @@ reason: ドキュメントのみ
   assert.equal(result.outcome, "skip");
   assert.match(result.reason, /ドキュメントのみ/);
   assert.deepEqual(statuses, []);
+});
+
+test("prepare CLIは保存期間終了済みPRの古い成功CIをstaleにする", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "volunty-pr-demo-expired-run-"));
+  const eventPath = join(directory, "event.json");
+  const resultPath = join(directory, "result.json");
+  const event = failedWorkflowEvent();
+  event.workflow_run.conclusion = "success";
+  await writeFile(eventPath, JSON.stringify(event));
+  const pullRequest = {
+    number: 321,
+    state: "closed",
+    closed_at: "2026-08-22T23:59:59.000Z",
+    body: `<!-- pr-demo:v1
+required: false
+spec:
+tag:
+viewports:
+reason: ドキュメントのみ
+-->`,
+    labels: [],
+    base: { sha: baseSha, repo: { full_name: repository } },
+    head: { sha: headSha, repo: { full_name: repository } },
+  };
+
+  const result = await main({
+    eventPath,
+    artifactDirectory: join(directory, "missing-artifact"),
+    siteDirectory: join(directory, "missing-site"),
+    resultPath,
+    pagesBaseUrl: "https://seikatu-gakari.github.io/volunty",
+    now: new Date("2026-08-30T00:00:00.000Z"),
+    githubClient: {
+      async getLatestPullRequestCiRun() {
+        return { id: 987, run_attempt: 1 };
+      },
+      async getPullRequest() {
+        return pullRequest;
+      },
+      async getPullRequestFiles() {
+        return ["docs/pr-demo-video.md"];
+      },
+    },
+  });
+
+  assert.equal(result.outcome, "stale");
+  assert.match(result.reason, /保存期間/);
 });

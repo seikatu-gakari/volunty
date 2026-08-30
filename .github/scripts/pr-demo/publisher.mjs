@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
-import { buildDemoComment, validateArtifactDirectory } from "./artifact.mjs";
+import {
+  RETENTION_DAYS,
+  buildDemoComment,
+  shouldExpireDemo,
+  validateArtifactDirectory,
+} from "./artifact.mjs";
 import {
   clearPendingCleanupForPr,
   installDemoOnSite,
@@ -236,11 +241,13 @@ export async function removePublishedDemoForResult({ result, siteDirectory }) {
 export async function preparePublish({
   event,
   currentHeadSha,
+  currentPullRequest,
   forkApproved = false,
   trustedDecision,
   artifactDirectory,
   siteDirectory,
   pagesBaseUrl,
+  now = new Date(),
 }) {
   const context = extractWorkflowRunContext(event);
   const liveHeadSha = currentHeadSha ?? context.headSha;
@@ -263,6 +270,32 @@ export async function preparePublish({
     return buildFailureResult(
       context,
       `${EXPECTED_WORKFLOW_NAME}が${context.conclusion ?? "未完了"}でした`,
+    );
+  }
+  if (!(now instanceof Date) || Number.isNaN(now.getTime())) {
+    throw new Error("publisherの現在時刻が不正です");
+  }
+  if (
+    !currentPullRequest ||
+    !["open", "closed"].includes(currentPullRequest.state) ||
+    (currentPullRequest.state === "open" && currentPullRequest.closed_at !== null) ||
+    (currentPullRequest.state === "closed" &&
+      (typeof currentPullRequest.closed_at !== "string" ||
+        Number.isNaN(Date.parse(currentPullRequest.closed_at))))
+  ) {
+    throw new Error("PRのstateまたはclosed_atが不正です");
+  }
+  if (
+    shouldExpireDemo({
+      state: currentPullRequest.state,
+      closedAt: currentPullRequest.closed_at,
+      now,
+      retentionDays: RETENTION_DAYS,
+    })
+  ) {
+    return buildStaleResult(
+      context,
+      `PRの保存期間（${RETENTION_DAYS}日）が終了しているため再公開しません`,
     );
   }
 

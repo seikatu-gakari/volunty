@@ -59,17 +59,25 @@ export async function cleanupExpiredDemos({ siteDirectory, client, now = new Dat
     [...pendingByPrNumber.values()],
   );
   await validateSiteDirectory(siteDirectory);
-  return { removed, expired };
+  return {
+    removed,
+    expired,
+    requiresDeployment: expired.length > 0,
+  };
 }
 
 export async function finalizeExpiredComments({
   expired,
   siteDirectory,
   sitePersisted,
+  pagesDeployed,
   client,
 }) {
   if (sitePersisted !== true) {
     throw new Error("gh-pagesを永続化するまで期限切れcommentは更新できません");
+  }
+  if (pagesDeployed !== true) {
+    throw new Error("Pagesへcleanup結果をdeployするまで期限切れcommentは更新できません");
   }
   await validateSiteDirectory(siteDirectory);
   const pending = await readPendingCleanup(siteDirectory);

@@ -51,6 +51,10 @@ test("publisherとfinalizerをActionsの単一pending枠へ入れずdurable lock
     publish.indexOf("pages-lock.mjs acquire") <
       publish.indexOf("Checkout historyless Pages branch"),
   );
+  assert.ok(
+    publish.indexOf("Replace gh-pages with one historyless commit") <
+      publish.indexOf("Deploy GitHub Pages"),
+  );
   assert.match(
     publish,
     /Release GitHub Pages publish lock[\s\S]*if: \$\{\{ always\(\)/,
@@ -137,6 +141,22 @@ test("cleanupも同じdurable Pages lock内で実行する", () => {
   assert.ok(
     cleanupWorkflow.indexOf("pages-lock.mjs acquire") <
       cleanupWorkflow.indexOf("Checkout historyless Pages branch"),
+  );
+  assert.ok(
+    cleanupWorkflow.indexOf("Replace gh-pages with cleaned historyless commit") <
+      cleanupWorkflow.indexOf("Deploy cleaned GitHub Pages"),
+  );
+  assert.ok(
+    cleanupWorkflow.indexOf("Deploy cleaned GitHub Pages") <
+      cleanupWorkflow.indexOf("Mark PR comments as expired"),
+  );
+  assert.match(
+    cleanupWorkflow,
+    /Mark PR comments as expired[\s\S]*steps\.persist\.outcome == 'success'[\s\S]*steps\.deploy\.outcome == 'success'/,
+  );
+  assert.match(
+    cleanupWorkflow,
+    /Persist completed cleanup state[\s\S]*steps\.comments\.outcome == 'success'/,
   );
   assert.match(cleanupWorkflow, /pages-lock\.mjs release/);
 });

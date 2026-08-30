@@ -67,6 +67,7 @@ test("closeから7日経過したPRだけPagesから削除してcommentを期限
   });
 
   assert.deepEqual(result.removed, [321]);
+  assert.equal(result.requiresDeployment, true);
   await assert.rejects(stat(join(siteDirectory, "pr", "321")), /ENOENT/);
   assert.equal(comments.length, 0);
 
@@ -74,6 +75,7 @@ test("closeから7日経過したPRだけPagesから削除してcommentを期限
     expired: result.expired,
     siteDirectory,
     sitePersisted: true,
+    pagesDeployed: true,
     client: {
       async upsertDemoComment(prNumber, body) {
         comments.push({ prNumber, body });
@@ -102,6 +104,37 @@ test("gh-pagesの永続化失敗時は期限切れcommentを更新しない", as
   assert.equal(commentCalls, 0);
 });
 
+test("Pages deploy失敗時は期限切れcommentを更新しない", async () => {
+  const siteDirectory = await createPublishedDemo(321);
+  const result = await cleanupExpiredDemos({
+    siteDirectory,
+    now: new Date("2026-08-30T00:00:00.000Z"),
+    client: {
+      async getPullRequest() {
+        return { state: "closed", closed_at: "2026-08-22T23:59:59.000Z" };
+      },
+    },
+  });
+  let commentCalls = 0;
+
+  await assert.rejects(
+    finalizeExpiredComments({
+      expired: result.expired,
+      siteDirectory,
+      sitePersisted: true,
+      pagesDeployed: false,
+      client: {
+        async upsertDemoComment() {
+          commentCalls += 1;
+        },
+      },
+    }),
+    /Pages.*deploy/,
+  );
+
+  assert.equal(commentCalls, 0);
+});
+
 test("comment更新の途中失敗を次回cleanupで再試行し全件成功後に完了する", async () => {
   const siteDirectory = await createPublishedDemo(321);
   await createPublishedDemo(322, siteDirectory);
@@ -122,6 +155,7 @@ test("comment更新の途中失敗を次回cleanupで再試行し全件成功後
       expired: first.expired,
       siteDirectory,
       sitePersisted: true,
+      pagesDeployed: true,
       client: {
         async upsertDemoComment(prNumber) {
           firstAttempts.push(prNumber);
@@ -137,15 +171,18 @@ test("comment更新の途中失敗を次回cleanupで再試行し全件成功後
 
   const retry = await cleanupExpiredDemos(cleanupOptions);
   assert.deepEqual(retry.expired, first.expired);
+  assert.equal(retry.requiresDeployment, true);
   await finalizeExpiredComments({
     expired: retry.expired,
     siteDirectory,
     sitePersisted: true,
+    pagesDeployed: true,
     client: { async upsertDemoComment() {} },
   });
 
   const completed = await cleanupExpiredDemos(cleanupOptions);
   assert.deepEqual(completed.expired, []);
+  assert.equal(completed.requiresDeployment, false);
 });
 
 test("open PRの最新HEAD動画は保持する", async () => {

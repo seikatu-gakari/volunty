@@ -125,6 +125,7 @@ export async function main({
   sourceRunAttempt = process.env.PR_DEMO_SOURCE_RUN_ATTEMPT,
   manualPrNumber = process.env.PR_DEMO_MANUAL_PR_NUMBER,
   manualHeadSha = process.env.PR_DEMO_MANUAL_HEAD_SHA,
+  now = new Date(),
 } = {}) {
   if (!eventPath || !artifactDirectory || !siteDirectory || !resultPath || !pagesBaseUrl) {
     throw new Error("publisherのevent/artifact/site/result/Pages設定が不足しています");
@@ -216,11 +217,13 @@ export async function main({
         result = await preparePublish({
           event,
           currentHeadSha,
+          currentPullRequest: pullRequest,
           forkApproved: resolved.forkApproved,
           trustedDecision,
           artifactDirectory,
           siteDirectory,
           pagesBaseUrl,
+          now,
         });
       }
     } catch (error) {
