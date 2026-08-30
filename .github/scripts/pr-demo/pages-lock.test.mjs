@@ -302,7 +302,7 @@ test("lock APIの恒久障害は有限回でfail closedにする", async () => {
   assert.deepEqual(sleeps, [1000, 2000, 4000, 8000, 16_000]);
 });
 
-test("60分ownerを上回る75分のlock待機上限を受理する", async () => {
+test("90分ownerを上回る100分のlock待機上限を受理する", async () => {
   const result = await acquirePagesLock({
     identity,
     client: {
@@ -315,7 +315,7 @@ test("60分ownerを上回る75分のlock待機上限を受理する", async () =
     },
     now: () => acquiredAt,
     sleep: async () => {},
-    maxWaitMs: 75 * 60 * 1000,
+    maxWaitMs: 100 * 60 * 1000,
     pollMs: 1,
   });
 

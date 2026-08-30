@@ -34,7 +34,7 @@ jobs:
     name: Invalidate stale demo-video status
     if: ${{ github.event_name == 'workflow_run' && (github.event.action == 'requested' || github.event.action == 'in_progress') && github.event.workflow_run.event == 'pull_request' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       actions: read
       contents: write

@@ -19,7 +19,7 @@ const LOCK_SCOPES = Object.freeze({
 });
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const DEFAULT_MAX_WAIT_MS = 75 * 60 * 1000;
+const DEFAULT_MAX_WAIT_MS = 100 * 60 * 1000;
 const DEFAULT_POLL_MS = 5000;
 const DEFAULT_API_RETRY_ATTEMPTS = 6;
 const API_RETRY_BASE_MS = 1000;
