@@ -11,8 +11,10 @@ import {
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchApproachSendData } from "@/lib/approaches/actions";
-import { fetchRecommendedParticipantDetail } from "@/lib/dashboard/actions";
+import { getViewerContext, type ViewerContext } from "@/lib/auth/viewer-context";
+import { requireApprovedOrganizationViewer } from "@/lib/auth/page-viewer";
+import { fetchApproachSendDataQuery } from "@/lib/approaches/queries";
+import { fetchRecommendedParticipantDetailQuery } from "@/lib/dashboard/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +22,10 @@ function formatList(values: string[], fallback: string): string {
   return values.length > 0 ? values.join("、") : fallback;
 }
 
-function EmptyPublishedOpportunityState() {
+function EmptyPublishedOpportunityState({ viewer }: { viewer: ViewerContext }) {
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link
           href="/dashboard/participants"
@@ -62,8 +64,9 @@ export default async function DashboardParticipantDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const viewer = requireApprovedOrganizationViewer(await getViewerContext());
   const { participant, emptyReason, error } =
-    await fetchRecommendedParticipantDetail(id);
+    await fetchRecommendedParticipantDetailQuery(viewer.identity.id, id);
 
   if (error === "ログインが必要です") {
     redirect("/login");
@@ -75,7 +78,7 @@ export default async function DashboardParticipantDetailPage({
     redirect("/onboarding/pending");
   }
   if (emptyReason === "no_published_opportunities") {
-    return <EmptyPublishedOpportunityState />;
+    return <EmptyPublishedOpportunityState viewer={viewer} />;
   }
   if (!participant) {
     notFound();
@@ -84,7 +87,7 @@ export default async function DashboardParticipantDetailPage({
   const {
     opportunities,
     error: approachError,
-  } = await fetchApproachSendData(id);
+  } = await fetchApproachSendDataQuery(viewer.identity.id, id);
 
   if (approachError === "ログインが必要です") {
     redirect("/login");
@@ -109,7 +112,7 @@ export default async function DashboardParticipantDetailPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link

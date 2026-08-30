@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { DashboardData } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
@@ -184,4 +186,3 @@ describe("fetchMyOpportunities", () => {
     expect(result.opportunities).toEqual([]);
   });
 });
-

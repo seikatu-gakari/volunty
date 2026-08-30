@@ -14,7 +14,9 @@ import {
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchRecommendedParticipants } from "@/lib/dashboard/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireApprovedOrganizationViewer } from "@/lib/auth/page-viewer";
+import { fetchRecommendedParticipantsQuery } from "@/lib/dashboard/queries";
 import type { RecommendedParticipantsEmptyReason } from "@/lib/dashboard/types";
 import type { RecommendedParticipant } from "@/lib/dashboard/recommended-participants";
 
@@ -117,8 +119,9 @@ function ParticipantCard({
 }
 
 export default async function DashboardParticipantsPage() {
+  const viewer = requireApprovedOrganizationViewer(await getViewerContext());
   const { participants, emptyReason, error } =
-    await fetchRecommendedParticipants();
+    await fetchRecommendedParticipantsQuery(viewer.identity.id);
 
   if (error === "ログインが必要です") {
     redirect("/login");
@@ -134,7 +137,7 @@ export default async function DashboardParticipantsPage() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-4xl px-6 py-8">
         <Link

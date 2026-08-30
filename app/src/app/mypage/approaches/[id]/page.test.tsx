@@ -3,10 +3,13 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getViewerContext: vi.fn(),
   fetchMyApproachDetail: vi.fn(),
   notFound: vi.fn(),
   redirect: vi.fn(),
 }));
+
+vi.mock("server-only", () => ({}));
 
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -39,8 +42,12 @@ vi.mock("@/app/components/Header", () => ({
   Header: () => <header>ヘッダー</header>,
 }));
 
-vi.mock("@/lib/approaches/actions", () => ({
-  fetchMyApproachDetail: (...args: unknown[]) =>
+vi.mock("@/lib/auth/viewer-context", () => ({
+  getViewerContext: () => mocks.getViewerContext(),
+}));
+
+vi.mock("@/lib/approaches/queries", () => ({
+  fetchMyApproachDetailQuery: (...args: unknown[]) =>
     mocks.fetchMyApproachDetail(...args),
 }));
 
@@ -53,6 +60,20 @@ import MyApproachDetailPage from "./page";
 describe("MyApproachDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getViewerContext.mockResolvedValue({
+      status: "authenticated",
+      identity: {
+        id: "participant-user-1",
+        email: "participant@example.com",
+        displayName: "参加者",
+      },
+      role: "participant",
+      isActive: true,
+      hasParticipantProfile: true,
+      hasOrganizationProfile: false,
+      organizationVerified: false,
+      organizationReviewStatus: null,
+    });
     mocks.fetchMyApproachDetail.mockResolvedValue({
       approach: {
         id: "approach-1",
@@ -88,5 +109,9 @@ describe("MyApproachDetailPage", () => {
     expect(screen.getByLabelText("LINE友だち追加用QRコード")).toBeDefined();
     expect(screen.getByText("@volunty")).toBeDefined();
     expect(screen.getByText("contact@example.org")).toBeDefined();
+    expect(mocks.fetchMyApproachDetail).toHaveBeenCalledWith(
+      "participant-user-1",
+      "approach-1"
+    );
   });
 });

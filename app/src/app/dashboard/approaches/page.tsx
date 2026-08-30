@@ -10,7 +10,9 @@ import {
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchDashboardApproaches } from "@/lib/approaches/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireApprovedOrganizationViewer } from "@/lib/auth/page-viewer";
+import { fetchDashboardApproachesQuery } from "@/lib/approaches/queries";
 import type { ApproachStatus } from "@/lib/approaches/types";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +49,10 @@ function statusDisplay(status: ApproachStatus, isExpired: boolean) {
 }
 
 export default async function DashboardApproachesPage() {
-  const { approaches, error } = await fetchDashboardApproaches();
+  const viewer = requireApprovedOrganizationViewer(await getViewerContext());
+  const { approaches, error } = await fetchDashboardApproachesQuery(
+    viewer.identity.id
+  );
 
   if (error === "ログインが必要です") {
     redirect("/login");
@@ -61,7 +66,7 @@ export default async function DashboardApproachesPage() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-4xl px-6 py-8">
         <Link

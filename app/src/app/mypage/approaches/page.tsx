@@ -7,10 +7,11 @@ import {
   MessageCircle,
   XCircle,
 } from "lucide-react";
-import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchMyApproaches } from "@/lib/approaches/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireParticipantViewer } from "@/lib/auth/page-viewer";
+import { fetchMyApproachesQuery } from "@/lib/approaches/queries";
 import type { ApproachStatus } from "@/lib/approaches/types";
 
 export const dynamic = "force-dynamic";
@@ -47,18 +48,12 @@ function statusDisplay(status: ApproachStatus, isExpired: boolean) {
 }
 
 export default async function MyApproachesPage() {
-  const { approaches, error } = await fetchMyApproaches();
-
-  if (error === "ログインが必要です") {
-    redirect("/login");
-  }
-  if (error === "参加者プロフィールが見つかりません") {
-    redirect("/onboarding/participant");
-  }
+  const viewer = requireParticipantViewer(await getViewerContext());
+  const { approaches, error } = await fetchMyApproachesQuery(viewer.identity.id);
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link

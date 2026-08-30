@@ -4,6 +4,8 @@ import type {
   RecommendedParticipantsResult,
 } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 const mockGetUser = vi.fn();
 const mockFindOrganizationProfile = vi.fn();
 const mockFindOpportunities = vi.fn();
@@ -47,6 +49,7 @@ const completeScores = {
 const approvedOrganization = {
   id: "org-profile-1",
   reviewStatus: "approved",
+  user: { role: "organization" },
 };
 
 describe("fetchRecommendedParticipants", () => {
@@ -94,6 +97,7 @@ describe("fetchRecommendedParticipants", () => {
     mockFindOrganizationProfile.mockResolvedValue({
       id: "org-profile-1",
       reviewStatus: "pending",
+      user: { role: "organization" },
     });
 
     const result: RecommendedParticipantsResult =
@@ -119,7 +123,11 @@ describe("fetchRecommendedParticipants", () => {
 
     expect(mockFindOrganizationProfile).toHaveBeenCalledWith({
       where: { userId: "org-user-1" },
-      select: { id: true, reviewStatus: true },
+      select: {
+        id: true,
+        reviewStatus: true,
+        user: { select: { role: true } },
+      },
     });
     expect(mockFindOpportunities).toHaveBeenCalledWith({
       where: { organizationId: "org-profile-1", status: "published" },

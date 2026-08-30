@@ -1,10 +1,12 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { fetchParticipantProfileByUserIdWithDebug } from "@/lib/participant-profile/server";
 import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
 import type {
   ApplicationWithDetails,
+  ApplicationDetailResult,
   DataFetchAlert,
   MyPageData,
   ParticipantProfile,
@@ -152,4 +154,107 @@ export async function fetchMyPageData(userId: string): Promise<MyPageData> {
     fetchApplications(userId),
   ]);
   return { ...profileResult, applications };
+}
+
+/** 検証済み参加者の応募詳細を取得する。 */
+export async function fetchMyApplicationDetailQuery(
+  userId: string,
+  applicationId: string
+): Promise<ApplicationDetailResult> {
+  try {
+    const candidate = await prisma.matchingCandidate.findFirst({
+      where: {
+        id: applicationId,
+        participantId: userId,
+        status: { in: [...MATCHING_CANDIDATE_STATUSES] },
+      },
+      select: {
+        id: true,
+        status: true,
+        message: true,
+        appliedAt: true,
+        createdAt: true,
+        statusChangedAt: true,
+        opportunity: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            location: true,
+            startDate: true,
+            endDate: true,
+            category: true,
+            participationMode: true,
+            organization: {
+              select: {
+                organizationName: true,
+                contactLineId: true,
+                contactLineUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!candidate) return { application: null, error: null };
+
+    const rawStatus = candidate.status as string;
+    if (!isMatchingCandidateStatus(rawStatus)) {
+      return { application: null, error: null };
+    }
+
+    const status = MATCHING_STATUS_TO_APPLICATION_STATUS[rawStatus];
+    const showContact = status === "approved" || status === "completed";
+    const completedAt =
+      rawStatus === "completed"
+        ? candidate.statusChangedAt instanceof Date
+          ? candidate.statusChangedAt.toISOString()
+          : String(candidate.statusChangedAt)
+        : null;
+    const appliedAt =
+      candidate.appliedAt instanceof Date
+        ? candidate.appliedAt.toISOString()
+        : candidate.createdAt instanceof Date
+          ? candidate.createdAt.toISOString()
+          : String(candidate.createdAt);
+
+    return {
+      application: {
+        id: candidate.id,
+        status,
+        message: candidate.message ?? null,
+        applied_at: appliedAt,
+        completed_at: completedAt,
+        can_request_certificate: status === "completed",
+        opportunity: {
+          id: candidate.opportunity.id,
+          title: candidate.opportunity.title,
+          description: candidate.opportunity.description ?? null,
+          location: candidate.opportunity.location ?? null,
+          start_date:
+            candidate.opportunity.startDate instanceof Date
+              ? candidate.opportunity.startDate.toISOString()
+              : candidate.opportunity.startDate ?? null,
+          end_date:
+            candidate.opportunity.endDate instanceof Date
+              ? candidate.opportunity.endDate.toISOString()
+              : candidate.opportunity.endDate ?? null,
+          category: candidate.opportunity.category ?? null,
+          participation_mode: candidate.opportunity.participationMode ?? null,
+          organization_name: candidate.opportunity.organization.organizationName,
+          organization_line_id: showContact
+            ? (candidate.opportunity.organization.contactLineId ?? null)
+            : null,
+          organization_line_url: showContact
+            ? (candidate.opportunity.organization.contactLineUrl ?? null)
+            : null,
+        },
+      },
+      error: null,
+    };
+  } catch (error) {
+    console.error("[fetchMyApplicationDetailQuery] 予期しないエラー:", error);
+    return { application: null, error: "予期しないエラーが発生しました" };
+  }
 }

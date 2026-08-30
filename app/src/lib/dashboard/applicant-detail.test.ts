@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApplicantDetailResult } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 const mockGetUser = vi.fn();
 const mockFindOrganizationProfile = vi.fn();
 const mockFindOwnedApplication = vi.fn();

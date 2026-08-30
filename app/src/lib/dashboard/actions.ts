@@ -4,10 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import {
-  buildRecommendedParticipants,
-  type RecommendedParticipantCandidate,
-  type RecommendedParticipantOpportunity,
-} from "./recommended-participants";
+  fetchMatchingHistoryQuery,
+  fetchRecommendedParticipantDetailQuery,
+  fetchRecommendedParticipantsQuery,
+} from "./queries";
 import type {
   DashboardData,
   DashboardOpportunity,
@@ -24,7 +24,6 @@ import type {
   UpdateApplicationStatusResult,
   ApplicantDetailResult,
   MatchingHistoryResult,
-  MatchingHistoryStatus,
   RecommendedParticipantDetailResult,
   RecommendedParticipantsResult,
 } from "./types";
@@ -130,55 +129,6 @@ async function fetchApprovedOrganizationProfile(
   return { id: organizationProfile.id };
 }
 
-async function fetchPublishedOpportunityRequirements(
-  organizationId: string
-): Promise<RecommendedParticipantOpportunity[]> {
-  return prisma.opportunity.findMany({
-    where: { organizationId, status: "published" },
-    select: { id: true, activityStyleTags: true, title: true },
-  });
-}
-
-async function fetchPublicParticipantCandidates(): Promise<
-  RecommendedParticipantCandidate[]
-> {
-  return prisma.participantProfile.findMany({
-    where: { publicProfile: true },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-      region: true,
-      bio: true,
-      interests: true,
-      availability: true,
-      preferredLocation: true,
-      publicProfile: true,
-      latestDiagnosisResult: { select: { styleTypeId: true, scaledScores: true } },
-    },
-  });
-}
-
-async function fetchRecommendedParticipantCandidate(
-  participantProfileId: string
-): Promise<RecommendedParticipantCandidate | null> {
-  return prisma.participantProfile.findUnique({
-    where: { id: participantProfileId },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-      region: true,
-      bio: true,
-      interests: true,
-      availability: true,
-      preferredLocation: true,
-      publicProfile: true,
-      latestDiagnosisResult: { select: { styleTypeId: true, scaledScores: true } },
-    },
-  });
-}
-
 /**
  * 団体向けおすすめ参加者一覧を取得する。
  *
@@ -196,30 +146,7 @@ export async function fetchRecommendedParticipants(): Promise<RecommendedPartici
     if (authError || !user) {
       return { participants: [], error: "ログインが必要です" };
     }
-
-    const organizationProfile = await fetchApprovedOrganizationProfile(user.id);
-    if ("error" in organizationProfile) {
-      return { participants: [], error: organizationProfile.error };
-    }
-
-    const opportunities = await fetchPublishedOpportunityRequirements(
-      organizationProfile.id
-    );
-    if (opportunities.length === 0) {
-      return {
-        participants: [],
-        emptyReason: "no_published_opportunities",
-      };
-    }
-
-    const candidates = await fetchPublicParticipantCandidates();
-    const participants = buildRecommendedParticipants(candidates, opportunities);
-
-    return {
-      participants,
-      emptyReason:
-        participants.length === 0 ? "no_recommended_participants" : undefined,
-    };
+    return fetchRecommendedParticipantsQuery(user.id);
   } catch (err) {
     console.error("[fetchRecommendedParticipants] 予期しないエラー:", err);
     return { participants: [], error: "予期しないエラーが発生しました" };
@@ -245,38 +172,7 @@ export async function fetchRecommendedParticipantDetail(
     if (authError || !user) {
       return { participant: null, error: "ログインが必要です" };
     }
-
-    const organizationProfile = await fetchApprovedOrganizationProfile(user.id);
-    if ("error" in organizationProfile) {
-      return { participant: null, error: organizationProfile.error };
-    }
-
-    const opportunities = await fetchPublishedOpportunityRequirements(
-      organizationProfile.id
-    );
-    if (opportunities.length === 0) {
-      return {
-        participant: null,
-        emptyReason: "no_published_opportunities",
-      };
-    }
-
-    const candidate = await fetchRecommendedParticipantCandidate(
-      participantProfileId
-    );
-    if (!candidate) {
-      return { participant: null, error: "参加者が見つかりません" };
-    }
-
-    const [participant] = buildRecommendedParticipants(
-      [candidate],
-      opportunities
-    );
-    if (!participant) {
-      return { participant: null, error: "参加者が見つかりません" };
-    }
-
-    return { participant };
+    return fetchRecommendedParticipantDetailQuery(user.id, participantProfileId);
   } catch (err) {
     console.error("[fetchRecommendedParticipantDetail] 予期しないエラー:", err);
     return { participant: null, error: "予期しないエラーが発生しました" };
@@ -947,21 +843,8 @@ function mapApplicationStatus(dbStatus: string): Applicant["status"] {
   return "pending";
 }
 
-function mapMatchingHistoryStatus(
-  dbStatus: string
-): MatchingHistoryStatus | null {
-  if (dbStatus === "accepted") return "approved";
-  if (dbStatus === "declined") return "rejected";
-  if (dbStatus === "completed") return "completed";
-  return null;
-}
-
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
-}
-
-function toNullableIsoString(value: Date | string | null): string | null {
-  return value ? toIsoString(value) : null;
 }
 
 function toApplicantDetailIsoString(value: Date | string): string {
@@ -984,76 +867,7 @@ export async function fetchMatchingHistory(): Promise<MatchingHistoryResult> {
     if (authError || !user) {
       return { history: [], error: "ログインが必要です" };
     }
-
-    const organizationProfile = await prisma.organizationProfile.findUnique({
-      where: { userId: user.id },
-      select: {
-        id: true,
-        reviewStatus: true,
-        user: { select: { role: true } },
-      },
-    });
-
-    if (!organizationProfile) {
-      return { history: [], error: "団体プロフィールが見つかりません" };
-    }
-
-    if (organizationProfile.user.role !== "organization") {
-      return { history: [], error: "団体アカウントのみ利用できます" };
-    }
-
-    if (organizationProfile.reviewStatus !== "approved") {
-      return { history: [], error: "承認済み団体のみ利用できます" };
-    }
-
-    const records = await prisma.matchingCandidate.findMany({
-      where: {
-        status: { in: ["accepted", "declined", "completed"] },
-        opportunity: { organizationId: organizationProfile.id },
-      },
-      select: {
-        id: true,
-        status: true,
-        appliedAt: true,
-        statusChangedAt: true,
-        participant: {
-          select: {
-            name: true,
-            participantProfile: { select: { name: true } },
-          },
-        },
-        opportunity: {
-          select: { id: true, title: true },
-        },
-      },
-      orderBy: [
-        { statusChangedAt: "desc" },
-        { appliedAt: "desc" },
-        { id: "asc" },
-      ],
-    });
-
-    const history = records.flatMap((record) => {
-      const status = mapMatchingHistoryStatus(record.status);
-      if (!status) return [];
-
-      return [
-        {
-          id: record.id,
-          status,
-          participant_name:
-            record.participant.participantProfile?.name ??
-            record.participant.name ??
-            "不明",
-          opportunity_id: record.opportunity.id,
-          opportunity_title: record.opportunity.title,
-          applied_at: toNullableIsoString(record.appliedAt),
-          status_changed_at: toIsoString(record.statusChangedAt),
-        },
-      ];
-    });
-
-    return { history };
+    return fetchMatchingHistoryQuery(user.id);
   } catch (err) {
     console.error("[fetchMatchingHistory] 予期しないエラー:", err);
     return { history: [], error: "予期しないエラーが発生しました" };

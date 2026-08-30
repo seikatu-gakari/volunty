@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
 import { APPROACH_MESSAGE_MAX_LENGTH } from "./constants";
+import {
+  fetchApproachSendDataQuery,
+  fetchDashboardApproachesQuery,
+  fetchMyApproachDetailQuery,
+  fetchMyApproachesQuery,
+} from "./queries";
 import type {
-  ApproachContact,
-  ApproachDetail,
-  ApproachListItem,
-  ApproachMessageTemplate,
   ApproachMutationResult,
   ApproachParticipant,
   ApproachResponse,
@@ -42,30 +44,6 @@ interface ParticipantRecord {
   preferredLocation: string | null;
   publicProfile: boolean;
   latestDiagnosisResult: { styleTypeId: string | null } | null;
-}
-
-interface OrganizationContactRecord {
-  organizationName: string;
-  contactEmail: string | null;
-  contactLineId: string | null;
-  contactLineUrl: string | null;
-}
-
-interface OpportunityRecord {
-  id: string;
-  title: string;
-}
-
-interface ApproachRecord {
-  id: string;
-  status: string;
-  message: string;
-  createdAt: Date | string;
-  expiresAt: Date | string;
-  respondedAt: Date | string | null;
-  opportunity: OpportunityRecord;
-  organization?: OrganizationContactRecord;
-  participantProfile?: Pick<ParticipantRecord, "id" | "name">;
 }
 
 async function getCurrentUserId(): Promise<{ userId: string } | { error: string }> {
@@ -134,14 +112,6 @@ function toStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
-function toIsoString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
-}
-
-function toNullableIsoString(value: Date | string | null): string | null {
-  return value ? toIsoString(value) : null;
-}
-
 function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
@@ -157,10 +127,6 @@ function isApproachExpired(
   now = new Date()
 ): boolean {
   return status === "sent" && new Date(expiresAt).getTime() < now.getTime();
-}
-
-function hasContact(contact: ApproachContact | null): boolean {
-  return Boolean(contact?.email || contact?.lineId || contact?.lineUrl);
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -184,70 +150,6 @@ function mapParticipant(participant: ParticipantRecord): ApproachParticipant {
     styleTypeLabel: styleTypeId
       ? (findStyleTypeById(styleTypeId)?.name ?? null)
       : null,
-  };
-}
-
-function buildContact(
-  status: ApproachStatus,
-  organization: OrganizationContactRecord
-): ApproachContact | null {
-  if (status !== "accepted") return null;
-
-  return {
-    email: organization.contactEmail,
-    lineId: organization.contactLineId,
-    lineUrl: organization.contactLineUrl,
-  };
-}
-
-function mapApproachForParticipant(approach: ApproachRecord): ApproachListItem {
-  const status = toApproachStatus(approach.status);
-  const organization = approach.organization;
-  const contact = organization ? buildContact(status, organization) : null;
-  const expired = isApproachExpired(status, approach.expiresAt);
-
-  return {
-    id: approach.id,
-    status,
-    message: approach.message,
-    createdAt: toIsoString(approach.createdAt),
-    expiresAt: toIsoString(approach.expiresAt),
-    respondedAt: toNullableIsoString(approach.respondedAt),
-    isExpired: expired,
-    opportunityId: approach.opportunity.id,
-    opportunityTitle: approach.opportunity.title,
-    organizationName: organization?.organizationName ?? "団体名未設定",
-    contact,
-    hasContact: hasContact(contact),
-  };
-}
-
-function mapApproachForDashboard(approach: ApproachRecord): ApproachListItem {
-  const status = toApproachStatus(approach.status);
-  const expired = isApproachExpired(status, approach.expiresAt);
-
-  return {
-    id: approach.id,
-    status,
-    message: approach.message,
-    createdAt: toIsoString(approach.createdAt),
-    expiresAt: toIsoString(approach.expiresAt),
-    respondedAt: toNullableIsoString(approach.respondedAt),
-    isExpired: expired,
-    participantProfileId: approach.participantProfile?.id,
-    participantName: approach.participantProfile?.name ?? "参加者名未設定",
-    opportunityId: approach.opportunity.id,
-    opportunityTitle: approach.opportunity.title,
-    contact: null,
-    hasContact: false,
-  };
-}
-
-function mapTemplate(template: ApproachMessageTemplate): ApproachMessageTemplate {
-  return {
-    id: template.id,
-    name: template.name,
-    body: template.body,
   };
 }
 
@@ -306,74 +208,7 @@ export async function fetchApproachSendData(
         error: auth.error,
       };
     }
-
-    const organization = await fetchApprovedOrganizationProfile(auth.userId);
-    if ("error" in organization) {
-      return {
-        participant: null,
-        opportunities: [],
-        templates: [],
-        error: organization.error,
-      };
-    }
-
-    const participant = await prisma.participantProfile.findUnique({
-      where: { id: participantProfileId },
-      select: {
-        id: true,
-        userId: true,
-        name: true,
-        region: true,
-        bio: true,
-        interests: true,
-        preferredLocation: true,
-        publicProfile: true,
-        latestDiagnosisResult: { select: { styleTypeId: true } },
-      },
-    });
-
-    if (!participant || !participant.publicProfile) {
-      return {
-        participant: null,
-        opportunities: [],
-        templates: [],
-        error: "参加者が見つかりません",
-      };
-    }
-
-    const [opportunities, approaches, templates] = await Promise.all([
-      prisma.opportunity.findMany({
-        where: { organizationId: organization.id, status: "published" },
-        select: { id: true, title: true },
-        orderBy: [{ createdAt: "desc" }],
-      }),
-      prisma.approach.findMany({
-        where: {
-          organizationId: organization.id,
-          participantProfileId,
-        },
-        select: { opportunityId: true },
-      }),
-      prisma.messageTemplate.findMany({
-        where: { organizationId: organization.id },
-        select: { id: true, name: true, body: true },
-        orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
-      }),
-    ]);
-
-    const approachedOpportunityIds = new Set(
-      approaches.map((approach) => approach.opportunityId)
-    );
-
-    return {
-      participant: mapParticipant(participant),
-      opportunities: opportunities.map((opportunity) => ({
-        id: opportunity.id,
-        title: opportunity.title,
-        alreadyApproached: approachedOpportunityIds.has(opportunity.id),
-      })),
-      templates: templates.map(mapTemplate),
-    };
+    return fetchApproachSendDataQuery(auth.userId, participantProfileId);
   } catch (err) {
     console.error("[fetchApproachSendData] 予期しないエラー:", err);
     return {
@@ -581,34 +416,7 @@ export async function fetchDashboardApproaches(): Promise<DashboardApproachesRes
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) return { approaches: [], error: auth.error };
-
-    const organization = await fetchApprovedOrganizationProfile(auth.userId);
-    if ("error" in organization) {
-      return { approaches: [], error: organization.error };
-    }
-
-    const approaches = await prisma.approach.findMany({
-      where: { organizationId: organization.id },
-      select: {
-        id: true,
-        status: true,
-        message: true,
-        createdAt: true,
-        expiresAt: true,
-        respondedAt: true,
-        participantProfile: {
-          select: { id: true, name: true },
-        },
-        opportunity: {
-          select: { id: true, title: true },
-        },
-      },
-      orderBy: [{ createdAt: "desc" }],
-    });
-
-    return {
-      approaches: approaches.map(mapApproachForDashboard),
-    };
+    return fetchDashboardApproachesQuery(auth.userId);
   } catch (err) {
     console.error("[fetchDashboardApproaches] 予期しないエラー:", err);
     return { approaches: [], error: "予期しないエラーが発生しました" };
@@ -619,39 +427,7 @@ export async function fetchMyApproaches(): Promise<MyApproachesResult> {
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) return { approaches: [], error: auth.error };
-
-    const participant = await fetchParticipantProfileByUserId(auth.userId);
-    if ("error" in participant) {
-      return { approaches: [], error: participant.error };
-    }
-
-    const approaches = await prisma.approach.findMany({
-      where: { participantProfileId: participant.id },
-      select: {
-        id: true,
-        status: true,
-        message: true,
-        createdAt: true,
-        expiresAt: true,
-        respondedAt: true,
-        opportunity: {
-          select: { id: true, title: true },
-        },
-        organization: {
-          select: {
-            organizationName: true,
-            contactEmail: true,
-            contactLineId: true,
-            contactLineUrl: true,
-          },
-        },
-      },
-      orderBy: [{ createdAt: "desc" }],
-    });
-
-    return {
-      approaches: approaches.map(mapApproachForParticipant),
-    };
+    return fetchMyApproachesQuery(auth.userId);
   } catch (err) {
     console.error("[fetchMyApproaches] 予期しないエラー:", err);
     return { approaches: [], error: "予期しないエラーが発生しました" };
@@ -664,45 +440,7 @@ export async function fetchMyApproachDetail(
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) return { approach: null, error: auth.error };
-
-    const participant = await fetchParticipantProfileByUserId(auth.userId);
-    if ("error" in participant) {
-      return { approach: null, error: participant.error };
-    }
-
-    const approach = await prisma.approach.findFirst({
-      where: {
-        id: approachId,
-        participantProfileId: participant.id,
-      },
-      select: {
-        id: true,
-        status: true,
-        message: true,
-        createdAt: true,
-        expiresAt: true,
-        respondedAt: true,
-        opportunity: {
-          select: { id: true, title: true },
-        },
-        organization: {
-          select: {
-            organizationName: true,
-            contactEmail: true,
-            contactLineId: true,
-            contactLineUrl: true,
-          },
-        },
-      },
-    });
-
-    if (!approach) {
-      return { approach: null, error: "アプローチが見つかりません" };
-    }
-
-    return {
-      approach: mapApproachForParticipant(approach) as ApproachDetail,
-    };
+    return fetchMyApproachDetailQuery(auth.userId, approachId);
   } catch (err) {
     console.error("[fetchMyApproachDetail] 予期しないエラー:", err);
     return { approach: null, error: "予期しないエラーが発生しました" };

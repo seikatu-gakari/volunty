@@ -12,7 +12,9 @@ import {
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchMatchingHistory } from "@/lib/dashboard/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireApprovedOrganizationViewer } from "@/lib/auth/page-viewer";
+import { fetchMatchingHistoryQuery } from "@/lib/dashboard/queries";
 import type {
   MatchingHistoryItem,
   MatchingHistoryStatus,
@@ -106,7 +108,8 @@ function MatchingHistoryCard({ item }: { item: MatchingHistoryItem }) {
 }
 
 export default async function DashboardHistoryPage() {
-  const { history, error } = await fetchMatchingHistory();
+  const viewer = requireApprovedOrganizationViewer(await getViewerContext());
+  const { history, error } = await fetchMatchingHistoryQuery(viewer.identity.id);
 
   if (error === "ログインが必要です") {
     redirect("/login");
@@ -123,7 +126,7 @@ export default async function DashboardHistoryPage() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-4xl px-6 py-8">
         <Link
