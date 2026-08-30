@@ -1,4 +1,4 @@
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 const AUTH_STATE = {
   participant: "playwright/.auth/participant.json",
@@ -7,15 +7,6 @@ const AUTH_STATE = {
 } as const;
 
 const SEEDED_OPPORTUNITY_TITLE = "E2E 応募対象案件";
-
-function createDeferred() {
-  let resolve: () => void = () => undefined;
-  const promise = new Promise<void>((done) => {
-    resolve = done;
-  });
-
-  return { promise, resolve };
-}
 
 test.describe("主要画面の読み取り遷移", () => {
   test("participant: トップからマイページ・おすすめ・案件詳細へ遷移できる", async ({
@@ -79,47 +70,39 @@ test.describe("主要画面の読み取り遷移", () => {
   });
 });
 
-test("participant: 遅延したRSC遷移中にクリックした診断LinkのLoading UIを表示する", async ({
+test("participant: 遅延した診断画面の描画中にsegment Loading UIを表示する", async ({
   browser,
 }) => {
   const context = await browser.newContext({
     storageState: AUTH_STATE.participant,
   });
   const page = await context.newPage();
-  const requestHeld = createDeferred();
-  const releaseRequest = createDeferred();
-  let holdingRoute: Route | null = null;
-
   try {
     await page.goto("/");
     await page.route("**/diagnosis*", async (route) => {
-      if (!route.request().headers().rsc || holdingRoute) {
+      if (!route.request().headers().rsc) {
         await route.continue();
         return;
       }
 
-      holdingRoute = route;
-      requestHeld.resolve();
-      await releaseRequest.promise;
-      await route.continue();
+      await route.continue({
+        headers: {
+          ...route.request().headers(),
+          "x-e2e-delay-diagnosis": "true",
+        },
+      });
     });
     await page
       .getByRole("link", { name: "診断", exact: true })
       .first()
       .click({ noWaitAfter: true });
-    await requestHeld.promise;
     await expect(
-      page
-        .getByRole("link", { name: "診断 ページを読み込み中" })
-        .getByRole("status", { name: "ページを読み込み中" }),
+      page.getByRole("status", { name: "性格傾向チェックを読み込み中" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "性格傾向チェック" }),
     ).toBeVisible();
   } finally {
-    releaseRequest.resolve();
-    if (holdingRoute) {
-      await expect(
-        page.getByRole("heading", { name: "性格傾向チェック" }),
-      ).toBeVisible();
-    }
     await context.close();
   }
 });

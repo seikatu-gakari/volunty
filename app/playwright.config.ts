@@ -30,6 +30,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ACCOUNT_DELETION_ENABLED: "true",
+      E2E_AUTH_ENABLED: process.env.E2E_AUTH_ENABLED ?? "",
     },
   },
 });

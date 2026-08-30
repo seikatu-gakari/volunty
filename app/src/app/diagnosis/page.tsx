@@ -1,5 +1,7 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { delayDiagnosisForE2E } from "@/lib/e2e/diagnosis-delay";
 import { Header } from "@/app/components/Header";
 import { DiagnosisWizard } from "./components/DiagnosisWizard";
 
@@ -11,6 +13,8 @@ import { DiagnosisWizard } from "./components/DiagnosisWizard";
  * - ロール = participant のみ（参加者レコードが存在すること）
  */
 export default async function DiagnosisPage() {
+  await delayDiagnosisForE2E(await headers());
+
   let user = null;
   let role: unknown = null;
 

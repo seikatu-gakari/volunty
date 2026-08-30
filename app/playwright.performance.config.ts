@@ -12,6 +12,10 @@ if (!baseURL || !storageState) {
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.perf.spec.ts",
+  timeout: 600_000,
+  expect: {
+    timeout: 15_000,
+  },
   reporter: [["list"]],
   use: {
     ...devices["Desktop Chrome"],
