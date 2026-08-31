@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Clock, Building2, User, Mail, MapPin, AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getViewerContext } from "@/lib/auth/viewer-context";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { PendingActions } from "./PendingActions";
@@ -16,96 +16,48 @@ interface PendingOrgProfile {
   reviewComment: string | null;
 }
 
-/** 認証状態・ロール・審査ステータス・団体情報を取得する */
-async function getPageState(): Promise<{
-  isAuthenticated: boolean;
-  isOrganization: boolean;
-  reviewStatus: "pending" | "approved" | "rejected";
-  profile: PendingOrgProfile | null;
-}> {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return {
-        isAuthenticated: false,
-        isOrganization: false,
-        reviewStatus: "pending",
-        profile: null,
-      };
-    }
-
-    const role = user.user_metadata?.role as string | undefined;
-    const isOrganization = role === "organization";
-
-    if (!isOrganization) {
-      return {
-        isAuthenticated: true,
-        isOrganization: false,
-        reviewStatus: "pending",
-        profile: null,
-      };
-    }
-
-    const orgProfile = await prisma.organizationProfile.findUnique({
-      where: { userId: user.id },
-      select: {
-        organizationName: true,
-        representativeName: true,
-        contactEmail: true,
-        activityAreas: true,
-        reviewStatus: true,
-        reviewComment: true,
-        verified: true,
-      },
-    });
-
-    if (!orgProfile) {
-      return {
-        isAuthenticated: true,
-        isOrganization: true,
-        reviewStatus: "pending",
-        profile: null,
-      };
-    }
-
-    return {
-      isAuthenticated: true,
-      isOrganization: true,
-      reviewStatus: orgProfile.reviewStatus,
-      profile: {
-        organizationName: orgProfile.organizationName,
-        representativeName: orgProfile.representativeName,
-        contactEmail: orgProfile.contactEmail,
-        activityAreas: Array.isArray(orgProfile.activityAreas)
-          ? (orgProfile.activityAreas as string[])
-          : [],
-        reviewStatus: orgProfile.reviewStatus,
-        reviewComment: orgProfile.reviewComment,
-      },
-    };
-  } catch {
-    // Supabase 未設定時・DB接続エラー時はスキップ
-    return {
-      isAuthenticated: false,
-      isOrganization: false,
-      reviewStatus: "pending",
-      profile: null,
-    };
-  }
-}
-
 export default async function OnboardingPendingPage() {
-  const { isAuthenticated, isOrganization, reviewStatus, profile } =
-    await getPageState();
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
+  }
+  if (!viewer.isActive) {
+    redirect("/auth/signout?reason=suspended");
+  }
+  if (viewer.role !== "organization") redirect("/onboarding/role");
+  if (!viewer.hasOrganizationProfile) redirect("/onboarding/organization");
+  if (viewer.organizationReviewStatus === "approved") redirect("/dashboard");
 
-  if (!isAuthenticated) redirect("/login");
-  if (!isOrganization) redirect("/onboarding/role");
-  if (!profile) redirect("/onboarding/organization");
-  if (reviewStatus === "approved") redirect("/dashboard");
+  const orgProfile = await prisma.organizationProfile.findUnique({
+    where: { userId: viewer.identity.id },
+    select: {
+      organizationName: true,
+      representativeName: true,
+      contactEmail: true,
+      activityAreas: true,
+      reviewStatus: true,
+      reviewComment: true,
+    },
+  });
+  if (!orgProfile) {
+    throw new Error("団体プロフィールを確認できませんでした");
+  }
+  if (orgProfile.reviewStatus === "approved") {
+    redirect("/dashboard");
+  }
+
+  const profile: PendingOrgProfile = {
+    organizationName: orgProfile.organizationName,
+    representativeName: orgProfile.representativeName,
+    contactEmail: orgProfile.contactEmail,
+    activityAreas: Array.isArray(orgProfile.activityAreas)
+      ? (orgProfile.activityAreas as string[])
+      : [],
+    reviewStatus: orgProfile.reviewStatus,
+    reviewComment: orgProfile.reviewComment,
+  };
+  const reviewStatus = profile.reviewStatus;
 
   const isRejected = reviewStatus === "rejected";
 

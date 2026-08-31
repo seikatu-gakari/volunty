@@ -7,10 +7,11 @@ import {
   FileCheck2,
   XCircle,
 } from "lucide-react";
-import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchParticipantCertificateDetail } from "@/lib/certificates/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireParticipantViewer } from "@/lib/auth/page-viewer";
+import { fetchParticipantCertificateDetailQuery } from "@/lib/certificates/queries";
 import type { CertificateStatus } from "@/lib/certificates/types";
 
 export const dynamic = "force-dynamic";
@@ -44,16 +45,16 @@ export default async function MyCertificateDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { certificate, error } = await fetchParticipantCertificateDetail(id);
-
-  if (error === "ログインが必要です") {
-    redirect("/login");
-  }
+  const viewer = requireParticipantViewer(await getViewerContext());
+  const { certificate, error } = await fetchParticipantCertificateDetailQuery(
+    viewer.identity.id,
+    id
+  );
 
   if (!certificate) {
     return (
       <div className="min-h-screen bg-background font-sans">
-        <Header />
+        <Header viewerContext={viewer} />
         <main className="mx-auto max-w-3xl px-6 py-8">
           <Link
             href="/mypage/certificates"
@@ -78,7 +79,7 @@ export default async function MyCertificateDetailPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link

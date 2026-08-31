@@ -11,7 +11,8 @@ import {
   CATEGORY_OPTIONS,
   PARTICIPATION_MODE_OPTIONS,
 } from "@/lib/opportunities/constants";
-import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/queries";
 
 type OpportunitiesPageProps = {
   searchParams?: Promise<{
@@ -54,14 +55,25 @@ export default async function OpportunitiesPage({
 }: OpportunitiesPageProps) {
   const params = await searchParams;
   const filters = toFilters(params);
-  const opportunities = await fetchPublicOpportunities(filters);
+  const [opportunities, viewer] = await Promise.all([
+    fetchPublicOpportunities(filters),
+    getViewerContext(),
+  ]);
   const bookmarkedOpportunityIds = new Set(
-    await fetchBookmarkedOpportunityIds(opportunities.map(({ id }) => id))
+    viewer.status === "authenticated" &&
+    viewer.isActive &&
+    viewer.role === "participant" &&
+    viewer.hasParticipantProfile
+      ? await fetchBookmarkedOpportunityIds(
+          viewer.identity.id,
+          opportunities.map(({ id }) => id),
+        )
+      : [],
   );
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-text-dark">活動を探す</h1>

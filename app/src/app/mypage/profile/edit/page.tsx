@@ -1,20 +1,20 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { Header } from "@/app/components/Header";
 import { ParticipantProfileForm } from "@/app/onboarding/participant/components/ParticipantProfileForm";
+import { getViewerContext } from "@/lib/auth/viewer-context";
 import { fetchParticipantProfileByUserId } from "@/lib/participant-profile/server";
 
 export default async function EditProfilePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
+  }
+  if (!viewer.isActive || viewer.role !== "participant") {
+    redirect("/forbidden");
   }
 
-  const profile = await fetchParticipantProfileByUserId(user.id);
+  const profile = await fetchParticipantProfileByUserId(viewer.identity.id);
 
   if (!profile) {
     // プロフィールが存在しない場合はオンボーディングへ飛ばす
@@ -38,7 +38,7 @@ export default async function EditProfilePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
       <ParticipantProfileForm
         isEdit={true}
         defaultValues={defaultValues}

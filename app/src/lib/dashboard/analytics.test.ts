@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DashboardAnalyticsResult } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 const mockGetUser = vi.fn();
 const mockFindOrganization = vi.fn();
 const mockFindOpportunities = vi.fn();

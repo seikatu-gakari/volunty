@@ -9,7 +9,9 @@ import {
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchDashboardCertificateDetail } from "@/lib/certificates/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireApprovedOrganizationViewer } from "@/lib/auth/page-viewer";
+import { fetchDashboardCertificateDetailQuery } from "@/lib/certificates/queries";
 import type { CertificateStatus } from "@/lib/certificates/types";
 import { CertificateReviewActions } from "./CertificateReviewActions";
 
@@ -44,7 +46,11 @@ export default async function DashboardCertificateDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { certificate, error } = await fetchDashboardCertificateDetail(id);
+  const viewer = requireApprovedOrganizationViewer(await getViewerContext());
+  const { certificate, error } = await fetchDashboardCertificateDetailQuery(
+    viewer.identity.id,
+    id
+  );
 
   if (error === "ログインが必要です") {
     redirect("/login");
@@ -59,7 +65,7 @@ export default async function DashboardCertificateDetailPage({
   if (!certificate) {
     return (
       <div className="min-h-screen bg-background font-sans">
-        <Header />
+        <Header viewerContext={viewer} />
         <main className="mx-auto max-w-3xl px-6 py-8">
           <Link
             href="/dashboard/certificates"
@@ -84,7 +90,7 @@ export default async function DashboardCertificateDetailPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link

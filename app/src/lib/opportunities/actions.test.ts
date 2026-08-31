@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { OpportunityDetailResult, ApplyResult } from "./types";
+import type { ViewerContext } from "@/lib/auth/viewer-context";
+
+vi.mock("server-only", () => ({}));
 
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
@@ -8,9 +11,22 @@ const mockSelect = vi.fn();
 const mockEq = vi.fn();
 const mockSingle = vi.fn();
 const mockInsert = vi.fn();
+const mockAfter = vi.fn();
+let useReadQuery = false;
+
+vi.mock("next/server", () => ({
+  after: (callback: () => void | Promise<void>) => mockAfter(callback),
+}));
 
 // チェーン可能なモックビルダー
-function createChainMock() {
+function createChainMock(table: string) {
+  const single = () => {
+    if (table === "t_matching_candidate" && useReadQuery) {
+      mockSingle();
+      return mockSingle();
+    }
+    return mockSingle();
+  };
   return {
     select: (...args: unknown[]) => {
       mockSelect(...args);
@@ -18,11 +34,11 @@ function createChainMock() {
         eq: (...eqArgs: unknown[]) => {
           mockEq(...eqArgs);
           return {
-            single: () => mockSingle(),
+            single,
             eq: (...eqArgs2: unknown[]) => {
               mockEq(...eqArgs2);
               return {
-                single: () => mockSingle(),
+                single,
               };
             },
           };
@@ -43,19 +59,21 @@ vi.mock("@/lib/supabase/server", () => ({
     },
     from: (table: string) => {
       mockFrom(table);
-      return createChainMock();
+      return createChainMock(table);
     },
   }),
 }));
 
 // Prisma のモック（閲覧イベント記録・推薦ログ検証用）
 const mockEngagementCreate = vi.fn().mockResolvedValue({});
+const mockEngagementFindFirst = vi.fn().mockResolvedValue(null);
 const mockRecommendationLogFindFirst = vi.fn().mockResolvedValue(null);
 const mockMatchingCandidateCount = vi.fn().mockResolvedValue(null);
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     engagementEvent: {
       create: (...args: unknown[]) => mockEngagementCreate(...args),
+      findFirst: (...args: unknown[]) => mockEngagementFindFirst(...args),
     },
     recommendationLog: {
       findFirst: (...args: unknown[]) => mockRecommendationLogFindFirst(...args),
@@ -67,13 +85,38 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 // "use server" ディレクティブを含むモジュールの動的インポート
-const { fetchOpportunityDetail, applyToOpportunity } = await import(
-  "./actions"
-);
+const { applyToOpportunity } = await import("./actions");
+const { fetchOpportunityDetail: fetchOpportunityDetailQuery } = await import("./queries");
+
+const activeViewer: ViewerContext = {
+  status: "authenticated",
+  identity: { id: "user-123", email: null, displayName: null },
+  role: "participant",
+  isActive: true,
+  hasParticipantProfile: true,
+  hasOrganizationProfile: false,
+  organizationVerified: false,
+  organizationReviewStatus: null,
+};
+
+function fetchOpportunityDetail(
+  opportunityId: string,
+  viewSource: "recommendation" | "search" | "direct" = "direct",
+) {
+  useReadQuery = true;
+  return fetchOpportunityDetailQuery(opportunityId, activeViewer, viewSource).finally(
+    () => {
+      useReadQuery = false;
+    },
+  );
+}
 
 describe("fetchOpportunityDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAfter.mockImplementation(() => undefined);
+    mockMatchingCandidateCount.mockResolvedValue(null);
+    mockEngagementFindFirst.mockResolvedValue(null);
   });
 
   it("未認証の場合、空のデータを返す", async () => {
@@ -88,6 +131,71 @@ describe("fetchOpportunityDetail", () => {
     expect(result.opportunity).toBeNull();
     expect(result.existingApplication).toBeNull();
     expect(result.isParticipant).toBe(false);
+  });
+
+  it("共有 ViewerContext を使用し、詳細 read で認証を再照会しない", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "wrong-user" } } });
+    mockSingle.mockReturnValue({ data: null, error: { code: "PGRST116" } });
+    const viewer: ViewerContext = {
+      status: "authenticated",
+      identity: { id: "verified-user", email: null, displayName: null },
+      role: "participant",
+      isActive: true,
+      hasParticipantProfile: true,
+      hasOrganizationProfile: false,
+      organizationVerified: false,
+      organizationReviewStatus: null,
+    };
+
+    await fetchOpportunityDetailQuery("opp-1", viewer);
+
+    expect(mockGetUser).not.toHaveBeenCalled();
+  });
+
+  it("公開確認後は応募者数・本人応募・お気に入りを並列に開始する", async () => {
+    const mockOpp = {
+      id: "opp-1",
+      title: "並列テスト案件",
+      description: null,
+      activity_style_tags: null,
+      required_qualifications: null,
+      min_age: null,
+      max_age: null,
+      status: "published",
+      created_at: "2026-01-01T00:00:00Z",
+      location: null,
+      start_date: null,
+      end_date: null,
+      capacity: null,
+      current_applicants: 0,
+      category: null,
+      participation_mode: null,
+      m_organization_profile: { id: "org-1", organization_name: "テスト団体", description: null },
+    };
+    let resolveCount: ((value: number) => void) | undefined;
+    mockMatchingCandidateCount.mockImplementation(
+      () => new Promise<number>((resolve) => { resolveCount = resolve; }),
+    );
+    let callCount = 0;
+    mockSingle.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return { data: mockOpp, error: null };
+      return { data: null, error: null };
+    });
+
+    const resultPromise = fetchOpportunityDetail("opp-1");
+    await vi.waitFor(() =>
+      expect(mockFrom).toHaveBeenCalledWith("t_matching_candidate"),
+    );
+    expect(mockEngagementFindFirst).toHaveBeenCalledWith({
+      where: { userId: "user-123", opportunityId: "opp-1", event: "favorite" },
+      select: { id: true },
+    });
+    resolveCount?.(2);
+    await expect(resultPromise).resolves.toMatchObject({
+      opportunity: { current_applicants: 2 },
+      isBookmarked: false,
+    });
   });
 
   it("案件が存在しない場合、opportunity が null を返す", async () => {
@@ -173,6 +281,8 @@ describe("fetchOpportunityDetail", () => {
     expect(result.isParticipant).toBe(true);
     expect(result.existingApplication).toBeNull();
     // 参加者の閲覧はエンゲージメントイベントとして記録される
+    const callback = mockAfter.mock.calls[0]?.[0] as () => Promise<void>;
+    await callback();
     expect(mockEngagementCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -583,6 +693,51 @@ describe("applyToOpportunity", () => {
       })
     );
   });
+
+  it("本人・案件一致の推薦ログだけを応募に紐付ける", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+    let callCount = 0;
+    mockSingle.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return { data: { id: "participant-1" }, error: null };
+      if (callCount === 2) return { data: { id: "opp-1", status: "published" }, error: null };
+      return { data: null, error: null };
+    });
+    mockRecommendationLogFindFirst.mockResolvedValue({ id: "log-valid" });
+    mockInsert.mockReturnValue({ error: null });
+
+    await expect(applyToOpportunity("opp-1", "参加したいです", "log-valid")).resolves.toEqual({ success: true });
+
+    expect(mockRecommendationLogFindFirst).toHaveBeenCalledWith({
+      where: { id: "log-valid", userId: "user-123", opportunityId: "opp-1" },
+      select: { id: true },
+    });
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ recommendation_log_id: "log-valid" }),
+    );
+  });
+
+  it.each(["missing", "foreign", "wrong-opportunity"])(
+    "%s の推薦ログでも応募を成功させ、紐付けを外す",
+    async () => {
+      mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
+      let callCount = 0;
+      mockSingle.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) return { data: { id: "participant-1" }, error: null };
+        if (callCount === 2) return { data: { id: "opp-1", status: "published" }, error: null };
+        return { data: null, error: null };
+      });
+      mockRecommendationLogFindFirst.mockResolvedValue(null);
+      mockInsert.mockReturnValue({ error: null });
+
+      await expect(applyToOpportunity("opp-1", "参加したいです", "log-unavailable")).resolves.toEqual({ success: true });
+
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({ recommendation_log_id: null }),
+      );
+    },
+  );
 
   it("INSERT エラー時は '応募の送信に失敗しました' を返す", async () => {
     const mockUser = { id: "user-123" };

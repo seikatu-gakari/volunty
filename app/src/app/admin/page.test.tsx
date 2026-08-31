@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
   getUser: vi.fn(),
   userFindUnique: vi.fn(),
+  getViewerContext: vi.fn(),
+  header: vi.fn(),
   fetchDashboardStats: vi.fn(),
 }));
 
@@ -48,20 +50,39 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-vi.mock("@/app/components/Header", () => ({
-  Header: () => <header>ヘッダー</header>,
+vi.mock("@/lib/auth/viewer-context", () => ({
+  getViewerContext: () => mocks.getViewerContext(),
 }));
 
-vi.mock("@/lib/admin/actions", () => ({
-  fetchDashboardStats: (...args: unknown[]) =>
+vi.mock("@/app/components/Header", () => ({
+  Header: ({ viewerContext }: { viewerContext?: unknown }) => {
+    mocks.header(viewerContext);
+    return <header>ヘッダー</header>;
+  },
+}));
+
+vi.mock("@/lib/admin/queries", () => ({
+  fetchDashboardStatsQuery: (...args: unknown[]) =>
     mocks.fetchDashboardStats(...args),
 }));
 
 import AdminDashboardPage from "./page";
 
 describe("AdminDashboardPage", () => {
+  const adminViewer = {
+    status: "authenticated" as const,
+    identity: { id: "admin-1", email: "admin@example.com", displayName: "管理者" },
+    role: "admin" as const,
+    isActive: true,
+    hasParticipantProfile: false,
+    hasOrganizationProfile: false,
+    organizationVerified: false,
+    organizationReviewStatus: null,
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getViewerContext.mockResolvedValue(adminViewer);
     mocks.getUser.mockReturnValue({ data: { user: { id: "admin-1" } } });
     mocks.userFindUnique.mockResolvedValue({ role: "admin" });
     mocks.fetchDashboardStats.mockResolvedValue({
@@ -71,7 +92,7 @@ describe("AdminDashboardPage", () => {
     });
   });
 
-  it("管理者にはサマリカードと団体審査導線を表示する", async () => {
+  it("管理者のPageとHeaderは同じViewerContextを共有し、旧getUserを再照会しない", async () => {
     const page = await AdminDashboardPage();
     render(page);
 
@@ -88,10 +109,14 @@ describe("AdminDashboardPage", () => {
       screen.getByRole("link", { name: /団体審査一覧/ }).getAttribute("href")
     ).toBe("/admin/organizations");
     expect(mocks.fetchDashboardStats).toHaveBeenCalledOnce();
+    expect(mocks.getViewerContext).toHaveBeenCalledOnce();
+    expect(mocks.header).toHaveBeenCalledWith(adminViewer);
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
   });
 
   it("未ログインユーザーはログイン画面へリダイレクトする", async () => {
-    mocks.getUser.mockReturnValue({ data: { user: null } });
+    mocks.getViewerContext.mockResolvedValue({ status: "guest" });
 
     await expect(AdminDashboardPage()).rejects.toThrow("NEXT_REDIRECT:/login");
 
@@ -101,13 +126,30 @@ describe("AdminDashboardPage", () => {
   });
 
   it("admin 以外のユーザーは forbidden へリダイレクトする", async () => {
-    mocks.userFindUnique.mockResolvedValue({ role: "participant" });
+    mocks.getViewerContext.mockResolvedValue({
+      ...adminViewer,
+      role: "participant",
+    });
 
     await expect(AdminDashboardPage()).rejects.toThrow(
       "NEXT_REDIRECT:/forbidden"
     );
 
     expect(mocks.redirect).toHaveBeenCalledWith("/forbidden");
+    expect(mocks.fetchDashboardStats).not.toHaveBeenCalled();
+  });
+
+  it("ViewerContext errorを未認証としてログインへは送らない", async () => {
+    mocks.getViewerContext.mockResolvedValue({
+      status: "error",
+      errorCode: "account_lookup_failed",
+    });
+
+    await expect(AdminDashboardPage()).rejects.toThrow(
+      "閲覧者情報を確認できませんでした"
+    );
+
+    expect(mocks.redirect).not.toHaveBeenCalled();
     expect(mocks.fetchDashboardStats).not.toHaveBeenCalled();
   });
 });

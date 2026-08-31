@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import type { User } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { AuthenticatedHome } from "./AuthenticatedHome";
 import { UsageSection } from "./lp/UsageSection";
@@ -22,13 +21,11 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const user = {
+const identity = {
   id: "test-user",
-  aud: "authenticated",
-  app_metadata: {},
-  user_metadata: { full_name: "テストユーザー" },
-  created_at: "2026-06-15T00:00:00.000Z",
-} as User;
+  email: "test@example.com",
+  displayName: "テストユーザー",
+};
 
 const questionUnit = String.fromCharCode(0x554f);
 const waveDash = String.fromCharCode(0x301c);
@@ -43,7 +40,7 @@ describe("診断設問数コピー", () => {
   it("ログイン直後のトップでは診断開始カードを表示しない", () => {
     render(
       <AuthenticatedHome
-        user={user}
+        identity={identity}
         role="participant"
       />,
     );
@@ -56,7 +53,7 @@ describe("診断設問数コピー", () => {
   it("応募者トップに利用できる機能導線を表示する", () => {
     render(
       <AuthenticatedHome
-        user={user}
+        identity={identity}
         role="participant"
       />,
     );
@@ -76,7 +73,7 @@ describe("診断設問数コピー", () => {
   it("ログイン後トップでは利用の流れを表示しない", () => {
     render(
       <AuthenticatedHome
-        user={user}
+        identity={identity}
         role="participant"
       />,
     );
@@ -87,7 +84,7 @@ describe("診断設問数コピー", () => {
   it("募集団体トップに団体向け機能導線を表示する", () => {
     render(
       <AuthenticatedHome
-        user={user}
+        identity={identity}
         role="organization"
         organizationVerified
       />,
@@ -108,7 +105,7 @@ describe("診断設問数コピー", () => {
   it("管理者トップに管理機能導線を表示する", () => {
     render(
       <AuthenticatedHome
-        user={user}
+        identity={identity}
         role="admin"
       />,
     );
@@ -128,7 +125,7 @@ describe("診断設問数コピー", () => {
   it("参加者プロフィール未登録カードを表示しない", () => {
     render(
       <AuthenticatedHome
-        user={user}
+        identity={identity}
         role="participant"
       />,
     );
@@ -140,7 +137,7 @@ describe("診断設問数コピー", () => {
   it("団体プロフィール未登録カードを表示しない", () => {
     render(
       <AuthenticatedHome
-        user={user}
+        identity={identity}
         role="organization"
       />,
     );

@@ -11,12 +11,14 @@ import {
   Monitor,
   FileCheck2,
 } from "lucide-react";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { LineContactCard } from "@/app/components/LineContactCard";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { buildLineFriendContact } from "@/lib/line/contact";
-import { fetchMyApplicationDetail } from "@/lib/mypage/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireParticipantViewer } from "@/lib/auth/page-viewer";
+import { fetchMyApplicationDetailQuery } from "@/lib/mypage/queries";
 import type { ApplicationStatus } from "@/lib/mypage/types";
 import { applicationStatusLabel } from "@/lib/mypage/status";
 
@@ -72,11 +74,11 @@ export default async function MyApplicationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { application, error } = await fetchMyApplicationDetail(id);
-
-  if (error === "ログインが必要です") {
-    redirect("/login");
-  }
+  const viewer = requireParticipantViewer(await getViewerContext());
+  const { application } = await fetchMyApplicationDetailQuery(
+    viewer.identity.id,
+    id
+  );
   if (!application) {
     notFound();
   }
@@ -89,7 +91,7 @@ export default async function MyApplicationDetailPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link

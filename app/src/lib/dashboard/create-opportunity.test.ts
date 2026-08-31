@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { CreateOpportunityResult } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();

@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import type { User } from "@supabase/supabase-js";
+import type { ViewerIdentity } from "@/lib/auth/viewer-context";
 import {
   getSupabaseAnonKey,
   getSupabaseServerUrl,
@@ -10,7 +10,36 @@ import {
 /** updateSession の戻り値 */
 export interface SessionResult {
   response: NextResponse;
-  user: User | null;
+  identity: ViewerIdentity | null;
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function identityFromClaims(claims: unknown): ViewerIdentity | null {
+  if (typeof claims !== "object" || claims === null || Array.isArray(claims)) {
+    return null;
+  }
+
+  const claimRecord = claims as Record<string, unknown>;
+  const id = asNonEmptyString(claimRecord.sub);
+  if (!id) {
+    return null;
+  }
+
+  const metadata =
+    typeof claimRecord.user_metadata === "object" &&
+    claimRecord.user_metadata !== null &&
+    !Array.isArray(claimRecord.user_metadata)
+      ? (claimRecord.user_metadata as Record<string, unknown>)
+      : {};
+
+  return {
+    id,
+    email: asNonEmptyString(claimRecord.email),
+    displayName: asNonEmptyString(metadata.full_name),
+  };
 }
 
 export async function updateSession(
@@ -21,7 +50,7 @@ export async function updateSession(
 
   // Supabase 未設定時はセッション処理をスキップ（開発環境対応）
   if (!supabaseUrl || !supabaseAnonKey) {
-    return { response: NextResponse.next({ request }), user: null };
+    return { response: NextResponse.next({ request }), identity: null };
   }
 
   let supabaseResponse = NextResponse.next({
@@ -50,10 +79,11 @@ export async function updateSession(
     },
   });
 
-  // セッションの更新 + ユーザー情報取得
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // セッションの更新 + 検証済みclaimsから最小identityを取得
+  const { data, error } = await supabase.auth.getClaims();
 
-  return { response: supabaseResponse, user };
+  return {
+    response: supabaseResponse,
+    identity: error ? null : identityFromClaims(data?.claims),
+  };
 }

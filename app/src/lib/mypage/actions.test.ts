@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MyPageData } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 const mockGetUser = vi.fn();
+const mockFrom = vi.fn();
+const mockSelect = vi.fn();
 const mockFetchParticipantProfileByUserIdWithDebug = vi.fn();
 const mockDeleteManyUser = vi.fn();
 const mockDeleteAuthUser = vi.fn();
@@ -44,8 +48,12 @@ vi.mock("@/lib/supabase/server", () => ({
       getUser: () => mockGetUser(),
     },
     from: (table: string) => {
+      mockFrom(table);
       const query = {
-        select: () => query,
+        select: (...args: unknown[]) => {
+          mockSelect(...args);
+          return query;
+        },
         eq: () => query,
         in: () => {
           if (table === "t_matching_candidate") {
@@ -60,7 +68,15 @@ vi.mock("@/lib/supabase/server", () => ({
           if (mockMatchingError) {
             throw mockMatchingError;
           }
-          return Promise.resolve({ data: mockMatchingRows, error: null });
+          return Promise.resolve({
+            data: mockMatchingRows.map((row) => ({
+              ...row,
+              m_opportunity: mockOpportunityRows.find(
+                (opportunity) => opportunity.id === row.opportunity_id
+              ) ?? null,
+            })),
+            error: null,
+          });
         },
       };
       return query;
@@ -101,7 +117,8 @@ vi.mock("next/navigation", () => ({
   redirect: (...args: unknown[]) => mockRedirect(...args),
 }));
 
-const { deleteMyAccount, fetchMyPageData } = await import("./actions");
+const { deleteMyAccount } = await import("./actions");
+const { fetchMyPageData } = await import("./queries");
 
 function createDeleteFormData(confirmation: string) {
   const formData = new FormData();
@@ -128,7 +145,7 @@ describe("fetchMyPageData", () => {
       error: { message: "Not authenticated" },
     });
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     expect(result.profile).toBeNull();
     expect(result.applications).toEqual([]);
@@ -159,7 +176,7 @@ describe("fetchMyPageData", () => {
       },
     });
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     expect(result.profile).toEqual({
       id: "user-123",
@@ -172,6 +189,48 @@ describe("fetchMyPageData", () => {
     expect(result.alert).toBeNull();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
+  });
+
+  it("検証済み userId を使い、プロフィールと応募取得を並列に開始する", async () => {
+    let resolveProfile: ((value: unknown) => void) | undefined;
+    mockGetUser.mockReturnValue({ data: { user: { id: "wrong-user" } } });
+    mockFetchParticipantProfileByUserIdWithDebug.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveProfile = resolve;
+        })
+    );
+
+    const resultPromise = fetchMyPageData("verified-user");
+    await vi.waitFor(() =>
+      expect(mockFrom).toHaveBeenCalledWith("t_matching_candidate")
+    );
+
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(mockFetchParticipantProfileByUserIdWithDebug).toHaveBeenCalledWith(
+      "verified-user"
+    );
+    expect(
+      mockFrom.mock.calls.filter(([table]) => table === "t_matching_candidate")
+    ).toHaveLength(1);
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining("m_opportunity(id, title")
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "m_organization_profile(organization_name, contact_line_id)"
+      )
+    );
+
+    resolveProfile?.({
+      profile: null,
+      debug: {
+        fallbackUsed: false,
+        prismaErrorDetail: null,
+        supabaseErrorDetail: null,
+      },
+    });
+    await resultPromise;
   });
 
   it("応募データがある場合、応募一覧を返す", async () => {
@@ -226,7 +285,7 @@ describe("fetchMyPageData", () => {
       },
     ];
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     expect(result.applications).toHaveLength(2);
 
@@ -299,7 +358,7 @@ describe("fetchMyPageData", () => {
       },
     ];
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     const rejectedApp = result.applications[1];
     expect(rejectedApp.status).toBe("rejected");
@@ -331,7 +390,7 @@ describe("fetchMyPageData", () => {
     });
     mockMatchingError = new Error("DB connection error");
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     expect(result.profile).toBeNull();
     expect(result.applications).toEqual([]);

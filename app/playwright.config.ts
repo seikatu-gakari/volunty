@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { playwrightWebServerEnv } from "./playwright-web-server-env";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -6,6 +7,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["html", { open: "never" }], ["list"]],
   globalSetup: "./e2e/global-setup.ts",
+  testIgnore: "**/*.perf.spec.ts",
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
@@ -27,8 +29,6 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: {
-      ACCOUNT_DELETION_ENABLED: "true",
-    },
+    env: playwrightWebServerEnv(process.env),
   },
 });

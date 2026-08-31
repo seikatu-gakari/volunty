@@ -4,13 +4,18 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fetchCertificateRequestTargetQuery,
+  fetchDashboardCertificateDetailQuery,
+  fetchDashboardCertificatesQuery,
+  fetchMyCertificatesQuery,
+  fetchParticipantCertificateDetailQuery,
+} from "./queries";
 import type {
   CertificateDetailResult,
   CertificateListItem,
   CertificateMutationResult,
   CertificatePdfDataResult,
-  CertificateReference,
-  CertificateRequestTarget,
   CertificateRequestTargetResult,
   CertificatesResult,
   CertificateStatus,
@@ -94,10 +99,6 @@ const certificateSelect = {
     },
   },
 } satisfies Prisma.CertificateSelect;
-
-type CompletedApplicationRecord = Prisma.MatchingCandidateGetPayload<{
-  select: typeof completedApplicationSelect;
-}>;
 
 type CertificateRecord = Prisma.CertificateGetPayload<{
   select: typeof certificateSelect;
@@ -215,37 +216,6 @@ function toCertificateStatus(status: string): CertificateStatus {
   return "pending";
 }
 
-function mapCertificateReference(
-  certificate: Pick<CertificateRecord, "id" | "status"> | null
-): CertificateReference | null {
-  if (!certificate) return null;
-  return {
-    id: certificate.id,
-    status: toCertificateStatus(certificate.status),
-  };
-}
-
-function mapRequestTarget(
-  application: CompletedApplicationRecord,
-  existingCertificate: CertificateReference | null
-): CertificateRequestTarget {
-  const completedAt = toIso(application.statusChangedAt) ?? "";
-
-  return {
-    applicationId: application.id,
-    participantName: application.participant.participantProfile?.name ?? "不明",
-    organizationName: application.opportunity.organization.organizationName,
-    opportunityTitle: application.opportunity.title,
-    completedAt,
-    activityDateLabel: buildActivityDateLabel({
-      startDate: application.opportunity.startDate,
-      endDate: application.opportunity.endDate,
-      completedAt: application.statusChangedAt,
-    }),
-    existingCertificate,
-  };
-}
-
 function mapCertificate(record: CertificateRecord): CertificateListItem {
   const completedAt = toIso(record.application.statusChangedAt) ?? "";
 
@@ -302,27 +272,7 @@ export async function fetchCertificateRequestTarget(
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) return { target: null, error: auth.error };
-
-    const application = await fetchCompletedApplicationForParticipant(
-      applicationId,
-      auth.userId
-    );
-
-    if (!application) {
-      return {
-        target: null,
-        error: "活動完了済みの応募のみ証明書を申請できます",
-      };
-    }
-
-    const existing = await prisma.certificate.findUnique({
-      where: { applicationId },
-      select: { id: true, status: true },
-    });
-
-    return {
-      target: mapRequestTarget(application, mapCertificateReference(existing)),
-    };
+    return fetchCertificateRequestTargetQuery(auth.userId, applicationId);
   } catch (err) {
     console.error("[fetchCertificateRequestTarget] 予期しないエラー:", err);
     return { target: null, error: "予期しないエラーが発生しました" };
@@ -383,14 +333,7 @@ export async function fetchMyCertificates(): Promise<CertificatesResult> {
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) return { certificates: [], error: auth.error };
-
-    const certificates = await prisma.certificate.findMany({
-      where: { participantId: auth.userId },
-      select: certificateSelect,
-      orderBy: [{ requestedAt: "desc" }],
-    });
-
-    return { certificates: certificates.map(mapCertificate) };
+    return fetchMyCertificatesQuery(auth.userId);
   } catch (err) {
     console.error("[fetchMyCertificates] 予期しないエラー:", err);
     return { certificates: [], error: "予期しないエラーが発生しました" };
@@ -401,19 +344,7 @@ export async function fetchDashboardCertificates(): Promise<CertificatesResult> 
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) return { certificates: [], error: auth.error };
-
-    const organization = await fetchApprovedOrganizationProfile(auth.userId);
-    if ("error" in organization) {
-      return { certificates: [], error: organization.error };
-    }
-
-    const certificates = await prisma.certificate.findMany({
-      where: { organizationId: organization.id },
-      select: certificateSelect,
-      orderBy: [{ requestedAt: "desc" }],
-    });
-
-    return { certificates: certificates.map(mapCertificate) };
+    return fetchDashboardCertificatesQuery(auth.userId);
   } catch (err) {
     console.error("[fetchDashboardCertificates] 予期しないエラー:", err);
     return { certificates: [], error: "予期しないエラーが発生しました" };
@@ -426,17 +357,7 @@ export async function fetchParticipantCertificateDetail(
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) return { certificate: null, error: auth.error };
-
-    const certificate = await prisma.certificate.findFirst({
-      where: { id: certificateId, participantId: auth.userId },
-      select: certificateSelect,
-    });
-
-    if (!certificate) {
-      return { certificate: null, error: "証明書が見つかりません" };
-    }
-
-    return { certificate: mapCertificate(certificate) };
+    return fetchParticipantCertificateDetailQuery(auth.userId, certificateId);
   } catch (err) {
     console.error("[fetchParticipantCertificateDetail] 予期しないエラー:", err);
     return { certificate: null, error: "予期しないエラーが発生しました" };
@@ -449,22 +370,7 @@ export async function fetchDashboardCertificateDetail(
   try {
     const auth = await getCurrentUserId();
     if ("error" in auth) return { certificate: null, error: auth.error };
-
-    const organization = await fetchApprovedOrganizationProfile(auth.userId);
-    if ("error" in organization) {
-      return { certificate: null, error: organization.error };
-    }
-
-    const certificate = await prisma.certificate.findFirst({
-      where: { id: certificateId, organizationId: organization.id },
-      select: certificateSelect,
-    });
-
-    if (!certificate) {
-      return { certificate: null, error: "証明書申請が見つかりません" };
-    }
-
-    return { certificate: mapCertificate(certificate) };
+    return fetchDashboardCertificateDetailQuery(auth.userId, certificateId);
   } catch (err) {
     console.error("[fetchDashboardCertificateDetail] 予期しないエラー:", err);
     return { certificate: null, error: "予期しないエラーが発生しました" };

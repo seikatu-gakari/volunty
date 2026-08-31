@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+
 const mockGetUser = vi.fn();
 const mockFindParticipant = vi.fn();
 const mockFindOpportunity = vi.fn();
@@ -35,10 +37,9 @@ vi.mock("@/lib/prisma", () => ({
 
 const {
   addBookmark,
-  fetchBookmarkedOpportunityIds,
-  fetchMyBookmarks,
   removeBookmark,
 } = await import("./actions");
+const { fetchBookmarkedOpportunityIds, fetchMyBookmarks } = await import("./queries");
 
 describe("bookmark actions", () => {
   beforeEach(() => {
@@ -104,11 +105,12 @@ describe("bookmark actions", () => {
       { opportunityId: "opp-2" },
     ]);
 
-    const result = await fetchBookmarkedOpportunityIds();
+    const result = await fetchBookmarkedOpportunityIds("verified-user");
 
     expect(result).toEqual(["opp-1", "opp-2"]);
+    expect(mockGetUser).not.toHaveBeenCalled();
     expect(mockFindFavorites).toHaveBeenCalledWith({
-      where: { userId: "user-1", event: "favorite" },
+      where: { userId: "verified-user", event: "favorite" },
       select: { opportunityId: true },
     });
   });
@@ -125,7 +127,7 @@ describe("bookmark actions", () => {
       },
     ]);
 
-    const result = await fetchMyBookmarks();
+    const result = await fetchMyBookmarks("user-1");
 
     expect(result.bookmarks).toEqual([
       {

@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, Sparkles } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
+import {
+  getViewerContext,
+  type ViewerContext,
+} from "@/lib/auth/viewer-context";
 import { HeaderAuth } from "@/app/components/HeaderAuth";
 import { PublicHeaderNavigation } from "@/app/components/PublicHeaderNavigation";
 import { lpAssets } from "@/app/components/lp/lpAssets";
@@ -16,7 +18,7 @@ export interface HeaderUserState {
 
 interface HeaderProps {
   variant?: "default" | "landing";
-  onboardingCompleted?: boolean;
+  viewerContext?: ViewerContext;
 }
 
 /** verified フラグまたは reviewStatus === "approved" でチェック */
@@ -32,64 +34,32 @@ function isOrganizationVerified(profile: {
   );
 }
 
-export async function Header({
-  variant = "default",
-  onboardingCompleted,
-}: HeaderProps = {}) {
-  let user = null;
+export async function Header({ variant = "default", viewerContext }: HeaderProps = {}) {
+  const viewer = viewerContext ?? (await getViewerContext());
   let userState: HeaderUserState = {
     role: null,
     onboardingCompleted: false,
     verified: false,
   };
 
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-
-    if (user) {
-      const metadata = user.user_metadata as Record<string, unknown>;
-      const role = metadata.role as string | undefined;
-
-      // role と onboardingCompleted は user_metadata から取得（Prisma 不要）
-      userState = {
-        role: role === "participant" || role === "organization" ? role : null,
-        onboardingCompleted: onboardingCompleted ?? !!metadata.onboarding_completed,
-        verified: false,
-      };
-
-      // 団体の場合: verified / reviewStatus を取得
-      if (role === "organization") {
-        try {
-          const orgProfile = await prisma.organizationProfile.findUnique({
-            where: { userId: user.id },
-            select: { verified: true, reviewStatus: true },
-          });
-          // verified フラグまたは reviewStatus === "approved" で判定
-          userState.verified = isOrganizationVerified(orgProfile ?? {});
-        } catch {
-          // Prisma 失敗時は Supabase にフォールバック
-          try {
-            const { data: profile } = await supabase
-              .from("m_organization_profile")
-              .select("verified, review_status")
-              .eq("user_id", user.id)
-              .maybeSingle();
-            userState.verified = isOrganizationVerified(profile ?? {});
-          } catch {
-            // DB 接続エラー時は verified: false のまま
-          }
-        }
-      } else {
-        userState.verified = !!metadata.verified;
-      }
-    }
-  } catch {
-    // Supabase未設定・接続エラー時はログインなしで表示
+  if (viewer.status === "authenticated" && viewer.isActive) {
+    userState = {
+      role:
+        viewer.role === "participant" || viewer.role === "organization"
+          ? viewer.role
+          : null,
+      onboardingCompleted:
+        (viewer.role === "participant" && viewer.hasParticipantProfile) ||
+        (viewer.role === "organization" && viewer.hasOrganizationProfile),
+      verified: isOrganizationVerified({
+        verified: viewer.organizationVerified,
+        review_status: viewer.organizationReviewStatus,
+      }),
+    };
   }
 
-  const showLandingHeader = variant === "landing" && !user;
+  const identity = viewer.status === "authenticated" ? viewer.identity : null;
+  const showLandingHeader = variant === "landing" && !identity;
 
   return (
     <header
@@ -169,7 +139,7 @@ export async function Header({
         {showLandingHeader ? (
           <PublicHeaderNavigation />
         ) : (
-          <HeaderAuth user={user} userState={userState} />
+          <HeaderAuth identity={identity} userState={userState} />
         )}
       </div>
     </header>

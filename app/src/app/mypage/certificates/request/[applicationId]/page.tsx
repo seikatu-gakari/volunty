@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, FileCheck2 } from "lucide-react";
-import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchCertificateRequestTarget } from "@/lib/certificates/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireParticipantViewer } from "@/lib/auth/page-viewer";
+import { fetchCertificateRequestTargetQuery } from "@/lib/certificates/queries";
 import { RequestCertificateForm } from "./RequestCertificateForm";
 
 export const dynamic = "force-dynamic";
@@ -14,15 +15,15 @@ export default async function CertificateRequestPage({
   params: Promise<{ applicationId: string }>;
 }) {
   const { applicationId } = await params;
-  const { target, error } = await fetchCertificateRequestTarget(applicationId);
-
-  if (error === "ログインが必要です") {
-    redirect("/login");
-  }
+  const viewer = requireParticipantViewer(await getViewerContext());
+  const { target, error } = await fetchCertificateRequestTargetQuery(
+    viewer.identity.id,
+    applicationId
+  );
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link
