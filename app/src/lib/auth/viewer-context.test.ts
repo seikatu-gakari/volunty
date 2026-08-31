@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   eq: vi.fn(),
   maybeSingle: vi.fn(),
+  headers: vi.fn(),
   unstableRethrow: vi.fn((error: unknown) => {
     if (
       typeof error === "object" &&
@@ -24,6 +25,10 @@ vi.mock("server-only", () => ({}));
 
 vi.mock("next/navigation", () => ({
   unstable_rethrow: mocks.unstableRethrow,
+}));
+
+vi.mock("next/headers", () => ({
+  headers: mocks.headers,
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -48,11 +53,16 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { getViewerContext } from "./viewer-context";
+import {
+  VIEWER_CONTEXT_HEADER,
+  serializeForwardedViewerContext,
+} from "./viewer-context-header";
 
 describe("getViewerContext", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.cacheStore.clear();
+    mocks.headers.mockResolvedValue(new Headers());
     mocks.createClient.mockResolvedValue({
       auth: { getClaims: mocks.getClaims },
       from: mocks.from,
@@ -60,6 +70,36 @@ describe("getViewerContext", () => {
     mocks.eq.mockReturnValue({ maybeSingle: mocks.maybeSingle });
     mocks.select.mockReturnValue({ eq: mocks.eq });
     mocks.from.mockReturnValue({ select: mocks.select });
+  });
+
+  it("Proxyが転送した検証済みコンテキストを使い、Server Componentで再照会しない", async () => {
+    const forwardedViewer = {
+      identity: {
+        id: "forwarded-participant-1",
+        email: "forwarded@example.com",
+        displayName: "転送済み参加者",
+      },
+      role: "participant" as const,
+      isActive: true,
+      hasParticipantProfile: true,
+      hasOrganizationProfile: false,
+      organizationVerified: false,
+      organizationReviewStatus: null,
+    };
+    mocks.headers.mockResolvedValue(
+      new Headers({
+        [VIEWER_CONTEXT_HEADER]:
+          serializeForwardedViewerContext(forwardedViewer),
+      }),
+    );
+
+    await expect(getViewerContext()).resolves.toEqual({
+      status: "authenticated",
+      ...forwardedViewer,
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.getClaims).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it("検証済みclaimsだけから最小identityを作り、DB roleと埋め込みプロフィールを一度だけ取得する", async () => {

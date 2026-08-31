@@ -1,15 +1,16 @@
 import "server-only";
 import { cache } from "react";
+import { headers } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseForwardedViewerContext,
+  type ViewerIdentity,
+  type ViewerRole,
+  VIEWER_CONTEXT_HEADER,
+} from "@/lib/auth/viewer-context-header";
 
-export type ViewerRole = "participant" | "organization" | "admin";
-
-export interface ViewerIdentity {
-  id: string;
-  email: string | null;
-  displayName: string | null;
-}
+export type { ViewerIdentity, ViewerRole } from "@/lib/auth/viewer-context-header";
 
 export type ViewerContext =
   | { status: "guest" }
@@ -75,6 +76,13 @@ function identityFromClaims(claims: unknown): ViewerIdentity | null {
 }
 
 export const getViewerContext = cache(async (): Promise<ViewerContext> => {
+  const forwardedViewer = parseForwardedViewerContext(
+    (await headers()).get(VIEWER_CONTEXT_HEADER),
+  );
+  if (forwardedViewer) {
+    return { status: "authenticated", ...forwardedViewer };
+  }
+
   let supabase;
   try {
     supabase = await createClient();

@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import type { ViewerIdentity } from "@/lib/auth/viewer-context";
+import {
+  serializeForwardedViewerContext,
+  type ForwardedViewerContext,
+  VIEWER_CONTEXT_HEADER,
+} from "@/lib/auth/viewer-context-header";
 import { updateSession } from "@/lib/supabase/middleware";
 import {
   getSupabaseAnonKey,
@@ -38,6 +43,10 @@ const ROLE_PATH_PREFIXES: Record<AppRole, readonly string[]> = {
 
 function isRecord(value: unknown): value is RecordValue {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function isAppRole(value: unknown): value is AppRole {
@@ -94,6 +103,28 @@ function redirectTo(
   return redirectWithCookies(url, response);
 }
 
+function continueWithRequestHeaders(
+  request: NextRequest,
+  sourceResponse: NextResponse,
+  viewer?: ForwardedViewerContext,
+): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(VIEWER_CONTEXT_HEADER);
+  if (viewer) {
+    requestHeaders.set(
+      VIEWER_CONTEXT_HEADER,
+      serializeForwardedViewerContext(viewer),
+    );
+  }
+  const nextResponse = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+  sourceResponse.cookies.getAll().forEach((cookie) => {
+    nextResponse.cookies.set(cookie);
+  });
+  return nextResponse;
+}
+
 async function getAuthorizationRecord(
   request: NextRequest,
   response: NextResponse,
@@ -144,17 +175,19 @@ async function getAuthorizationRecord(
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname.startsWith(AUTH_CALLBACK)) {
-    return NextResponse.next({ request });
+    return continueWithRequestHeaders(request, NextResponse.next());
   }
 
   const { response, identity } = await updateSession(request);
 
   if (isAuthPath(pathname)) {
-    return identity ? redirectTo(request, response, "/") : response;
+    return identity
+      ? redirectTo(request, response, "/")
+      : continueWithRequestHeaders(request, response);
   }
 
   if (PUBLIC_PATHS.has(pathname) || !isProtectedPath(pathname)) {
-    return response;
+    return continueWithRequestHeaders(request, response);
   }
 
   if (!identity) {
@@ -188,16 +221,31 @@ export async function proxy(request: NextRequest) {
     console.error("[proxy] m_user role invalid", { code: "m_user_role_invalid" });
   }
 
-  if (isOnboardingPath(pathname)) {
-    return response;
-  }
-
   if (!account || !isAppRole(role)) {
+    if (isOnboardingPath(pathname)) {
+      return continueWithRequestHeaders(request, response);
+    }
     return redirectTo(request, response, "/forbidden");
   }
 
   const participantProfile = normalizeEmbeddedRecord(account.m_participant_profile);
   const organizationProfile = normalizeEmbeddedRecord(account.m_organization_profile);
+  const forwardedViewer: ForwardedViewerContext = {
+    identity,
+    role,
+    isActive: account.is_active === true,
+    hasParticipantProfile: participantProfile !== null,
+    hasOrganizationProfile: organizationProfile !== null,
+    organizationVerified: organizationProfile?.verified === true,
+    organizationReviewStatus: asNonEmptyString(
+      organizationProfile?.review_status,
+    ),
+  };
+
+  if (isOnboardingPath(pathname)) {
+    return continueWithRequestHeaders(request, response, forwardedViewer);
+  }
+
   const hasRequiredProfile =
     role === "admin" ||
     (role === "participant" && participantProfile !== null) ||
@@ -218,7 +266,7 @@ export async function proxy(request: NextRequest) {
     return redirectTo(request, response, "/onboarding/pending");
   }
 
-  return response;
+  return continueWithRequestHeaders(request, response, forwardedViewer);
 }
 
 export const config = {

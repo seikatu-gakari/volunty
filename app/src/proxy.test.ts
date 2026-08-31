@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { proxy } from "./proxy";
+import {
+  parseForwardedViewerContext,
+  VIEWER_CONTEXT_HEADER,
+} from "@/lib/auth/viewer-context-header";
 
 const mocks = vi.hoisted(() => ({
   updateSession: vi.fn(),
@@ -28,8 +32,21 @@ vi.mock("@/lib/supabase/env", () => ({
   SUPABASE_AUTH_COOKIE_NAME: "sb-test-auth-token",
 }));
 
-function createRequest(pathname: string): NextRequest {
-  return new NextRequest(new URL(pathname, "http://localhost:3000"));
+function createRequest(
+  pathname: string,
+  headers?: HeadersInit,
+): NextRequest {
+  return new NextRequest(new URL(pathname, "http://localhost:3000"), {
+    headers,
+  });
+}
+
+function forwardedViewerContext(response: NextResponse) {
+  return parseForwardedViewerContext(
+    response.headers.get(
+      `x-middleware-request-${VIEWER_CONTEXT_HEADER}`,
+    ),
+  );
 }
 
 function mockGuestSession(request: NextRequest) {
@@ -140,6 +157,22 @@ describe("proxy", () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
+  it("公開ページではクライアントが偽装した内部Viewerヘッダーを除去する", async () => {
+    const request = createRequest("/", {
+      [VIEWER_CONTEXT_HEADER]: "forged-viewer",
+    });
+    mockGuestSession(request);
+
+    const response = await proxy(request);
+
+    expect(forwardedViewerContext(response)).toBeNull();
+    expect(
+      response.headers.get(
+        `x-middleware-request-${VIEWER_CONTEXT_HEADER}`,
+      ),
+    ).toBeNull();
+  });
+
   it.each(["/diagnosis/trial", "/opportunities", "/opportunities?q=test"] as const)(
     "未認証でも %s は公開ページとして通過する",
     async (path) => {
@@ -204,6 +237,68 @@ describe("proxy", () => {
       "is_active,role,m_participant_profile(id),m_organization_profile(id,verified,review_status)",
     );
     expect(mocks.eq).toHaveBeenCalledWith("id", "active-1");
+    expect(forwardedViewerContext(response)).toEqual({
+      identity: {
+        id: "active-1",
+        email: "active-1@example.com",
+        displayName: null,
+      },
+      role: "participant",
+      isActive: true,
+      hasParticipantProfile: true,
+      hasOrganizationProfile: false,
+      organizationVerified: false,
+      organizationReviewStatus: null,
+    });
+  });
+
+  it("保護ルートではクライアントの偽装ヘッダーをDB検証済みViewerで上書きする", async () => {
+    const request = createRequest("/mypage", {
+      [VIEWER_CONTEXT_HEADER]: "forged-viewer",
+    });
+    mockAuthenticatedSession(request, "verified-participant-1");
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: authorizationAccount("participant"),
+      error: null,
+    });
+
+    const response = await proxy(request);
+
+    expect(forwardedViewerContext(response)?.identity.id).toBe(
+      "verified-participant-1",
+    );
+  });
+
+  it("認証更新Cookieの属性を保護ルートの応答へ引き継ぐ", async () => {
+    const request = createRequest("/mypage");
+    const sourceResponse = NextResponse.next({ request });
+    sourceResponse.cookies.set("refreshed-session", "token", {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: true,
+    });
+    mocks.updateSession.mockResolvedValue({
+      response: sourceResponse,
+      identity: {
+        id: "cookie-participant-1",
+        email: "cookie-participant-1@example.com",
+        displayName: null,
+      },
+    });
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: authorizationAccount("participant"),
+      error: null,
+    });
+
+    const response = await proxy(request);
+    const setCookie = response.headers.get("set-cookie");
+
+    expect(setCookie).toContain("refreshed-session=token");
+    expect(setCookie).toContain("Path=/");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("SameSite=lax");
+    expect(setCookie).toContain("Secure");
   });
 
   it("保護ルートは埋め込みプロフィールを含む1 client・1 queryで参加者を判定する", async () => {
