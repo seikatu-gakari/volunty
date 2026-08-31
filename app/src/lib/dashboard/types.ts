@@ -107,8 +107,6 @@ export interface MatchingHistoryItem {
   status: MatchingHistoryStatus;
   /** 応募者名 */
   participant_name: string;
-  /** accepted の自団体応募に限り含まれる参加者LINE ID */
-  participant_line_id?: string | null;
   /** 案件ID */
   opportunity_id: string;
   /** 案件タイトル */
@@ -224,6 +222,8 @@ export interface ApplicantDetail {
   completed_at: string | null;
   /** 参加者名 */
   participant_name: string;
+  /** accepted の自団体応募に限り含まれる参加者LINE ID */
+  participant_line_id?: string | null;
   /** 活動スタイルの参考タイプ名（未診断は null） */
   style_type_label: string | null;
   /** 案件ID */
