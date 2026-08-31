@@ -44,7 +44,11 @@ test.describe("承認済み団体", () => {
     await expect(page.getByText("承認済み", { exact: true })).toBeVisible({
       timeout: 15_000,
     });
-    await page.reload();
+    await page.goto("/dashboard");
+    await page
+      .getByRole("link", { name: new RegExp(ORGANIZATION_FLOW_OPPORTUNITY_TITLE) })
+      .click();
+    await page.getByRole("link", { name: "詳細を見る" }).click();
     await expect(
       page.getByRole("heading", { name: "参加者連絡先（LINE ID）" })
     ).toBeVisible();
