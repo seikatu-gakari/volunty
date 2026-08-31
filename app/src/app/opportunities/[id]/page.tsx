@@ -368,6 +368,9 @@ export default async function OpportunityDetailPage({
               </h2>
             </CardHeader>
             <CardContent>
+              <p className="mb-4 text-xs leading-5 text-text-body">
+                応募後、団体とのマッチングが成立すると、登録しているLINE IDが団体へ共有されます。
+              </p>
               <ApplyForm
                 opportunityId={opportunity.id}
                 recommendationLogId={recommendationLogId}

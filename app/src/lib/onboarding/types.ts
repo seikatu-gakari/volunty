@@ -43,6 +43,8 @@ export interface RegisterParticipantData {
   region: string;
   /** 自己紹介（任意） */
   bio?: string;
+  /** マッチング成立時のみ対象団体へ共有するLINE ID（任意） */
+  lineId?: string;
   /** 興味のある分野（任意・複数選択可） */
   interests?: string[];
 }

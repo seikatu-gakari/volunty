@@ -468,6 +468,7 @@ export async function seedE2eUsers(): Promise<void> {
     where: { userId: onboardedId },
     update: {
       name: "E2E 参加者(診断済)",
+      lineId: "e2e-participant-line",
       birthday: new Date("1995-04-01"),
       region: "東京都",
       publicProfile: true,
@@ -475,6 +476,7 @@ export async function seedE2eUsers(): Promise<void> {
     create: {
       userId: onboardedId,
       name: "E2E 参加者(診断済)",
+      lineId: "e2e-participant-line",
       birthday: new Date("1995-04-01"),
       region: "東京都",
       publicProfile: true,

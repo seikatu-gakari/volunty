@@ -61,6 +61,7 @@ export interface ParticipantProfileFormProps {
     gender: string;
     region: string;
     bio: string;
+    lineId: string;
     interests: string[];
   };
   onSuccessRedirect?: string;
@@ -79,6 +80,7 @@ export function ParticipantProfileForm({
   const [gender, setGender] = useState(defaultValues?.gender || "");
   const [region, setRegion] = useState(defaultValues?.region || "");
   const [bio, setBio] = useState(defaultValues?.bio || "");
+  const [lineId, setLineId] = useState(defaultValues?.lineId || "");
   const [interests, setInterests] = useState<string[]>(defaultValues?.interests || []);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -115,6 +117,7 @@ export function ParticipantProfileForm({
         gender: gender || undefined,
         region,
         bio: bio || undefined,
+        lineId: lineId || undefined,
         interests: interests.length > 0 ? interests : undefined,
       });
 
@@ -270,6 +273,21 @@ export function ParticipantProfileForm({
                 rows={3}
                 className={`${selectClass} resize-none`}
               />
+            </div>
+
+            {/* 興味のある分野 */}
+            <div className="flex flex-col gap-1">
+              <Input
+                label="LINE ID（任意）"
+                type="text"
+                placeholder="例: volunteer_taro"
+                value={lineId}
+                onChange={(e) => setLineId(e.target.value)}
+                autoComplete="off"
+              />
+              <p className="text-xs leading-5 text-text-body">
+                LINE IDは、応募した団体とのマッチングが成立した場合にのみ、その団体へ共有されます。マッチング成立前や他の団体には公開されません。
+              </p>
             </div>
 
             {/* 興味のある分野 */}

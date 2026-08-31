@@ -38,7 +38,15 @@ test.describe("承認済み団体", () => {
       page.getByRole("heading", { name: "応募者一覧" })
     ).toBeVisible();
     await expect(page.getByText(/1件の応募/)).toBeVisible();
+    await page.getByRole("link", { name: "詳細を見る" }).click();
+    await expect(page.getByText("e2e-participant-line", { exact: true })).toHaveCount(0);
+    await page.getByRole("link", { name: "応募者一覧に戻る" }).click();
     await page.getByRole("button", { name: "承認する" }).click();
     await expect(page.getByText("承認済み", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "詳細を見る" }).click();
+    await expect(
+      page.getByRole("heading", { name: "参加者連絡先（LINE ID）" })
+    ).toBeVisible();
+    await expect(page.getByText("e2e-participant-line", { exact: true })).toBeVisible();
   });
 });

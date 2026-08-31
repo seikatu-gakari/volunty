@@ -287,6 +287,7 @@ describe("registerParticipant", () => {
       gender: "male",
       region: "東京都",
       bio: "ボランティア活動が好きです",
+      lineId: "  participant-line-id  ",
       interests: ["環境保全", "子ども支援"],
     });
 
@@ -306,6 +307,7 @@ describe("registerParticipant", () => {
           gender: "male",
           region: "東京都",
           bio: "ボランティア活動が好きです",
+          lineId: "participant-line-id",
           interests: ["環境保全", "子ども支援"],
         }),
       })
@@ -338,6 +340,7 @@ describe("registerParticipant", () => {
           gender: null,
           region: "大阪府",
           bio: null,
+          lineId: null,
           interests: Prisma.JsonNull,
         }),
       })

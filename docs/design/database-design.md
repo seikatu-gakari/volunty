@@ -75,6 +75,7 @@ erDiagram
         uuid id PK
         uuid user_id FK
         text bio "自己紹介"
+        varchar line_id "成立した自団体案件の団体にのみ共有"
         jsonb interests "興味分野の配列"
         jsonb availability "活動可能な曜日・時間帯"
         varchar preferred_location "希望活動地域"
@@ -264,6 +265,7 @@ erDiagram
 | id                 | UUID         | NOT NULL | gen_random_uuid() | 主キー                                     |
 | user_id            | UUID         | NOT NULL | -                 | users.id 外部キー                          |
 | bio                | TEXT         | NULL     | -                 | 自己紹介                                   |
+| line_id            | VARCHAR(100) | NULL     | -                 | 成立した自団体案件の団体にのみ共有するLINE ID |
 | interests          | JSONB        | NULL     | -                 | 興味分野 ["環境保全", "子ども支援"]        |
 | diagnosis_mode     | VARCHAR(20)  | NULL     | -                 | 最新診断モード（brief / full）             |
 | diagnosis_type     | VARCHAR(100) | NULL     | -                 | 最新診断タイプID                           |

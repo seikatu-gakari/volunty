@@ -4,6 +4,7 @@ import type { ApplicantDetailResult } from "./types";
 const mockGetUser = vi.fn();
 const mockFindOrganizationProfile = vi.fn();
 const mockFindOwnedApplication = vi.fn();
+const mockFindParticipantProfile = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -20,6 +21,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     matchingCandidate: {
       findFirst: (...args: unknown[]) => mockFindOwnedApplication(...args),
+    },
+    participantProfile: {
+      findUnique: (...args: unknown[]) => mockFindParticipantProfile(...args),
     },
   },
 }));
@@ -43,9 +47,11 @@ const ownedApplication = {
   appliedAt: new Date("2026-01-20T00:00:00.000Z"),
   statusChangedAt: new Date("2026-01-20T00:00:00.000Z"),
   participant: {
+    id: "participant-1",
     name: "ユーザー名",
     participantProfile: {
       name: "プロフィール名",
+      lineId: "participant-line-id",
       latestDiagnosisResult: { styleTypeId: "supporter-care" },
     },
   },
@@ -67,6 +73,7 @@ describe("fetchApplicantDetail", () => {
     });
     mockFindOrganizationProfile.mockResolvedValue(organizationProfile);
     mockFindOwnedApplication.mockResolvedValue(ownedApplication);
+    mockFindParticipantProfile.mockResolvedValue({ lineId: "participant-line-id" });
   });
 
   afterEach(() => {
@@ -155,6 +162,7 @@ describe("fetchApplicantDetail", () => {
           },
         })
       );
+      expect(mockFindParticipantProfile).not.toHaveBeenCalled();
     }
   );
 
@@ -184,6 +192,7 @@ describe("fetchApplicantDetail", () => {
     );
     expect(result.data).not.toHaveProperty("diagnosis_scores");
     expect(result.data).not.toHaveProperty("match_score");
+    expect(result.data).not.toHaveProperty("participant_line_id");
     expect(mockFindOrganizationProfile).toHaveBeenCalledWith({
       where: { userId: "organization-user-1" },
       select: {
@@ -214,6 +223,36 @@ describe("fetchApplicantDetail", () => {
       }),
     });
   });
+
+  it("承認済み応募では自団体の応募者LINE IDを返す", async () => {
+    mockFindOwnedApplication.mockResolvedValue({
+      ...ownedApplication,
+      status: "accepted",
+    });
+
+    const result = await fetchApplicantDetail("application-1");
+
+    expect(result.data?.participant_line_id).toBe("participant-line-id");
+    expect(mockFindParticipantProfile).toHaveBeenCalledWith({
+      where: { userId: "participant-1" },
+      select: { lineId: true },
+    });
+  });
+
+  it.each(["applied", "declined"])(
+    "%s の応募では応募者LINE IDを返さない",
+    async (status) => {
+      mockFindOwnedApplication.mockResolvedValue({
+        ...ownedApplication,
+        status,
+      });
+
+      const result = await fetchApplicantDetail("application-1");
+
+      expect(result.data).not.toHaveProperty("participant_line_id");
+      expect(mockFindParticipantProfile).not.toHaveBeenCalled();
+    }
+  );
 
   it("完了済み応募の日付をミリ秒なしの既存形式で返す", async () => {
     mockFindOwnedApplication.mockResolvedValue({
