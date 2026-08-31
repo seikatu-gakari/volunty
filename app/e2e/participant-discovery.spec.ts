@@ -56,6 +56,11 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await page
       .getByRole("link", { name: new RegExp(APPLICATION_OPPORTUNITY_TITLE) })
       .click();
+    await expect(
+      page.getByText(
+        "応募後、団体とのマッチングが成立すると、登録しているLINE IDが団体へ共有されます。"
+      )
+    ).toBeVisible();
     await page
       .getByLabel("応募メッセージ")
       .fill("Playwright E2Eからの参加希望メッセージです");

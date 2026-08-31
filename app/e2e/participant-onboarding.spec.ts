@@ -30,6 +30,12 @@ test.describe("参加者オンボーディング", () => {
     await page.getByLabel("月").selectOption("4");
     await page.getByLabel("日").selectOption("1");
     await page.getByLabel("都道府県").selectOption("東京都");
+    await expect(
+      page.getByText(
+        "LINE IDは、応募した団体とのマッチングが成立した場合にのみ、その団体へ共有されます。マッチング成立前や他の団体には公開されません。"
+      )
+    ).toBeVisible();
+    await page.getByLabel("LINE ID（任意）").fill("e2e-fresh-line");
     await page.getByRole("button", { name: "登録して診断へ進む" }).click();
 
     await expect(page).toHaveURL(/\/diagnosis$/);

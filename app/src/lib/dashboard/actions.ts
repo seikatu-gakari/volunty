@@ -1221,6 +1221,7 @@ export async function fetchApplicantDetail(
         statusChangedAt: true,
         participant: {
           select: {
+            id: true,
             name: true,
             participantProfile: {
               select: {
@@ -1243,6 +1244,15 @@ export async function fetchApplicantDetail(
     }
 
     const participantProfile = application.participant.participantProfile;
+    const participantLineId =
+      application.status === "accepted"
+        ? (
+            await prisma.participantProfile.findUnique({
+              where: { userId: application.participant.id },
+              select: { lineId: true },
+            })
+          )?.lineId ?? null
+        : undefined;
     const styleTypeId =
       participantProfile?.latestDiagnosisResult?.styleTypeId ?? null;
     const styleType = styleTypeId
@@ -1263,6 +1273,9 @@ export async function fetchApplicantDetail(
             : null,
         participant_name:
           participantProfile?.name ?? application.participant.name ?? "不明",
+        ...(application.status === "accepted"
+          ? { participant_line_id: participantLineId }
+          : {}),
         style_type_label: styleType?.name ?? null,
         opportunity_id: application.opportunity.id,
         opportunity_title: application.opportunity.title,

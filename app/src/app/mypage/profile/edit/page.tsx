@@ -33,6 +33,7 @@ export default async function EditProfilePage() {
     gender: profile.gender || "",
     region: profile.region,
     bio: profile.bio || "",
+    lineId: profile.lineId || "",
     interests: profile.interests,
   };
 

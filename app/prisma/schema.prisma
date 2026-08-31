@@ -164,6 +164,7 @@ model ParticipantProfile {
   birthday                DateTime @db.Date
   gender                  String?  @db.VarChar(20)
   bio                     String?  @db.Text
+  lineId                  String?  @map("line_id") @db.VarChar(100)
   region                  String   @db.VarChar(100) // 居住都道府県（必須）
   interests               Json? // 興味分野 ["環境保全", "子ども支援"]
   latestDiagnosisResultId String?  @unique @map("latest_diagnosis_result_id") @db.Uuid
