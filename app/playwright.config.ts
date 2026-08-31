@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { playwrightWebServerEnv } from "./playwright-web-server-env";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -28,9 +29,6 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: {
-      ACCOUNT_DELETION_ENABLED: "true",
-      E2E_AUTH_ENABLED: process.env.E2E_AUTH_ENABLED ?? "",
-    },
+    env: playwrightWebServerEnv(process.env),
   },
 });
