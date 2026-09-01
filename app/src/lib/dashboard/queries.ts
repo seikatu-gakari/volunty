@@ -501,6 +501,7 @@ export async function fetchApplicantDetailQuery(
             participantProfile: {
               select: {
                 name: true,
+                lineId: true,
                 latestDiagnosisResult: { select: { styleTypeId: true } },
               },
             },
@@ -515,6 +516,10 @@ export async function fetchApplicantDetailQuery(
     }
 
     const participantProfile = application.participant.participantProfile;
+    const participantLineId =
+      application.status === "accepted"
+        ? participantProfile?.lineId ?? null
+        : undefined;
     const styleTypeId = participantProfile?.latestDiagnosisResult?.styleTypeId ?? null;
     const styleType = styleTypeId
       ? (findStyleTypeById(styleTypeId) ?? null)
@@ -534,6 +539,9 @@ export async function fetchApplicantDetailQuery(
             : null,
         participant_name:
           participantProfile?.name ?? application.participant.name ?? "不明",
+        ...(application.status === "accepted"
+          ? { participant_line_id: participantLineId }
+          : {}),
         style_type_label: styleType?.name ?? null,
         opportunity_id: application.opportunity.id,
         opportunity_title: application.opportunity.title,

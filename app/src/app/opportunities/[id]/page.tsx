@@ -108,7 +108,12 @@ export default async function OpportunityDetailPage({
     viewer.status === "authenticated"
       ? await fetchOpportunityDetail(id, viewer, viewSource)
       : { existingApplication: null, isParticipant: false, isBookmarked: false };
-  const { existingApplication, isParticipant, isBookmarked } = viewerState;
+  const { existingApplication, isBookmarked } = viewerState;
+  const isParticipant =
+    viewer.status === "authenticated" &&
+    viewer.isActive &&
+    viewer.role === "participant" &&
+    viewer.hasParticipantProfile;
   const actionMode = getOpportunityActionMode(viewer, isParticipant);
   const returnQuery = new URLSearchParams();
   if (query?.from) returnQuery.set("from", query.from);
