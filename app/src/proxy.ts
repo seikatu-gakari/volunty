@@ -190,7 +190,7 @@ export async function proxy(request: NextRequest) {
       : continueWithRequestHeaders(request, response);
   }
 
-  if (isPublicPath(pathname) || !isProtectedPath(pathname)) {
+  if ((!identity && isPublicPath(pathname)) || !isProtectedPath(pathname)) {
     return continueWithRequestHeaders(request, response);
   }
 
@@ -245,6 +245,10 @@ export async function proxy(request: NextRequest) {
       organizationProfile?.review_status,
     ),
   };
+
+  if (isPublicPath(pathname)) {
+    return continueWithRequestHeaders(request, response, forwardedViewer);
+  }
 
   if (isOnboardingPath(pathname)) {
     return continueWithRequestHeaders(request, response, forwardedViewer);
