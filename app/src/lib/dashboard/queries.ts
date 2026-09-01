@@ -146,7 +146,7 @@ export async function fetchOpportunityForEditQuery(
     const { data, error: fetchError } = await supabase
       .from("m_opportunity")
       .select(
-        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, location, start_date, end_date, capacity, category, participation_mode",
+        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, location, start_date, end_date, schedule, capacity, category, participation_mode, cost, belongings, application_deadline, cancellation_policy, insurance_details, contact_method",
       )
       .eq("id", id)
       .eq("organization_id", (orgProfile as unknown as { id: string }).id)
@@ -168,9 +168,16 @@ export async function fetchOpportunityForEditQuery(
       location: string | null;
       start_date: string | null;
       end_date: string | null;
+      schedule: string | null;
       capacity: number | null;
       category: string | null;
       participation_mode: ParticipationMode | null;
+      cost: string | null;
+      belongings: string | null;
+      application_deadline: string | null;
+      cancellation_policy: string | null;
+      insurance_details: string | null;
+      contact_method: string | null;
     };
     const opportunity: OpportunityEditData = {
       id: row.id,
@@ -188,9 +195,16 @@ export async function fetchOpportunityForEditQuery(
       location: row.location ?? null,
       start_date: normalizeDateOnly(row.start_date),
       end_date: normalizeDateOnly(row.end_date),
+      schedule: row.schedule ?? null,
       capacity: row.capacity ?? null,
       category: row.category ?? null,
       participation_mode: row.participation_mode ?? null,
+      cost: row.cost ?? null,
+      belongings: row.belongings ?? null,
+      application_deadline: normalizeDateOnly(row.application_deadline),
+      cancellation_policy: row.cancellation_policy ?? null,
+      insurance_details: row.insurance_details ?? null,
+      contact_method: row.contact_method ?? null,
     };
 
     return { opportunity };
