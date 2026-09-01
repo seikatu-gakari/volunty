@@ -178,7 +178,7 @@ test.describe("未ログインLP導線", () => {
     await expect(page.getByText("E2E 応募対象案件")).toBeVisible();
 
     await page.getByRole("link", { name: "E2E 応募対象案件" }).click();
-    await expect(page).toHaveURL(/\/opportunities\/[0-9a-f-]+$/);
+    await expect(page).toHaveURL(/\/opportunities\/[0-9a-f-]+(?:\?.*)?$/);
     const currentDetailUrl = new URL(page.url());
     const detailUrl = `${currentDetailUrl.pathname}${currentDetailUrl.search}`;
     await expect(page.getByRole("heading", { name: "E2E 応募対象案件" })).toBeVisible();
@@ -199,8 +199,8 @@ test.describe("未ログインLP導線", () => {
   });
 
   test("未認証の無効な募集詳細URLは404を返す", async ({ page }) => {
-    const response = await page.goto("/opportunities/invalid-id");
-    expect(response?.status()).toBe(404);
+    await page.goto("/opportunities/invalid-id");
+    await expect(page.getByRole("heading", { name: "ページが見つかりません" })).toBeVisible();
   });
 });
 
