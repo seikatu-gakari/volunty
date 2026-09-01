@@ -19,7 +19,7 @@ import {
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { getViewerContext } from "@/lib/auth/viewer-context";
-import { fetchOpportunityDetail } from "@/lib/opportunities/queries";
+import { fetchOpportunityViewerState } from "@/lib/opportunities/queries";
 import { fetchPublicOpportunityDetail } from "@/lib/opportunities/public-detail";
 import { getOpportunityActionMode } from "@/lib/opportunities/detail-access";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
@@ -106,7 +106,7 @@ export default async function OpportunityDetailPage({
 
   const viewerState =
     viewer.status === "authenticated"
-      ? await fetchOpportunityDetail(id, viewer, viewSource)
+      ? await fetchOpportunityViewerState(id, viewer, viewSource)
       : { existingApplication: null, isParticipant: false, isBookmarked: false };
   const { existingApplication, isBookmarked } = viewerState;
   const isParticipant =

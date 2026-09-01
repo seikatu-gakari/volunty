@@ -5,7 +5,12 @@ import type { ViewerContext } from "@/lib/auth/viewer-context";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { findActivityStyleTag, toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
-import type { ExistingApplication, OpportunityDetail, OpportunityDetailResult } from "./types";
+import type {
+  ExistingApplication,
+  OpportunityDetail,
+  OpportunityDetailResult,
+  OpportunityViewerState,
+} from "./types";
 
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
@@ -37,6 +42,64 @@ function isActiveParticipant(viewer: ViewerContext): viewer is Extract<ViewerCon
 
 /** 閲覧イベントの流入元 */
 export type OpportunityViewSource = "recommendation" | "search" | "direct";
+
+/** 公開DTOとは分離して、参加者本人の応募・保存・閲覧状態だけを取得する。 */
+export async function fetchOpportunityViewerState(
+  opportunityId: string,
+  viewer: ViewerContext,
+  viewSource: OpportunityViewSource = "direct",
+): Promise<OpportunityViewerState> {
+  if (!isActiveParticipant(viewer)) {
+    return { existingApplication: null, isParticipant: false, isBookmarked: false };
+  }
+
+  const userId = viewer.identity.id;
+  const [application, bookmark] = await Promise.all([
+    prisma.matchingCandidate.findUnique({
+      where: {
+        participantId_opportunityId: { participantId: userId, opportunityId },
+      },
+      select: {
+        id: true,
+        status: true,
+        message: true,
+        appliedAt: true,
+        statusChangedAt: true,
+      },
+    }),
+    prisma.engagementEvent.findFirst({
+      where: { userId, opportunityId, event: "favorite" },
+      select: { id: true },
+    }),
+  ]);
+
+  after(async () => {
+    try {
+      await prisma.engagementEvent.create({
+        data: { userId, opportunityId, event: "view", source: viewSource },
+      });
+    } catch (error) {
+      console.error("[fetchOpportunityViewerState] 閲覧イベントの記録に失敗:", error);
+    }
+  });
+
+  return {
+    existingApplication: application
+      ? {
+          id: application.id,
+          status: mapMatchingStatus(application.status),
+          message: application.message,
+          created_at: application.appliedAt?.toISOString() ?? "",
+          completed_at:
+            application.status === "completed"
+              ? application.statusChangedAt.toISOString()
+              : null,
+        }
+      : null,
+    isParticipant: true,
+    isBookmarked: Boolean(bookmark),
+  };
+}
 
 /** 検証済み ViewerContext を用いて公開案件詳細を取得する。 */
 export async function fetchOpportunityDetail(

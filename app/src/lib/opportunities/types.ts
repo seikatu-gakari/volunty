@@ -84,6 +84,13 @@ export interface OpportunityDetailResult {
   isBookmarked: boolean;
 }
 
+/** 公開詳細に重ねる参加者本人だけの状態。 */
+export interface OpportunityViewerState {
+  existingApplication: ExistingApplication | null;
+  isParticipant: boolean;
+  isBookmarked: boolean;
+}
+
 /** applyToOpportunity の戻り値 */
 export interface ApplyResult {
   success: boolean;
