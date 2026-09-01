@@ -280,10 +280,10 @@ export function OpportunityForm({
               ["cancellationPolicy", "キャンセル方針（任意）", initialData?.cancellation_policy, "例: 前日までにVolunty内でご連絡ください"],
               ["insuranceDetails", "保険・安全情報（任意）", initialData?.insurance_details, "例: 主催者負担で行事保険に加入します"],
               ["contactMethod", "問い合わせ方法（任意）", initialData?.contact_method, "例: 応募後にVolunty内でご案内します"],
-            ].map(([name, label, value, placeholder]) => (
+            ] as const).map(([name, label, value, placeholder]) => (
               <div key={name} className="flex flex-col gap-1">
                 <label htmlFor={name} className="text-sm font-medium text-text-dark">{label}</label>
-                <textarea id={name} name={name} rows={2} defaultValue={value} placeholder={placeholder} className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark placeholder:text-text-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <textarea id={name} name={name} rows={2} defaultValue={value ?? ""} placeholder={placeholder} className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark placeholder:text-text-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
             ))}
 
