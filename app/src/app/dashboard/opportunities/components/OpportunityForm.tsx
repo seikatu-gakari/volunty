@@ -276,7 +276,7 @@ export function OpportunityForm({
               <label htmlFor="applicationDeadline" className="text-sm font-medium text-text-dark">応募締切（任意）</label>
               <input id="applicationDeadline" name="applicationDeadline" type="date" defaultValue={initialData?.application_deadline ?? ""} className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
-            {[
+            {([
               ["cancellationPolicy", "キャンセル方針（任意）", initialData?.cancellation_policy, "例: 前日までにVolunty内でご連絡ください"],
               ["insuranceDetails", "保険・安全情報（任意）", initialData?.insurance_details, "例: 主催者負担で行事保険に加入します"],
               ["contactMethod", "問い合わせ方法（任意）", initialData?.contact_method, "例: 応募後にVolunty内でご案内します"],
