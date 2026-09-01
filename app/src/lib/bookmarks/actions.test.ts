@@ -9,6 +9,11 @@ const mockFindFavorite = vi.fn();
 const mockCreateFavorite = vi.fn();
 const mockDeleteFavorites = vi.fn();
 const mockFindFavorites = vi.fn();
+const mockRevalidatePath = vi.fn();
+
+vi.mock("next/cache", () => ({
+  revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
+}));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
@@ -56,6 +61,7 @@ describe("bookmark actions", () => {
     const result = await addBookmark("opp-1");
 
     expect(result).toEqual({ success: true });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/opportunities/opp-1");
     expect(mockFindOpportunity).toHaveBeenCalledWith({
       where: {
         id: "opp-1",
