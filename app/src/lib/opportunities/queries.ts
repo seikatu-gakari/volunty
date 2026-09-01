@@ -49,7 +49,7 @@ export async function fetchOpportunityDetail(
     const { data: oppData, error: oppError } = await supabase
       .from("m_opportunity")
       .select(
-        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, published_at, created_at, location, start_date, end_date, capacity, current_applicants, category, participation_mode, m_organization_profile(id, organization_name, description)",
+        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, published_at, created_at, location, start_date, end_date, schedule, capacity, current_applicants, category, participation_mode, cost, belongings, application_deadline, cancellation_policy, insurance_details, contact_method, m_organization_profile(id, organization_name, description, website_url, verified)",
       )
       .eq("id", opportunityId)
       .single();
@@ -76,15 +76,25 @@ export async function fetchOpportunityDetail(
         id: (org?.id as string) ?? "",
         name: (org?.organization_name as string) ?? "",
         description: (org?.description as string | null) ?? null,
+        website_url: (org?.website_url as string | null) ?? null,
+        verified: (org?.verified as boolean | null) ?? false,
       },
       created_at: oppData.created_at as string,
       location: (oppData.location as string | null) ?? null,
       start_date: ((oppData.start_date as string | null) ?? null)?.slice(0, 10) ?? null,
       end_date: ((oppData.end_date as string | null) ?? null)?.slice(0, 10) ?? null,
+      schedule: (oppData.schedule as string | null) ?? null,
       capacity: (oppData.capacity as number | null) ?? null,
       current_applicants: (oppData.current_applicants as number | null) ?? 0,
       category: (oppData.category as string | null) ?? null,
       participation_mode: (oppData.participation_mode as OpportunityDetail["participation_mode"]) ?? null,
+      cost: (oppData.cost as string | null) ?? null,
+      belongings: (oppData.belongings as string | null) ?? null,
+      application_deadline:
+        ((oppData.application_deadline as string | null) ?? null)?.slice(0, 10) ?? null,
+      cancellation_policy: (oppData.cancellation_policy as string | null) ?? null,
+      insurance_details: (oppData.insurance_details as string | null) ?? null,
+      contact_method: (oppData.contact_method as string | null) ?? null,
     };
     const participant = isActiveParticipant(viewer);
     const userId = participant ? viewer.identity.id : null;

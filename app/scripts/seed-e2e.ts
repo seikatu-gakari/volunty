@@ -172,6 +172,13 @@ async function upsertPublishedOpportunity(
     category: options.category ?? "地域活性化",
     participationMode: options.participationMode ?? ("offline" as const),
     currentApplicants: options.currentApplicants ?? 0,
+    schedule: "毎週土曜日 10:00〜12:00",
+    cost: "無料（交通費は自己負担）",
+    belongings: "飲み物、動きやすい服装",
+    applicationDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    cancellationPolicy: "前日までにVolunty内でご連絡ください。",
+    insuranceDetails: "主催団体が行事保険へ加入します。",
+    contactMethod: "応募後にVolunty内でご案内します。",
     status: "published" as const,
     publishedAt: new Date(),
   };
