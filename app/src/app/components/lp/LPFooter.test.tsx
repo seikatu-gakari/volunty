@@ -8,12 +8,14 @@ vi.mock("next/link", () => ({
     children,
     href,
     className,
+    "aria-label": ariaLabel,
   }: {
     children: ReactNode;
     href: string;
     className?: string;
+    "aria-label"?: string;
   }) => (
-    <a href={href} className={className}>
+    <a href={href} className={className} aria-label={ariaLabel}>
       {children}
     </a>
   ),

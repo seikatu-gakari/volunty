@@ -94,6 +94,6 @@ describe("HeaderAuth の主要ナビゲーション", () => {
     fireEvent.click(trigger);
     expect(screen.getByRole("button", { name: "メニューを閉じる" }).getAttribute("aria-expanded")).toBe("true");
     expect(screen.getAllByRole("link", { name: "マイページ" })).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "ログアウト" })).toBeDefined();
+    expect(screen.getAllByRole("button", { name: "ログアウト" })).toHaveLength(2);
   });
 });
