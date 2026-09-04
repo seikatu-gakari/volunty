@@ -210,7 +210,9 @@ test.describe("未ログインLP（モバイル）", () => {
   test("主要コンテンツと操作導線を一画面幅で利用できる", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
+    await expect(
+      page.locator("header").getByRole("link", { name: "ボランティ ホーム" }),
+    ).toBeVisible();
     await expect(page.locator('header [data-testid="brand-heart"]')).toBeVisible();
     await expect(page.locator('img[src*="brand-mark.png"]')).toHaveCount(0);
     await expect(page.getByText("あなたにぴったりの活動を見つけよう").first()).toBeHidden();
