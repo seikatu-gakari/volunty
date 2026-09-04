@@ -9,13 +9,12 @@ import {
   Star,
   User,
   LayoutDashboard,
-  Menu,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { HeaderUserState } from "@/app/components/Header";
 import { HeaderNavigationPendingIndicator } from "@/app/components/HeaderNavigationPendingIndicator";
+import { MobileMenuButton } from "@/app/components/MobileMenuButton";
 import type { ViewerIdentity } from "@/lib/auth/viewer-context";
 
 /** ナビリンク定義 */
@@ -120,14 +119,11 @@ export function HeaderAuth({
         </div>
 
         {/* モバイル: ハンバーガーボタン */}
-        <button
+        <MobileMenuButton
+          menuOpen={menuOpen}
           onClick={() => setMenuOpen((prev) => !prev)}
-          className="flex size-10 items-center justify-center rounded-lg text-text-body hover:bg-primary/5 md:hidden"
-          aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
-          aria-expanded={menuOpen}
-        >
-          {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-        </button>
+          className="md:hidden"
+        />
 
         {/* モバイル: ドロップダウンメニュー */}
         {menuOpen && (

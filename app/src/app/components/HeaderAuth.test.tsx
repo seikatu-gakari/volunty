@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -76,5 +76,24 @@ describe("HeaderAuth の主要ナビゲーション", () => {
     expect(
       screen.queryByRole("status", { name: "ページを読み込み中" }),
     ).toBeNull();
+  });
+
+  it("認証済みモバイルメニューで共通トリガー契約とロール別リンクを維持する", () => {
+    render(
+      <HeaderAuth
+        identity={{ id: "participant-1", email: "participant@example.com", displayName: "参加者 太郎" }}
+        userState={{ role: "participant", onboardingCompleted: true, verified: false }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "メニューを開く" });
+    expect(trigger.className).toContain("size-10");
+    expect(trigger.className).toContain("rounded-lg");
+    expect(trigger.querySelector("svg")?.classList.contains("size-5")).toBe(true);
+    expect(trigger.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("button", { name: "メニューを閉じる" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByRole("link", { name: "マイページ" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "ログアウト" })).toBeDefined();
   });
 });

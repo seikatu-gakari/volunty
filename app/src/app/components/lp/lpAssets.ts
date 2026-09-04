@@ -7,12 +7,6 @@ interface LPAsset {
 }
 
 export const lpAssets = {
-  brandMark: {
-    src: "/lp/mobile/brand-mark.png",
-    alt: "",
-    width: 1254,
-    height: 1254,
-  },
   orbitMotif: {
     src: "/lp/mobile/orbit-motif.png",
     alt: "",

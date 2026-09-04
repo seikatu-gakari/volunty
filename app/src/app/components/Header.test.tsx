@@ -7,11 +7,12 @@ const mocks = vi.hoisted(() => ({ getViewerContext: vi.fn() }));
 vi.mock("server-only", () => ({}));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, className }: {
+  default: ({ children, href, className, "aria-label": ariaLabel }: {
     children: ReactNode;
     href: string;
     className?: string;
-  }) => <a href={href} className={className}>{children}</a>,
+    "aria-label"?: string;
+  }) => <a href={href} className={className} aria-label={ariaLabel}>{children}</a>,
 }));
 
 vi.mock("@/lib/auth/viewer-context", () => ({
@@ -46,8 +47,27 @@ describe("Header", () => {
     render(await Header({ variant: "landing" }));
 
     expect(screen.getByRole("link", { name: "使い方" }).getAttribute("href")).toBe("#usage");
-    expect(screen.getByText("あなたにぴったりの活動を見つけよう").className).toContain("block");
+    expect(screen.getByText("あなたにぴったりの活動を見つけよう").className).toContain("sm:block");
+    expect(screen.getByText("あなたにぴったりの活動を見つけよう").className).toContain("hidden");
     expect(screen.queryByText("認証済みナビゲーション")).toBeNull();
+  });
+
+  it("landingとdefaultで同じヘッダーシェルと公式ロゴを表示する", async () => {
+    const landing = render(await Header({ variant: "landing" }));
+    const landingHeader = landing.container.querySelector("header");
+    const landingInner = landing.container.querySelector("header > div");
+    expect(screen.getByRole("link", { name: "ボランティ ホーム" })).toBeDefined();
+    expect(landing.container.querySelector('[data-testid="brand-heart"]')).not.toBeNull();
+    expect(landing.container.querySelector('img[src="/lp/mobile/brand-mark.png"]')).toBeNull();
+    const landingHeaderClass = landingHeader?.className;
+    const landingInnerClass = landingInner?.className;
+    landing.unmount();
+
+    const standard = render(await Header());
+    expect(standard.container.querySelector("header")?.className).toBe(landingHeaderClass);
+    expect(standard.container.querySelector("header > div")?.className).toBe(landingInnerClass);
+    expect(screen.getByRole("link", { name: "ボランティ ホーム" })).toBeDefined();
+    expect(standard.container.querySelector('[data-testid="brand-heart"]')).not.toBeNull();
   });
 
   it("DB roleとプロフィール完了状態を受け取った参加者を認証ナビゲーションとして表示する", async () => {
