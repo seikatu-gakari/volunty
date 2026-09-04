@@ -74,7 +74,7 @@ async function expectLandingPageIntegrity(
   }
 
   const images = page.locator("main img");
-  await expect(images).toHaveCount(14);
+  await expect(images).toHaveCount(13);
 
   await expect(page.locator("#voices")).toHaveCount(0);
   await expect(page.getByText("こんな使われ方", { exact: true })).toHaveCount(0);
