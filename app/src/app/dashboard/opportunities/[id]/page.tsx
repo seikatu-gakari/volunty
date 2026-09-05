@@ -17,8 +17,8 @@ import {
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { createClient } from "@/lib/supabase/server";
-import { fetchApplicantsForOpportunity } from "@/lib/dashboard/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchApplicantsForOpportunityQuery } from "@/lib/dashboard/queries";
 import type {
   Applicant,
   ApplicantSort,
@@ -162,21 +162,22 @@ export default async function OpportunityApplicantsPage({
       ? (query.status as ApplicantStatusFilter)
       : "all";
 
-  // 認証チェック
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
-  } catch {
-    // Supabase 未設定時
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
+  }
+  if (!viewer.isActive || viewer.role !== "organization") {
+    redirect("/forbidden");
+  }
+  if (!viewer.hasOrganizationProfile) {
+    redirect("/onboarding/role");
+  }
+  if (viewer.organizationReviewStatus !== "approved") {
+    redirect("/onboarding/pending");
   }
 
-  if (!isAuthenticated) {
-    redirect("/login");
-  }
-
-  const { data, error } = await fetchApplicantsForOpportunity(id, {
+  const { data, error } = await fetchApplicantsForOpportunityQuery(viewer.identity.id, id, {
     sort,
     status,
   });
@@ -193,7 +194,7 @@ export default async function OpportunityApplicantsPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         {/* 戻るリンク */}

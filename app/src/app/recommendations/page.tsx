@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Brain, Sparkles } from "lucide-react"
-import { createClient } from "@/lib/supabase/server"
-import { fetchRecommendations } from "@/lib/recommendations/actions"
+import { getViewerContext } from "@/lib/auth/viewer-context"
+import { fetchRecommendations } from "@/lib/recommendations/queries"
 import type { RecommendationFilters } from "@/lib/recommendations/types"
 import { Header } from "@/app/components/Header"
 import { OpportunityCard } from "./components/OpportunityCard"
@@ -49,27 +49,16 @@ export default async function RecommendationsPage({
     filters.category || filters.region || filters.participationMode
   )
 
-  // 認証チェック
-  let user = null
-  try {
-    const supabase = await createClient()
-    const { data } = await supabase.auth.getUser()
-    user = data.user
-  } catch (err) {
-    // Supabase未設定・接続エラー時は未ログインとして扱う
-    console.error("[RecommendationsPage] Supabase接続エラー:", err)
-  }
-
-  if (!user) {
-    redirect("/login")
-  }
+  const viewer = await getViewerContext()
+  if (viewer.status === "guest") redirect("/login")
+  if (viewer.status === "error") throw new Error("閲覧者情報を確認できませんでした")
 
   const { recommendations, hasCompletedDiagnosis } =
-    await fetchRecommendations(filters)
+    await fetchRecommendations(viewer.identity.id, filters)
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-10">
         {/* ページタイトル */}

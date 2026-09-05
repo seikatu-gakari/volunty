@@ -3,11 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
-  getUser: vi.fn(),
-  from: vi.fn(),
-  select: vi.fn(),
-  eq: vi.fn(),
-  maybeSingle: vi.fn(),
+  getViewerContext: vi.fn(),
   roleSelectionClient: vi.fn(),
 }));
 
@@ -18,13 +14,8 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn().mockResolvedValue({
-    auth: {
-      getUser: () => mocks.getUser(),
-    },
-    from: (...args: unknown[]) => mocks.from(...args),
-  }),
+vi.mock("@/lib/auth/viewer-context", () => ({
+  getViewerContext: () => mocks.getViewerContext(),
 }));
 
 vi.mock("./RoleSelectionClient", () => ({
@@ -36,79 +27,59 @@ vi.mock("./RoleSelectionClient", () => ({
 
 import OnboardingRolePage from "./page";
 
+const participantViewer = {
+  status: "authenticated" as const,
+  identity: {
+    id: "user-1",
+    email: "user@example.com",
+    displayName: "利用者",
+  },
+  role: "participant" as const,
+  isActive: true,
+  hasParticipantProfile: false,
+  hasOrganizationProfile: false,
+  organizationVerified: false,
+  organizationReviewStatus: null,
+};
+
 describe("OnboardingRolePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getUser.mockResolvedValue({
-      data: {
-        user: {
-          id: "user-1",
-          user_metadata: { role: "participant", onboarding_completed: true },
-        },
-      },
-    });
-    mocks.maybeSingle
-      .mockResolvedValueOnce({
-        data: { role: "participant" },
-        error: null,
-      })
-      .mockResolvedValueOnce({ data: null, error: null });
-    mocks.eq.mockReturnValue({ maybeSingle: mocks.maybeSingle });
-    mocks.select.mockReturnValue({ eq: mocks.eq });
-    mocks.from.mockReturnValue({ select: mocks.select });
+    mocks.getViewerContext.mockResolvedValue(participantViewer);
   });
 
-  it("role設定済みparticipantでもプロフィール未登録ならロール選択UIを表示する", async () => {
+  it("プロフィール未登録の参加者にはロール選択UIを表示する", async () => {
     render(await OnboardingRolePage());
 
     expect(screen.getByText("ロール選択UI")).toBeDefined();
     expect(mocks.redirect).not.toHaveBeenCalled();
-    expect(mocks.from).toHaveBeenNthCalledWith(1, "m_user");
-    expect(mocks.from).toHaveBeenNthCalledWith(2, "m_participant_profile");
   });
 
-  it("role設定済みorganizationでもプロフィール未登録ならロール選択UIを表示する", async () => {
-    mocks.getUser.mockResolvedValueOnce({
-      data: {
-        user: {
-          id: "organization-user-1",
-          user_metadata: { role: "organization" },
-        },
-      },
-    });
-    mocks.maybeSingle
-      .mockReset()
-      .mockResolvedValueOnce({ data: { role: "organization" }, error: null })
-      .mockResolvedValueOnce({ data: null, error: null });
-
-    render(await OnboardingRolePage());
-
-    expect(screen.getByText("ロール選択UI")).toBeDefined();
-    expect(mocks.redirect).not.toHaveBeenCalled();
-    expect(mocks.from).toHaveBeenNthCalledWith(2, "m_organization_profile");
-  });
-
-  it("metadata roleがなくてもDB roleとプロフィールが未登録ならロール選択UIを表示する", async () => {
-    mocks.getUser.mockResolvedValueOnce({
-      data: {
-        user: {
-          id: "metadata-role-missing-1",
-          user_metadata: {},
-        },
-      },
+  it("プロフィール未登録の団体にもロール選択UIを表示する", async () => {
+    mocks.getViewerContext.mockResolvedValue({
+      ...participantViewer,
+      role: "organization",
     });
 
     render(await OnboardingRolePage());
 
     expect(screen.getByText("ロール選択UI")).toBeDefined();
     expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("ロール未選択の場合はロール選択UIを表示する", async () => {
+    mocks.getViewerContext.mockResolvedValue({ ...participantViewer, role: null });
+
+    render(await OnboardingRolePage());
+
+    expect(screen.getByText("ロール選択UI")).toBeDefined();
   });
 
   it("対応プロフィールがある場合はトップへリダイレクトする", async () => {
-    mocks.maybeSingle.mockReset();
-    mocks.maybeSingle
-      .mockResolvedValueOnce({ data: { role: "participant" }, error: null })
-      .mockResolvedValueOnce({ data: { id: "participant-profile-1" }, error: null });
+    mocks.getViewerContext.mockResolvedValue({
+      ...participantViewer,
+      hasParticipantProfile: true,
+    });
 
     await expect(OnboardingRolePage()).rejects.toThrow("NEXT_REDIRECT:/");
 
@@ -116,41 +87,25 @@ describe("OnboardingRolePage", () => {
   });
 
   it("adminはプロフィール確認なしでトップへリダイレクトする", async () => {
-    mocks.maybeSingle.mockReset();
-    mocks.maybeSingle.mockResolvedValueOnce({ data: { role: "admin" }, error: null });
+    mocks.getViewerContext.mockResolvedValue({
+      ...participantViewer,
+      role: "admin",
+    });
 
     await expect(OnboardingRolePage()).rejects.toThrow("NEXT_REDIRECT:/");
 
     expect(mocks.redirect).toHaveBeenCalledWith("/");
-    expect(mocks.from).toHaveBeenCalledTimes(1);
     expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
   });
 
-  it("m_user照会エラー時はロール選択UIを表示せずroute errorへ送出する", async () => {
-    mocks.maybeSingle.mockReset().mockResolvedValueOnce({
-      data: null,
-      error: { message: "permission denied" },
+  it("ViewerContext errorをroute errorとして送出する", async () => {
+    mocks.getViewerContext.mockResolvedValue({
+      status: "error",
+      errorCode: "account_lookup_failed",
     });
 
     await expect(OnboardingRolePage()).rejects.toThrow(
-      "m_userの照会に失敗しました"
-    );
-
-    expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
-    expect(mocks.redirect).not.toHaveBeenCalled();
-  });
-
-  it("プロフィール照会エラー時はロール選択UIを表示せずroute errorへ送出する", async () => {
-    mocks.maybeSingle.mockReset();
-    mocks.maybeSingle
-      .mockResolvedValueOnce({ data: { role: "participant" }, error: null })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { message: "permission denied" },
-      });
-
-    await expect(OnboardingRolePage()).rejects.toThrow(
-      "プロフィールの照会に失敗しました"
+      "閲覧者情報を確認できませんでした"
     );
 
     expect(mocks.roleSelectionClient).not.toHaveBeenCalled();
@@ -158,7 +113,7 @@ describe("OnboardingRolePage", () => {
   });
 
   it("未認証の場合はログインへリダイレクトする", async () => {
-    mocks.getUser.mockResolvedValueOnce({ data: { user: null } });
+    mocks.getViewerContext.mockResolvedValue({ status: "guest" });
 
     await expect(OnboardingRolePage()).rejects.toThrow("NEXT_REDIRECT:/login");
 

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+
 const mockGetUser = vi.fn();
 const mockFindUser = vi.fn();
 const mockFindParticipantProfile = vi.fn();

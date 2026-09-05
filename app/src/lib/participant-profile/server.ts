@@ -9,6 +9,7 @@ interface RawParticipantProfile {
   gender: string | null;
   region: string;
   bio: string | null;
+  line_id: string | null;
   interests: unknown;
   latest_diagnosis_result_id: string | null;
   updated_at: string | null;
@@ -28,6 +29,7 @@ export interface ParticipantProfileRecord {
   gender: string | null;
   region: string;
   bio: string | null;
+  lineId: string | null;
   interests: string[];
   latestDiagnosis: LatestDiagnosisSummary | null;
   updatedAt: Date | null;
@@ -76,6 +78,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
         gender: true,
         region: true,
         bio: true,
+        lineId: true,
         interests: true,
         updatedAt: true,
         latestDiagnosisResult: {
@@ -94,6 +97,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
           gender: profile.gender,
           region: profile.region,
           bio: profile.bio,
+          lineId: profile.lineId,
           interests: toInterests(profile.interests),
           latestDiagnosis: profile.latestDiagnosisResult
             ? {
@@ -123,7 +127,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
     const { data, error } = await supabase
       .from("m_participant_profile")
       .select(
-        "id, user_id, name, birthday, gender, region, bio, interests, latest_diagnosis_result_id, updated_at"
+        "id, user_id, name, birthday, gender, region, bio, line_id, interests, latest_diagnosis_result_id, updated_at"
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -194,6 +198,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
         gender: raw.gender,
         region: raw.region,
         bio: raw.bio,
+        lineId: raw.line_id,
         interests: toInterests(raw.interests),
         latestDiagnosis,
         updatedAt: raw.updated_at ? new Date(raw.updated_at) : null,

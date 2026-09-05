@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MyPageData } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 const mockGetUser = vi.fn();
+const mockFrom = vi.fn();
+const mockSelect = vi.fn();
 const mockFetchParticipantProfileByUserIdWithDebug = vi.fn();
 const mockDeleteManyUser = vi.fn();
 const mockDeleteAuthUser = vi.fn();
 const mockFindFirstMatchingCandidate = vi.fn();
 const mockRedirect = vi.fn();
+const mockProcessAccountDeletion = vi.fn();
+let mockAccountDeletionEnabled = true;
 
 type MatchingRow = {
   id: string;
@@ -42,8 +48,12 @@ vi.mock("@/lib/supabase/server", () => ({
       getUser: () => mockGetUser(),
     },
     from: (table: string) => {
+      mockFrom(table);
       const query = {
-        select: () => query,
+        select: (...args: unknown[]) => {
+          mockSelect(...args);
+          return query;
+        },
         eq: () => query,
         in: () => {
           if (table === "t_matching_candidate") {
@@ -58,7 +68,15 @@ vi.mock("@/lib/supabase/server", () => ({
           if (mockMatchingError) {
             throw mockMatchingError;
           }
-          return Promise.resolve({ data: mockMatchingRows, error: null });
+          return Promise.resolve({
+            data: mockMatchingRows.map((row) => ({
+              ...row,
+              m_opportunity: mockOpportunityRows.find(
+                (opportunity) => opportunity.id === row.opportunity_id
+              ) ?? null,
+            })),
+            error: null,
+          });
         },
       };
       return query;
@@ -76,6 +94,14 @@ vi.mock("@/lib/supabase/admin", () => ({
   })),
 }));
 
+vi.mock("@/lib/account-deletion/config", () => ({
+  isAccountDeletionEnabled: () => mockAccountDeletionEnabled,
+}));
+
+vi.mock("@/lib/account-deletion/orchestrator", () => ({
+  processAccountDeletion: (...args: unknown[]) => mockProcessAccountDeletion(...args),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
@@ -91,7 +117,8 @@ vi.mock("next/navigation", () => ({
   redirect: (...args: unknown[]) => mockRedirect(...args),
 }));
 
-const { deleteMyAccount, fetchMyPageData } = await import("./actions");
+const { deleteMyAccount } = await import("./actions");
+const { fetchMyPageData } = await import("./queries");
 
 function createDeleteFormData(confirmation: string) {
   const formData = new FormData();
@@ -108,6 +135,8 @@ describe("fetchMyPageData", () => {
     mockFindFirstMatchingCandidate.mockResolvedValue(null);
     mockDeleteManyUser.mockResolvedValue({ count: 1 });
     mockDeleteAuthUser.mockResolvedValue({ data: { user: null }, error: null });
+    mockProcessAccountDeletion.mockResolvedValue({ status: "completed" });
+    mockAccountDeletionEnabled = true;
   });
 
   it("未認証の場合、空のデータを返す", async () => {
@@ -116,7 +145,7 @@ describe("fetchMyPageData", () => {
       error: { message: "Not authenticated" },
     });
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     expect(result.profile).toBeNull();
     expect(result.applications).toEqual([]);
@@ -147,7 +176,7 @@ describe("fetchMyPageData", () => {
       },
     });
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     expect(result.profile).toEqual({
       id: "user-123",
@@ -160,6 +189,48 @@ describe("fetchMyPageData", () => {
     expect(result.alert).toBeNull();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
+  });
+
+  it("検証済み userId を使い、プロフィールと応募取得を並列に開始する", async () => {
+    let resolveProfile: ((value: unknown) => void) | undefined;
+    mockGetUser.mockReturnValue({ data: { user: { id: "wrong-user" } } });
+    mockFetchParticipantProfileByUserIdWithDebug.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveProfile = resolve;
+        })
+    );
+
+    const resultPromise = fetchMyPageData("verified-user");
+    await vi.waitFor(() =>
+      expect(mockFrom).toHaveBeenCalledWith("t_matching_candidate")
+    );
+
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(mockFetchParticipantProfileByUserIdWithDebug).toHaveBeenCalledWith(
+      "verified-user"
+    );
+    expect(
+      mockFrom.mock.calls.filter(([table]) => table === "t_matching_candidate")
+    ).toHaveLength(1);
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining("m_opportunity(id, title")
+    );
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "m_organization_profile(organization_name, contact_line_id)"
+      )
+    );
+
+    resolveProfile?.({
+      profile: null,
+      debug: {
+        fallbackUsed: false,
+        prismaErrorDetail: null,
+        supabaseErrorDetail: null,
+      },
+    });
+    await resultPromise;
   });
 
   it("応募データがある場合、応募一覧を返す", async () => {
@@ -214,7 +285,7 @@ describe("fetchMyPageData", () => {
       },
     ];
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     expect(result.applications).toHaveLength(2);
 
@@ -287,7 +358,7 @@ describe("fetchMyPageData", () => {
       },
     ];
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     const rejectedApp = result.applications[1];
     expect(rejectedApp.status).toBe("rejected");
@@ -319,7 +390,7 @@ describe("fetchMyPageData", () => {
     });
     mockMatchingError = new Error("DB connection error");
 
-    const result: MyPageData = await fetchMyPageData();
+    const result: MyPageData = await fetchMyPageData("user-123");
 
     expect(result.profile).toBeNull();
     expect(result.applications).toEqual([]);
@@ -547,6 +618,8 @@ describe("fetchMyApplicationDetail", () => {
 describe("deleteMyAccount", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAccountDeletionEnabled = true;
+    mockProcessAccountDeletion.mockResolvedValue({ status: "completed" });
     mockDeleteManyUser.mockResolvedValue({ count: 1 });
     mockDeleteAuthUser.mockResolvedValue({ data: { user: null }, error: null });
   });
@@ -560,8 +633,7 @@ describe("deleteMyAccount", () => {
     expect(result).toEqual({
       error: "確認欄に「削除する」と入力してください。",
     });
-    expect(mockDeleteManyUser).not.toHaveBeenCalled();
-    expect(mockDeleteAuthUser).not.toHaveBeenCalled();
+    expect(mockProcessAccountDeletion).not.toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
@@ -579,12 +651,11 @@ describe("deleteMyAccount", () => {
     expect(result).toEqual({
       error: "ログイン状態を確認できませんでした。再ログインしてからお試しください。",
     });
-    expect(mockDeleteManyUser).not.toHaveBeenCalled();
-    expect(mockDeleteAuthUser).not.toHaveBeenCalled();
+    expect(mockProcessAccountDeletion).not.toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it("認証済みの場合、m_user と Supabase Auth ユーザーを物理削除してログイン画面へ遷移する", async () => {
+  it("認証済みの場合、削除 saga を実行してログイン画面へ遷移する", async () => {
     mockGetUser.mockReturnValue({
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
@@ -592,19 +663,16 @@ describe("deleteMyAccount", () => {
 
     await deleteMyAccount({ error: null }, createDeleteFormData("削除する"));
 
-    expect(mockDeleteManyUser).toHaveBeenCalledWith({
-      where: { id: "user-123" },
-    });
-    expect(mockDeleteAuthUser).toHaveBeenCalledWith("user-123", false);
+    expect(mockProcessAccountDeletion).toHaveBeenCalledWith("user-123");
     expect(mockRedirect).toHaveBeenCalledWith("/login?accountDeleted=1");
   });
 
-  it("DB 削除に失敗した場合、Auth ユーザーを削除せずエラーを返す", async () => {
+  it("台帳作成に失敗した場合、開始失敗エラーを返す", async () => {
     mockGetUser.mockReturnValue({
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
     });
-    mockDeleteManyUser.mockRejectedValue(new Error("DB error"));
+    mockProcessAccountDeletion.mockRejectedValue(new Error("DB error"));
 
     const result = await deleteMyAccount(
       { error: null },
@@ -614,7 +682,6 @@ describe("deleteMyAccount", () => {
     expect(result).toEqual({
       error: "アカウント削除に失敗しました。時間をおいて再度お試しください。",
     });
-    expect(mockDeleteAuthUser).not.toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
@@ -623,10 +690,7 @@ describe("deleteMyAccount", () => {
       data: { user: { id: "user-123", email: "test@example.com" } },
       error: null,
     });
-    mockDeleteAuthUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: "Auth admin error" },
-    });
+    mockProcessAccountDeletion.mockResolvedValue({ status: "auth_failed" });
 
     const result = await deleteMyAccount(
       { error: null },
@@ -637,9 +701,26 @@ describe("deleteMyAccount", () => {
       error:
         "認証アカウントの削除に失敗しました。時間をおいて再度お試しください。",
     });
-    expect(mockDeleteManyUser).toHaveBeenCalledWith({
-      where: { id: "user-123" },
-    });
+    expect(mockProcessAccountDeletion).toHaveBeenCalledWith("user-123");
     expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("cleanup 保留時は完了と区別したログイン画面へ遷移する", async () => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } }, error: null });
+    mockProcessAccountDeletion.mockResolvedValue({ status: "cleanup_pending" });
+
+    await deleteMyAccount({ error: null }, createDeleteFormData("削除する"));
+
+    expect(mockRedirect).toHaveBeenCalledWith("/login?accountDeletionPending=1");
+  });
+
+  it("kill switch 無効時は認証・削除副作用を開始しない", async () => {
+    mockAccountDeletionEnabled = false;
+
+    await expect(
+      deleteMyAccount({ error: null }, createDeleteFormData("削除する"))
+    ).resolves.toEqual({ error: "現在、アカウント削除を一時停止しています。" });
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(mockProcessAccountDeletion).not.toHaveBeenCalled();
   });
 });

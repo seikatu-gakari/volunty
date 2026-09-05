@@ -1,5 +1,5 @@
 import { isValidCategory, isValidParticipationMode } from "./constants";
-import type { OpportunityViewSource } from "./actions";
+import type { OpportunityViewSource } from "@/lib/opportunities/queries";
 import type { PublicOpportunityFilters } from "./public-list";
 
 export type OpportunitySearchParams = {

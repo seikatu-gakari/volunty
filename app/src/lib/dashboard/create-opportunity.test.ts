@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { CreateOpportunityResult } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 // Supabase クライアントのモック
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
@@ -322,6 +324,7 @@ describe("createOpportunity", () => {
   });
 
   it("DB エラー時にエラーメッセージを返す", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const mockUser = { id: "org-123", email: "org@example.com" };
     mockGetUser.mockReturnValue({
       data: { user: mockUser },
@@ -329,7 +332,14 @@ describe("createOpportunity", () => {
     });
     
     mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
-    mockInsertReturn.mockReturnValueOnce({ error: { message: "DB error" } });
+    mockInsertReturn.mockReturnValueOnce({
+      error: {
+        code: "PGRST204",
+        message: "schema cache error",
+        details: "column is missing",
+        hint: "reload schema",
+      },
+    });
 
     const fd = buildFormData({
       title: "テスト案件",
@@ -340,6 +350,20 @@ describe("createOpportunity", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("案件の作成に失敗しました");
+    expect(consoleError).toHaveBeenCalledWith(
+      "[createOpportunity] INSERT failed",
+      {
+        code: "PGRST204",
+        message: "schema cache error",
+        details: "column is missing",
+        hint: "reload schema",
+      }
+    );
+    expect(consoleError).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ title: expect.anything() })
+    );
+    consoleError.mockRestore();
   });
 
   it("追加項目（場所・日程・定員・カテゴリ・参加形態）を保存できる", async () => {

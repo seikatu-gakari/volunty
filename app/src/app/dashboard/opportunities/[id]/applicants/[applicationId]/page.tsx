@@ -5,12 +5,13 @@ import {
   CheckCircle2,
   User,
   MessageSquare,
+  MessageCircle,
   Clock,
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { createClient } from "@/lib/supabase/server";
-import { fetchApplicantDetail } from "@/lib/dashboard/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchApplicantDetailQuery } from "@/lib/dashboard/queries";
 import { StatusActions } from "../../components/StatusActions";
 
 export default async function ApplicantDetailPage({
@@ -20,21 +21,25 @@ export default async function ApplicantDetailPage({
 }) {
   const { id, applicationId } = await params;
 
-  // 認証チェック
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
-  } catch {
-    // Supabase 未設定時
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
+  }
+  if (!viewer.isActive || viewer.role !== "organization") {
+    redirect("/forbidden");
+  }
+  if (!viewer.hasOrganizationProfile) {
+    redirect("/onboarding/role");
+  }
+  if (viewer.organizationReviewStatus !== "approved") {
+    redirect("/onboarding/pending");
   }
 
-  if (!isAuthenticated) {
-    redirect("/login");
-  }
-
-  const { data, error } = await fetchApplicantDetail(applicationId);
+  const { data, error } = await fetchApplicantDetailQuery(
+    viewer.identity.id,
+    applicationId
+  );
 
   if (!data) {
     if (error === "ログインが必要です") {
@@ -47,7 +52,7 @@ export default async function ApplicantDetailPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         {/* 戻るリンク */}
@@ -119,6 +124,27 @@ export default async function ApplicantDetailPage({
             <CardContent>
               <p className="whitespace-pre-wrap leading-relaxed text-text-body">
                 {data.message}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {data.participant_line_id && (
+          <Card className="mb-6">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <MessageCircle className="size-5 text-primary" />
+                <h3 className="text-lg font-bold text-text-dark">
+                  参加者連絡先（LINE ID）
+                </h3>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="font-medium text-text-dark">
+                {data.participant_line_id}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-text-body">
+                マッチング成立後の連絡にのみ利用してください。
               </p>
             </CardContent>
           </Card>

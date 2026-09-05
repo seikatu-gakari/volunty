@@ -3,7 +3,9 @@ import { ArrowLeft, MessageSquarePlus, UserRound } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchApproachSendData } from "@/lib/approaches/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireApprovedOrganizationViewer } from "@/lib/auth/page-viewer";
+import { fetchApproachSendDataQuery } from "@/lib/approaches/queries";
 import { ApproachForm } from "./ApproachForm";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +16,9 @@ export default async function NewApproachPage({
   params: Promise<{ participantId: string }>;
 }) {
   const { participantId } = await params;
+  const viewer = requireApprovedOrganizationViewer(await getViewerContext());
   const { participant, opportunities, templates, error } =
-    await fetchApproachSendData(participantId);
+    await fetchApproachSendDataQuery(viewer.identity.id, participantId);
 
   if (error === "ログインが必要です") {
     redirect("/login");
@@ -32,7 +35,7 @@ export default async function NewApproachPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link

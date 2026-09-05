@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RefreshCw, Search, Info, AlertTriangle } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { fetchDiagnosisResult } from "@/lib/diagnosis/actions";
+import { fetchDiagnosisResultQuery } from "@/lib/diagnosis/queries";
 import { Header } from "@/app/components/Header";
+import { getViewerContext } from "@/lib/auth/viewer-context";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import {
   BIG5_DOMAINS,
@@ -107,21 +107,19 @@ function ScoreSection({ scores }: { scores: DomainScores }) {
  * - 診断済み（未診断 → /diagnosis へリダイレクト）
  */
 export default async function DiagnosisResultPage() {
-  // 認証チェック
-  let user = null;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch (err) {
-    console.error("[DiagnosisResultPage] Supabase接続エラー:", err);
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
+  }
+  if (!viewer.isActive) {
+    redirect("/auth/signout?reason=suspended");
+  }
+  if (viewer.role !== "participant" || !viewer.hasParticipantProfile) {
+    redirect("/");
   }
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  const result = await fetchDiagnosisResult();
+  const result = await fetchDiagnosisResultQuery(viewer.identity.id);
 
   // 診断未実施の場合は /diagnosis へリダイレクト
   if (!result) {
@@ -139,7 +137,7 @@ export default async function DiagnosisResultPage() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-10">
         {/* タイトル */}

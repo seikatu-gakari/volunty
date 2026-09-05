@@ -7,10 +7,11 @@ import {
   FileCheck2,
   XCircle,
 } from "lucide-react";
-import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { fetchMyCertificates } from "@/lib/certificates/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireParticipantViewer } from "@/lib/auth/page-viewer";
+import { fetchMyCertificatesQuery } from "@/lib/certificates/queries";
 import type { CertificateStatus } from "@/lib/certificates/types";
 
 export const dynamic = "force-dynamic";
@@ -39,15 +40,14 @@ function statusDisplay(status: CertificateStatus) {
 }
 
 export default async function MyCertificatesPage() {
-  const { certificates, error } = await fetchMyCertificates();
-
-  if (error === "ログインが必要です") {
-    redirect("/login");
-  }
+  const viewer = requireParticipantViewer(await getViewerContext());
+  const { certificates, error } = await fetchMyCertificatesQuery(
+    viewer.identity.id
+  );
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link

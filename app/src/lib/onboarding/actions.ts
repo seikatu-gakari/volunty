@@ -123,6 +123,7 @@ export async function registerParticipant(
         gender: data.gender || null,
         region: data.region,
         bio: data.bio?.trim() || null,
+        lineId: data.lineId?.trim() || null,
         interests:
           data.interests && data.interests.length > 0
             ? (data.interests as Prisma.InputJsonValue)
@@ -135,6 +136,7 @@ export async function registerParticipant(
         gender: data.gender || null,
         region: data.region,
         bio: data.bio?.trim() || null,
+        lineId: data.lineId?.trim() || null,
         interests:
           data.interests && data.interests.length > 0
             ? (data.interests as Prisma.InputJsonValue)

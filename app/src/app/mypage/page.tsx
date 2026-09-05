@@ -19,12 +19,13 @@ import {
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { createClient } from "@/lib/supabase/server";
-import { fetchMyPageData } from "@/lib/mypage/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchMyPageData } from "@/lib/mypage/queries";
 import type { ApplicationStatus } from "@/lib/mypage/types";
 import { formatDateInJapan } from "@/lib/date/format-date";
 import { applicationStatusLabel } from "@/lib/mypage/status";
 import { DeleteAccountForm } from "./DeleteAccountForm";
+import { isAccountDeletionEnabled } from "@/lib/account-deletion/config";
 
 /** ステータスに応じたラベル・アイコン・カラー */
 function statusDisplay(status: ApplicationStatus) {
@@ -57,21 +58,11 @@ function statusDisplay(status: ApplicationStatus) {
 }
 
 export default async function MyPage() {
-  // 認証チェック
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
-  } catch {
-    // Supabase 未設定時
-  }
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") throw new Error("閲覧者情報を確認できませんでした");
 
-  if (!isAuthenticated) {
-    redirect("/login");
-  }
-
-  const { profile, applications, alert } = await fetchMyPageData();
+  const { profile, applications, alert } = await fetchMyPageData(viewer.identity.id);
   const profileActionHref = profile
     ? "/mypage/profile/edit"
     : "/onboarding/participant";
@@ -82,7 +73,7 @@ export default async function MyPage() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <h1 className="mb-8 text-2xl font-bold text-text-dark">マイページ</h1>
@@ -377,7 +368,7 @@ export default async function MyPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <DeleteAccountForm />
+            <DeleteAccountForm enabled={isAccountDeletionEnabled()} />
           </CardContent>
         </Card>
       </main>

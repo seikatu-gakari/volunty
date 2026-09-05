@@ -17,7 +17,7 @@ export function LPBottomCTA() {
       <div className="relative mx-auto max-w-3xl">
         <p className="text-xs font-bold tracking-[0.2em] text-white">START YOUR ACTION</p>
         <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight sm:text-4xl">
-          あなたらしい活動を、<br />ボランティーで見つけよう。
+          あなたらしい活動を、<br />ボランティで見つけよう。
         </h2>
         <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-white sm:text-base">
           まずは約2分の簡易診断から。興味や性格傾向をヒントに、無理なく始められる活動をご案内します。

@@ -1,36 +1,25 @@
 import { redirect } from "next/navigation";
 import { Shield } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
 import { Header } from "@/app/components/Header";
-import { fetchOrganizations } from "@/lib/admin/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchOrganizationsQuery } from "@/lib/admin/queries";
 import { OrganizationReviewList } from "./OrganizationReviewList";
 
 export default async function AdminOrganizationsPage() {
-  // 管理者チェック
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
   }
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { role: true },
-  });
-
-  if (!dbUser || dbUser.role !== "admin") {
+  if (!viewer.isActive || viewer.role !== "admin") {
     redirect("/forbidden");
   }
 
-  const organizations = await fetchOrganizations();
+  const organizations = await fetchOrganizationsQuery();
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
       <main className="mx-auto max-w-3xl px-6 py-8">
         <div className="mb-8 flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">

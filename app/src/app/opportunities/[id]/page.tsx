@@ -16,12 +16,11 @@ import {
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import { createClient } from "@/lib/supabase/server";
-import { fetchOpportunityDetail } from "@/lib/opportunities/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchOpportunityDetail } from "@/lib/opportunities/queries";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
 import { applicationStatusLabel } from "@/lib/mypage/status";
-import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/actions";
 import {
   getOpportunityBackLink,
   getOpportunityViewSource,
@@ -82,22 +81,12 @@ export default async function OpportunityDetailPage({
     : query?.rlog ?? null;
   const backLink = getOpportunityBackLink(viewSource, query);
 
-  // 認証チェック
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
-  } catch {
-    // Supabase 未設定時
-  }
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") throw new Error("閲覧者情報を確認できませんでした");
 
-  if (!isAuthenticated) {
-    redirect("/login");
-  }
-
-  const { opportunity, existingApplication, isParticipant } =
-    await fetchOpportunityDetail(id, viewSource);
+  const { opportunity, existingApplication, isParticipant, isBookmarked } =
+    await fetchOpportunityDetail(id, viewer, viewSource);
 
   // 案件が存在しない場合は 404
   if (!opportunity) {
@@ -108,13 +97,9 @@ export default async function OpportunityDetailPage({
   // 応募フォーム表示条件: 参加者 かつ 未応募 かつ 募集中
   const showApplyForm =
     isParticipant && !existingApplication && !isClosed;
-  const isBookmarked = isParticipant
-    ? (await fetchBookmarkedOpportunityIds([opportunity.id])).length > 0
-    : false;
-
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         {/* 戻るリンク */}
@@ -381,6 +366,9 @@ export default async function OpportunityDetailPage({
               </h2>
             </CardHeader>
             <CardContent>
+              <p className="mb-4 text-xs leading-5 text-text-body">
+                応募後、団体とのマッチングが成立すると、登録しているLINE IDが団体へ共有されます。
+              </p>
               <ApplyForm
                 opportunityId={opportunity.id}
                 recommendationLogId={recommendationLogId}

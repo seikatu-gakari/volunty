@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
-import { createClient } from "@/lib/supabase/server";
-import { fetchOpportunityForEdit } from "@/lib/dashboard/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { fetchOpportunityForEditQuery } from "@/lib/dashboard/queries";
 import { OpportunityForm_New } from "./components/OpportunityForm";
 
 export default async function NewOpportunityPage({
@@ -9,18 +9,19 @@ export default async function NewOpportunityPage({
 }: {
   searchParams?: Promise<{ copyFrom?: string | string[] }>;
 }) {
-  // 認証チェック
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    isAuthenticated = !!data.user;
-  } catch {
-    // Supabase 未設定時
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
   }
-
-  if (!isAuthenticated) {
-    redirect("/login");
+  if (!viewer.isActive || viewer.role !== "organization") {
+    redirect("/forbidden");
+  }
+  if (!viewer.hasOrganizationProfile) {
+    redirect("/onboarding/role");
+  }
+  if (viewer.organizationReviewStatus !== "approved") {
+    redirect("/onboarding/pending");
   }
 
   const params = await searchParams;
@@ -28,12 +29,12 @@ export default async function NewOpportunityPage({
     ? params?.copyFrom[0]
     : params?.copyFrom;
   const copied = copyFrom
-    ? (await fetchOpportunityForEdit(copyFrom)).opportunity
+    ? (await fetchOpportunityForEditQuery(viewer.identity.id, copyFrom)).opportunity
     : null;
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <OpportunityForm_New

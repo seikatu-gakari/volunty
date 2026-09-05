@@ -6,7 +6,6 @@ const LP_SECTION_IDS = [
   "usage",
   "types",
   "benefits",
-  "voices",
   "features",
   "faq",
   "start",
@@ -23,7 +22,7 @@ async function expectLandingPageIntegrity(
       locator: page.locator(`#${sectionId}`),
     })),
   ];
-  expect(sections).toHaveLength(10);
+  expect(sections).toHaveLength(9);
 
   for (const section of sections) {
     const { locator } = section;
@@ -38,8 +37,53 @@ async function expectLandingPageIntegrity(
     );
   }
 
+  const usageSection = page.locator("#usage");
+  await expect(
+    usageSection.getByRole("heading", { name: "はじめるのは、かんたん3ステップ。" }),
+  ).toBeVisible();
+  const usageCards = usageSection.locator("article");
+  await expect(usageCards).toHaveCount(3);
+  for (const title of ["性格傾向チェック・登録", "マッチング", "参加・つながり"]) {
+    await expect(usageSection.getByRole("heading", { name: title })).toBeVisible();
+  }
+  for (const removedText of [
+    "BIG FIVE",
+    "5つの性格傾向をわかりやすく",
+    "YOUR STYLE",
+    "サポーター・ケア傾向",
+  ]) {
+    await expect(usageSection.getByText(removedText, { exact: true })).toHaveCount(0);
+  }
+
+  const usageCardBoxes = await usageCards.evaluateAll((cards) =>
+    cards.map((card) => {
+      const rect = card.getBoundingClientRect();
+      return { x: rect.x, y: rect.y };
+    }),
+  );
+  if (viewportWidth >= 1024) {
+    expect(usageCardBoxes[0].y).toBeCloseTo(usageCardBoxes[1].y, 0);
+    expect(usageCardBoxes[1].y).toBeCloseTo(usageCardBoxes[2].y, 0);
+    expect(usageCardBoxes[0].x).toBeLessThan(usageCardBoxes[1].x);
+    expect(usageCardBoxes[1].x).toBeLessThan(usageCardBoxes[2].x);
+  } else {
+    expect(usageCardBoxes[0].x).toBeCloseTo(usageCardBoxes[1].x, 0);
+    expect(usageCardBoxes[1].x).toBeCloseTo(usageCardBoxes[2].x, 0);
+    expect(usageCardBoxes[0].y).toBeLessThan(usageCardBoxes[1].y);
+    expect(usageCardBoxes[1].y).toBeLessThan(usageCardBoxes[2].y);
+  }
+
   const images = page.locator("main img");
-  await expect(images).toHaveCount(17);
+  await expect(images).toHaveCount(14);
+
+  await expect(page.locator("#voices")).toHaveCount(0);
+  await expect(page.getByText("こんな使われ方", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/実際のご利用者の声ではありません/)).toHaveCount(0);
+
+  const sectionOrder = await page.locator("main section[id]").evaluateAll((elements) =>
+    elements.map((element) => element.id),
+  );
+  expect(sectionOrder.indexOf("features")).toBe(sectionOrder.indexOf("benefits") + 1);
 
   const photoFrame = page.getByTestId("lp-hero-photo-frame");
   await expect(photoFrame.locator("img")).toHaveCount(1);
@@ -157,7 +201,7 @@ test.describe("未ログインLP（モバイル）", () => {
   test("主要コンテンツと操作導線を一画面幅で利用できる", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("link", { name: "ボランティー ホーム" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toBeVisible();

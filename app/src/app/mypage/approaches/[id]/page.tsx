@@ -6,12 +6,14 @@ import {
   MessageSquare,
   XCircle,
 } from "lucide-react";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { LineContactCard } from "@/app/components/LineContactCard";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { buildLineFriendContact } from "@/lib/line/contact";
-import { fetchMyApproachDetail } from "@/lib/approaches/actions";
+import { getViewerContext } from "@/lib/auth/viewer-context";
+import { requireParticipantViewer } from "@/lib/auth/page-viewer";
+import { fetchMyApproachDetailQuery } from "@/lib/approaches/queries";
 import type { ApproachStatus } from "@/lib/approaches/types";
 import { ApproachResponseActions } from "./ApproachResponseActions";
 
@@ -54,14 +56,8 @@ export default async function MyApproachDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { approach, error } = await fetchMyApproachDetail(id);
-
-  if (error === "ログインが必要です") {
-    redirect("/login");
-  }
-  if (error === "参加者プロフィールが見つかりません") {
-    redirect("/onboarding/participant");
-  }
+  const viewer = requireParticipantViewer(await getViewerContext());
+  const { approach } = await fetchMyApproachDetailQuery(viewer.identity.id, id);
   if (!approach) {
     notFound();
   }
@@ -87,7 +83,7 @@ export default async function MyApproachDetailPage({
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <Link

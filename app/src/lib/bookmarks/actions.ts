@@ -20,29 +20,6 @@ export interface BookmarksResult {
   error?: string;
 }
 
-export async function fetchBookmarkedOpportunityIds(
-  opportunityIds?: string[]
-): Promise<string[]> {
-  try {
-    const auth = await getParticipantUserId();
-    if ("error" in auth) return [];
-
-    const favorites = await prisma.engagementEvent.findMany({
-      where: {
-        userId: auth.userId,
-        event: "favorite",
-        ...(opportunityIds ? { opportunityId: { in: opportunityIds } } : {}),
-      },
-      select: { opportunityId: true },
-    });
-
-    return favorites.map(({ opportunityId }) => opportunityId);
-  } catch (err) {
-    console.error("[fetchBookmarkedOpportunityIds] 予期しないエラー:", err);
-    return [];
-  }
-}
-
 async function getParticipantUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createClient();
   const {
@@ -130,48 +107,5 @@ export async function removeBookmark(
   } catch (err) {
     console.error("[removeBookmark] 予期しないエラー:", err);
     return { success: false, error: "予期しないエラーが発生しました" };
-  }
-}
-
-export async function fetchMyBookmarks(): Promise<BookmarksResult> {
-  try {
-    const auth = await getParticipantUserId();
-    if ("error" in auth) return { bookmarks: [], error: auth.error };
-
-    const favorites = await prisma.engagementEvent.findMany({
-      where: {
-        userId: auth.userId,
-        event: "favorite",
-        opportunity: {
-          status: "published",
-          publishedAt: { lte: new Date() },
-        },
-      },
-      select: {
-        opportunity: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            organization: {
-              select: { organizationName: true },
-            },
-          },
-        },
-      },
-      orderBy: [{ createdAt: "desc" }],
-    });
-
-    return {
-      bookmarks: favorites.map(({ opportunity }) => ({
-        id: opportunity.id,
-        title: opportunity.title,
-        description: opportunity.description,
-        organizationName: opportunity.organization.organizationName,
-      })),
-    };
-  } catch (err) {
-    console.error("[fetchMyBookmarks] 予期しないエラー:", err);
-    return { bookmarks: [], error: "予期しないエラーが発生しました" };
   }
 }

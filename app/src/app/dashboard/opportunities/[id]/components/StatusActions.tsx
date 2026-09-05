@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { updateApplicationStatus } from "@/lib/dashboard/actions";
 import type { ApplicationStatus } from "@/lib/dashboard/types";
@@ -49,6 +50,7 @@ export function StatusActions({
   applicationId,
   currentStatus,
 }: StatusActionsProps) {
+  const router = useRouter();
   const [status, setStatus] = useState(currentStatus);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function StatusActions({
       const result = await updateApplicationStatus(applicationId, newStatus);
       if (result.success) {
         setStatus(newStatus);
+        router.refresh();
       } else {
         setError(result.error ?? "エラーが発生しました");
       }

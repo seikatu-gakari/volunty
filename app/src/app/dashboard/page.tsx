@@ -21,11 +21,12 @@ import {
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import { getViewerContext } from "@/lib/auth/viewer-context";
 import { createClient } from "@/lib/supabase/server";
 import {
-  fetchDashboardAnalytics,
-  fetchMyOpportunities,
-} from "@/lib/dashboard/actions";
+  fetchDashboardAnalyticsQuery,
+  fetchMyOpportunitiesQuery,
+} from "@/lib/dashboard/queries";
 import { formatDateInJapan } from "@/lib/date/format-date";
 import type { OpportunityStatus } from "@/lib/dashboard/types";
 import { prisma } from "@/lib/prisma";
@@ -85,19 +86,25 @@ function shortAnalyticsTitle(title: string): string {
 }
 
 export default async function DashboardPage() {
-  // 認証チェック
-  let user = null;
-  const supabase = await createClient();
-  try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch {
-    // Supabase 未設定時
+  const viewer = await getViewerContext();
+  if (viewer.status === "guest") redirect("/login");
+  if (viewer.status === "error") {
+    throw new Error("閲覧者情報を確認できませんでした");
+  }
+  if (!viewer.isActive) {
+    redirect("/auth/signout?reason=suspended");
+  }
+  if (viewer.role !== "organization") {
+    redirect("/forbidden");
+  }
+  if (!viewer.hasOrganizationProfile) {
+    redirect("/onboarding/role");
+  }
+  if (viewer.organizationReviewStatus !== "approved") {
+    redirect("/onboarding/pending");
   }
 
-  if (!user) {
-    redirect("/login");
-  }
+  const supabase = await createClient();
 
   let organizationProfile: {
     organizationName: string;
@@ -109,7 +116,7 @@ export default async function DashboardPage() {
   // Prisma → Supabase フォールバックで団体プロフィールを取得
   try {
     organizationProfile = await prisma.organizationProfile.findUnique({
-      where: { userId: user.id },
+      where: { userId: viewer.identity.id },
       select: {
         organizationName: true,
         reviewStatus: true,
@@ -123,7 +130,7 @@ export default async function DashboardPage() {
       const { data } = await supabase
         .from("m_organization_profile")
         .select("organization_name, review_status, reviewed_at, profile_completeness")
-        .eq("user_id", user.id)
+        .eq("user_id", viewer.identity.id)
         .maybeSingle();
 
       if (data) {
@@ -149,8 +156,8 @@ export default async function DashboardPage() {
   }
 
   const [{ opportunities }, analytics] = await Promise.all([
-    fetchMyOpportunities(),
-    fetchDashboardAnalytics(),
+    fetchMyOpportunitiesQuery(viewer.identity.id),
+    fetchDashboardAnalyticsQuery(viewer.identity.id),
   ]);
   const reviewDisplay = reviewStatusDisplay(organizationProfile.reviewStatus);
   const totalViews = analytics.opportunities.reduce(
@@ -164,7 +171,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <Header />
+      <Header viewerContext={viewer} />
 
       <main className="mx-auto max-w-5xl px-6 py-8">
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

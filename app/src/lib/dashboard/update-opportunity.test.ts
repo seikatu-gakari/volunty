@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { UpdateOpportunityResult } from "./types";
 
+vi.mock("server-only", () => ({}));
+
 // Variable to store the final return value (error object)
 let mockUpdateResult: { error: unknown } = { error: null };
 

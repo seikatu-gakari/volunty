@@ -15,12 +15,12 @@ import {
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { User } from "@supabase/supabase-js";
+import type { ViewerIdentity } from "@/lib/auth/viewer-context";
 
 export type AuthenticatedHomeRole = "participant" | "organization" | "admin" | null;
 
 interface AuthenticatedHomeProps {
-  user: User;
+  identity: ViewerIdentity;
   role: AuthenticatedHomeRole;
   organizationVerified?: boolean;
 }
@@ -198,12 +198,11 @@ function getDashboardContent({
 }
 
 export function AuthenticatedHome({
-  user,
+  identity,
   role,
   organizationVerified = false,
 }: AuthenticatedHomeProps) {
-  const displayName =
-    user.user_metadata?.full_name ?? user.email ?? "ゲスト";
+  const displayName = identity.displayName ?? identity.email ?? "ユーザー";
   const dashboardContent = getDashboardContent({
     role,
     organizationVerified,

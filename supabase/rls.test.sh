@@ -227,6 +227,21 @@ psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20
 # Issue #215 migrationがINSERT/UPDATE policy追記前に適用済みだった本番状態を再現する。
 # repair migration前にはテスト側から案件権限・policyを補わない。
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+ALTER TABLE public.m_opportunity
+  ADD COLUMN requirement_traits JSONB,
+  DROP COLUMN activity_style_tags,
+  DROP COLUMN required_qualifications,
+  DROP COLUMN min_age,
+  DROP COLUMN max_age;
+
+INSERT INTO public.m_opportunity (
+  id, organization_id, title, requirement_traits, created_at, updated_at
+) VALUES (
+  '99999999-5656-5656-5656-565656565656',
+  '99999999-3333-3333-3333-333333333333',
+  'repair前から存在する案件', '{"openness": 60}'::jsonb, NOW(), NOW()
+);
+
 REVOKE ALL ON TABLE public.m_opportunity FROM anon, authenticated;
 DROP POLICY IF EXISTS "団体は自分の案件を作成可能"
   ON public.m_opportunity;
@@ -235,6 +250,85 @@ DROP POLICY IF EXISTS "団体は自分の案件を更新可能"
 SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830000000_issue230_opportunity_data_api_authz_repair.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830050000_account_deletion_saga.sql" >/dev/null
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+DO $$
+BEGIN
+  IF has_table_privilege('anon', 'public.t_account_deletion_request', 'SELECT')
+    OR has_table_privilege('authenticated', 'public.t_account_deletion_request', 'SELECT')
+    OR has_table_privilege('anon', 'public.t_account_deletion_request', 'INSERT')
+    OR has_table_privilege('authenticated', 'public.t_account_deletion_request', 'INSERT')
+    OR has_table_privilege('anon', 'public.t_account_deletion_request', 'UPDATE')
+    OR has_table_privilege('authenticated', 'public.t_account_deletion_request', 'UPDATE')
+    OR has_table_privilege('anon', 'public.t_account_deletion_request', 'DELETE')
+    OR has_table_privilege('authenticated', 'public.t_account_deletion_request', 'DELETE') THEN
+    RAISE EXCEPTION '削除処理台帳を Data API ロールから操作できてはいけません';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.t_account_deletion_request'::regclass
+      AND contype = 'f'
+  ) THEN
+    RAISE EXCEPTION '削除処理台帳は m_user への外部キーを持ってはいけません';
+  END IF;
+END
+$$;
+
+INSERT INTO public.t_account_deletion_request (
+  user_id, attempt_count, updated_at
+) VALUES (
+  '77777777-1111-1111-1111-111111111111', 1, NOW()
+);
+SQL
+
+# 旧本番schemaではcreateOpportunity相当payloadが列不存在で失敗する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+DO $$
+DECLARE
+  missing_column_detected boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO public.m_opportunity (
+      organization_id, title, description, activity_style_tags,
+      required_qualifications, min_age, max_age, status, published_at,
+      created_at, updated_at, location, start_date, end_date, capacity,
+      category, participation_mode
+    ) VALUES (
+      '99999999-3333-3333-3333-333333333333', 'repair前案件', '説明',
+      '["empathy-support"]'::jsonb, '["普通自動車免許"]'::jsonb,
+      18, 70, 'published', NOW(), NOW(), NOW(), '渋谷区',
+      DATE '2026-09-01', DATE '2026-09-02', 10, '福祉', 'offline'
+    );
+  EXCEPTION WHEN undefined_column THEN
+    missing_column_detected := true;
+  END;
+
+  IF NOT missing_column_detected THEN
+    RAISE EXCEPTION 'legacy opportunity schema accepted the full payload';
+  END IF;
+END;
+$$;
+SQL
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830010000_issue245_repair_opportunity_schema.sql" >/dev/null
+# ADD COLUMN IF NOT EXISTSによる再実行相当の安全性を検証する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830010000_issue245_repair_opportunity_schema.sql" >/dev/null
+
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.m_opportunity
+    WHERE id = '99999999-5656-5656-5656-565656565656'
+      AND requirement_traits = '{"openness": 60}'::jsonb
+  ) THEN
+    RAISE EXCEPTION 'repair migration changed an existing opportunity';
+  END IF;
+END;
+$$;
+SQL
 
 # seedなしのmigration-only契約: ownerの案件作成・更新がData APIロールで成立する。
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
@@ -278,12 +372,34 @@ SELECT set_config(
 );
 
 INSERT INTO public.m_opportunity (
-  id, organization_id, title, created_at, updated_at
+  id, organization_id, title, description, activity_style_tags,
+  required_qualifications, min_age, max_age, status, published_at,
+  created_at, updated_at, location, start_date, end_date, capacity,
+  category, participation_mode
 ) VALUES (
   '99999999-6666-6666-6666-666666666666',
   '99999999-3333-3333-3333-333333333333',
-  'owner-created opportunity', NOW(), NOW()
+  'owner-created opportunity', '案件説明', '["empathy-support"]'::jsonb,
+  '["普通自動車免許"]'::jsonb, 18, 70, 'published', NOW(), NOW(), NOW(),
+  '渋谷区', DATE '2026-09-01', DATE '2026-09-02', 10, '福祉', 'offline'
 );
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.m_opportunity
+    WHERE id = '99999999-6666-6666-6666-666666666666'
+      AND activity_style_tags = '["empathy-support"]'::jsonb
+      AND required_qualifications = '["普通自動車免許"]'::jsonb
+      AND min_age = 18 AND max_age = 70
+      AND participation_mode = 'offline'::public.participation_mode
+      AND status = 'published'::public.opportunity_status
+      AND start_date = DATE '2026-09-01'
+  ) THEN
+    RAISE EXCEPTION 'full opportunity payload was not preserved';
+  END IF;
+END;
+$$;
 
 UPDATE public.m_opportunity
 SET title = 'owner-updated opportunity'
@@ -368,6 +484,13 @@ DECLARE
   insert_denied boolean := false;
   update_denied boolean := false;
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.m_opportunity
+    WHERE id = '99999999-6666-6666-6666-666666666666'
+  ) THEN
+    RAISE EXCEPTION 'anon cannot select a published opportunity';
+  END IF;
+
   BEGIN
     INSERT INTO public.m_opportunity (
       id, organization_id, title, created_at, updated_at

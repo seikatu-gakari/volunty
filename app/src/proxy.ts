@@ -1,5 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import type { ViewerIdentity } from "@/lib/auth/viewer-context";
+import {
+  serializeForwardedViewerContext,
+  type ForwardedViewerContext,
+  VIEWER_CONTEXT_HEADER,
+} from "@/lib/auth/viewer-context-header";
 import { updateSession } from "@/lib/supabase/middleware";
 import {
   getSupabaseAnonKey,
@@ -7,17 +13,8 @@ import {
   SUPABASE_AUTH_COOKIE_NAME,
 } from "@/lib/supabase/env";
 
-// ============================================
-// ルート分類
-// ============================================
-
-/** 認証チェックを完全にスキップするパス */
 const AUTH_CALLBACK = "/auth/callback";
-
-/** パブリックルート（認証不要、リダイレクトなし。完全一致のみ） */
 const PUBLIC_PATHS = new Set(["/", "/diagnosis/trial", "/opportunities"]);
-
-/** 認証必須ルートの prefix */
 const PROTECTED_PATH_PREFIXES = [
   "/admin",
   "/dashboard",
@@ -30,6 +27,7 @@ const PROTECTED_PATH_PREFIXES = [
 ];
 
 type AppRole = "participant" | "organization" | "admin";
+type RecordValue = Record<string, unknown>;
 
 const ROLE_PATH_PREFIXES: Record<AppRole, readonly string[]> = {
   participant: [
@@ -43,8 +41,23 @@ const ROLE_PATH_PREFIXES: Record<AppRole, readonly string[]> = {
   admin: ["/admin"],
 };
 
+function isRecord(value: unknown): value is RecordValue {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
 function isAppRole(value: unknown): value is AppRole {
   return value === "participant" || value === "organization" || value === "admin";
+}
+
+function normalizeEmbeddedRecord(value: unknown): RecordValue | null {
+  if (Array.isArray(value)) {
+    return value.find(isRecord) ?? null;
+  }
+  return isRecord(value) ? value : null;
 }
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
@@ -55,33 +68,24 @@ function isRoleAllowed(pathname: string, role: AppRole): boolean {
   const owner = (
     Object.entries(ROLE_PATH_PREFIXES) as [AppRole, readonly string[]][]
   ).find(([, prefixes]) =>
-    prefixes.some((prefix) => matchesPrefix(pathname, prefix))
+    prefixes.some((prefix) => matchesPrefix(pathname, prefix)),
   )?.[0];
   return owner === undefined || owner === role;
 }
 
-/** 認証系パス（ログイン済みなら / へリダイレクト） */
 function isAuthPath(pathname: string): boolean {
   return pathname === "/login" || pathname.startsWith("/signup");
 }
 
-/** 認証必須ルートかどうか */
 function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_PATH_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  );
+  return PROTECTED_PATH_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
 }
 
-/** オンボーディングパス（認証必須だがプロフィールチェック不要） */
 function isOnboardingPath(pathname: string): boolean {
   return pathname.startsWith("/onboarding");
 }
 
-/** セッション Cookie をリダイレクトレスポンスにコピー */
-function redirectWithCookies(
-  url: URL,
-  sourceResponse: NextResponse
-): NextResponse {
+function redirectWithCookies(url: URL, sourceResponse: NextResponse): NextResponse {
   const redirectResponse = NextResponse.redirect(url);
   sourceResponse.cookies.getAll().forEach((cookie) => {
     redirectResponse.cookies.set(cookie.name, cookie.value);
@@ -89,234 +93,180 @@ function redirectWithCookies(
   return redirectResponse;
 }
 
-// ============================================
-// プロキシ本体
-// ============================================
+function redirectTo(
+  request: NextRequest,
+  response: NextResponse,
+  pathname: string,
+): NextResponse {
+  const url = request.nextUrl.clone();
+  url.pathname = pathname;
+  return redirectWithCookies(url, response);
+}
+
+function continueWithRequestHeaders(
+  request: NextRequest,
+  sourceResponse: NextResponse,
+  viewer?: ForwardedViewerContext,
+): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(VIEWER_CONTEXT_HEADER);
+  if (viewer) {
+    requestHeaders.set(
+      VIEWER_CONTEXT_HEADER,
+      serializeForwardedViewerContext(viewer),
+    );
+  }
+  const nextResponse = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+  sourceResponse.cookies.getAll().forEach((cookie) => {
+    nextResponse.cookies.set(cookie);
+  });
+  return nextResponse;
+}
+
+async function getAuthorizationRecord(
+  request: NextRequest,
+  response: NextResponse,
+  identity: ViewerIdentity,
+): Promise<{ account: RecordValue | null; failed: boolean }> {
+  const supabaseUrl = getSupabaseServerUrl();
+  const supabaseAnonKey = getSupabaseAnonKey();
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return { account: null, failed: true };
+  }
+
+  try {
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookieOptions: { name: SUPABASE_AUTH_COOKIE_NAME },
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
+          );
+        },
+      },
+    });
+    const { data, error } = await supabase
+      .from("m_user")
+      .select(
+        "is_active,role,m_participant_profile(id),m_organization_profile(id,verified,review_status)",
+      )
+      .eq("id", identity.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[proxy] m_user lookup failed", {
+        code: "m_user_lookup_error",
+      });
+      return { account: null, failed: true };
+    }
+
+    return { account: isRecord(data) ? data : null, failed: false };
+  } catch {
+    console.error("[proxy] m_user lookup failed", {
+      code: "m_user_lookup_error",
+    });
+    return { account: null, failed: true };
+  }
+}
 
 export async function proxy(request: NextRequest) {
-  // Supabase セッション更新 + ユーザー情報取得
-  const { response, user } = await updateSession(request);
   const { pathname } = request.nextUrl;
-
-  // --- 認証コールバック: 常にスルー ---
   if (pathname.startsWith(AUTH_CALLBACK)) {
-    return response;
+    return continueWithRequestHeaders(request, NextResponse.next());
   }
 
-  // --- 認証系（/login, /signup/*）: ログイン済みなら / へ ---
+  const { response, identity } = await updateSession(request);
+
   if (isAuthPath(pathname)) {
-    if (user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return redirectWithCookies(url, response);
-    }
-    return response;
+    return identity
+      ? redirectTo(request, response, "/")
+      : continueWithRequestHeaders(request, response);
   }
 
-  // --- パブリック（/）: 認証状態に関係なくスルー ---
-  if (PUBLIC_PATHS.has(pathname)) {
-    return response;
+  if (PUBLIC_PATHS.has(pathname) || !isProtectedPath(pathname)) {
+    return continueWithRequestHeaders(request, response);
   }
 
-  // --- 保護対象外の未知URLなどは Next.js の 404 判定へ通す ---
-  if (!isProtectedPath(pathname)) {
-    return response;
-  }
-
-  // --- 以下は認証必須 ---
-  if (!user) {
+  if (!identity) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
     return redirectWithCookies(url, response);
   }
 
-  // --- 凍結チェック + 認可用ロール取得 ---
-  let databaseRole: unknown;
-  let databaseRoleStatus:
-    | "unavailable"
-    | "error"
-    | "missing"
-    | "invalid"
-    | "valid" = "unavailable";
-  {
-    const supabaseUrl = getSupabaseServerUrl();
-    const supabaseAnonKey = getSupabaseAnonKey();
-    if (supabaseUrl && supabaseAnonKey) {
-      try {
-        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-          cookieOptions: {
-            name: SUPABASE_AUTH_COOKIE_NAME,
-          },
-          cookies: {
-            getAll: () => request.cookies.getAll(),
-            setAll: (cookiesToSet) => {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                response.cookies.set(name, value, options)
-              );
-            },
-          },
-        });
-        const { data: account, error } = await supabase
-          .from("m_user")
-          .select("is_active,role")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (error) {
-          databaseRoleStatus = "error";
-          console.error("[proxy] m_user lookup failed", {
-            code: "m_user_lookup_error",
-          });
-        } else if (!account) {
-          databaseRoleStatus = "missing";
-          console.error("[proxy] m_user role missing", {
-            code: "m_user_role_missing",
-          });
-        } else {
-          databaseRole = account.role;
-          databaseRoleStatus = isAppRole(account.role) ? "valid" : "invalid";
-          if (databaseRoleStatus === "invalid") {
-            console.error("[proxy] m_user role invalid", {
-              code: "m_user_role_invalid",
-            });
-          }
-        }
-
-        if (account && account.is_active === false) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/auth/signout";
-          url.search = "";
-          url.searchParams.set("reason", "suspended");
-          return redirectWithCookies(url, response);
-        }
-      } catch {
-        databaseRoleStatus = "error";
-        console.error("[proxy] m_user lookup failed", {
-          code: "m_user_lookup_error",
-        });
-      }
-    }
+  const { account, failed } = await getAuthorizationRecord(
+    request,
+    response,
+    identity,
+  );
+  if (failed) {
+    return redirectTo(request, response, "/forbidden");
   }
 
-  // --- オンボーディングパス: 認証済みならスルー ---
+  if (account?.is_active === false) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/signout";
+    url.search = "";
+    url.searchParams.set("reason", "suspended");
+    return redirectWithCookies(url, response);
+  }
+
+  const role = account?.role;
+  if (!account) {
+    console.error("[proxy] m_user role missing", { code: "m_user_role_missing" });
+  } else if (!isAppRole(role)) {
+    console.error("[proxy] m_user role invalid", { code: "m_user_role_invalid" });
+  }
+
+  if (!account || !isAppRole(role)) {
+    if (isOnboardingPath(pathname)) {
+      return continueWithRequestHeaders(request, response);
+    }
+    return redirectTo(request, response, "/forbidden");
+  }
+
+  const participantProfile = normalizeEmbeddedRecord(account.m_participant_profile);
+  const organizationProfile = normalizeEmbeddedRecord(account.m_organization_profile);
+  const forwardedViewer: ForwardedViewerContext = {
+    identity,
+    role,
+    isActive: account.is_active === true,
+    hasParticipantProfile: participantProfile !== null,
+    hasOrganizationProfile: organizationProfile !== null,
+    organizationVerified: organizationProfile?.verified === true,
+    organizationReviewStatus: asNonEmptyString(
+      organizationProfile?.review_status,
+    ),
+  };
+
   if (isOnboardingPath(pathname)) {
-    return response;
+    return continueWithRequestHeaders(request, response, forwardedViewer);
   }
 
-  // --- 保護ルート: ロール・オンボーディング状態チェック ---
-  // 認可には自己更新可能な metadata ではなく DB のロールだけを使う
-  if (databaseRoleStatus !== "valid" || !isAppRole(databaseRole)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/forbidden";
-    return redirectWithCookies(url, response);
-  }
-  const role = databaseRole;
-
-  // 現在のDBロールに対応するプロフィールがなければロール選択から再開する
-  let profileStatus: "error" | "missing" | "present" = "error";
-  if (role !== "admin") {
-    const supabaseUrl = getSupabaseServerUrl();
-    const supabaseAnonKey = getSupabaseAnonKey();
-    if (supabaseUrl && supabaseAnonKey) {
-      try {
-        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-          cookieOptions: {
-            name: SUPABASE_AUTH_COOKIE_NAME,
-          },
-          cookies: {
-            getAll: () => request.cookies.getAll(),
-            setAll: (cookiesToSet) => {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                response.cookies.set(name, value, options)
-              );
-            },
-          },
-        });
-        const profileTable =
-          role === "organization"
-            ? "m_organization_profile"
-            : "m_participant_profile";
-        const { data: profile, error } = await supabase
-          .from(profileTable)
-          .select("id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error("[proxy] プロフィール照会に失敗", {
-            code: "profile_lookup_error",
-          });
-        } else {
-          profileStatus = profile ? "present" : "missing";
-        }
-      } catch {
-        console.error("[proxy] プロフィール照会に失敗", {
-          code: "profile_lookup_error",
-        });
-      }
-    }
-  } else {
-    profileStatus = "present";
+  const hasRequiredProfile =
+    role === "admin" ||
+    (role === "participant" && participantProfile !== null) ||
+    (role === "organization" && organizationProfile !== null);
+  if (!hasRequiredProfile) {
+    return redirectTo(request, response, "/onboarding/role");
   }
 
-  if (profileStatus === "error") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/forbidden";
-    return redirectWithCookies(url, response);
-  }
-
-  if (profileStatus === "missing") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/onboarding/role";
-    return redirectWithCookies(url, response);
-  }
-
-  // 他ロール専用ルートへの越境をブロック
   if (!isRoleAllowed(pathname, role)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/forbidden";
-    return redirectWithCookies(url, response);
+    return redirectTo(request, response, "/forbidden");
   }
 
-  // 未承認団体: /onboarding/pending 以外へのアクセスをブロック
-  if (role === "organization" && pathname !== "/onboarding/pending") {
-    const supabaseUrl = getSupabaseServerUrl();
-    const supabaseAnonKey = getSupabaseAnonKey();
-    if (supabaseUrl && supabaseAnonKey) {
-      try {
-        // updateSession 後の更新済みクッキーを使い、verified フラグ確認用クライアントを生成する
-        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-          cookieOptions: {
-            name: SUPABASE_AUTH_COOKIE_NAME,
-          },
-          cookies: {
-            getAll: () => request.cookies.getAll(),
-            setAll: (cookiesToSet) => {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                response.cookies.set(name, value, options)
-              );
-            },
-          },
-        });
-        const { data: profile } = await supabase
-          .from("m_organization_profile")
-          .select("verified,review_status")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (profile && profile.review_status !== "approved") {
-          const url = request.nextUrl.clone();
-          url.pathname = "/onboarding/pending";
-          return redirectWithCookies(url, response);
-        }
-      } catch (err) {
-        // DB クエリ失敗時はスルー（可用性を優先し、ページ側でも検証する）
-        console.error("[proxy] 団体の verified チェックに失敗:", err);
-      }
-    }
+  if (
+    role === "organization" &&
+    pathname !== "/onboarding/pending" &&
+    organizationProfile?.review_status !== "approved"
+  ) {
+    return redirectTo(request, response, "/onboarding/pending");
   }
 
-  return response;
+  return continueWithRequestHeaders(request, response, forwardedViewer);
 }
 
 export const config = {

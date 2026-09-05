@@ -14,7 +14,7 @@ describe("getOpportunityViewSource", () => {
     ["", "direct"],
     ["unknown", "direct"],
     [["unknown", "search"], "direct"],
-  ] as const)("%j を %s に変換する", (from, expected) => {
+  ] satisfies [string | string[] | undefined, string][])("%j を %s に変換する", (from, expected) => {
     expect(getOpportunityViewSource(from)).toBe(expected);
   });
 });
