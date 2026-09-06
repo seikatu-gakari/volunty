@@ -25,6 +25,12 @@ import { getOpportunityActionMode } from "@/lib/opportunities/detail-access";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
 import { applicationStatusLabel } from "@/lib/mypage/status";
+import {
+  buildOpportunityLoginHref,
+  getOpportunityBackLink,
+  getOpportunityViewSource,
+  type OpportunitySearchParams,
+} from "@/lib/opportunities/navigation";
 import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
 import { ApplicationStatusDate } from "./ApplicationStatusDate";
@@ -87,15 +93,23 @@ export default async function OpportunityDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ from?: string; rlog?: string }>;
+  searchParams?: Promise<
+    OpportunitySearchParams & {
+      from?: string | string[];
+      rlog?: string | string[];
+    }
+  >;
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const viewSource = query?.from === "rec" ? "recommendation" : "direct";
-  const recommendationLogId = query?.rlog ?? null;
+  const viewSource = getOpportunityViewSource(query?.from);
+  const recommendationLogId = Array.isArray(query?.rlog)
+    ? query.rlog[0] ?? null
+    : query?.rlog ?? null;
 
   const viewer = await getViewerContext();
   if (viewer.status === "error") throw new Error("閲覧者情報を確認できませんでした");
+  const backLink = getOpportunityBackLink(viewSource, query, viewer.status === "guest");
 
   const opportunity = await getPublicOpportunity(id);
 
@@ -115,13 +129,7 @@ export default async function OpportunityDetailPage({
     viewer.role === "participant" &&
     viewer.hasParticipantProfile;
   const actionMode = getOpportunityActionMode(viewer, isParticipant);
-  const returnQuery = new URLSearchParams();
-  if (query?.from) returnQuery.set("from", query.from);
-  if (query?.rlog) returnQuery.set("rlog", query.rlog);
-  const detailPath = `/opportunities/${encodeURIComponent(id)}${
-    returnQuery.size > 0 ? `?${returnQuery.toString()}` : ""
-  }`;
-  const loginHref = `/login?next=${encodeURIComponent(detailPath)}`;
+  const loginHref = buildOpportunityLoginHref(id, query);
 
   const isClosed = opportunity.status === "closed";
   // 応募フォーム表示条件: 参加者 かつ 未応募 かつ 募集中
@@ -134,11 +142,11 @@ export default async function OpportunityDetailPage({
       <main className="mx-auto max-w-3xl px-6 py-8">
         {/* 戻るリンク */}
         <Link
-          href="/opportunities"
+          href={backLink.href}
           className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
           <ArrowLeft className="size-4" />
-          募集一覧に戻る
+          {backLink.label}
         </Link>
 
         {/* 募集終了メッセージ */}

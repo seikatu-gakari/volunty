@@ -125,6 +125,40 @@ test.describe("未ログインLP導線", () => {
     );
   });
 
+  test("検索条件付きの公開詳細はログイン後も同じ詳細・検索結果へ戻れる", async ({ page }) => {
+    const filters = new URLSearchParams({
+      q: "E2E オンライン", category: "環境保全", region: "新宿区", participationMode: "online",
+    });
+    const searchUrl = `/opportunities?${filters.toString()}`;
+    await page.goto(searchUrl);
+    await page.getByRole("link", { name: "E2E オンライン環境保全案件", exact: true }).click();
+    await expect(page).toHaveURL(/\/opportunities\/[0-9a-f-]+\?from=search/);
+    const detailUrl = new URL(page.url());
+    const detailPath = `${detailUrl.pathname}${detailUrl.search}`;
+    await expect(page.getByRole("link", { name: "案件検索結果に戻る" })).toHaveAttribute("href", searchUrl);
+
+    // 未ログインで直接URLを開いた場合は公開一覧へ戻れる。
+    await page.goto(detailUrl.pathname);
+    await expect(page.getByRole("link", { name: "募集一覧に戻る" })).toHaveAttribute("href", "/opportunities");
+    await page.goto(detailPath);
+    await page.getByRole("link", { name: "ログインして応募する" }).click();
+    await expect(page).toHaveURL((url) => url.pathname === "/login" && url.searchParams.get("next") === detailPath);
+
+    // 隔離環境の認証経路でログインし、画面が生成した復帰先をそのまま使用する。
+    const next = new URL(page.url()).searchParams.get("next");
+    expect(next).toBe(detailPath);
+    await page.goto(`/api/test-auth/login?persona=participant-onboarded&next=${encodeURIComponent(next!)}`);
+    await expect(page).toHaveURL((url) => `${url.pathname}${url.search}` === detailPath);
+    await expect(page.getByRole("heading", { name: "E2E オンライン環境保全案件" })).toBeVisible();
+    await page.getByRole("link", { name: "案件検索結果に戻る" }).click();
+    await expect(page).toHaveURL((url) => `${url.pathname}${url.search}` === searchUrl);
+    await expect(page.getByLabel("キーワード")).toHaveValue("E2E オンライン");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("環境保全");
+    await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue("新宿区");
+    await expect(page.getByLabel("参加形態")).toHaveValue("online");
+    await expect(page.getByRole("link", { name: "E2E オンライン環境保全案件", exact: true })).toBeVisible();
+  });
+
   test("未認証の本診断はログインへ戻す", async ({ page }) => {
     await page.goto("/diagnosis");
 

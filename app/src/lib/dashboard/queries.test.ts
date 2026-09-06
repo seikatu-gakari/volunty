@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 const mockFindOrganizationProfile = vi.fn();
 const mockFindOwnedApplication = vi.fn();
+const mockFindParticipantProfile = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
@@ -13,6 +14,9 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     organizationProfile: {
       findUnique: (...args: unknown[]) => mockFindOrganizationProfile(...args),
+    },
+    participantProfile: {
+      findUnique: (...args: unknown[]) => mockFindParticipantProfile(...args),
     },
     matchingCandidate: {
       findFirst: (...args: unknown[]) => mockFindOwnedApplication(...args),
@@ -35,10 +39,10 @@ const acceptedApplication = {
   appliedAt: new Date("2026-01-20T00:00:00.000Z"),
   statusChangedAt: new Date("2026-01-20T00:00:00.000Z"),
   participant: {
+    id: "participant-1",
     name: "ユーザー名",
     participantProfile: {
       name: "プロフィール名",
-      lineId: "participant-line-id",
       latestDiagnosisResult: { styleTypeId: "supporter-care" },
     },
   },
@@ -53,6 +57,7 @@ describe("fetchApplicantDetailQuery", () => {
     vi.clearAllMocks();
     mockFindOrganizationProfile.mockResolvedValue(organizationProfile);
     mockFindOwnedApplication.mockResolvedValue(acceptedApplication);
+    mockFindParticipantProfile.mockResolvedValue({ lineId: "participant-line-id" });
   });
 
   it("承認済み応募では自団体の応募者LINE IDを返す", async () => {
@@ -62,18 +67,13 @@ describe("fetchApplicantDetailQuery", () => {
     );
 
     expect(result.data?.participant_line_id).toBe("participant-line-id");
-    expect(mockFindOwnedApplication).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.objectContaining({
-          participant: {
-            select: expect.objectContaining({
-              participantProfile: {
-                select: expect.objectContaining({ lineId: true }),
-              },
-            }),
-          },
-        }),
-      }),
+    expect(mockFindParticipantProfile).toHaveBeenCalledTimes(1);
+    expect(mockFindParticipantProfile).toHaveBeenCalledWith({
+      where: { userId: "participant-1" },
+      select: { lineId: true },
+    });
+    expect(mockFindOwnedApplication.mock.calls[0]?.[0]).not.toHaveProperty(
+      "select.participant.select.participantProfile.select.lineId"
     );
   });
 
@@ -91,6 +91,7 @@ describe("fetchApplicantDetailQuery", () => {
       );
 
       expect(result.data).not.toHaveProperty("participant_line_id");
+      expect(mockFindParticipantProfile).not.toHaveBeenCalled();
     },
   );
 });

@@ -605,11 +605,11 @@ export async function fetchApplicantDetailQuery(
         statusChangedAt: true,
         participant: {
           select: {
+            id: true,
             name: true,
             participantProfile: {
               select: {
                 name: true,
-                lineId: true,
                 latestDiagnosisResult: { select: { styleTypeId: true } },
               },
             },
@@ -626,7 +626,12 @@ export async function fetchApplicantDetailQuery(
     const participantProfile = application.participant.participantProfile;
     const participantLineId =
       application.status === "accepted"
-        ? participantProfile?.lineId ?? null
+        ? (
+            await prisma.participantProfile.findUnique({
+              where: { userId: application.participant.id },
+              select: { lineId: true },
+            })
+          )?.lineId ?? null
         : undefined;
     const styleTypeId = participantProfile?.latestDiagnosisResult?.styleTypeId ?? null;
     const styleType = styleTypeId
