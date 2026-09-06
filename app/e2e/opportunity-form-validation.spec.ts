@@ -12,6 +12,7 @@ type ValidationField =
   | "title"
   | "description"
   | "publishedAt"
+  | "applicationDeadline"
   | "capacity"
   | "minAge";
 
@@ -193,6 +194,24 @@ test.describe("募集案件フォームのネイティブ検証エラー", () =>
     await expectValidationFieldInViewport(page, "publishedAt");
     await expect(page).toHaveURL(/\/dashboard\/opportunities\/new$/);
     await saveScreenshot(page, testInfo, "scheduled-published-at");
+  });
+
+  test("応募締切の途中入力を表示し、修正するとエラーが消える", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/dashboard/opportunities/new");
+    await page.getByLabel("案件タイトル").fill("締切確認案件");
+    await page.getByLabel("案件説明").fill("締切確認の説明です。");
+    const deadline = page.getByLabel("応募締切（任意）");
+    await deadline.focus();
+    await deadline.press("ArrowUp");
+    expect(await deadline.evaluate((input: HTMLInputElement) => input.validity.badInput)).toBe(true);
+    await page.getByRole("button", { name: "作成する" }).click();
+    await expect(validationField(page, "applicationDeadline").getByRole("alert")).toHaveText(/\S+/);
+    await expectValidationFieldInViewport(page, "applicationDeadline");
+    await expect(page).toHaveURL(/\/dashboard\/opportunities\/new$/);
+    await deadline.fill("2099-01-01");
+    await expect(validationField(page, "applicationDeadline").getByRole("alert")).toHaveCount(0);
+    await expect(deadline).toHaveAttribute("aria-invalid", "false");
   });
 
   test("定員の範囲外エラーもインライン表示して送信しない", async ({ page }) => {

@@ -165,6 +165,33 @@ describe("OpportunityForm の入力検証", () => {
     expect(submitted?.get("schedule")).toBe("毎週土曜日 10:00〜12:00");
   });
 
+  it("応募締切の途中入力でもエラーへ移動し、修正後に送信できる", async () => {
+    const onSubmitAction = createAction();
+    onSubmitAction.mockResolvedValue({ success: true });
+    render(<OpportunityForm onSubmitAction={onSubmitAction} cancelHref="/dashboard" />);
+    fireEvent.change(screen.getByLabelText("案件タイトル"), { target: { value: "締切確認案件" } });
+    fireEvent.change(screen.getByLabelText("案件説明"), { target: { value: "説明です" } });
+    const deadline = screen.getByLabelText("応募締切（任意）") as HTMLInputElement;
+    // happy-domでは日付の途中入力を再現できないため、ブラウザのbadInputを設定する。
+    const validity = vi.spyOn(deadline, "validity", "get").mockReturnValue({
+      ...deadline.validity, valid: false, badInput: true, valueMissing: false,
+    });
+    fireEvent.invalid(deadline);
+    await waitFor(() => expect(deadline.getAttribute("aria-invalid")).toBe("true"));
+    expect(deadline.getAttribute("aria-describedby")).toBe("opportunity-applicationDeadline-error");
+    expect(screen.getByRole("alert").textContent).toBeTruthy();
+    expect(document.activeElement).toBe(deadline);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(onSubmitAction).not.toHaveBeenCalled();
+
+    validity.mockRestore();
+    fireEvent.change(deadline, { target: { value: "2099-01-01" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.submit(deadline.closest("form") as HTMLFormElement);
+    await waitFor(() => expect(onSubmitAction).toHaveBeenCalledTimes(1));
+    expect(onSubmitAction.mock.calls[0]?.[0].get("applicationDeadline")).toBe("2099-01-01");
+  });
+
   it("サーバーのpublishedAtフィールドエラーも同じフォーカス処理で表示する", async () => {
     const onSubmitAction = createAction();
     onSubmitAction.mockResolvedValue({

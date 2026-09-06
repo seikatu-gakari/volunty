@@ -42,6 +42,7 @@ export type ValidationField =
   | "publishedAt"
   | "startDate"
   | "endDate"
+  | "applicationDeadline"
   | "capacity"
   | "minAge"
   | "maxAge";
@@ -66,6 +67,7 @@ const VALIDATION_FIELDS: readonly ValidationField[] = [
   "publishedAt",
   "startDate",
   "endDate",
+  "applicationDeadline",
   "capacity",
   "minAge",
   "maxAge",
@@ -77,6 +79,7 @@ const FIELD_ERROR_IDS: Record<ValidationField, string> = {
   publishedAt: "opportunity-publishedAt-error",
   startDate: "opportunity-startDate-error",
   endDate: "opportunity-endDate-error",
+  applicationDeadline: "opportunity-applicationDeadline-error",
   capacity: "opportunity-capacity-error",
   minAge: "opportunity-minAge-error",
   maxAge: "opportunity-maxAge-error",
@@ -652,9 +655,33 @@ export function OpportunityForm({
             {/* カテゴリ */}
             <Input label="費用（任意）" name="cost" icon={FileText} type="text" placeholder="例: 無料（交通費は自己負担）" defaultValue={initialData?.cost ?? ""} />
             <Input label="持ち物（任意）" name="belongings" icon={FileText} type="text" placeholder="例: 飲み物、軍手" defaultValue={initialData?.belongings ?? ""} />
-            <div className="flex flex-col gap-1">
+            <div
+              ref={(element) => {
+                fieldContainersRef.current.applicationDeadline = element;
+              }}
+              data-validation-field="applicationDeadline"
+              className="scroll-mt-24 flex flex-col gap-1"
+            >
               <label htmlFor="applicationDeadline" className="text-sm font-medium text-text-dark">応募締切（任意）</label>
-              <input id="applicationDeadline" name="applicationDeadline" type="date" defaultValue={initialData?.application_deadline ?? ""} className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <input
+                id="applicationDeadline"
+                name="applicationDeadline"
+                type="date"
+                defaultValue={initialData?.application_deadline ?? ""}
+                className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                aria-invalid={fieldErrors.applicationDeadline !== undefined}
+                aria-describedby={getDescribedBy(
+                  undefined,
+                  "applicationDeadline",
+                  fieldErrors.applicationDeadline !== undefined
+                )}
+                onChange={handleFieldChange}
+              />
+              {fieldErrors.applicationDeadline && (
+                <p id={FIELD_ERROR_IDS.applicationDeadline} role="alert" className="text-sm text-error">
+                  {fieldErrors.applicationDeadline}
+                </p>
+              )}
             </div>
             {([
               ["cancellationPolicy", "キャンセル方針（任意）", initialData?.cancellation_policy, "例: 前日までにVolunty内でご連絡ください"],
