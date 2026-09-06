@@ -225,7 +225,7 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page.getByRole("checkbox", { name: "初心者歓迎" })).toBeChecked();
 
     await page.getByRole("link", { name: "条件を解除" }).click();
-    await expect(page).toHaveURL(/\\/opportunities$/);
+    await expect(page).toHaveURL(/\/opportunities$/);
     await expect(page.getByLabel("キーワード")).toHaveValue("");
     await expect(page.getByLabel("カテゴリ")).toHaveValue("");
     await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue("");
@@ -306,7 +306,7 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page.getByText("条件に一致する募集案件はありません。")).toBeVisible();
 
     await page.goForward();
-    await expect(page).toHaveURL(/\\/opportunities$/);
+    await expect(page).toHaveURL(/\/opportunities$/);
     await expect(page.getByLabel("キーワード")).toHaveValue("");
     await expect(page.getByLabel("カテゴリ")).toHaveValue("");
     await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue("");
