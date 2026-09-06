@@ -452,6 +452,7 @@ export async function seedE2eUsers(): Promise<void> {
   );
   const orgRejectedId = requirePersonaId(idByEmail, "organization-rejected");
   const orgSecondaryId = requirePersonaId(idByEmail, "organization-secondary");
+  const orgAnalyticsEmptyId = requirePersonaId(idByEmail, "organization-analytics-empty");
 
   await prisma.user.upsert({
     where: { id: ORGANIZATION_FIXTURE_PARTICIPANT.id },
@@ -1255,6 +1256,21 @@ export async function seedE2eUsers(): Promise<void> {
       activityAreas: ["埼玉県"],
       activityCategories: ["福祉"],
     },
+  });
+
+  // 他のE2Eが案件を追加する団体と分離し、正常な0件分析を検証する。
+  const emptyAnalyticsProfile = {
+    organizationName: "E2E分析0件団体",
+    reviewStatus: "approved" as const,
+    verified: true,
+    profileCompleteness: 100,
+    activityAreas: ["千葉県"],
+    activityCategories: ["教育"],
+  };
+  await prisma.organizationProfile.upsert({
+    where: { userId: orgAnalyticsEmptyId },
+    update: emptyAnalyticsProfile,
+    create: { userId: orgAnalyticsEmptyId, ...emptyAnalyticsProfile },
   });
 
   const secondaryOrganization = await prisma.organizationProfile.upsert({

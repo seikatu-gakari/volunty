@@ -21,6 +21,7 @@ const personas = [
   },
   { key: "organization-rejected", file: "organization-rejected" },
   { key: "organization-secondary", file: "organization-secondary" },
+  { key: "organization-analytics-empty", file: "organization-analytics-empty" },
   { key: "admin", file: "admin" },
   { key: "admin-review", file: "admin-review" },
 ] as const;

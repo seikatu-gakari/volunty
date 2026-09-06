@@ -209,11 +209,16 @@ export interface ApproachAnalytics {
   pendingCount: number;
 }
 
-export interface DashboardAnalyticsResult {
-  opportunities: OpportunityAnalytics[];
-  approaches: ApproachAnalytics;
-  error?: string;
-}
+export type DashboardAnalyticsResult =
+  | {
+      success: true;
+      opportunities: OpportunityAnalytics[];
+      approaches: ApproachAnalytics;
+    }
+  | {
+      success: false;
+      error: string;
+    };
 
 /** 応募者詳細情報（生の診断スコアは団体へ開示しない） */
 export interface ApplicantDetail {

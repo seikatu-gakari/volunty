@@ -17,6 +17,7 @@ vi.mock("next/navigation", () => ({
     mocks.redirect(url);
     throw new Error(`NEXT_REDIRECT:${url}`);
   },
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 vi.mock("next/link", () => ({
@@ -100,6 +101,7 @@ describe("DashboardPage", () => {
     });
     mocks.fetchMyOpportunities.mockResolvedValue({ opportunities: [] });
     mocks.fetchDashboardAnalytics.mockResolvedValue({
+      success: true,
       opportunities: [],
       approaches: {
         sentTotal: 0,
@@ -138,5 +140,40 @@ describe("DashboardPage", () => {
     );
 
     expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("分析取得に失敗しても案件タイトル・編集・新規作成の導線を維持する", async () => {
+    mocks.fetchMyOpportunities.mockResolvedValue({
+      opportunities: [
+        {
+          id: "opp-1",
+          title: "環境保全ボランティア",
+          status: "published",
+          created_at: "2026-01-15T00:00:00Z",
+          application_count: 0,
+        },
+      ],
+    });
+    mocks.fetchDashboardAnalytics.mockResolvedValue({
+      success: false,
+      error: "予期しないエラーが発生しました",
+    });
+
+    render(await DashboardPage());
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "分析データを取得できませんでした。時間をおいて再試行してください。",
+    );
+    expect(screen.getByText("環境保全ボランティア")).toBeDefined();
+    expect(
+      screen.getByRole("link", { name: "編集" }).getAttribute("href"),
+    ).toBe("/dashboard/opportunities/opp-1/edit");
+    expect(
+      screen
+        .getByRole("link", { name: "新しい案件を作成" })
+        .getAttribute("href"),
+    ).toBe("/dashboard/opportunities/new");
+    expect(screen.queryByText("閲覧数")).toBeNull();
+    expect(screen.queryByText("0%")).toBeNull();
   });
 });
