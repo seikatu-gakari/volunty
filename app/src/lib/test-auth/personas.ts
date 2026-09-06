@@ -22,6 +22,7 @@ export type PersonaKey =
   | "organization-pending-readonly"
   | "organization-rejected"
   | "organization-secondary"
+  | "organization-analytics-empty"
   | "admin"
   | "admin-review";
 
@@ -159,6 +160,12 @@ export const PERSONAS: Record<PersonaKey, Persona> = {
     email: "e2e-org-secondary@example.com",
     role: "organization",
     description: "他団体所有データへのアクセス境界確認専用",
+  },
+  "organization-analytics-empty": {
+    key: "organization-analytics-empty",
+    email: "e2e-org-analytics-empty@example.com",
+    role: "organization",
+    description: "案件・アプローチ0件の分析表示確認専用",
   },
   admin: {
     key: "admin",

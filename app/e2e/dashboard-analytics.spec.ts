@@ -48,7 +48,7 @@ test.describe("団体ダッシュボード分析の取得失敗", () => {
 });
 
 test.describe("案件0件の正常な分析結果", () => {
-  test.use({ storageState: "playwright/.auth/organization-secondary.json" });
+  test.use({ storageState: "playwright/.auth/organization-analytics-empty.json" });
 
   test("0指標と空状態を表示する", async ({ page }) => {
     await page.goto("/dashboard");

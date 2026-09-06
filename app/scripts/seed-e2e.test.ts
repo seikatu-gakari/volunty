@@ -110,6 +110,7 @@ const personaCases = [
   ["organization-pending-readonly", "organization", "e2e-org-pending-readonly@example.com", "pending readonly"],
   ["organization-rejected", "organization", "e2e-org-rejected@example.com", "rejected"],
   ["organization-secondary", "organization", "e2e-org-secondary@example.com", "secondary"],
+  ["organization-analytics-empty", "organization", "e2e-org-analytics-empty@example.com", "analytics-empty"],
   ["admin", "admin", "e2e-admin@example.com", "管理者ロール"],
   ["admin-review", "admin", "e2e-admin-review@example.com", "admin review"],
 ] as const satisfies readonly (readonly [PersonaKey, Persona["role"], string, string])[];
@@ -492,6 +493,17 @@ describe("seedE2eUsers", () => {
     );
     expect(mocks.prisma.messageTemplate.deleteMany).toHaveBeenCalledWith({
       where: { organizationId: "organization-secondary-id-profile-id" },
+    });
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: personaId("organization-analytics-empty") },
+        create: expect.objectContaining({ reviewStatus: "approved" }),
+      })
+    );
+    expect(mocks.prisma.opportunity.create).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        organizationId: "organization-analytics-empty-id-profile-id",
+      }),
     });
 
     expect(mocks.prisma.opportunity.deleteMany).toHaveBeenCalledWith({
