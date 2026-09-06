@@ -1,6 +1,6 @@
 ---
 name: volunty-rtk-cli
-description: 'Use when: Volunty ローカルで lint/test/build/git/docker などのシェルコマンド出力を rtk プレフィックスで削減したい、または RTK の使い方を確認する必要がある。'
+description: "Voluntyのローカルコマンド出力をRTKで削減するときに使う。"
 argument-hint: '例: 出力を減らしてテスト実行 / rtkの使い方 / lint結果を短く見たい'
 ---
 
