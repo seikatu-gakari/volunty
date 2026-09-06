@@ -34,6 +34,11 @@ import {
   isValidParticipationMode,
   type ParticipationMode,
 } from "@/lib/opportunities/constants";
+import {
+  resolvePublicationState,
+  type OpportunityPublicationState,
+  type PublicationOperation,
+} from "@/lib/opportunities/publication";
 
 /**
  * 団体ダッシュボード用：自団体の募集案件一覧を取得
@@ -274,11 +279,17 @@ function parsePublishFields(
 ): { data: { status: OpportunityStatus; published_at: string | null } } | { error: string } {
   const rawPublishMode = formData.get("publishMode");
   const publishMode =
-    rawPublishMode === "draft" ||
-    rawPublishMode === "published" ||
-    rawPublishMode === "scheduled"
-      ? rawPublishMode
-      : "published";
+    rawPublishMode === null
+      ? "published"
+      : rawPublishMode === "draft" ||
+          rawPublishMode === "published" ||
+          rawPublishMode === "scheduled"
+        ? rawPublishMode
+        : null;
+
+  if (!publishMode) {
+    return { error: "公開方法の値が正しくありません" };
+  }
 
   if (publishMode === "draft") {
     return { data: { status: "draft", published_at: null } };
@@ -304,6 +315,108 @@ function parsePublishFields(
   }
 
   return { data: { status: "published", published_at: nowIso } };
+}
+
+function parseOpportunityStatusField(
+  formData: FormData
+): { status: OpportunityStatus | undefined } | { error: string } {
+  const rawStatus = formData.get("status");
+  if (rawStatus === null) return { status: undefined };
+  if (
+    rawStatus === "draft" ||
+    rawStatus === "published" ||
+    rawStatus === "closed"
+  ) {
+    return { status: rawStatus };
+  }
+  return { error: "案件ステータスの値が正しくありません" };
+}
+
+function parseUpdatePublicationFields(
+  formData: FormData,
+  now: Date
+): { data: { operation: PublicationOperation | null } } | { error: string } {
+  const statusResult = parseOpportunityStatusField(formData);
+  if ("error" in statusResult) return statusResult;
+
+  const status = statusResult.status;
+  if (!formData.has("publishMode")) {
+    return {
+      data: {
+        operation:
+          status === undefined ? null : { kind: "status", status },
+      },
+    };
+  }
+
+  const publish = parsePublishFields(formData, now.toISOString());
+  if ("error" in publish) return publish;
+
+  const rawPublishMode = formData.get("publishMode");
+  if (
+    rawPublishMode !== "draft" &&
+    rawPublishMode !== "published" &&
+    rawPublishMode !== "scheduled"
+  ) {
+    return { error: "公開方法の値が正しくありません" };
+  }
+
+  const publishStatus = rawPublishMode === "draft" ? "draft" : "published";
+  if (status !== undefined && status !== publishStatus) {
+    return { error: "案件ステータスと公開方法の指定が一致しません" };
+  }
+
+  if (rawPublishMode === "scheduled") {
+    if (!publish.data.published_at) {
+      return { error: "公開予約日時を入力してください" };
+    }
+    return {
+      data: {
+        operation: {
+          kind: "publishMode",
+          mode: "scheduled",
+          publishedAt: new Date(publish.data.published_at),
+        },
+      },
+    };
+  }
+
+  return {
+    data: {
+      operation: { kind: "publishMode", mode: rawPublishMode },
+    },
+  };
+}
+
+function parseCurrentPublicationState(
+  value: unknown
+): OpportunityPublicationState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  const status = row.status;
+  const publishedAt = row.published_at;
+  if (
+    status !== "draft" &&
+    status !== "published" &&
+    status !== "closed"
+  ) {
+    return null;
+  }
+  if (publishedAt !== null && typeof publishedAt !== "string") {
+    return null;
+  }
+
+  return { status, publishedAt };
+}
+
+function serializePublicationDate(
+  value: OpportunityPublicationState["publishedAt"]
+): string | null {
+  if (value === null) return null;
+  return value instanceof Date ? value.toISOString() : value;
 }
 
 /**
@@ -605,13 +718,6 @@ export async function updateOpportunity(
     return { success: false, error: "説明は必須です" };
   }
 
-  // ステータスの取得
-  const rawStatus = formData.get("status");
-  const status =
-    rawStatus === "draft" || rawStatus === "published" || rawStatus === "closed"
-      ? rawStatus
-      : undefined;
-
   // 活動スタイルタグ・参加要件の取得と検証
   const matching = parseOpportunityMatchingFields(formData);
   if ("error" in matching) {
@@ -624,11 +730,10 @@ export async function updateOpportunity(
     return { success: false, error: extra.error };
   }
 
-  const publish = formData.has("publishMode")
-    ? parsePublishFields(formData, new Date().toISOString())
-    : null;
-  if (publish && "error" in publish) {
-    return { success: false, error: publish.error };
+  const now = new Date();
+  const publication = parseUpdatePublicationFields(formData, now);
+  if ("error" in publication) {
+    return { success: false, error: publication.error };
   }
 
   try {
@@ -643,27 +748,78 @@ export async function updateOpportunity(
       return { success: false, error: "団体プロフィールが見つかりません" };
     }
 
+    const organizationId = (orgProfile as unknown as { id: string }).id;
+    const {
+      data: currentOpportunity,
+      error: currentOpportunityError,
+    } = await supabase
+      .from("m_opportunity")
+      .select("status, published_at")
+      .eq("id", id)
+      .eq("organization_id", organizationId)
+      .single();
+
+    if (currentOpportunityError) {
+      if (currentOpportunityError.code === "PGRST116") {
+        return { success: false, error: "案件が見つかりません" };
+      }
+      return { success: false, error: "案件の更新に失敗しました" };
+    }
+    if (!currentOpportunity) {
+      return { success: false, error: "案件が見つかりません" };
+    }
+
+    const currentPublication = parseCurrentPublicationState(currentOpportunity);
+    if (!currentPublication) {
+      return { success: false, error: "案件の更新に失敗しました" };
+    }
+
     const updateData: Record<string, unknown> = {
       title,
       description,
       ...matching.data,
       ...extra.data,
     };
-    if (publish) {
-      updateData.status = publish.data.status;
-      updateData.published_at = publish.data.published_at;
-    } else if (status) {
-      updateData.status = status;
+    if (publication.data.operation) {
+      const nextPublication = resolvePublicationState(
+        currentPublication,
+        publication.data.operation,
+        now,
+      );
+      updateData.status = nextPublication.status;
+      updateData.published_at = serializePublicationDate(
+        nextPublication.publishedAt,
+      );
     }
 
-    const { error: updateError } = await supabase
+    const updateQuery = supabase
       .from("m_opportunity")
       .update(updateData)
       .eq("id", id)
-      .eq("organization_id", (orgProfile as unknown as { id: string }).id);
+      .eq("organization_id", organizationId)
+      .eq("status", currentPublication.status);
+
+    const currentPublishedAt = serializePublicationDate(
+      currentPublication.publishedAt,
+    );
+    const { data: updatedOpportunities, error: updateError } =
+      currentPublishedAt === null
+        ? await updateQuery.is("published_at", null).select("id")
+        : await updateQuery
+            .eq("published_at", currentPublishedAt)
+            .select("id");
 
     if (updateError) {
       return { success: false, error: "案件の更新に失敗しました" };
+    }
+    if (
+      !Array.isArray(updatedOpportunities) ||
+      updatedOpportunities.length !== 1
+    ) {
+      return {
+        success: false,
+        error: "公開状態が変更されています。画面を再読み込みしてから保存してください",
+      };
     }
   } catch {
     return { success: false, error: "予期しないエラーが発生しました" };

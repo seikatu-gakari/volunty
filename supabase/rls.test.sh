@@ -315,6 +315,7 @@ SQL
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830010000_issue245_repair_opportunity_schema.sql" >/dev/null
 # ADD COLUMN IF NOT EXISTSによる再実行相当の安全性を検証する。
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830010000_issue245_repair_opportunity_schema.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260906000000_issue265_publication_visibility.sql" >/dev/null
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
 DO $$
@@ -1035,6 +1036,18 @@ INSERT INTO public.m_opportunity (
     NOW(), NOW()
   ),
   (
+    'fe000000-0000-0000-0000-000000000000',
+    'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    'RLS テスト公開日時NULL案件',
+    'published', NULL, CURRENT_DATE + 7, NOW(), NOW()
+  ),
+  (
+    'ff000000-0000-0000-0000-000000000000',
+    'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    'RLS テスト募集終了案件',
+    'closed', NOW() - INTERVAL '1 day', CURRENT_DATE - 1, NOW(), NOW()
+  ),
+  (
     'fd000000-0000-0000-0000-000000000000',
     'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
     'RLS テスト他団体下書き案件',
@@ -1083,18 +1096,97 @@ BEGIN
   SELECT COUNT(*)
   INTO published_count
   FROM public.m_opportunity
-  WHERE status = 'published'::public.opportunity_status;
+  WHERE status = 'published'::public.opportunity_status
+    AND published_at IS NOT NULL
+    AND published_at <= CURRENT_TIMESTAMP;
 
   SELECT COUNT(*)
   INTO visible_count
   FROM public.m_opportunity;
 
   IF visible_count <> published_count THEN
-    RAISE EXCEPTION 'anon can read non-published opportunity';
+    RAISE EXCEPTION 'anon can read non-public opportunity';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_opportunity
+    WHERE id IN (
+      'f8888888-8888-8888-8888-888888888888',
+      'fb000000-0000-0000-0000-000000000000',
+      'fc000000-0000-0000-0000-000000000000'
+    )
+  ) <> 3 THEN
+    RAISE EXCEPTION 'anon cannot read a published opportunity with a valid publication time';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM public.m_opportunity
+    WHERE id IN (
+      'f9999999-9999-9999-9999-999999999999',
+      'fa000000-0000-0000-0000-000000000000',
+      'fe000000-0000-0000-0000-000000000000',
+      'ff000000-0000-0000-0000-000000000000',
+      'fd000000-0000-0000-0000-000000000000'
+    )
+  ) THEN
+    RAISE EXCEPTION 'anon can read a non-public opportunity fixture';
   END IF;
 END;
 $$;
 RESET ROLE;
+SQL
+
+# 参加者セッションも匿名と同じ公開日時条件だけを参照できることを検証する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
+BEGIN;
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '33333333-3333-3333-3333-333333333333',
+  true
+);
+DO $$
+DECLARE
+  expected_count integer;
+  visible_count integer;
+BEGIN
+  SELECT COUNT(*)
+  INTO expected_count
+  FROM public.m_opportunity
+  WHERE status = 'published'::public.opportunity_status
+    AND published_at IS NOT NULL
+    AND published_at <= CURRENT_TIMESTAMP;
+  SELECT COUNT(*) INTO visible_count FROM public.m_opportunity;
+  IF visible_count <> expected_count THEN
+    RAISE EXCEPTION 'participant can read a non-public opportunity';
+  END IF;
+  IF (
+    SELECT COUNT(*)
+    FROM public.m_opportunity
+    WHERE id IN (
+      'f8888888-8888-8888-8888-888888888888',
+      'fb000000-0000-0000-0000-000000000000',
+      'fc000000-0000-0000-0000-000000000000'
+    )
+  ) <> 3 THEN
+    RAISE EXCEPTION 'participant cannot read a published opportunity with a valid publication time';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM public.m_opportunity
+    WHERE id IN (
+      'f9999999-9999-9999-9999-999999999999',
+      'fa000000-0000-0000-0000-000000000000',
+      'fe000000-0000-0000-0000-000000000000',
+      'ff000000-0000-0000-0000-000000000000',
+      'fd000000-0000-0000-0000-000000000000'
+    )
+  ) THEN
+    RAISE EXCEPTION 'participant can read a non-public opportunity fixture';
+  END IF;
+END;
+$$;
+COMMIT;
 SQL
 
 # 認証済み団体は自団体の非公開案件だけを参照でき、他団体の非公開案件は参照できない。
@@ -1109,6 +1201,10 @@ SELECT set_config(
 DO $$
 DECLARE
   own_private_count integer;
+  own_null_count integer;
+  own_draft_count integer;
+  own_scheduled_count integer;
+  own_closed_count integer;
   other_private_count integer;
 BEGIN
   SELECT COUNT(*)
@@ -1119,15 +1215,41 @@ BEGIN
 
   SELECT COUNT(*)
   INTO other_private_count
-  FROM public.m_opportunity
-  WHERE organization_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+    FROM public.m_opportunity
+    WHERE organization_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
     AND status <> 'published'::public.opportunity_status;
+
+  SELECT COUNT(*)
+  INTO own_null_count
+  FROM public.m_opportunity
+    WHERE id = 'fe000000-0000-0000-0000-000000000000';
+
+  SELECT COUNT(*)
+  INTO own_draft_count
+  FROM public.m_opportunity
+  WHERE id = 'f9999999-9999-9999-9999-999999999999';
+
+  SELECT COUNT(*)
+  INTO own_scheduled_count
+  FROM public.m_opportunity
+  WHERE id = 'fa000000-0000-0000-0000-000000000000';
+
+  SELECT COUNT(*)
+  INTO own_closed_count
+  FROM public.m_opportunity
+  WHERE id = 'ff000000-0000-0000-0000-000000000000';
 
   IF own_private_count = 0 THEN
     RAISE EXCEPTION 'organization owner cannot read own private opportunity';
   END IF;
   IF other_private_count <> 0 THEN
     RAISE EXCEPTION 'organization owner can read another organization private opportunity';
+  END IF;
+  IF own_draft_count <> 1
+    OR own_scheduled_count <> 1
+    OR own_null_count <> 1
+    OR own_closed_count <> 1 THEN
+    RAISE EXCEPTION 'organization owner cannot read own non-public opportunity';
   END IF;
 END;
 $$;

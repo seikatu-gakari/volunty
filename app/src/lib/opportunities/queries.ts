@@ -5,6 +5,7 @@ import type { ViewerContext } from "@/lib/auth/viewer-context";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { findActivityStyleTag, toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
+import { isOpportunityPublic } from "./publication";
 import type { ExistingApplication, OpportunityDetail, OpportunityDetailResult } from "./types";
 
 function toStringArray(value: unknown): string[] {
@@ -56,8 +57,13 @@ export async function fetchOpportunityDetail(
     if (oppError || !oppData) return emptyDetail();
     const publishedAt = oppData.published_at as string | null;
     if (
-      oppData.status !== "published" ||
-      (publishedAt && new Date(publishedAt).getTime() > Date.now())
+      !isOpportunityPublic(
+        {
+          status: oppData.status as OpportunityDetail["status"],
+          publishedAt,
+        },
+        new Date(),
+      )
     ) return emptyDetail();
 
     const org = normalizeEmbeddedRecord(oppData.m_organization_profile);
