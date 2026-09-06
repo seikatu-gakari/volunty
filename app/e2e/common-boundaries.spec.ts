@@ -483,3 +483,46 @@ test("C-E11: 保護ルートとページ内notFoundの404も同じ復帰先を�
 
   await context.close();
 });
+
+test("C-E12: 404の主・副CTAはモバイルで縦積みかつキーボード操作できる", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    storageState: AUTH_STATE.organization,
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+
+  await page.goto("/qa-not-found-270");
+  await expectNotFoundRecoveryActions(page, {
+    primaryLabel: "ダッシュボードへ戻る",
+    primaryHref: "/dashboard",
+    destinationUrl: /\/dashboard$/,
+    destinationHeading: "ダッシュボード",
+    showHomeLink: true,
+  });
+
+  const links = page.getByTestId("not-found-actions").getByRole("link");
+  const primaryBox = await links.nth(0).boundingBox();
+  const secondaryBox = await links.nth(1).boundingBox();
+  if (!primaryBox || !secondaryBox) {
+    throw new Error("404 CTAの位置を取得できませんでした");
+  }
+  expect(secondaryBox.y).toBeGreaterThan(primaryBox.y);
+
+  await links.nth(0).focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page).not.toHaveURL(/\/forbidden(?:\/|$)/);
+
+  await page.goto("/qa-not-found-270");
+  const homeLink = page
+    .getByTestId("not-found-actions")
+    .getByRole("link", { name: "トップへ戻る" });
+  await homeLink.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page).not.toHaveURL(/\/forbidden(?:\/|$)/);
+
+  await context.close();
+});
