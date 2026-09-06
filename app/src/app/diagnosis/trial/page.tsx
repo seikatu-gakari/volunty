@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Header } from "@/app/components/Header";
+import { LegalFooter } from "@/app/components/legal/LegalFooter";
 import { TrialDiagnosisClient } from "./components/TrialDiagnosisClient";
 
 export default function TrialDiagnosisPage() {
@@ -25,6 +26,7 @@ export default function TrialDiagnosisPage() {
         </div>
         <TrialDiagnosisClient />
       </main>
+      <LegalFooter />
     </div>
   );
 }

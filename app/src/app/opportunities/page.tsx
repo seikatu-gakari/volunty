@@ -18,6 +18,7 @@ import {
 } from "@/lib/opportunities/navigation";
 import { getViewerContext } from "@/lib/auth/viewer-context";
 import { fetchBookmarkedOpportunityIds } from "@/lib/bookmarks/queries";
+import { LegalFooter } from "@/app/components/legal/LegalFooter";
 
 type OpportunitiesPageProps = {
   searchParams?: Promise<OpportunitySearchParams>;
@@ -213,6 +214,7 @@ export default async function OpportunitiesPage({
           </div>
         )}
       </main>
+      <LegalFooter />
     </div>
   );
 }
