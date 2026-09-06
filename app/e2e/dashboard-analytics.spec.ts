@@ -11,7 +11,11 @@ test.describe("団体ダッシュボード分析の取得失敗", () => {
     });
     await page.goto("/dashboard");
 
-    await expect(page.getByRole("alert")).toContainText(
+    const analyticsError = page.getByRole("alert").filter({
+      hasText: "分析データを取得できませんでした。時間をおいて再試行してください。",
+    });
+    await expect(analyticsError).toBeVisible();
+    await expect(analyticsError).toContainText(
       "分析データを取得できませんでした。時間をおいて再試行してください。",
     );
     await expect(page.getByRole("heading", { name: "募集案件一覧" })).toBeVisible();
@@ -33,7 +37,11 @@ test.describe("団体ダッシュボード分析の取得失敗", () => {
 
     await page.getByRole("button", { name: "分析を再試行" }).click();
 
-    await expect(page.getByRole("alert")).toContainText("分析データを取得できませんでした");
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: "分析データを取得できませんでした",
+      }),
+    ).toBeVisible();
     await expect(page.getByText("閲覧数", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("table")).toHaveCount(0);
   });
