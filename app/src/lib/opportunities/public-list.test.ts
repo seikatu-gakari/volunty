@@ -29,7 +29,7 @@ describe("fetchPublicOpportunities", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           status: "published",
-          publishedAt: { lte: expect.any(Date) },
+          publishedAt: { not: null, lte: expect.any(Date) },
           AND: [
             {
               OR: [

@@ -1,136 +1,268 @@
-import { expect, test } from "@playwright/test";
-import { prisma } from "../src/lib/prisma";
+import { expect, test, type Browser, type Page } from "@playwright/test";
+import { resolve } from "node:path";
+import { config } from "dotenv";
+import { Client } from "pg";
 
-const STORAGE_STATE = "playwright/.auth/organization-lifecycle.json";
-const JST_PUBLICATION_VALUE = "2099-12-31T10:00";
-const JST_PUBLICATION_ISO = "2099-12-31T01:00:00.000Z";
-const PAST_PUBLICATION_VALUE = "2000-01-01T10:00";
-const PAST_PUBLICATION_ERROR =
-  "公開予約日時は現在より後の日時を指定してください";
+config({ path: resolve(process.cwd(), ".env.local"), quiet: true });
 
-test.use({ storageState: STORAGE_STATE });
+const AUTH_STATE = {
+  participant: "playwright/.auth/participant.json",
+  organization: "playwright/.auth/organization-lifecycle.json",
+} as const;
 
-async function findOpportunity(title: string) {
-  return prisma.opportunity.findFirst({
-    where: { title },
-    select: { id: true, status: true, publishedAt: true },
-  });
+const PUBLICATION_NULL_TITLE = "E2E 公開状態 公開日時NULL案件";
+const PUBLICATION_SCHEDULED_TITLE = "E2E 公開状態 予約案件";
+const PUBLICATION_CLOSED_TITLE = "E2E 公開状態 募集終了案件";
+
+type OpportunityStatus = "draft" | "published" | "closed";
+
+type OpportunityState = {
+  id: string;
+  status: OpportunityStatus;
+  publishedAt: Date | null;
+};
+
+const STATUS_LABEL: Record<OpportunityStatus, string> = {
+  draft: "下書き",
+  published: "募集中",
+  closed: "募集終了",
+};
+
+async function readOpportunityState(title: string): Promise<OpportunityState> {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{
+      id: string;
+      status: OpportunityStatus;
+      published_at: Date | null;
+    }>(
+      `SELECT id::text, status::text, published_at
+       FROM public.m_opportunity
+       WHERE title = $1`,
+      [title],
+    );
+    const row = rows[0];
+    if (!row) throw new Error(`E2E案件が見つかりません: ${title}`);
+    return {
+      id: row.id,
+      status: row.status,
+      publishedAt: row.published_at,
+    };
+  } finally {
+    await client.end();
+  }
 }
 
-test.afterAll(async () => {
-  await prisma.$disconnect();
-});
+async function openAuthenticatedPages(browser: Browser) {
+  const organizationContext = await browser.newContext({
+    storageState: AUTH_STATE.organization,
+  });
+  const participantContext = await browser.newContext({
+    storageState: AUTH_STATE.participant,
+  });
+  return {
+    organizationContext,
+    organizationPage: await organizationContext.newPage(),
+    participantContext,
+    participantPage: await participantContext.newPage(),
+  };
+}
 
-test.describe("公開予約", () => {
-  test("新規・複製作成でJST入力を同じUTC日時として保存する", async ({
+async function expectHiddenFromParticipant(
+  page: Page,
+  state: OpportunityState,
+  title: string,
+) {
+  await page.goto(`/opportunities?q=${encodeURIComponent(title)}`);
+  await expect(page.getByText(title, { exact: true })).toHaveCount(0);
+
+  await page.goto(`/opportunities/${state.id}`);
+  await expect(
+    page.getByRole("heading", { name: "ページが見つかりません" }),
+  ).toBeVisible();
+}
+
+async function expectVisibleToParticipant(
+  page: Page,
+  state: OpportunityState,
+  title: string,
+) {
+  await page.goto(`/opportunities?q=${encodeURIComponent(title)}`);
+  await expect(page.getByText(title, { exact: true })).toBeVisible();
+  await page.goto(`/opportunities/${state.id}`);
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+}
+
+async function saveOrganizationStatus(
+  page: Page,
+  state: OpportunityState,
+  status: "draft" | "published" | "closed",
+  description: string,
+) {
+  await page.goto(`/dashboard/opportunities/${state.id}/edit`);
+  await page.getByLabel("案件説明").fill(description);
+  await page.getByRole("radio", { name: STATUS_LABEL[status] }).check();
+  await page.getByRole("button", { name: "保存する" }).click();
+  await expect(page).toHaveURL(`/dashboard/opportunities/${state.id}`);
+}
+
+test.describe.serial("案件公開状態", () => {
+  test("下書き作成から公開・内容編集・下書き化・再公開まで参加者の可視性が一致する", async ({
     browser,
   }) => {
-    const createdOpportunityIds: string[] = [];
+    const {
+      organizationContext,
+      organizationPage,
+      participantContext,
+      participantPage,
+    } = await openAuthenticatedPages(browser);
 
     try {
-      for (const timezoneId of [
-        "UTC",
-        "Asia/Tokyo",
-        "America/Los_Angeles",
-      ]) {
-        const context = await browser.newContext({
-          storageState: STORAGE_STATE,
-          timezoneId,
-        });
-        const page = await context.newPage();
-        const title = `E2E 公開予約 ${timezoneId} ${Date.now()}`;
+      const title = `E2E 公開状態 動的案件 ${Date.now()}`;
+      await organizationPage.goto("/dashboard/opportunities/new");
+      await organizationPage.getByLabel("案件タイトル").fill(title);
+      await organizationPage.getByLabel("案件説明").fill("下書き時の説明です。");
+      await organizationPage.getByRole("radio", { name: "下書き保存" }).check();
+      await organizationPage.getByRole("button", { name: "作成する" }).click();
+      await expect(organizationPage).toHaveURL(/\/dashboard$/);
 
-        await page.goto("/dashboard/opportunities/new");
-        await page.getByLabel("案件タイトル").fill(title);
-        await page.getByLabel("案件説明").fill("JSTの公開予約を確認するE2E案件です。");
-        await page.getByRole("radio", { name: "公開予約" }).check();
-        await page
-          .getByLabel("公開日時（日本時間）")
-          .fill(JST_PUBLICATION_VALUE);
-        await page.getByRole("button", { name: "作成する" }).click();
-        await expect(page).toHaveURL(/\/dashboard$/);
+      const opportunityLink = organizationPage.getByRole("link", {
+        name: title,
+        exact: true,
+      });
+      await expect(opportunityLink).toBeVisible();
+      const href = await opportunityLink.getAttribute("href");
+      const id = href?.match(/^\/dashboard\/opportunities\/([^/]+)$/)?.[1];
+      expect(id).toBeTruthy();
+      const draftState: OpportunityState = {
+        id: id!,
+        status: "draft",
+        publishedAt: null,
+      };
 
-        await expect.poll(() => findOpportunity(title)).not.toBeNull();
-        const createdOpportunity = await findOpportunity(title);
-        expect(createdOpportunity).not.toBeNull();
-        expect(createdOpportunity?.status).toBe("published");
-        expect(createdOpportunity?.publishedAt?.toISOString()).toBe(
-          JST_PUBLICATION_ISO,
-        );
-        if (createdOpportunity) {
-          createdOpportunityIds.push(createdOpportunity.id);
-        }
+      await organizationPage.goto(`/dashboard/opportunities/${draftState.id}`);
+      await expect(organizationPage.getByText("下書き", { exact: true })).toBeVisible();
+      await expectHiddenFromParticipant(participantPage, draftState, title);
 
-        if (timezoneId === "UTC" && createdOpportunity) {
-          const copyLink = page.locator(
-            `a[href="/dashboard/opportunities/new?copyFrom=${createdOpportunity.id}"]`,
-          );
-          await expect(copyLink).toBeVisible();
-          await copyLink.click();
-          await expect(page).toHaveURL(
-            new RegExp(
-              `/dashboard/opportunities/new\\?copyFrom=${createdOpportunity.id}`,
-            ),
-          );
-          await expect(
-            page.getByRole("radio", { name: "下書き保存" }),
-          ).toBeChecked();
-          await expect(
-            page.getByLabel("公開日時（日本時間）"),
-          ).toHaveCount(0);
+      await saveOrganizationStatus(
+        organizationPage,
+        draftState,
+        "published",
+        "公開直後の説明です。",
+      );
+      let publishedState = await readOpportunityState(title);
+      expect(publishedState.status).toBe("published");
+      expect(publishedState.publishedAt).not.toBeNull();
+      expect(publishedState.publishedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+      await expectVisibleToParticipant(participantPage, publishedState, title);
 
-          const copiedTitle = `${title}（コピー）`;
-          await expect(page.getByLabel("案件タイトル")).toHaveValue(
-            copiedTitle,
-          );
-          await page.getByRole("radio", { name: "公開予約" }).check();
-          await page
-            .getByLabel("公開日時（日本時間）")
-            .fill(JST_PUBLICATION_VALUE);
-          await page.getByRole("button", { name: "作成する" }).click();
-          await expect(page).toHaveURL(/\/dashboard$/);
+      const firstPublishedAt = publishedState.publishedAt!.getTime();
+      await saveOrganizationStatus(
+        organizationPage,
+        publishedState,
+        "published",
+        "内容だけを編集した説明です。",
+      );
+      publishedState = await readOpportunityState(title);
+      expect(publishedState.publishedAt?.getTime()).toBe(firstPublishedAt);
+      await expectVisibleToParticipant(participantPage, publishedState, title);
+      await expect(participantPage.getByText("内容だけを編集した説明です。", { exact: true })).toBeVisible();
 
-          await expect
-            .poll(() => findOpportunity(copiedTitle))
-            .not.toBeNull();
-          const copiedOpportunity = await findOpportunity(copiedTitle);
-          expect(copiedOpportunity?.status).toBe("published");
-          expect(copiedOpportunity?.publishedAt?.toISOString()).toBe(
-            JST_PUBLICATION_ISO,
-          );
-          if (copiedOpportunity) {
-            createdOpportunityIds.push(copiedOpportunity.id);
-          }
-        }
+      await saveOrganizationStatus(
+        organizationPage,
+        publishedState,
+        "draft",
+        "再公開前の下書き説明です。",
+      );
+      const redraftState = await readOpportunityState(title);
+      expect(redraftState).toMatchObject({ status: "draft", publishedAt: null });
+      await expectHiddenFromParticipant(participantPage, redraftState, title);
 
-        await context.close();
-      }
+      await saveOrganizationStatus(
+        organizationPage,
+        redraftState,
+        "published",
+        "再公開後の説明です。",
+      );
+      const republishedState = await readOpportunityState(title);
+      expect(republishedState.status).toBe("published");
+      expect(republishedState.publishedAt?.getTime()).toBeGreaterThan(firstPublishedAt);
+      await expectVisibleToParticipant(participantPage, republishedState, title);
     } finally {
-      if (createdOpportunityIds.length > 0) {
-        await prisma.opportunity.deleteMany({
-          where: { id: { in: createdOpportunityIds } },
-        });
-      }
+      await organizationContext.close();
+      await participantContext.close();
     }
   });
 
-  test("サーバー側で過去日時を拒否し、案件を保存しない", async ({ page }) => {
-    const title = `E2E 公開予約 過去日時 ${Date.now()}`;
+  test("日時NULL・予約・募集終了の既存状態を参加者に公開せず、明示操作後だけ公開する", async ({
+    browser,
+  }) => {
+    const {
+      organizationContext,
+      organizationPage,
+      participantContext,
+      participantPage,
+    } = await openAuthenticatedPages(browser);
 
-    await page.goto("/dashboard/opportunities/new");
-    await page.getByLabel("案件タイトル").fill(title);
-    await page.getByLabel("案件説明").fill("過去日時の拒否を確認するE2E案件です。");
-    await page.getByRole("radio", { name: "公開予約" }).check();
-    const publishedAtInput = page.getByLabel("公開日時（日本時間）");
-    await publishedAtInput.evaluate((input) => input.removeAttribute("min"));
-    await publishedAtInput.fill(PAST_PUBLICATION_VALUE);
-    await page.getByRole("button", { name: "作成する" }).click();
+    try {
+      const nullState = await readOpportunityState(PUBLICATION_NULL_TITLE);
+      await expectHiddenFromParticipant(participantPage, nullState, PUBLICATION_NULL_TITLE);
+      await saveOrganizationStatus(
+        organizationPage,
+        nullState,
+        "published",
+        "公開日時を補完した説明です。",
+      );
+      const repairedNullState = await readOpportunityState(PUBLICATION_NULL_TITLE);
+      expect(repairedNullState.status).toBe("published");
+      expect(repairedNullState.publishedAt).not.toBeNull();
+      expect(repairedNullState.publishedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+      await expectVisibleToParticipant(
+        participantPage,
+        repairedNullState,
+        PUBLICATION_NULL_TITLE,
+      );
 
-    await expect(page.locator("#publishedAt-error")).toHaveText(
-      PAST_PUBLICATION_ERROR,
-    );
-    await expect(publishedAtInput).toHaveValue(PAST_PUBLICATION_VALUE);
-    await expect(publishedAtInput).toBeFocused();
-    await expect.poll(() => findOpportunity(title)).toBeNull();
+      const scheduledState = await readOpportunityState(PUBLICATION_SCHEDULED_TITLE);
+      const scheduledAt = scheduledState.publishedAt?.getTime();
+      expect(scheduledState.status).toBe("published");
+      expect(scheduledAt).toBeGreaterThan(Date.now());
+      await saveOrganizationStatus(
+        organizationPage,
+        scheduledState,
+        "published",
+        "予約日時を維持した説明です。",
+      );
+      const editedScheduledState = await readOpportunityState(PUBLICATION_SCHEDULED_TITLE);
+      expect(editedScheduledState.publishedAt?.getTime()).toBe(scheduledAt);
+      await expectHiddenFromParticipant(
+        participantPage,
+        editedScheduledState,
+        PUBLICATION_SCHEDULED_TITLE,
+      );
+      await participantPage.goto("/recommendations");
+      await expect(
+        participantPage.getByText(PUBLICATION_SCHEDULED_TITLE, { exact: true }),
+      ).toHaveCount(0);
+
+      const closedState = await readOpportunityState(PUBLICATION_CLOSED_TITLE);
+      const closedPublishedAt = closedState.publishedAt?.getTime();
+      await expectHiddenFromParticipant(participantPage, closedState, PUBLICATION_CLOSED_TITLE);
+      await saveOrganizationStatus(
+        organizationPage,
+        closedState,
+        "published",
+        "募集終了から再公開した説明です。",
+      );
+      const reopenedState = await readOpportunityState(PUBLICATION_CLOSED_TITLE);
+      expect(reopenedState.status).toBe("published");
+      expect(reopenedState.publishedAt?.getTime()).toBeGreaterThan(closedPublishedAt ?? 0);
+      expect(reopenedState.publishedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+      await expectVisibleToParticipant(participantPage, reopenedState, PUBLICATION_CLOSED_TITLE);
+    } finally {
+      await organizationContext.close();
+      await participantContext.close();
+    }
   });
 });

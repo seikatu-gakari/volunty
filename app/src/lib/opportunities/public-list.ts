@@ -90,7 +90,7 @@ export async function fetchPublicOpportunities(
   const and: Prisma.OpportunityWhereInput[] = [];
   const where: Prisma.OpportunityWhereInput = {
     status: "published",
-    publishedAt: { lte: now },
+    publishedAt: { not: null, lte: now },
   };
 
   if (query) {

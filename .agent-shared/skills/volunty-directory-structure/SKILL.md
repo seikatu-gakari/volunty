@@ -1,6 +1,6 @@
 ---
 name: volunty-directory-structure
-description: 'Use when: Volunty のファイル配置、Next.js App Router のルート、lib 配下のドメインロジック、コンポーネント配置、探索先を確認する必要がある。'
+description: "Voluntyでコードの探索先や新規ファイルの配置先が不明なときに使う。"
 argument-hint: '例: 新しいページの配置先 / ドメインロジックの場所 / 関連ファイルを探したい'
 ---
 

@@ -1,8 +1,10 @@
 import "server-only";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
 import { toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
+import { shouldFailDashboardAnalyticsForE2E } from "@/lib/e2e/dashboard-analytics-failure";
 import {
   buildRecommendedParticipants,
   type RecommendedParticipantCandidate,
@@ -45,9 +47,13 @@ function toApplicantDetailIsoString(value: Date | string): string {
   );
 }
 
+type ApprovedOrganizationProfileResult =
+  | { id: string }
+  | { error: string; organizationProfileId?: string };
+
 async function fetchApprovedOrganizationProfile(
   userId: string,
-): Promise<{ id: string } | { error: string }> {
+): Promise<ApprovedOrganizationProfileResult> {
   const organizationProfile = await prisma.organizationProfile.findUnique({
     where: { userId },
     select: { id: true, reviewStatus: true, user: { select: { role: true } } },
@@ -57,10 +63,16 @@ async function fetchApprovedOrganizationProfile(
     return { error: "団体プロフィールが見つかりません" };
   }
   if (organizationProfile.user.role !== "organization") {
-    return { error: "団体アカウントのみ利用できます" };
+    return {
+      error: "団体アカウントのみ利用できます",
+      organizationProfileId: organizationProfile.id,
+    };
   }
   if (organizationProfile.reviewStatus !== "approved") {
-    return { error: "承認済み団体のみ利用できます" };
+    return {
+      error: "承認済み団体のみ利用できます",
+      organizationProfileId: organizationProfile.id,
+    };
   }
 
   return { id: organizationProfile.id };
@@ -146,7 +158,7 @@ export async function fetchOpportunityForEditQuery(
     const { data, error: fetchError } = await supabase
       .from("m_opportunity")
       .select(
-        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, location, start_date, end_date, capacity, category, participation_mode",
+        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, location, start_date, end_date, schedule, capacity, category, participation_mode, cost, belongings, application_deadline, cancellation_policy, insurance_details, contact_method",
       )
       .eq("id", id)
       .eq("organization_id", (orgProfile as unknown as { id: string }).id)
@@ -168,9 +180,16 @@ export async function fetchOpportunityForEditQuery(
       location: string | null;
       start_date: string | null;
       end_date: string | null;
+      schedule: string | null;
       capacity: number | null;
       category: string | null;
       participation_mode: ParticipationMode | null;
+      cost: string | null;
+      belongings: string | null;
+      application_deadline: string | null;
+      cancellation_policy: string | null;
+      insurance_details: string | null;
+      contact_method: string | null;
     };
     const opportunity: OpportunityEditData = {
       id: row.id,
@@ -188,9 +207,16 @@ export async function fetchOpportunityForEditQuery(
       location: row.location ?? null,
       start_date: normalizeDateOnly(row.start_date),
       end_date: normalizeDateOnly(row.end_date),
+      schedule: row.schedule ?? null,
       capacity: row.capacity ?? null,
       category: row.category ?? null,
       participation_mode: row.participation_mode ?? null,
+      cost: row.cost ?? null,
+      belongings: row.belongings ?? null,
+      application_deadline: normalizeDateOnly(row.application_deadline),
+      cancellation_policy: row.cancellation_policy ?? null,
+      insurance_details: row.insurance_details ?? null,
+      contact_method: row.contact_method ?? null,
     };
 
     return { opportunity };
@@ -337,51 +363,150 @@ export async function fetchApplicantsForOpportunityQuery(
 }
 
 /** 検証済みの団体 userId でダッシュボード分析を取得する。 */
+type DashboardAnalyticsStage =
+  | "organization_profile"
+  | "opportunities"
+  | "matching"
+  | "views"
+  | "approaches";
+
+type DashboardAnalyticsStageResult<T> =
+  | { success: true; data: T }
+  | { success: false };
+
+function getKnownErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+
+  const code = error.code;
+  return typeof code === "string" ? code : undefined;
+}
+
+function logDashboardAnalyticsFailure(
+  stage: DashboardAnalyticsStage,
+  error: unknown,
+  organizationProfileId?: string,
+): void {
+  const errorCode = getKnownErrorCode(error);
+  console.error("dashboard_analytics_failed", {
+    event: "dashboard_analytics_failed",
+    stage,
+    ...(errorCode ? { errorCode } : {}),
+    ...(organizationProfileId ? { organizationProfileId } : {}),
+  });
+}
+
+async function captureDashboardAnalyticsStage<T>(
+  stage: Exclude<DashboardAnalyticsStage, "organization_profile" | "opportunities">,
+  organizationProfileId: string,
+  operation: () => Promise<T>,
+): Promise<DashboardAnalyticsStageResult<T>> {
+  try {
+    return { success: true, data: await operation() };
+  } catch (error) {
+    logDashboardAnalyticsFailure(stage, error, organizationProfileId);
+    return { success: false };
+  }
+}
+
 export async function fetchDashboardAnalyticsQuery(
   userId: string,
 ): Promise<DashboardAnalyticsResult> {
-  const emptyApproaches = {
-    sentTotal: 0,
-    acceptedCount: 0,
-    acceptanceRate: 0,
-    declinedCount: 0,
-    pendingCount: 0,
-  };
+  let organizationProfile: ApprovedOrganizationProfileResult;
+  try {
+    organizationProfile = await fetchApprovedOrganizationProfile(userId);
+  } catch (error) {
+    logDashboardAnalyticsFailure("organization_profile", error);
+    return { success: false, error: "予期しないエラーが発生しました" };
+  }
+
+  if ("error" in organizationProfile) {
+    logDashboardAnalyticsFailure(
+      "organization_profile",
+      undefined,
+      organizationProfile.organizationProfileId,
+    );
+    return { success: false, error: organizationProfile.error };
+  }
 
   try {
-    const organizationProfile = await fetchApprovedOrganizationProfile(userId);
-    if ("error" in organizationProfile) {
-      return {
-        opportunities: [],
-        approaches: emptyApproaches,
-        error: organizationProfile.error,
-      };
+    if (shouldFailDashboardAnalyticsForE2E(await headers())) {
+      const e2eFailure = new Error("E2E dashboard analytics failure");
+      logDashboardAnalyticsFailure(
+        "opportunities",
+        e2eFailure,
+        organizationProfile.id,
+      );
+      return { success: false, error: "予期しないエラーが発生しました" };
     }
+  } catch (error) {
+    logDashboardAnalyticsFailure(
+      "organization_profile",
+      error,
+      organizationProfile.id,
+    );
+    return { success: false, error: "予期しないエラーが発生しました" };
+  }
 
-    const opportunities = await prisma.opportunity.findMany({
+  let opportunities: { id: string; title: string }[];
+  try {
+    opportunities = await prisma.opportunity.findMany({
       where: { organizationId: organizationProfile.id },
       select: { id: true, title: true },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     });
-    const opportunityIds = opportunities.map((opportunity) => opportunity.id);
+  } catch (error) {
+    logDashboardAnalyticsFailure("opportunities", error, organizationProfile.id);
+    return { success: false, error: "予期しないエラーが発生しました" };
+  }
 
-    const [matchingGroups, viewGroups, approachGroups] = await Promise.all([
-      prisma.matchingCandidate.groupBy({
-        by: ["opportunityId", "status"],
-        where: { opportunityId: { in: opportunityIds } },
-        _count: { _all: true },
-      }),
-      prisma.engagementEvent.groupBy({
-        by: ["opportunityId"],
-        where: { opportunityId: { in: opportunityIds }, event: "view" },
-        _count: { _all: true },
-      }),
-      prisma.approach.groupBy({
-        by: ["status"],
-        where: { organizationId: organizationProfile.id },
-        _count: { _all: true },
-      }),
-    ]);
+  const opportunityIds = opportunities.map((opportunity) => opportunity.id);
+  const [matchingResult, viewsResult, approachesResult] = await Promise.all([
+    captureDashboardAnalyticsStage(
+      "matching",
+      organizationProfile.id,
+      () =>
+        prisma.matchingCandidate.groupBy({
+          by: ["opportunityId", "status"],
+          where: { opportunityId: { in: opportunityIds } },
+          _count: { _all: true },
+        }),
+    ),
+    captureDashboardAnalyticsStage(
+      "views",
+      organizationProfile.id,
+      () =>
+        prisma.engagementEvent.groupBy({
+          by: ["opportunityId"],
+          where: { opportunityId: { in: opportunityIds }, event: "view" },
+          _count: { _all: true },
+        }),
+    ),
+    captureDashboardAnalyticsStage(
+      "approaches",
+      organizationProfile.id,
+      () =>
+        prisma.approach.groupBy({
+          by: ["status"],
+          where: { organizationId: organizationProfile.id },
+          _count: { _all: true },
+        }),
+    ),
+  ]);
+
+  if (
+    !matchingResult.success ||
+    !viewsResult.success ||
+    !approachesResult.success
+  ) {
+    return { success: false, error: "予期しないエラーが発生しました" };
+  }
+
+  try {
+    const matchingGroups = matchingResult.data;
+    const viewGroups = viewsResult.data;
+    const approachGroups = approachesResult.data;
 
     const matchingByOpportunity = new Map<string, Record<string, number>>();
     for (const group of matchingGroups) {
@@ -425,6 +550,7 @@ export async function fetchDashboardAnalyticsQuery(
     const acceptedCount = approachCounts.accepted ?? 0;
 
     return {
+      success: true,
       opportunities: analytics,
       approaches: {
         sentTotal,
@@ -436,12 +562,8 @@ export async function fetchDashboardAnalyticsQuery(
       },
     };
   } catch (error) {
-    console.error("[fetchDashboardAnalytics] 予期しないエラー:", error);
-    return {
-      opportunities: [],
-      approaches: emptyApproaches,
-      error: "予期しないエラーが発生しました",
-    };
+    logDashboardAnalyticsFailure("matching", error, organizationProfile.id);
+    return { success: false, error: "予期しないエラーが発生しました" };
   }
 }
 
@@ -487,6 +609,7 @@ export async function fetchApplicantDetailQuery(
             participantProfile: {
               select: {
                 name: true,
+                lineId: true,
                 latestDiagnosisResult: { select: { styleTypeId: true } },
               },
             },
@@ -501,6 +624,10 @@ export async function fetchApplicantDetailQuery(
     }
 
     const participantProfile = application.participant.participantProfile;
+    const participantLineId =
+      application.status === "accepted"
+        ? participantProfile?.lineId ?? null
+        : undefined;
     const styleTypeId = participantProfile?.latestDiagnosisResult?.styleTypeId ?? null;
     const styleType = styleTypeId
       ? (findStyleTypeById(styleTypeId) ?? null)
@@ -520,6 +647,9 @@ export async function fetchApplicantDetailQuery(
             : null,
         participant_name:
           participantProfile?.name ?? application.participant.name ?? "不明",
+        ...(application.status === "accepted"
+          ? { participant_line_id: participantLineId }
+          : {}),
         style_type_label: styleType?.name ?? null,
         opportunity_id: application.opportunity.id,
         opportunity_title: application.opportunity.title,
@@ -543,8 +673,13 @@ export async function fetchApplicantDetailQuery(
 async function fetchPublishedOpportunityRequirements(
   organizationId: string
 ): Promise<RecommendedParticipantOpportunity[]> {
+  const now = new Date();
   return prisma.opportunity.findMany({
-    where: { organizationId, status: "published" },
+    where: {
+      organizationId,
+      status: "published",
+      publishedAt: { not: null, lte: now },
+    },
     select: { id: true, activityStyleTags: true, title: true },
   });
 }

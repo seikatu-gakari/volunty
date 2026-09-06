@@ -7,8 +7,6 @@ const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
 const mockSelect = vi.fn();
 const mockFetchParticipantProfileByUserIdWithDebug = vi.fn();
-const mockDeleteManyUser = vi.fn();
-const mockDeleteAuthUser = vi.fn();
 const mockFindFirstMatchingCandidate = vi.fn();
 const mockRedirect = vi.fn();
 const mockProcessAccountDeletion = vi.fn();
@@ -84,16 +82,6 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(() => ({
-    auth: {
-      admin: {
-        deleteUser: (...args: unknown[]) => mockDeleteAuthUser(...args),
-      },
-    },
-  })),
-}));
-
 vi.mock("@/lib/account-deletion/config", () => ({
   isAccountDeletionEnabled: () => mockAccountDeletionEnabled,
 }));
@@ -104,9 +92,6 @@ vi.mock("@/lib/account-deletion/orchestrator", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    user: {
-      deleteMany: (...args: unknown[]) => mockDeleteManyUser(...args),
-    },
     matchingCandidate: {
       findFirst: (...args: unknown[]) => mockFindFirstMatchingCandidate(...args),
     },
@@ -126,6 +111,26 @@ function createDeleteFormData(confirmation: string) {
   return formData;
 }
 
+// ケース間で共通の入力値。期待値は各ケースで独立して指定する。
+const applicationDetailFixture = {
+  message: null,
+  appliedAt: new Date("2026-02-01T00:00:00.000Z"),
+  createdAt: new Date("2026-02-01T00:00:00.000Z"),
+  statusChangedAt: new Date("2026-02-05T00:00:00.000Z"),
+  opportunity: {
+    description: null,
+    location: null,
+    startDate: null,
+    endDate: null,
+    category: null,
+    participationMode: null,
+    organization: {
+      organizationName: "支援団体A",
+      contactLineId: "@line_a",
+    },
+  },
+};
+
 describe("fetchMyPageData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -133,8 +138,6 @@ describe("fetchMyPageData", () => {
     mockOpportunityRows = [];
     mockMatchingError = null;
     mockFindFirstMatchingCandidate.mockResolvedValue(null);
-    mockDeleteManyUser.mockResolvedValue({ count: 1 });
-    mockDeleteAuthUser.mockResolvedValue({ data: { user: null }, error: null });
     mockProcessAccountDeletion.mockResolvedValue({ status: "completed" });
     mockAccountDeletionEnabled = true;
   });
@@ -439,6 +442,7 @@ describe("fetchMyApplicationDetail", () => {
   it("pending ステータスの場合、LINE ID は null を返す", async () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
     mockFindFirstMatchingCandidate.mockResolvedValue({
+      ...applicationDetailFixture,
       id: "app-1",
       status: "applied",
       message: "志望動機です",
@@ -446,6 +450,7 @@ describe("fetchMyApplicationDetail", () => {
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
       statusChangedAt: new Date("2026-01-01T00:00:00.000Z"),
       opportunity: {
+        ...applicationDetailFixture.opportunity,
         id: "opp-1",
         title: "環境保全活動",
         description: "説明テキスト",
@@ -474,25 +479,13 @@ describe("fetchMyApplicationDetail", () => {
   it("approved ステータスの場合、LINE ID を返す", async () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
     mockFindFirstMatchingCandidate.mockResolvedValue({
+      ...applicationDetailFixture,
       id: "app-2",
       status: "accepted",
-      message: null,
-      appliedAt: new Date("2026-02-01T00:00:00.000Z"),
-      createdAt: new Date("2026-02-01T00:00:00.000Z"),
-      statusChangedAt: new Date("2026-02-05T00:00:00.000Z"),
       opportunity: {
+        ...applicationDetailFixture.opportunity,
         id: "opp-2",
         title: "子ども支援",
-        description: null,
-        location: null,
-        startDate: null,
-        endDate: null,
-        category: null,
-        participationMode: null,
-        organization: {
-          organizationName: "支援団体A",
-          contactLineId: "@line_a",
-        },
       },
     });
 
@@ -506,24 +499,15 @@ describe("fetchMyApplicationDetail", () => {
   it("マッチング成立時は organization_line_url を返す", async () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
     mockFindFirstMatchingCandidate.mockResolvedValue({
+      ...applicationDetailFixture,
       id: "app-4",
       status: "accepted",
-      message: null,
-      appliedAt: new Date("2026-02-01T00:00:00.000Z"),
-      createdAt: new Date("2026-02-01T00:00:00.000Z"),
-      statusChangedAt: new Date("2026-02-05T00:00:00.000Z"),
       opportunity: {
+        ...applicationDetailFixture.opportunity,
         id: "opp-4",
         title: "子ども支援",
-        description: null,
-        location: null,
-        startDate: null,
-        endDate: null,
-        category: null,
-        participationMode: null,
         organization: {
-          organizationName: "支援団体A",
-          contactLineId: "@line_a",
+          ...applicationDetailFixture.opportunity.organization,
           contactLineUrl: "https://line.me/R/ti/p/@line_a",
         },
       },
@@ -540,24 +524,16 @@ describe("fetchMyApplicationDetail", () => {
   it("審査中は organization_line_url を秘匿する", async () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
     mockFindFirstMatchingCandidate.mockResolvedValue({
+      ...applicationDetailFixture,
       id: "app-5",
       status: "applied",
-      message: null,
-      appliedAt: new Date("2026-02-01T00:00:00.000Z"),
-      createdAt: new Date("2026-02-01T00:00:00.000Z"),
       statusChangedAt: new Date("2026-02-01T00:00:00.000Z"),
       opportunity: {
+        ...applicationDetailFixture.opportunity,
         id: "opp-5",
         title: "子ども支援",
-        description: null,
-        location: null,
-        startDate: null,
-        endDate: null,
-        category: null,
-        participationMode: null,
         organization: {
-          organizationName: "支援団体A",
-          contactLineId: "@line_a",
+          ...applicationDetailFixture.opportunity.organization,
           contactLineUrl: "https://line.me/R/ti/p/@line_a",
         },
       },
@@ -573,21 +549,16 @@ describe("fetchMyApplicationDetail", () => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-1" } }, error: null });
     const completedAt = new Date("2026-03-10T12:00:00.000Z");
     mockFindFirstMatchingCandidate.mockResolvedValue({
+      ...applicationDetailFixture,
       id: "app-3",
       status: "completed",
-      message: null,
       appliedAt: new Date("2026-01-15T00:00:00.000Z"),
       createdAt: new Date("2026-01-15T00:00:00.000Z"),
       statusChangedAt: completedAt,
       opportunity: {
+        ...applicationDetailFixture.opportunity,
         id: "opp-3",
         title: "清掃活動",
-        description: null,
-        location: null,
-        startDate: null,
-        endDate: null,
-        category: null,
-        participationMode: null,
         organization: {
           organizationName: "地域団体",
           contactLineId: "@local",
@@ -620,8 +591,6 @@ describe("deleteMyAccount", () => {
     vi.clearAllMocks();
     mockAccountDeletionEnabled = true;
     mockProcessAccountDeletion.mockResolvedValue({ status: "completed" });
-    mockDeleteManyUser.mockResolvedValue({ count: 1 });
-    mockDeleteAuthUser.mockResolvedValue({ data: { user: null }, error: null });
   });
 
   it("確認語句が一致しない場合、削除せずエラーを返す", async () => {

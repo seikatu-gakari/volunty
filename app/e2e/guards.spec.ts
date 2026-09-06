@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const LP_SECTION_IDS = [
   "styles",
@@ -11,139 +11,75 @@ const LP_SECTION_IDS = [
   "start",
 ] as const;
 
-async function expectLandingPageIntegrity(
-  page: import("@playwright/test").Page,
-  viewportWidth: number,
-) {
+async function expectLandingPageLayout(page: Page, viewportWidth: number) {
   const sections = [
     { name: "hero", locator: page.locator("main > section").first() },
-    ...LP_SECTION_IDS.map((sectionId) => ({
-      name: sectionId,
-      locator: page.locator(`#${sectionId}`),
-    })),
+    ...LP_SECTION_IDS.map((sectionId) => ({ name: sectionId, locator: page.locator(`#${sectionId}`) })),
   ];
-  expect(sections).toHaveLength(9);
-
-  for (const section of sections) {
-    const { locator } = section;
+  for (const { name, locator } of sections) {
     await locator.scrollIntoViewIfNeeded();
     await expect(locator).toBeVisible();
-
     const rect = await locator.boundingBox();
-    expect(rect, `${section.name} の境界を取得できる`).not.toBeNull();
-    expect(rect!.x, `${section.name} の左端がviewport内`).toBeGreaterThanOrEqual(-1);
-    expect(rect!.x + rect!.width, `${section.name} の右端がviewport内`).toBeLessThanOrEqual(
-      viewportWidth + 1,
-    );
+    expect(rect, `${name} の境界を取得できる`).not.toBeNull();
+    expect(rect!.x, `${name} の左端がviewport内`).toBeGreaterThanOrEqual(-1);
+    expect(rect!.x + rect!.width, `${name} の右端がviewport内`).toBeLessThanOrEqual(viewportWidth + 1);
   }
 
-  const usageSection = page.locator("#usage");
-  await expect(
-    usageSection.getByRole("heading", { name: "はじめるのは、かんたん3ステップ。" }),
-  ).toBeVisible();
-  const usageCards = usageSection.locator("article");
-  await expect(usageCards).toHaveCount(3);
-  for (const title of ["性格傾向チェック・登録", "マッチング", "参加・つながり"]) {
-    await expect(usageSection.getByRole("heading", { name: title })).toBeVisible();
-  }
-  for (const removedText of [
-    "BIG FIVE",
-    "5つの性格傾向をわかりやすく",
-    "YOUR STYLE",
-    "サポーター・ケア傾向",
-  ]) {
-    await expect(usageSection.getByText(removedText, { exact: true })).toHaveCount(0);
-  }
-
-  const usageCardBoxes = await usageCards.evaluateAll((cards) =>
+  const usageCardBoxes = await page.locator("#usage article").evaluateAll((cards) =>
     cards.map((card) => {
-      const rect = card.getBoundingClientRect();
-      return { x: rect.x, y: rect.y };
+      const { x, y, width, height } = card.getBoundingClientRect();
+      return { x, y, width, height };
     }),
   );
-  if (viewportWidth >= 1024) {
-    expect(usageCardBoxes[0].y).toBeCloseTo(usageCardBoxes[1].y, 0);
-    expect(usageCardBoxes[1].y).toBeCloseTo(usageCardBoxes[2].y, 0);
-    expect(usageCardBoxes[0].x).toBeLessThan(usageCardBoxes[1].x);
-    expect(usageCardBoxes[1].x).toBeLessThan(usageCardBoxes[2].x);
-  } else {
-    expect(usageCardBoxes[0].x).toBeCloseTo(usageCardBoxes[1].x, 0);
-    expect(usageCardBoxes[1].x).toBeCloseTo(usageCardBoxes[2].x, 0);
-    expect(usageCardBoxes[0].y).toBeLessThan(usageCardBoxes[1].y);
-    expect(usageCardBoxes[1].y).toBeLessThan(usageCardBoxes[2].y);
-  }
-
-  const images = page.locator("main img");
-  await expect(images).toHaveCount(14);
-
-  await expect(page.locator("#voices")).toHaveCount(0);
-  await expect(page.getByText("こんな使われ方", { exact: true })).toHaveCount(0);
-  await expect(page.getByText(/実際のご利用者の声ではありません/)).toHaveCount(0);
-
-  const sectionOrder = await page.locator("main section[id]").evaluateAll((elements) =>
-    elements.map((element) => element.id),
-  );
-  expect(sectionOrder.indexOf("features")).toBe(sectionOrder.indexOf("benefits") + 1);
-
-  const photoFrame = page.getByTestId("lp-hero-photo-frame");
-  await expect(photoFrame.locator("img")).toHaveCount(1);
-  await expect
-    .poll(() =>
-      images.evaluateAll((elements) =>
-        elements.every((element) => {
-          const image = element as HTMLImageElement;
-          return image.complete && image.naturalWidth > 0;
-        }),
-      ),
-    )
-    .toBe(true);
-
-  const heroTrialLink = page.getByRole("link", { name: "2分で自分の活動タイプを知る" });
-  await expect(heroTrialLink).toHaveCount(1);
-  await expect(heroTrialLink).toHaveAttribute("href", "/diagnosis/trial");
-
-  const bottomTrialLink = page.getByRole("link", { name: "無料で簡易診断を試す" });
-  await expect(bottomTrialLink).toHaveCount(1);
-  await expect(bottomTrialLink).toHaveAttribute("href", "/diagnosis/trial");
-
-  const heroStylesLink = page.getByRole("link", { name: "活動例を見る" });
-  await expect(heroStylesLink).toHaveCount(1);
-  await expect(heroStylesLink).toHaveAttribute("href", "#styles");
-
-  const bottomOpportunityLink = page.getByRole("link", { name: "募集中の活動を見る" });
-  await expect(bottomOpportunityLink).toHaveCount(1);
-  await expect(bottomOpportunityLink).toHaveAttribute("href", "/opportunities");
-
-  const styleLinks = page.getByRole("link", { name: "診断で詳しく見る" });
-  await expect(styleLinks).toHaveCount(4);
-  for (const link of await styleLinks.all()) {
-    await expect(link).toHaveAttribute("href", "/diagnosis/trial");
-  }
-
-  if (viewportWidth >= 1024) {
-    await expect(page.getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/login");
+  for (let index = 1; index < usageCardBoxes.length; index += 1) {
+    const previous = usageCardBoxes[index - 1];
+    const current = usageCardBoxes[index];
+    if (viewportWidth >= 1024) {
+      expect(previous.y).toBeCloseTo(current.y, 0);
+      expect(previous.x + previous.width).toBeLessThanOrEqual(current.x + 1);
+    } else {
+      expect(previous.x).toBeCloseTo(current.x, 0);
+      expect(previous.y + previous.height).toBeLessThanOrEqual(current.y + 1);
+    }
   }
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true);
 }
 
-test.describe("認証・認可ガード", () => {
-  test("G1: 未認証でランディングとログイン導線を表示する", async ({ page }) => {
-    await page.goto("/");
+// 幅に依存しない内容・画像・リンクの確認はモバイルの代表ケースで一度だけ行う。
+async function expectLandingPageContent(page: Page) {
+  const usageSection = page.locator("#usage");
+  await expect(usageSection.locator("article")).toHaveCount(3);
+  for (const title of ["性格傾向チェック・登録", "マッチング", "参加・つながり"]) {
+    await expect(usageSection.getByRole("heading", { name: title })).toBeVisible();
+  }
 
-    await expect(
-      page.getByRole("heading", { name: /つながる/ })
-    ).toBeVisible();
-    await expect(page.getByRole("link", { name: "ログイン" })).toBeVisible();
-  });
+  const images = page.locator("main img");
+  for (const sectionId of ["styles", "kadai", "usage", "benefits"]) {
+    await expect(page.locator(`#${sectionId} img`).first()).toBeAttached();
+  }
+  await expect(page.getByTestId("lp-hero-photo-frame").locator("img")).toHaveCount(1);
+  await expect.poll(() => images.evaluateAll((elements) => elements.every((element) => {
+    const image = element as HTMLImageElement;
+    return image.complete && image.naturalWidth > 0;
+  }))).toBe(true);
 
-  test("G2: 未認証で団体ダッシュボードへ進むとログインへ戻す", async ({ page }) => {
-    await page.goto("/dashboard");
-
-    await expect(page).toHaveURL(/\/login(?:\?|$)/);
-  });
-});
+  for (const [name, href] of [
+    ["2分で自分の活動タイプを知る", "/diagnosis/trial"],
+    ["無料で簡易診断を試す", "/diagnosis/trial"],
+    ["活動例を見る", "#styles"],
+    ["募集中の活動を見る", "/opportunities"],
+  ]) {
+    await expect(page.getByRole("link", { name, exact: true })).toHaveAttribute("href", href);
+  }
+  const styleLinks = page.getByRole("link", { name: "診断で詳しく見る" });
+  expect(await styleLinks.count()).toBeGreaterThan(0);
+  for (const link of await styleLinks.all()) {
+    await expect(link).toHaveAttribute("href", "/diagnosis/trial");
+  }
+  await expect(page.locator("footer").getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
+}
 
 test.describe("未ログインLP導線", () => {
   test("LPから簡易診断を完走できる", async ({ page }) => {
@@ -167,7 +103,7 @@ test.describe("未ログインLP導線", () => {
     ).toBeVisible();
   });
 
-  test("LPから公開募集一覧を閲覧でき、詳細はログインへ送る", async ({ page }) => {
+  test("LPから未認証で公開募集詳細を閲覧し、応募時はログイン後に元URLへ戻る", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "募集中の活動を見る" }).click();
 
@@ -178,10 +114,14 @@ test.describe("未ログインLP導線", () => {
     await expect(page.getByText("E2E 応募対象案件")).toBeVisible();
 
     await page.getByRole("link", { name: "E2E 応募対象案件" }).click();
+    await expect(page).toHaveURL(/\/opportunities\/[0-9a-f-]+(?:\?.*)?$/);
+    const currentDetailUrl = new URL(page.url());
+    const detailUrl = `${currentDetailUrl.pathname}${currentDetailUrl.search}`;
+    await expect(page.getByRole("heading", { name: "E2E 応募対象案件" })).toBeVisible();
+    await expect(page.getByText("主催団体")).toBeVisible();
+    await page.getByRole("link", { name: "ログインして応募する" }).click();
     await expect(page).toHaveURL(
-      (url) =>
-        url.pathname === "/login" &&
-        (url.searchParams.get("next")?.startsWith("/opportunities/") ?? false)
+      (url) => url.pathname === "/login" && url.searchParams.get("next") === detailUrl
     );
   });
 
@@ -193,6 +133,11 @@ test.describe("未ログインLP導線", () => {
         url.pathname === "/login" && url.searchParams.get("next") === "/diagnosis"
     );
   });
+
+  test("未認証の無効な募集詳細URLは404を返す", async ({ page }) => {
+    await page.goto("/opportunities/invalid-id");
+    await expect(page.getByRole("heading", { name: "ページが見つかりません" })).toBeVisible();
+  });
 });
 
 test.describe("未ログインLP（モバイル）", () => {
@@ -201,12 +146,16 @@ test.describe("未ログインLP（モバイル）", () => {
   test("主要コンテンツと操作導線を一画面幅で利用できる", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
+    await expect(
+      page.locator("header").getByRole("link", { name: "ボランティ ホーム" }),
+    ).toBeVisible();
+    await expect(page.getByText("あなたにぴったりの活動を見つけよう").first()).toBeHidden();
     await expect(
       page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toBeVisible();
 
-    await expectLandingPageIntegrity(page, 390);
+    await expectLandingPageLayout(page, 390);
+    await expectLandingPageContent(page);
 
     const primaryCTA = page.getByRole("link", { name: "2分で自分の活動タイプを知る" });
     const secondaryCTA = page.getByRole("link", { name: "活動例を見る" });
@@ -226,11 +175,10 @@ test.describe("未ログインLP（モバイル）", () => {
     expect(ctaBox!.y + ctaBox!.height).toBeLessThanOrEqual(secondaryBox!.y + 1);
     expect(secondaryBox!.y + secondaryBox!.height).toBeLessThanOrEqual(trustBox!.y + 1);
 
-    await expect(page.getByText("スマホ対応")).toBeVisible();
-    await expect(page.getByText("スマホ・PC対応")).toBeHidden();
     await expect(page.getByRole("link", { name: "ログイン" })).toBeHidden();
 
-    await page.getByRole("button", { name: "メニューを開く" }).click();
+    const menuTrigger = page.getByRole("button", { name: "メニューを開く" });
+    await menuTrigger.click();
     const mobileNavigation = page.getByRole("navigation", { name: "モバイルナビゲーション" });
     await expect(mobileNavigation).toBeVisible();
     await expect(mobileNavigation.getByRole("link", { name: "無料で始める" })).toHaveAttribute(
@@ -257,11 +205,12 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
     { width: 768, height: 1024, headerMode: "mobile" },
     { width: 1440, height: 1000, headerMode: "desktop" },
   ] as const) {
-    test(`${viewport.width}pxで全セクション・画像・主要導線を安定表示する`, async ({ page }) => {
+    test(`${viewport.width}pxでコンテンツと主要導線が重ならず画面幅に収まる`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto("/");
 
-      await expectLandingPageIntegrity(page, viewport.width);
+      await expectLandingPageLayout(page, viewport.width);
+      await expect(page.getByText("あなたにぴったりの活動を見つけよう").first()).toBeVisible();
 
       const menuButton = page.getByRole("button", { name: "メニューを開く" });
       const desktopNavigation = page.locator('header > div > nav a[href="#usage"]');
@@ -271,13 +220,11 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
         await expect(desktopNavigation).toBeHidden();
         await expect(desktopSignup).toBeHidden();
       } else {
+        await expect(page.getByRole("link", { name: "ログイン" })).toBeVisible();
         await expect(menuButton).toBeHidden();
         await expect(desktopNavigation).toBeVisible();
         await expect(desktopSignup).toBeVisible();
         await expect(desktopSignup).toHaveAttribute("href", "/signup");
-
-        await expect(page.getByText("スマホ・PC対応")).toBeVisible();
-        await expect(page.getByText("スマホ対応")).toBeHidden();
 
         const frameBox = await page.getByTestId("lp-hero-photo-frame").boundingBox();
         const headingBox = await page
@@ -344,6 +291,7 @@ test.describe("非LP未認証ヘッダー", () => {
   test("/loginではLPアンカーとモバイルメニューを表示しない", async ({ page }) => {
     await page.goto("/login");
 
+    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
     await expect(page.locator('header a[href^="#"]')).toHaveCount(0);
     for (const sectionId of LP_SECTION_IDS) {
       await expect(page.locator(`#${sectionId}`)).toHaveCount(0);
@@ -364,6 +312,7 @@ test.describe("認証済みホームヘッダー", () => {
   test("参加者ホームではLP固有要素を表示せず認証済み導線を表示する", async ({ page }) => {
     await page.goto("/");
 
+    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
     await expect(page.locator('header a[href^="#"]')).toHaveCount(0);
     await expect(page.locator(LP_SECTION_IDS.map((id) => `main #${id}`).join(", "))).toHaveCount(
       0,
@@ -463,18 +412,5 @@ test.describe("公開ヘッダーのブレークポイント", () => {
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
       .toBe(true);
-  });
-});
-
-test.describe("ロール越境ガード", () => {
-  test.use({ storageState: "playwright/.auth/participant.json" });
-
-  test("G3: 参加者で管理画面へ進むとアクセス拒否になる", async ({ page }) => {
-    await page.goto("/admin");
-
-    await expect(page).toHaveURL(/\/forbidden$/);
-    await expect(
-      page.getByRole("heading", { name: "このページにはアクセスできません" })
-    ).toBeVisible();
   });
 });

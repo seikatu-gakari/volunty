@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Loader2, Search, X } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { type FormEvent, useState } from "react"
+import { type FormEvent, type MouseEvent, useRef, useTransition } from "react"
 import type { RecommendationFilters as RecommendationFiltersType } from "@/lib/recommendations/types"
 import { CATEGORY_OPTIONS } from "@/lib/opportunities/constants"
 
@@ -56,10 +56,13 @@ function readStringFormValue(formData: FormData, key: string) {
   return typeof value === "string" ? value : ""
 }
 
+const FILTER_KEYS = ["category", "region", "participationMode"] as const
+
 function createFilterQuery(filters: SearchableFilters) {
   const params = new URLSearchParams()
 
-  for (const [key, value] of Object.entries(filters)) {
+  for (const key of FILTER_KEYS) {
+    const value = filters[key]
     if (value === "") continue
     params.set(key, value)
   }
@@ -73,16 +76,17 @@ function createFilterQuery(filters: SearchableFilters) {
  */
 export function RecommendationFilters({ filters }: RecommendationFiltersProps) {
   const router = useRouter()
-  const [searchingQuery, setSearchingQuery] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const formRef = useRef<HTMLFormElement>(null)
   const currentQuery = createFilterQuery({
     category: filters.category ?? "",
     region: filters.region ?? "",
     participationMode: filters.participationMode ?? "",
   })
-  const isSearching = searchingQuery !== null && searchingQuery !== currentQuery
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (isPending) return
 
     const formData = new FormData(event.currentTarget)
     const nextFilters = {
@@ -92,17 +96,42 @@ export function RecommendationFilters({ filters }: RecommendationFiltersProps) {
     }
 
     const query = createFilterQuery(nextFilters)
-    const isSameFilters = query === currentQuery
+    if (query === currentQuery) return
 
-    if (isSameFilters) return
+    startTransition(() => {
+      router.push(query ? `/recommendations?${query}` : "/recommendations")
+    })
+  }
 
-    setSearchingQuery(query)
-    router.push(query ? `/recommendations?${query}` : "/recommendations")
+  function handleClear(event: MouseEvent<HTMLAnchorElement>) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return
+    }
+
+    event.preventDefault()
+    if (isPending) return
+
+    formRef.current?.reset()
+    if (currentQuery === "") return
+
+    startTransition(() => {
+      router.push("/recommendations")
+    })
   }
 
   return (
     <form
+      key={currentQuery}
+      ref={formRef}
       aria-label="おすすめ案件フィルター"
+      aria-busy={isPending}
       method="get"
       onSubmit={handleSubmit}
       className="mb-6 grid gap-4 rounded-[10px] border border-card-border bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end"
@@ -173,19 +202,20 @@ export function RecommendationFilters({ filters }: RecommendationFiltersProps) {
       <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
         <button
           type="submit"
-          disabled={isSearching}
+          disabled={isPending}
           className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-dark disabled:cursor-wait disabled:opacity-80 sm:flex-none"
         >
-          {isSearching ? (
+          {isPending ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <Search className="size-4" />
           )}
-          {isSearching ? "検索中" : "絞り込む"}
+          {isPending ? "検索中" : "絞り込む"}
         </button>
         <Link
           href="/recommendations"
-          aria-disabled={isSearching}
+          onClick={handleClear}
+          aria-disabled={isPending}
           className="flex h-11 items-center justify-center gap-2 rounded-lg border border-card-border px-4 text-sm font-medium text-text-body hover:bg-background aria-disabled:pointer-events-none aria-disabled:opacity-60"
         >
           <X className="size-4" />

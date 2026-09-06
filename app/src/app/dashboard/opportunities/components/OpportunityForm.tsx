@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type InvalidEvent,
+} from "react";
 import Link from "next/link";
 import {
   FileText,
@@ -29,16 +36,173 @@ import { ACTIVITY_STYLE_TAGS } from "@/lib/recommendations/activity-style-tags";
 const MAX_ACTIVITY_STYLE_TAGS = 3;
 const JST_OFFSET_MILLISECONDS = 9 * 60 * 60 * 1000;
 const PUBLISHED_AT_HELP_ID = "publishedAt-help";
-const PUBLISHED_AT_ERROR_ID = "publishedAt-error";
 
-type PublishMode = "published" | "draft" | "scheduled";
+/** ブラウザ検証とサーバー検証で共通して扱うフィールド名 */
+export type ValidationField =
+  | "title"
+  | "description"
+  | "publishedAt"
+  | "startDate"
+  | "endDate"
+  | "applicationDeadline"
+  | "capacity"
+  | "minAge"
+  | "maxAge";
 
-interface OpportunityFormResult {
+/** OpportunityForm の送信結果（予約日時のサーバー検証にも対応） */
+export interface OpportunityFormActionResult {
   success: boolean;
   error?: string;
-  fieldErrors?: {
-    publishedAt?: string;
-  };
+  fieldErrors?: Partial<Record<ValidationField, string>>;
+}
+
+type ValidationTarget =
+  | HTMLInputElement
+  | HTMLTextAreaElement
+  | HTMLSelectElement;
+type FieldErrors = Partial<Record<ValidationField, string>>;
+type PublishMode = "published" | "draft" | "scheduled";
+
+const VALIDATION_FIELDS: readonly ValidationField[] = [
+  "title",
+  "description",
+  "publishedAt",
+  "startDate",
+  "endDate",
+  "applicationDeadline",
+  "capacity",
+  "minAge",
+  "maxAge",
+];
+
+const FIELD_ERROR_IDS: Record<ValidationField, string> = {
+  title: "opportunity-title-error",
+  description: "opportunity-description-error",
+  publishedAt: "opportunity-publishedAt-error",
+  startDate: "opportunity-startDate-error",
+  endDate: "opportunity-endDate-error",
+  applicationDeadline: "opportunity-applicationDeadline-error",
+  capacity: "opportunity-capacity-error",
+  minAge: "opportunity-minAge-error",
+  maxAge: "opportunity-maxAge-error",
+};
+
+const REQUIRED_ERROR_MESSAGES: Partial<Record<ValidationField, string>> = {
+  title: "案件タイトルを入力してください",
+  description: "案件説明を入力してください",
+  publishedAt: "公開予約日時を入力してください",
+};
+
+function isValidationTarget(value: unknown): value is ValidationTarget {
+  if (
+    value instanceof HTMLInputElement ||
+    value instanceof HTMLTextAreaElement ||
+    value instanceof HTMLSelectElement
+  ) {
+    return true;
+  }
+
+  if (!(value instanceof Element)) return false;
+  return (
+    value.tagName === "INPUT" ||
+    value.tagName === "TEXTAREA" ||
+    value.tagName === "SELECT"
+  );
+}
+
+function isValidationField(value: string): value is ValidationField {
+  for (const field of VALIDATION_FIELDS) {
+    if (field === value) return true;
+  }
+  return false;
+}
+
+function getValidationField(name: string): ValidationField | null {
+  return isValidationField(name) ? name : null;
+}
+
+function getValidationTargets(form: HTMLFormElement): ValidationTarget[] {
+  return Array.from(
+    form.querySelectorAll("input, textarea, select")
+  ).filter(isValidationTarget);
+}
+
+function getValidationErrorMessage(
+  field: ValidationField,
+  element: ValidationTarget
+): string {
+  if (element.validity.valueMissing) {
+    const requiredMessage = REQUIRED_ERROR_MESSAGES[field];
+    if (requiredMessage) return requiredMessage;
+  }
+
+  return element.validationMessage || "入力内容を確認してください";
+}
+
+function collectInvalidFieldErrors(form: HTMLFormElement): {
+  errors: FieldErrors;
+  firstField: ValidationField | null;
+} {
+  const errors: FieldErrors = {};
+  let firstField: ValidationField | null = null;
+
+  for (const element of getValidationTargets(form)) {
+    const field = getValidationField(element.name);
+    if (!field || !element.willValidate || element.validity.valid) continue;
+
+    firstField ??= field;
+    if (errors[field] === undefined) {
+      errors[field] = getValidationErrorMessage(field, element);
+    }
+  }
+
+  return { errors, firstField };
+}
+
+function getFirstFieldWithError(
+  form: HTMLFormElement | null,
+  fieldErrors: FieldErrors
+): ValidationField | null {
+  if (!form) return null;
+
+  for (const element of getValidationTargets(form)) {
+    const field = getValidationField(element.name);
+    if (field && fieldErrors[field]) return field;
+  }
+
+  return null;
+}
+
+function getFormField(
+  form: HTMLFormElement | null,
+  field: ValidationField
+): ValidationTarget | null {
+  if (!form) return null;
+  return (
+    getValidationTargets(form).find((element) => element.name === field) ?? null
+  );
+}
+
+function getVisibleFieldErrors(
+  fieldErrors: FieldErrors,
+  publishMode: "published" | "draft" | "scheduled"
+): FieldErrors {
+  if (publishMode === "scheduled") return fieldErrors;
+
+  if (fieldErrors.publishedAt === undefined) return fieldErrors;
+  const visibleErrors = { ...fieldErrors };
+  delete visibleErrors.publishedAt;
+  return visibleErrors;
+}
+
+function getDescribedBy(
+  existingIds: string | undefined,
+  field: ValidationField,
+  hasError: boolean
+): string | undefined {
+  const ids = existingIds?.split(/\s+/).filter(Boolean) ?? [];
+  if (hasError) ids.push(FIELD_ERROR_IDS[field]);
+  return ids.length > 0 ? ids.join(" ") : undefined;
 }
 
 function formatJstDateTimeLocal(date: Date): string {
@@ -77,12 +241,19 @@ export interface OpportunityFormData {
   start_date?: string | null;
   /** 終了日（YYYY-MM-DD） */
   end_date?: string | null;
+  schedule?: string | null;
   /** 定員 */
   capacity?: number | null;
   /** カテゴリ */
   category?: string | null;
   /** 参加形態 */
   participation_mode?: ParticipationMode | null;
+  cost?: string | null;
+  belongings?: string | null;
+  application_deadline?: string | null;
+  cancellation_policy?: string | null;
+  insurance_details?: string | null;
+  contact_method?: string | null;
 }
 
 interface OpportunityFormProps {
@@ -91,7 +262,9 @@ interface OpportunityFormProps {
   /** "create" = 新規作成、"edit" = 編集 */
   mode?: "create" | "edit";
   /** フォーム送信時の Server Action */
-  onSubmitAction: (formData: FormData) => Promise<OpportunityFormResult>;
+  onSubmitAction: (
+    formData: FormData
+  ) => Promise<OpportunityFormActionResult>;
   /** キャンセルボタンのリンク先 */
   cancelHref: string;
 }
@@ -106,6 +279,13 @@ export function OpportunityForm({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const fieldContainersRef = useRef<
+    Partial<Record<ValidationField, HTMLDivElement | null>>
+  >({});
+  const pendingFocusRef = useRef<ValidationField | null>(null);
+  const focusFrameRef = useRef<number | null>(null);
 
   const [selectedTags, setSelectedTags] = useState<string[]>(
     initialData?.activity_style_tags ?? []
@@ -113,14 +293,11 @@ export function OpportunityForm({
   const [status, setStatus] = useState<OpportunityStatus>(
     initialData?.status ?? "published"
   );
-  const [publishMode, setPublishMode] = useState<
-    PublishMode
-  >(initialData?.status === "draft" ? "draft" : "published");
+  const [publishMode, setPublishMode] = useState<PublishMode>(
+    initialData?.status === "draft" ? "draft" : "published"
+  );
+
   const [publishedAtMin, setPublishedAtMin] = useState<string>();
-  const [fieldErrors, setFieldErrors] = useState<
-    OpportunityFormResult["fieldErrors"]
-  >({});
-  const publishedAtRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (publishMode !== "scheduled") return;
@@ -131,11 +308,76 @@ export function OpportunityForm({
 
   const handlePublishModeChange = (value: PublishMode) => {
     setPublishMode(value);
-    setFieldErrors({});
     setError(null);
     if (value === "scheduled") {
       setPublishedAtMin(getNextJstMinuteValue());
+      return;
     }
+
+    if (pendingFocusRef.current === "publishedAt") {
+      pendingFocusRef.current = null;
+    }
+    setFieldErrors((previous) => {
+      if (previous.publishedAt === undefined) return previous;
+      const next = { ...previous };
+      delete next.publishedAt;
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (pendingFocusRef.current === null || focusFrameRef.current !== null) {
+      return;
+    }
+
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusFrameRef.current = null;
+      const field = pendingFocusRef.current;
+      pendingFocusRef.current = null;
+      if (!field) return;
+
+      const element = getFormField(formRef.current, field);
+      const container = fieldContainersRef.current[field];
+      if (!element || !container) return;
+
+      element.focus({ preventScroll: true });
+      container.scrollIntoView({ block: "start", behavior: "instant" });
+    });
+  }, [fieldErrors]);
+
+  useEffect(() => {
+    return () => {
+      if (focusFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusFrameRef.current);
+      }
+    };
+  }, []);
+
+  const handleInvalidCapture = (event: InvalidEvent<HTMLFormElement>) => {
+    if (!isValidationTarget(event.target)) return;
+
+    event.preventDefault();
+    const invalidFields = collectInvalidFieldErrors(event.currentTarget);
+    if (invalidFields.firstField === null) return;
+
+    pendingFocusRef.current = invalidFields.firstField;
+    setFieldErrors(invalidFields.errors);
+  };
+
+  const handleFieldChange = (
+    event: ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
+    const field = getValidationField(event.currentTarget.name);
+    if (!field || !event.currentTarget.validity.valid) return;
+
+    setFieldErrors((previous) => {
+      if (previous[field] === undefined) return previous;
+      const next = { ...previous };
+      delete next[field];
+      return next;
+    });
   };
 
   const handleTagToggle = (tagId: string) => {
@@ -154,6 +396,7 @@ export function OpportunityForm({
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setFieldErrors({});
 
     try {
       const formData = new FormData(e.currentTarget);
@@ -171,16 +414,20 @@ export function OpportunityForm({
 
       const result = await onSubmitAction(formData);
       if (!result.success) {
-        setFieldErrors(result.fieldErrors ?? {});
+        const nextFieldErrors = getVisibleFieldErrors(
+          result.fieldErrors ?? {},
+          publishMode
+        );
+        pendingFocusRef.current = getFirstFieldWithError(
+          formRef.current,
+          nextFieldErrors
+        );
+        setFieldErrors(nextFieldErrors);
         setError(result.error ?? `案件の${isEdit ? "更新" : "作成"}に失敗しました`);
-        if (result.fieldErrors?.publishedAt) {
-          publishedAtRef.current?.focus();
-        }
         setLoading(false);
       }
       // 成功時は Server Action 内で redirect されるため、ここには到達しない
     } catch {
-      setFieldErrors({});
       setError(`案件の${isEdit ? "更新" : "作成"}中にエラーが発生しました`);
       setLoading(false);
     }
@@ -210,20 +457,55 @@ export function OpportunityForm({
         </div>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          onInvalidCapture={handleInvalidCapture}
+          className="flex flex-col gap-6"
+        >
           {/* 案件タイトル */}
-          <Input
-            label="案件タイトル"
-            name="title"
-            icon={FileText}
-            type="text"
-            placeholder="例: 環境保全ボランティア"
-            defaultValue={initialData?.title ?? ""}
-            required
-          />
+          <div
+            ref={(element) => {
+              fieldContainersRef.current.title = element;
+            }}
+            data-validation-field="title"
+            className="scroll-mt-24"
+          >
+            <Input
+              label="案件タイトル"
+              name="title"
+              icon={FileText}
+              type="text"
+              placeholder="例: 環境保全ボランティア"
+              defaultValue={initialData?.title ?? ""}
+              required
+              aria-invalid={fieldErrors.title !== undefined}
+              aria-describedby={getDescribedBy(
+                undefined,
+                "title",
+                fieldErrors.title !== undefined
+              )}
+              onChange={handleFieldChange}
+            />
+            {fieldErrors.title && (
+              <p
+                id={FIELD_ERROR_IDS.title}
+                role="alert"
+                className="mt-1 text-sm text-error"
+              >
+                {fieldErrors.title}
+              </p>
+            )}
+          </div>
 
           {/* 案件説明 */}
-          <div className="flex flex-col gap-1">
+          <div
+            ref={(element) => {
+              fieldContainersRef.current.description = element;
+            }}
+            data-validation-field="description"
+            className="scroll-mt-24 flex flex-col gap-1"
+          >
             <label
               htmlFor="description"
               className="text-sm font-medium text-text-dark"
@@ -240,9 +522,34 @@ export function OpportunityForm({
                 defaultValue={initialData?.description ?? ""}
                 placeholder="活動内容、日時、場所、参加条件などを記載してください"
                 className="w-full rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark placeholder:text-text-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+                aria-invalid={fieldErrors.description !== undefined}
+                aria-describedby={getDescribedBy(
+                  undefined,
+                  "description",
+                  fieldErrors.description !== undefined
+                )}
+                onChange={handleFieldChange}
               />
             </div>
+            {fieldErrors.description && (
+              <p
+                id={FIELD_ERROR_IDS.description}
+                role="alert"
+                className="text-sm text-error"
+              >
+                {fieldErrors.description}
+              </p>
+            )}
           </div>
+
+          <Input
+            label="開催日時・頻度（任意）"
+            name="schedule"
+            icon={Calendar}
+            type="text"
+            placeholder="例: 毎週土曜日 10:00〜12:00"
+            defaultValue={initialData?.schedule ?? ""}
+          />
 
           {/* 募集情報 */}
           <div className="flex flex-col gap-4">
@@ -258,7 +565,13 @@ export function OpportunityForm({
 
             {/* 開始日・終了日 */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1">
+              <div
+                ref={(element) => {
+                  fieldContainersRef.current.startDate = element;
+                }}
+                data-validation-field="startDate"
+                className="scroll-mt-24 flex flex-col gap-1"
+              >
                 <label
                   htmlFor="startDate"
                   className="text-sm font-medium text-text-dark"
@@ -273,10 +586,32 @@ export function OpportunityForm({
                     type="date"
                     defaultValue={initialData?.start_date ?? ""}
                     className="w-full rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    aria-invalid={fieldErrors.startDate !== undefined}
+                    aria-describedby={getDescribedBy(
+                      undefined,
+                      "startDate",
+                      fieldErrors.startDate !== undefined
+                    )}
+                    onChange={handleFieldChange}
                   />
                 </div>
+                {fieldErrors.startDate && (
+                  <p
+                    id={FIELD_ERROR_IDS.startDate}
+                    role="alert"
+                    className="text-sm text-error"
+                  >
+                    {fieldErrors.startDate}
+                  </p>
+                )}
               </div>
-              <div className="flex flex-col gap-1">
+              <div
+                ref={(element) => {
+                  fieldContainersRef.current.endDate = element;
+                }}
+                data-validation-field="endDate"
+                className="scroll-mt-24 flex flex-col gap-1"
+              >
                 <label
                   htmlFor="endDate"
                   className="text-sm font-medium text-text-dark"
@@ -291,23 +626,105 @@ export function OpportunityForm({
                     type="date"
                     defaultValue={initialData?.end_date ?? ""}
                     className="w-full rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    aria-invalid={fieldErrors.endDate !== undefined}
+                    aria-describedby={getDescribedBy(
+                      undefined,
+                      "endDate",
+                      fieldErrors.endDate !== undefined
+                    )}
+                    onChange={handleFieldChange}
                   />
                 </div>
+                {fieldErrors.endDate && (
+                  <p
+                    id={FIELD_ERROR_IDS.endDate}
+                    role="alert"
+                    className="text-sm text-error"
+                  >
+                    {fieldErrors.endDate}
+                  </p>
+                )}
               </div>
             </div>
 
             {/* 定員 */}
-            <Input
-              label="定員（任意）"
-              name="capacity"
-              icon={Users}
-              type="number"
-              min={1}
-              placeholder="例: 10"
-              defaultValue={
-                initialData?.capacity != null ? String(initialData.capacity) : ""
-              }
-            />
+            <div
+              ref={(element) => {
+                fieldContainersRef.current.capacity = element;
+              }}
+              data-validation-field="capacity"
+              className="scroll-mt-24"
+            >
+              <Input
+                label="定員（任意）"
+                name="capacity"
+                icon={Users}
+                type="number"
+                min={1}
+                placeholder="例: 10"
+                defaultValue={
+                  initialData?.capacity != null ? String(initialData.capacity) : ""
+                }
+                aria-invalid={fieldErrors.capacity !== undefined}
+                aria-describedby={getDescribedBy(
+                  undefined,
+                  "capacity",
+                  fieldErrors.capacity !== undefined
+                )}
+                onChange={handleFieldChange}
+              />
+              {fieldErrors.capacity && (
+                <p
+                  id={FIELD_ERROR_IDS.capacity}
+                  role="alert"
+                  className="mt-1 text-sm text-error"
+                >
+                  {fieldErrors.capacity}
+                </p>
+              )}
+            </div>
+
+            {/* カテゴリ */}
+            <Input label="費用（任意）" name="cost" icon={FileText} type="text" placeholder="例: 無料（交通費は自己負担）" defaultValue={initialData?.cost ?? ""} />
+            <Input label="持ち物（任意）" name="belongings" icon={FileText} type="text" placeholder="例: 飲み物、軍手" defaultValue={initialData?.belongings ?? ""} />
+            <div
+              ref={(element) => {
+                fieldContainersRef.current.applicationDeadline = element;
+              }}
+              data-validation-field="applicationDeadline"
+              className="scroll-mt-24 flex flex-col gap-1"
+            >
+              <label htmlFor="applicationDeadline" className="text-sm font-medium text-text-dark">応募締切（任意）</label>
+              <input
+                id="applicationDeadline"
+                name="applicationDeadline"
+                type="date"
+                defaultValue={initialData?.application_deadline ?? ""}
+                className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                aria-invalid={fieldErrors.applicationDeadline !== undefined}
+                aria-describedby={getDescribedBy(
+                  undefined,
+                  "applicationDeadline",
+                  fieldErrors.applicationDeadline !== undefined
+                )}
+                onChange={handleFieldChange}
+              />
+              {fieldErrors.applicationDeadline && (
+                <p id={FIELD_ERROR_IDS.applicationDeadline} role="alert" className="text-sm text-error">
+                  {fieldErrors.applicationDeadline}
+                </p>
+              )}
+            </div>
+            {([
+              ["cancellationPolicy", "キャンセル方針（任意）", initialData?.cancellation_policy, "例: 前日までにVolunty内でご連絡ください"],
+              ["insuranceDetails", "保険・安全情報（任意）", initialData?.insurance_details, "例: 主催者負担で行事保険に加入します"],
+              ["contactMethod", "問い合わせ方法（任意）", initialData?.contact_method, "例: 応募後にVolunty内でご案内します"],
+            ] as const).map(([name, label, value, placeholder]) => (
+              <div key={name} className="flex flex-col gap-1">
+                <label htmlFor={name} className="text-sm font-medium text-text-dark">{label}</label>
+                <textarea id={name} name={name} rows={2} defaultValue={value ?? ""} placeholder={placeholder} className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark placeholder:text-text-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+            ))}
 
             {/* カテゴリ */}
             <div className="flex flex-col gap-1">
@@ -392,37 +809,37 @@ export function OpportunityForm({
                 ))}
               </div>
               {publishMode === "scheduled" && (
-                <div className="flex flex-col gap-1">
-                  <label
-                    htmlFor="publishedAt"
-                    className="text-xs text-text-body"
-                  >
-                    公開日時（日本時間）
+                <div
+                  ref={(element) => {
+                    fieldContainersRef.current.publishedAt = element;
+                  }}
+                  data-validation-field="publishedAt"
+                  className="scroll-mt-24"
+                >
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-text-body">公開日時（日本時間）</span>
+                    <input
+                      type="datetime-local"
+                      min={publishedAtMin}
+                      step="60"
+                      onFocus={() => setPublishedAtMin(getNextJstMinuteValue())}
+                      name="publishedAt"
+                      required
+                      className="w-full rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      aria-invalid={fieldErrors.publishedAt !== undefined}
+                      aria-describedby={getDescribedBy(
+                        PUBLISHED_AT_HELP_ID,
+                        "publishedAt",
+                        fieldErrors.publishedAt !== undefined
+                      )}
+                      onChange={handleFieldChange}
+                    />
                   </label>
-                  <input
-                    ref={publishedAtRef}
-                    id="publishedAt"
-                    type="datetime-local"
-                    name="publishedAt"
-                    required
-                    min={publishedAtMin}
-                    step={60}
-                    aria-describedby={`${PUBLISHED_AT_HELP_ID}${
-                      fieldErrors?.publishedAt
-                        ? ` ${PUBLISHED_AT_ERROR_ID}`
-                        : ""
-                    }`}
-                    aria-invalid={fieldErrors?.publishedAt ? true : undefined}
-                    onFocus={() =>
-                      setPublishedAtMin(getNextJstMinuteValue())
-                    }
-                    className="w-full rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                  {fieldErrors?.publishedAt && (
+                  {fieldErrors.publishedAt && (
                     <p
-                      id={PUBLISHED_AT_ERROR_ID}
+                      id={FIELD_ERROR_IDS.publishedAt}
                       role="alert"
-                      className="text-sm text-red-600"
+                      className="mt-1 text-sm text-error"
                     >
                       {fieldErrors.publishedAt}
                     </p>
@@ -539,34 +956,82 @@ export function OpportunityForm({
               />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label="対象年齢の下限（法令・安全上必要な場合のみ）"
-                name="minAge"
-                type="number"
-                min={0}
-                max={120}
-                placeholder="例: 18"
-                defaultValue={
-                  initialData?.min_age != null ? String(initialData.min_age) : ""
-                }
-              />
-              <Input
-                label="対象年齢の上限（法令・安全上必要な場合のみ）"
-                name="maxAge"
-                type="number"
-                min={0}
-                max={120}
-                placeholder="例: 65"
-                defaultValue={
-                  initialData?.max_age != null ? String(initialData.max_age) : ""
-                }
-              />
+              <div
+                ref={(element) => {
+                  fieldContainersRef.current.minAge = element;
+                }}
+                data-validation-field="minAge"
+                className="scroll-mt-24"
+              >
+                <Input
+                  label="対象年齢の下限（法令・安全上必要な場合のみ）"
+                  name="minAge"
+                  type="number"
+                  min={0}
+                  max={120}
+                  placeholder="例: 18"
+                  defaultValue={
+                    initialData?.min_age != null ? String(initialData.min_age) : ""
+                  }
+                  aria-invalid={fieldErrors.minAge !== undefined}
+                  aria-describedby={getDescribedBy(
+                    undefined,
+                    "minAge",
+                    fieldErrors.minAge !== undefined
+                  )}
+                  onChange={handleFieldChange}
+                />
+                {fieldErrors.minAge && (
+                  <p
+                    id={FIELD_ERROR_IDS.minAge}
+                    role="alert"
+                    className="mt-1 text-sm text-error"
+                  >
+                    {fieldErrors.minAge}
+                  </p>
+                )}
+              </div>
+              <div
+                ref={(element) => {
+                  fieldContainersRef.current.maxAge = element;
+                }}
+                data-validation-field="maxAge"
+                className="scroll-mt-24"
+              >
+                <Input
+                  label="対象年齢の上限（法令・安全上必要な場合のみ）"
+                  name="maxAge"
+                  type="number"
+                  min={0}
+                  max={120}
+                  placeholder="例: 65"
+                  defaultValue={
+                    initialData?.max_age != null ? String(initialData.max_age) : ""
+                  }
+                  aria-invalid={fieldErrors.maxAge !== undefined}
+                  aria-describedby={getDescribedBy(
+                    undefined,
+                    "maxAge",
+                    fieldErrors.maxAge !== undefined
+                  )}
+                  onChange={handleFieldChange}
+                />
+                {fieldErrors.maxAge && (
+                  <p
+                    id={FIELD_ERROR_IDS.maxAge}
+                    role="alert"
+                    className="mt-1 text-sm text-error"
+                  >
+                    {fieldErrors.maxAge}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
           {/* エラーメッセージ */}
           {error && (
-            <p className="text-center text-sm text-red-600">{error}</p>
+            <p className="text-center text-sm text-error">{error}</p>
           )}
 
           {/* ボタン */}

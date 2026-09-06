@@ -1,5 +1,7 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import {
   Building2,
   Clock,
@@ -17,7 +19,9 @@ import {
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { getViewerContext } from "@/lib/auth/viewer-context";
-import { fetchOpportunityDetail } from "@/lib/opportunities/queries";
+import { fetchOpportunityViewerState } from "@/lib/opportunities/queries";
+import { fetchPublicOpportunityDetail } from "@/lib/opportunities/public-detail";
+import { getOpportunityActionMode } from "@/lib/opportunities/detail-access";
 import type { ApplicationStatus } from "@/lib/opportunities/types";
 import { PARTICIPATION_MODE_OPTIONS } from "@/lib/opportunities/constants";
 import { applicationStatusLabel } from "@/lib/mypage/status";
@@ -25,6 +29,28 @@ import { ApplyForm } from "./components/ApplyForm";
 import { BookmarkButton } from "./components/BookmarkButton";
 import { ApplicationStatusDate } from "./ApplicationStatusDate";
 import { OpportunityPublicationDate } from "./OpportunityPublicationDate";
+
+const getPublicOpportunity = cache(fetchPublicOpportunityDetail);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const opportunity = await getPublicOpportunity(id);
+  if (!opportunity) return { title: "募集が見つかりません", robots: { index: false } };
+  return {
+    title: opportunity.title,
+    description: opportunity.description ?? `${opportunity.organization.name}のボランティア募集`,
+    robots: { index: false },
+    openGraph: {
+      title: opportunity.title,
+      description: opportunity.description ?? `${opportunity.organization.name}のボランティア募集`,
+      type: "article",
+    },
+  };
+}
 
 /** 応募ステータスに応じたラベル・アイコン・カラー */
 function statusDisplay(status: ApplicationStatus) {
@@ -69,16 +95,33 @@ export default async function OpportunityDetailPage({
   const recommendationLogId = query?.rlog ?? null;
 
   const viewer = await getViewerContext();
-  if (viewer.status === "guest") redirect("/login");
   if (viewer.status === "error") throw new Error("閲覧者情報を確認できませんでした");
 
-  const { opportunity, existingApplication, isParticipant, isBookmarked } =
-    await fetchOpportunityDetail(id, viewer, viewSource);
+  const opportunity = await getPublicOpportunity(id);
 
   // 案件が存在しない場合は 404
   if (!opportunity) {
     notFound();
   }
+
+  const viewerState =
+    viewer.status === "authenticated"
+      ? await fetchOpportunityViewerState(id, viewer, viewSource)
+      : { existingApplication: null, isParticipant: false, isBookmarked: false };
+  const { existingApplication, isBookmarked } = viewerState;
+  const isParticipant =
+    viewer.status === "authenticated" &&
+    viewer.isActive &&
+    viewer.role === "participant" &&
+    viewer.hasParticipantProfile;
+  const actionMode = getOpportunityActionMode(viewer, isParticipant);
+  const returnQuery = new URLSearchParams();
+  if (query?.from) returnQuery.set("from", query.from);
+  if (query?.rlog) returnQuery.set("rlog", query.rlog);
+  const detailPath = `/opportunities/${encodeURIComponent(id)}${
+    returnQuery.size > 0 ? `?${returnQuery.toString()}` : ""
+  }`;
+  const loginHref = `/login?next=${encodeURIComponent(detailPath)}`;
 
   const isClosed = opportunity.status === "closed";
   // 応募フォーム表示条件: 参加者 かつ 未応募 かつ 募集中
@@ -91,11 +134,11 @@ export default async function OpportunityDetailPage({
       <main className="mx-auto max-w-3xl px-6 py-8">
         {/* 戻るリンク */}
         <Link
-          href="/recommendations"
+          href="/opportunities"
           className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
           <ArrowLeft className="size-4" />
-          おすすめ案件に戻る
+          募集一覧に戻る
         </Link>
 
         {/* 募集終了メッセージ */}
@@ -111,11 +154,19 @@ export default async function OpportunityDetailPage({
             {opportunity.title}
           </h1>
           <OpportunityPublicationDate createdAt={opportunity.created_at} />
-          {isParticipant && (
+          {actionMode === "participant" && (
             <BookmarkButton
               opportunityId={opportunity.id}
               initialBookmarked={isBookmarked}
             />
+          )}
+          {actionMode === "login-required" && (
+            <Link
+              href={loginHref}
+              className="inline-flex w-fit rounded-lg border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-primary/5"
+            >
+              ログインして保存する
+            </Link>
           )}
         </div>
 
@@ -137,6 +188,7 @@ export default async function OpportunityDetailPage({
         {(opportunity.location ||
           opportunity.start_date ||
           opportunity.end_date ||
+          opportunity.schedule ||
           opportunity.capacity !== null ||
           opportunity.category ||
           opportunity.participation_mode) && (
@@ -170,6 +222,13 @@ export default async function OpportunityDetailPage({
                           )
                         : "未定"}
                     </dd>
+                  </div>
+                )}
+                {opportunity.schedule && (
+                  <div className="flex items-start gap-3">
+                    <Clock className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <dt className="w-24 shrink-0 text-text-body">開催頻度</dt>
+                    <dd className="whitespace-pre-wrap text-text-dark">{opportunity.schedule}</dd>
                   </div>
                 )}
                 {opportunity.capacity !== null && (
@@ -228,6 +287,14 @@ export default async function OpportunityDetailPage({
                   {opportunity.organization.description}
                 </p>
               )}
+              <p className="text-sm text-text-body">
+                安全確認: {opportunity.organization.verified ? "運営による団体確認済み" : "団体確認手続き中"}
+              </p>
+              {opportunity.organization.website_url && (
+                <a className="text-sm text-primary hover:underline" href={opportunity.organization.website_url}>
+                  団体ウェブサイト
+                </a>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -263,6 +330,29 @@ export default async function OpportunityDetailPage({
             </CardContent>
           </Card>
         )}
+
+        <Card className="mb-6">
+          <CardHeader>
+            <h2 className="text-lg font-bold text-text-dark">参加前の確認事項</h2>
+          </CardHeader>
+          <CardContent>
+            <dl className="space-y-3 text-sm">
+              {[
+                ["費用", opportunity.cost],
+                ["持ち物", opportunity.belongings],
+                ["応募締切", opportunity.application_deadline ? new Date(opportunity.application_deadline).toLocaleDateString("ja-JP") : null],
+                ["キャンセル", opportunity.cancellation_policy],
+                ["保険・安全情報", opportunity.insurance_details],
+                ["問い合わせ方法", opportunity.contact_method],
+              ].map(([label, value]) => (
+                <div key={label} className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+                  <dt className="font-medium text-text-dark">{label}</dt>
+                  <dd className="whitespace-pre-wrap text-text-body">{value || "記載なし"}</dd>
+                </div>
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
 
         {/* 参加要件（必須資格・年齢） */}
         {(opportunity.required_qualifications.length > 0 ||
@@ -360,6 +450,21 @@ export default async function OpportunityDetailPage({
                 opportunityId={opportunity.id}
                 recommendationLogId={recommendationLogId}
               />
+            </CardContent>
+          </Card>
+        )}
+        {actionMode === "login-required" && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-lg font-bold text-text-dark">応募・保存にはログインが必要です</h2>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-3">
+              <Link href={loginHref} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white">
+                ログインして応募する
+              </Link>
+              <Link href={loginHref} className="rounded-lg border border-primary px-4 py-2 text-sm font-medium text-primary">
+                ログインして保存する
+              </Link>
             </CardContent>
           </Card>
         )}

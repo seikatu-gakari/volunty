@@ -22,7 +22,6 @@ const mockFindApplications = vi.fn();
 const mockUpdateManyApplications = vi.fn();
 const mockFindParticipants = vi.fn();
 
-
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: {
@@ -101,10 +100,28 @@ const {
   updateApplicationStatus,
 } = await import("./actions");
 
+// 一覧取得に必要な自団体プロフィールと案件を用意する。
+function mockOwnedOpportunity(overrides: { title?: string; description?: string | null } = {}) {
+  mockSingle
+    .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
+    .mockReturnValueOnce({
+      data: {
+        id: "opp-1",
+        title: "テスト案件",
+        description: null,
+        status: "published",
+        created_at: "2026-01-15T00:00:00Z",
+        ...overrides,
+      },
+      error: null,
+    });
+}
 
 describe("fetchApplicantsForOpportunity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSingle.mockReset();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null });
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -121,8 +138,6 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("団体プロフィール未設定の場合、エラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
     mockSingle.mockReturnValue({
       data: null,
       error: { message: "Not found" },
@@ -136,8 +151,6 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("自団体の案件でない場合、エラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
     mockSingle
       .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
       .mockReturnValueOnce({ data: null, error: { message: "Not found" } });
@@ -150,21 +163,7 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("応募者一覧を参考タイプ名付きで返す（生スコアと旧マッチングスコアは含めない）", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
-    mockSingle
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "環境保全ボランティア",
-          description: "説明",
-          status: "published",
-          created_at: "2026-01-15T00:00:00Z",
-        },
-        error: null,
-      });
+    mockOwnedOpportunity({ title: "環境保全ボランティア", description: "説明" });
 
     // t_matching_candidate（applied_at 降順）
     mockOrder.mockReturnValueOnce({
@@ -259,21 +258,7 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("未診断の応募者は style_type_label が null になる", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
-    mockSingle
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "テスト案件",
-          description: null,
-          status: "published",
-          created_at: "2026-01-15T00:00:00Z",
-        },
-        error: null,
-      });
+    mockOwnedOpportunity();
 
     mockOrder.mockReturnValueOnce({
       data: [
@@ -307,21 +292,7 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("応募者は応募日の降順でソートされる", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
-    mockSingle
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "テスト案件",
-          description: null,
-          status: "published",
-          created_at: "2026-01-15T00:00:00Z",
-        },
-        error: null,
-      });
+    mockOwnedOpportunity();
 
     mockOrder.mockReturnValueOnce({
       data: [
@@ -360,21 +331,7 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("未対応のみで絞り込める", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
-    mockSingle
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "テスト案件",
-          description: null,
-          status: "published",
-          created_at: "2026-01-15T00:00:00Z",
-        },
-        error: null,
-      });
+    mockOwnedOpportunity();
 
     mockOrder.mockReturnValueOnce({
       data: [
@@ -411,21 +368,7 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("応募日昇順で並び替えられる", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
-    mockSingle
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "テスト案件",
-          description: null,
-          status: "published",
-          created_at: "2026-01-15T00:00:00Z",
-        },
-        error: null,
-      });
+    mockOwnedOpportunity();
     mockOrder.mockReturnValueOnce({
       data: [
         {
@@ -463,21 +406,7 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("応募者が0件の場合、空配列を返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
-    mockSingle
-      .mockReturnValueOnce({ data: { id: "profile-123" }, error: null })
-      .mockReturnValueOnce({
-        data: {
-          id: "opp-1",
-          title: "テスト案件",
-          description: null,
-          status: "published",
-          created_at: "2026-01-15T00:00:00Z",
-        },
-        error: null,
-      });
+    mockOwnedOpportunity();
 
     mockOrder.mockReturnValueOnce({ data: [], error: null });
 
@@ -488,8 +417,6 @@ describe("fetchApplicantsForOpportunity", () => {
   });
 
   it("DB エラー時もクラッシュせずエラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
     mockSingle.mockImplementation(() => {
       throw new Error("DB connection error");
     });
@@ -563,10 +490,11 @@ describe("bulkCompleteApplications", () => {
   });
 });
 
-
 describe("updateApplicationStatus", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSingle.mockReset();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null });
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -583,8 +511,6 @@ describe("updateApplicationStatus", () => {
   });
 
   it("応募が見つからない場合、エラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
     mockSingle.mockReturnValue({
       data: null,
       error: { message: "Not found" },
@@ -598,8 +524,6 @@ describe("updateApplicationStatus", () => {
   });
 
   it("団体プロフィール未設定の場合、エラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
     // t_matching_candidate 取得成功
     mockSingle
       .mockReturnValueOnce({
@@ -617,9 +541,6 @@ describe("updateApplicationStatus", () => {
   });
 
   it("自団体の案件でない場合、権限エラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
     mockSingle
       .mockReturnValueOnce({
         data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
@@ -639,9 +560,6 @@ describe("updateApplicationStatus", () => {
   });
 
   it("正常に承認ステータスに更新できる", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
     mockSingle
       .mockReturnValueOnce({
         data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
@@ -665,9 +583,6 @@ describe("updateApplicationStatus", () => {
   });
 
   it("正常に辞退ステータスに更新できる", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
     mockSingle
       .mockReturnValueOnce({
         data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
@@ -690,9 +605,6 @@ describe("updateApplicationStatus", () => {
   });
 
   it("承認済み応募を活動完了に更新できる", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
     mockSingle
       .mockReturnValueOnce({
         data: { id: "app-1", opportunity_id: "opp-1", status: "accepted" },
@@ -715,9 +627,6 @@ describe("updateApplicationStatus", () => {
   });
 
   it("承認済み以外の応募は活動完了に更新できない", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
     mockSingle
       .mockReturnValueOnce({
         data: { id: "app-1", opportunity_id: "opp-1", status: "applied" },
@@ -735,8 +644,6 @@ describe("updateApplicationStatus", () => {
   });
 
   it("DB エラー時もクラッシュせずエラーを返す", async () => {
-    const mockUser = { id: "user-123" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
     mockSingle.mockImplementation(() => {
       throw new Error("DB connection error");
     });
