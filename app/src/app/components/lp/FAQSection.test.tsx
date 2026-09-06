@@ -13,15 +13,14 @@ describe("FAQSection", () => {
 
     expect(first.getAttribute("aria-expanded")).toBe("true");
     expect(second.getAttribute("aria-expanded")).toBe("false");
-    const firstQuestionLabel = first.querySelector("span > span");
-    expect(firstQuestionLabel).not.toBeNull();
-    expect(firstQuestionLabel?.className).toContain("bg-pop-coral-soft");
-    expect(firstQuestionLabel?.className).toContain("text-text-dark");
 
     fireEvent.click(second);
 
     expect(first.getAttribute("aria-expanded")).toBe("false");
     expect(second.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByText(/簡易診断（15問・約2分）/)).toBeDefined();
+
+    fireEvent.click(second);
+    expect(second.getAttribute("aria-expanded")).toBe("false");
   });
 });

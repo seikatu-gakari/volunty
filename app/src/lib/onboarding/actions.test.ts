@@ -234,45 +234,22 @@ describe("registerParticipant", () => {
     expect(mockUpdateUser).not.toHaveBeenCalled();
   });
 
-  it("nameが空の場合、バリデーションエラーを返す", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
-
-    const result = await registerParticipant({
-      name: "",
-      birthday: "1990-01-15",
-      region: "東京都",
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("表示名は必須です");
-    expect(mockPrismaParticipantUpsert).not.toHaveBeenCalled();
-  });
-
-  it("birthdayが空の場合、バリデーションエラーを返す", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
-
-    const result = await registerParticipant({
-      name: "山田 太郎",
-      birthday: "",
-      region: "東京都",
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("生年月日は必須です");
-    expect(mockPrismaParticipantUpsert).not.toHaveBeenCalled();
-  });
-
-  it("regionが空の場合、バリデーションエラーを返す", async () => {
+  it.each([
+    ["表示名", { name: "" }, "表示名は必須です"],
+    ["生年月日", { birthday: "" }, "生年月日は必須です"],
+    ["都道府県", { region: "" }, "都道府県は必須です"],
+  ])("%sが空の場合、バリデーションエラーを返す", async (_field, overrides, error) => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
 
     const result = await registerParticipant({
       name: "山田 太郎",
       birthday: "1990-01-15",
-      region: "",
+      region: "東京都",
+      ...overrides,
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe("都道府県は必須です");
+    expect(result.error).toBe(error);
     expect(mockPrismaParticipantUpsert).not.toHaveBeenCalled();
   });
 
@@ -387,71 +364,13 @@ describe("registerOrganization", () => {
     expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
   });
 
-  it("団体名が空の場合、バリデーションエラーを返す", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
-
-    const result = await registerOrganization({
-      organizationName: "",
-      representativeName: "山田 太郎",
-      contactEmail: "contact@example.org",
-      activityAreas: ["東京都"],
-      contactLineId: "@test_org",
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("団体名は必須です");
-    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
-  });
-
-  it("代表者名が空の場合、バリデーションエラーを返す", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
-
-    const result = await registerOrganization({
-      organizationName: "NPO法人テスト",
-      representativeName: "",
-      contactEmail: "contact@example.org",
-      activityAreas: ["東京都"],
-      contactLineId: "@test_org",
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("代表者名は必須です");
-    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
-  });
-
-  it("連絡先メールが空の場合、バリデーションエラーを返す", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
-
-    const result = await registerOrganization({
-      organizationName: "NPO法人テスト",
-      representativeName: "山田 太郎",
-      contactEmail: "",
-      activityAreas: ["東京都"],
-      contactLineId: "@test_org",
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("連絡先メールアドレスは必須です");
-    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
-  });
-
-  it("活動地域が空の場合、バリデーションエラーを返す", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
-
-    const result = await registerOrganization({
-      organizationName: "NPO法人テスト",
-      representativeName: "山田 太郎",
-      contactEmail: "contact@example.org",
-      activityAreas: [],
-      contactLineId: "@test_org",
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("活動地域を1つ以上選択してください");
-    expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
-  });
-
-  it("LINE公式アカウントIDが空の場合、バリデーションエラーを返す", async () => {
+  it.each([
+    ["団体名", { organizationName: "" }, "団体名は必須です"],
+    ["代表者名", { representativeName: "" }, "代表者名は必須です"],
+    ["連絡先メール", { contactEmail: "" }, "連絡先メールアドレスは必須です"],
+    ["活動地域", { activityAreas: [] }, "活動地域を1つ以上選択してください"],
+    ["LINE公式アカウントID", { contactLineId: "   " }, "LINE公式アカウントIDは必須です"],
+  ])("%sが空の場合、バリデーションエラーを返す", async (_field, overrides, error) => {
     mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
 
     const result = await registerOrganization({
@@ -459,11 +378,12 @@ describe("registerOrganization", () => {
       representativeName: "山田 太郎",
       contactEmail: "contact@example.org",
       activityAreas: ["東京都"],
-      contactLineId: "   ",
+      contactLineId: "@test_org",
+      ...overrides,
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe("LINE公式アカウントIDは必須です");
+    expect(result.error).toBe(error);
     expect(mockPrismaOrgUpsert).not.toHaveBeenCalled();
   });
 
@@ -481,6 +401,9 @@ describe("registerOrganization", () => {
     });
 
     expect(result.success).toBe(true);
+    expect(mockUpdateUser).toHaveBeenCalledWith({
+      data: { onboarding_completed: true },
+    });
     expect(mockPrismaOrgUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: "user-123" },
@@ -530,23 +453,5 @@ describe("registerOrganization", () => {
         }),
       })
     );
-  });
-
-  it("onboarding_completed フラグをセットする", async () => {
-    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } } });
-    mockPrismaOrgUpsert.mockResolvedValue({});
-    mockUpdateUser.mockReturnValue({ error: null });
-
-    await registerOrganization({
-      organizationName: "NPO法人テスト",
-      representativeName: "山田 太郎",
-      contactEmail: "contact@example.org",
-      activityAreas: ["東京都"],
-      contactLineId: "@test_org",
-    });
-
-    expect(mockUpdateUser).toHaveBeenCalledWith({
-      data: { onboarding_completed: true },
-    });
   });
 });

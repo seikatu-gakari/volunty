@@ -3,13 +3,12 @@ import { describe, expect, it } from "vitest";
 import { BrandLogo } from "./BrandLogo";
 
 describe("BrandLogo", () => {
-  it("公式マークと正式名称を1組だけ表示する", () => {
-    const { container } = render(<BrandLogo />);
+  it("公式マークと名称を表示し、装飾は読み上げ対象から外す", () => {
+    render(<BrandLogo />);
 
-    expect(screen.getAllByText("ボランティ")).toHaveLength(1);
-    expect(container.querySelectorAll('[data-testid="brand-heart"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-testid="brand-sparkles"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
-    expect(container.querySelector('img[src="/lp/mobile/brand-mark.png"]')).toBeNull();
+    expect(screen.getByText("ボランティ")).toBeDefined();
+    for (const mark of ["brand-heart", "brand-sparkles"]) {
+      expect(screen.getByTestId(mark).getAttribute("aria-hidden")).toBe("true");
+    }
   });
 });

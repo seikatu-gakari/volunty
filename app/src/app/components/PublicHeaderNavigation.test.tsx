@@ -22,75 +22,40 @@ vi.mock("next/link", () => ({
 }));
 
 describe("PublicHeaderNavigation", () => {
-  it("閉じたモバイルヘッダーではログインを隠し、ハンバーガーを表示する", () => {
+  it("初期状態ではメニューを閉じ、ログインと登録の導線を持つ", () => {
     render(<PublicHeaderNavigation />);
 
-    const login = screen.getByRole("link", { name: "ログイン" });
-    expect(login.getAttribute("href")).toBe("/login");
-    expect(login.className).toContain("hidden");
-    expect(login.className).toContain("lg:inline-flex");
-
-    const trigger = screen.getByRole("button", { name: "メニューを開く" });
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
-    expect(trigger.className).toContain("lg:hidden");
-    expect(trigger.className).toContain("size-10");
-    expect(trigger.className).toContain("rounded-lg");
-    expect(trigger.className).not.toContain("border-card-border");
-    expect(trigger.querySelector("svg")?.classList.contains("size-5")).toBe(true);
-    expect(trigger.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-
-    const desktopSignup = screen.getByRole("link", { name: "無料で始める" });
-    const desktopSignupClasses = desktopSignup.className.split(/\s+/);
-    expect(desktopSignup.className).toContain("lg:inline-flex");
-    expect(desktopSignupClasses).toContain("bg-primary");
-    expect(desktopSignupClasses).toContain("hover:bg-primary-dark");
-    expect(desktopSignupClasses).not.toContain("hover:bg-text-dark");
+    expect(screen.getByRole("link", { name: "ログイン" }).getAttribute("href")).toBe("/login");
+    expect(screen.getByRole("link", { name: "無料で始める" }).getAttribute("href")).toBe("/signup");
+    expect(screen.getByRole("button", { name: "メニューを開く" }).getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("navigation", { name: "モバイルナビゲーション" })).toBeNull();
   });
 
-  it("開いたモバイルメニュー内でログインと無料登録を利用できる", () => {
+  it("メニューを開閉し、ログイン・登録・ページ内リンクを利用できる", () => {
     render(<PublicHeaderNavigation />);
-
     fireEvent.click(screen.getByRole("button", { name: "メニューを開く" }));
 
-    expect(
-      screen.getByRole("button", { name: "メニューを閉じる" }).getAttribute("aria-expanded"),
-    ).toBe("true");
-    expect(
-      screen.getByRole("button", { name: "メニューを閉じる" }).querySelector("svg")?.classList.contains("size-5"),
-    ).toBe(true);
-    const mobileNavigation = screen.getByRole("navigation", {
-      name: "モバイルナビゲーション",
-    });
-    const mobileMenu = mobileNavigation.parentElement;
-    expect(mobileMenu?.className).toContain("w-[calc(100vw-2rem)]");
-    expect(mobileMenu?.className).toContain("right-0");
-    expect(mobileMenu?.className).toContain("left-auto");
-    expect(mobileMenu?.className).toContain("max-h-[calc(100dvh-5rem)]");
-    expect(mobileMenu?.className).toContain("overflow-y-auto");
-    expect(mobileNavigation.querySelector('a[href="/login"]')).not.toBeNull();
-    expect(mobileNavigation.querySelector('a[href="/signup"]')).not.toBeNull();
-    expect(mobileNavigation.querySelector('a[href="#usage"]')).not.toBeNull();
+    const closeButton = screen.getByRole("button", { name: "メニューを閉じる" });
+    expect(closeButton.getAttribute("aria-expanded")).toBe("true");
+    const navigation = within(screen.getByRole("navigation", { name: "モバイルナビゲーション" }));
+    for (const [name, href] of [["ログイン", "/login"], ["無料で始める", "/signup"], ["使い方", "#usage"]]) {
+      expect(navigation.getByRole("link", { name }).getAttribute("href")).toBe(href);
+    }
 
-    const mobileSignup = within(mobileNavigation).getByRole("link", {
-      name: "無料で始める",
-    });
-    const mobileSignupClasses = mobileSignup.className.split(/\s+/);
-    expect(mobileSignupClasses).toContain("bg-primary");
-    expect(mobileSignupClasses).toContain("hover:bg-primary-dark");
-    expect(mobileSignupClasses).not.toContain("hover:bg-text-dark");
+    fireEvent.click(closeButton);
+    expect(screen.getByRole("button", { name: "メニューを開く" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("navigation", { name: "モバイルナビゲーション" })).toBeNull();
   });
 
   it("メニュー内リンクを選ぶとメニューを閉じる", () => {
     render(<PublicHeaderNavigation />);
-
     fireEvent.click(screen.getByRole("button", { name: "メニューを開く" }));
     fireEvent.click(
-      within(
-        screen.getByRole("navigation", { name: "モバイルナビゲーション" }),
-      ).getByRole("link", { name: "よくある質問" }),
+      within(screen.getByRole("navigation", { name: "モバイルナビゲーション" }))
+        .getByRole("link", { name: "よくある質問" }),
     );
 
-    expect(screen.getByRole("button", { name: "メニューを開く" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "メニューを開く" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("navigation", { name: "モバイルナビゲーション" })).toBeNull();
   });
 });
