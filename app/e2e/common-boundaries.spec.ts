@@ -50,9 +50,10 @@ async function expectNotFoundRecoveryActions(
   await expect(links).toHaveCount(recovery.showHomeLink ? 2 : 1);
   await expect(links.nth(0)).toHaveText(recovery.primaryLabel);
   await expect(links.nth(0)).toHaveAttribute("href", recovery.primaryHref);
-  await expect(
-    actions.getByRole("link", { name: "トップへ戻る" }),
-  ).toHaveCount(recovery.showHomeLink ? 1 : 0);
+  if (recovery.showHomeLink) {
+    await expect(links.nth(1)).toHaveText("トップへ戻る");
+    await expect(links.nth(1)).toHaveAttribute("href", "/");
+  }
   await expect(
     actions.getByRole("link", { name: "診断を始める" }),
   ).toHaveCount(0);
