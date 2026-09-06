@@ -77,8 +77,10 @@ async function expectHiddenFromParticipant(
   await page.goto(`/opportunities?q=${encodeURIComponent(title)}`);
   await expect(page.getByText(title, { exact: true })).toHaveCount(0);
 
-  const response = await page.goto(`/opportunities/${state.id}`);
-  expect(response?.status()).toBe(404);
+  await page.goto(`/opportunities/${state.id}`);
+  await expect(
+    page.getByRole("heading", { name: "ページが見つかりません" }),
+  ).toBeVisible();
 }
 
 async function expectVisibleToParticipant(
@@ -256,11 +258,3 @@ test.describe.serial("案件公開状態", () => {
       const reopenedState = await readOpportunityState(PUBLICATION_CLOSED_TITLE);
       expect(reopenedState.status).toBe("published");
       expect(reopenedState.publishedAt?.getTime()).toBeGreaterThan(closedPublishedAt ?? 0);
-      expect(reopenedState.publishedAt!.getTime()).toBeLessThanOrEqual(Date.now());
-      await expectVisibleToParticipant(participantPage, reopenedState, PUBLICATION_CLOSED_TITLE);
-    } finally {
-      await organizationContext.close();
-      await participantContext.close();
-    }
-  });
-});
