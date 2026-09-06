@@ -15,7 +15,8 @@ describe("lpAssets", () => {
     const assets = Object.values(lpAssets);
     const sources = assets.map((asset) => asset.src);
 
-    expect(assets).toHaveLength(14);
+    expect(assets).toHaveLength(13);
+    expect(lpAssets).not.toHaveProperty("brandMark");
     expect(new Set(sources).size).toBe(sources.length);
 
     for (const asset of assets) {
@@ -40,15 +41,13 @@ describe("lpAssets", () => {
     }
   });
 
-  it("内容画像には日本語altを持たせ、重複ロゴと装飾画像は空altにする", () => {
-    const { brandMark, orbitMotif, ...contentImages } = lpAssets;
+  it("内容画像には日本語altを持たせ、装飾画像は空altにする", () => {
+    const { orbitMotif, ...contentImages } = lpAssets;
 
     for (const asset of Object.values(contentImages)) {
       expect(asset.alt).toMatch(JAPANESE_TEXT);
     }
 
-    // ロゴは隣接するブランド名が同じ内容を伝えるため、画像自体の読み上げは不要。
-    expect(brandMark.alt).toBe("");
     // 軌道モチーフは情報を持たない純粋な装飾画像。
     expect(orbitMotif.alt).toBe("");
   });

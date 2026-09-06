@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LogIn, Menu, UserPlus, X } from "lucide-react";
+import { LogIn, UserPlus } from "lucide-react";
+import { MobileMenuButton } from "@/app/components/MobileMenuButton";
 
 const MOBILE_LINKS = [
   { href: "#kadai", label: "はじめられない理由" },
@@ -32,15 +33,11 @@ export function PublicHeaderNavigation() {
         無料で始める
       </Link>
 
-      <button
-        type="button"
-        aria-expanded={menuOpen}
-        aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
+      <MobileMenuButton
+        menuOpen={menuOpen}
         onClick={() => setMenuOpen((open) => !open)}
-        className="inline-flex size-12 items-center justify-center rounded-xl border border-card-border bg-white text-text-dark transition-colors hover:bg-primary/5 lg:hidden"
-      >
-        {menuOpen ? <X className="size-6" aria-hidden /> : <Menu className="size-6" aria-hidden />}
-      </button>
+        className="lg:hidden"
+      />
 
       {menuOpen && (
         <div className="absolute top-full right-0 left-auto mt-2 max-h-[calc(100dvh-5rem)] w-[calc(100vw-2rem)] overflow-y-auto rounded-3xl border border-card-border bg-background p-3 shadow-xl lg:hidden">
