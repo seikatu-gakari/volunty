@@ -83,15 +83,15 @@ export function HeaderAuth({
           : [];
 
     return (
-      <div className="flex items-center gap-1" ref={menuRef}>
+      <div className="flex shrink-0 items-center gap-1" ref={menuRef}>
         {/* PC版ナビリンク */}
         {navItems.length > 0 && (
-          <nav className="mr-2 hidden items-center gap-1 md:flex">
+          <nav className="mr-2 hidden items-center gap-1 lg:flex">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors ${isActive(item.href)
+                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors ${isActive(item.href)
                   ? "bg-primary/10 text-primary"
                   : "text-text-body hover:bg-primary/5 hover:text-primary"
                   }`}
@@ -105,13 +105,13 @@ export function HeaderAuth({
         )}
 
         {/* PC版ユーザー情報・ログアウト */}
-        <div className="hidden items-center gap-3 md:flex">
-          <span className="text-sm text-text-body">
+        <div className="hidden items-center gap-3 lg:flex">
+          <span className="max-w-36 truncate text-sm text-text-body">
             {identity.displayName ?? identity.email ?? "ユーザー"}
           </span>
           <button
             onClick={handleLogout}
-            className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-primary hover:bg-primary/5"
+            className="flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium whitespace-nowrap text-primary hover:bg-primary/5"
           >
             <LogOut className="size-4" />
             ログアウト
@@ -122,12 +122,12 @@ export function HeaderAuth({
         <MobileMenuButton
           menuOpen={menuOpen}
           onClick={() => setMenuOpen((prev) => !prev)}
-          className="md:hidden"
+          className="lg:hidden"
         />
 
         {/* モバイル: ドロップダウンメニュー */}
         {menuOpen && (
-          <div className="absolute top-full right-4 mt-1 w-56 rounded-xl border border-card-border bg-background shadow-lg md:hidden">
+          <div className="absolute top-full right-4 mt-1 w-56 rounded-xl border border-card-border bg-background shadow-lg lg:hidden">
             {/* ユーザー名 */}
             <div className="border-b border-card-border px-4 py-3">
               <p className="truncate text-sm font-medium text-text-dark">
