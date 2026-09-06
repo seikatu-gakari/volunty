@@ -258,3 +258,11 @@ test.describe.serial("案件公開状態", () => {
       const reopenedState = await readOpportunityState(PUBLICATION_CLOSED_TITLE);
       expect(reopenedState.status).toBe("published");
       expect(reopenedState.publishedAt?.getTime()).toBeGreaterThan(closedPublishedAt ?? 0);
+      expect(reopenedState.publishedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+      await expectVisibleToParticipant(participantPage, reopenedState, PUBLICATION_CLOSED_TITLE);
+    } finally {
+      await organizationContext.close();
+      await participantContext.close();
+    }
+  });
+});

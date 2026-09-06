@@ -718,3 +718,16 @@ export async function fetchMatchingHistoryQuery(
         participant_name:
           record.participant.participantProfile?.name ??
           record.participant.name ??
+          "不明",
+        opportunity_id: record.opportunity.id,
+        opportunity_title: record.opportunity.title,
+        applied_at: toNullableHistoryIsoString(record.appliedAt),
+        status_changed_at: toHistoryIsoString(record.statusChangedAt),
+      }];
+    });
+    return { history };
+  } catch (error) {
+    console.error("[fetchMatchingHistoryQuery] 予期しないエラー:", error);
+    return { history: [], error: "予期しないエラーが発生しました" };
+  }
+}
