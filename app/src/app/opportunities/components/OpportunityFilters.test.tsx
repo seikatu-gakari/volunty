@@ -26,12 +26,12 @@ describe("OpportunityFilters", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "条件を解除" }));
 
-    expect(keyword).toHaveValue("");
-    expect(category).toHaveValue("");
-    expect(region).toHaveValue("");
-    expect(participationMode).toHaveValue("");
-    expect(weekend).not.toBeChecked();
-    expect(beginner).not.toBeChecked();
+    expect((keyword as HTMLInputElement).value).toBe("");
+    expect((category as HTMLSelectElement).value).toBe("");
+    expect((region as HTMLInputElement).value).toBe("");
+    expect((participationMode as HTMLSelectElement).value).toBe("");
+    expect((weekend as HTMLInputElement).checked).toBe(false);
+    expect((beginner as HTMLInputElement).checked).toBe(false);
   });
 
   it("修飾キー付きのクリア操作では元画面の編集を保持する", () => {
@@ -44,6 +44,6 @@ describe("OpportunityFilters", () => {
       ctrlKey: true,
     });
 
-    expect(keyword).toHaveValue("編集中");
+    expect((keyword as HTMLInputElement).value).toBe("編集中");
   });
 });
