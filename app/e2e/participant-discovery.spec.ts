@@ -6,18 +6,96 @@ const FILTER_OPPORTUNITY_TITLE = "E2E オンライン環境保全案件";
 test.describe.serial("参加者の案件探索と応募", () => {
   test.use({ storageState: "playwright/.auth/participant.json" });
 
-  test("P-5: カテゴリ・地域・参加形態でおすすめ案件を絞り込める", async ({
+  test("P-5: カテゴリ・地域・参加形態で絞り込み後に再検索と履歴移動ができる", async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/recommendations");
     await page.getByLabel("カテゴリ").selectOption("環境保全");
     await page.getByLabel("地域").selectOption("新宿区");
     await page.getByLabel("参加形態").selectOption("online");
     await page.getByRole("button", { name: "絞り込む" }).click();
 
-    await expect(page).toHaveURL(/category=.*region=.*participationMode=online/);
+    const filteredQuery = new URLSearchParams({
+      category: "環境保全",
+      region: "新宿区",
+      participationMode: "online",
+    }).toString();
+    await expect
+      .poll(() => new URL(page.url()).pathname + new URL(page.url()).search)
+      .toBe(`/recommendations?${filteredQuery}`);
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("環境保全");
+    await expect(page.getByLabel("地域")).toHaveValue("新宿区");
+    await expect(page.getByLabel("参加形態")).toHaveValue("online");
     await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
     await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "絞り込む" })).toBeEnabled();
+
+    await page.getByRole("link", { name: /クリア/ }).click();
+
+    await expect(page).toHaveURL(/\/recommendations$/);
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
+    await expect(page.getByLabel("地域")).toHaveValue("");
+    await expect(page.getByLabel("参加形態")).toHaveValue("");
+    await expect(page.getByRole("button", { name: "絞り込む" })).toBeEnabled();
+    await expect(page.getByRole("link", { name: /クリア/ })).not.toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();
+
+    await page.getByLabel("カテゴリ").selectOption("地域活性化");
+    await page.getByLabel("地域").selectOption("東京都");
+    await page.getByLabel("参加形態").selectOption("offline");
+    await page.getByRole("button", { name: "絞り込む" }).click();
+
+    const secondQuery = new URLSearchParams({
+      category: "地域活性化",
+      region: "東京都",
+      participationMode: "offline",
+    }).toString();
+    await expect
+      .poll(() => new URL(page.url()).pathname + new URL(page.url()).search)
+      .toBe(`/recommendations?${secondQuery}`);
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("地域活性化");
+    await expect(page.getByLabel("地域")).toHaveValue("東京都");
+    await expect(page.getByLabel("参加形態")).toHaveValue("offline");
+    await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();
+    await expect(page.getByRole("button", { name: "絞り込む" })).toBeEnabled();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/recommendations$/);
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
+    await expect(page.getByLabel("地域")).toHaveValue("");
+    await expect(page.getByLabel("参加形態")).toHaveValue("");
+    await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();
+    await expect(page.getByRole("button", { name: "絞り込む" })).toBeEnabled();
+
+    await page.goBack();
+    await expect
+      .poll(() => new URL(page.url()).pathname + new URL(page.url()).search)
+      .toBe(`/recommendations?${filteredQuery}`);
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("環境保全");
+    await expect(page.getByLabel("地域")).toHaveValue("新宿区");
+    await expect(page.getByLabel("参加形態")).toHaveValue("online");
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
+    await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "絞り込む" })).toBeEnabled();
+
+    await page.goForward();
+    await expect(page).toHaveURL(/\/recommendations$/);
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
+    await expect(page.getByLabel("地域")).toHaveValue("");
+    await expect(page.getByLabel("参加形態")).toHaveValue("");
+    await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();
+    await expect(page.getByRole("button", { name: "絞り込む" })).toBeEnabled();
+
+    await page.goForward();
+    await expect
+      .poll(() => new URL(page.url()).pathname + new URL(page.url()).search)
+      .toBe(`/recommendations?${secondQuery}`);
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("地域活性化");
+    await expect(page.getByLabel("地域")).toHaveValue("東京都");
+    await expect(page.getByLabel("参加形態")).toHaveValue("offline");
+    await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();
+    await expect(page.getByRole("button", { name: "絞り込む" })).toBeEnabled();
   });
 
   test("P-6: 推薦理由が表示され、案件詳細から団体詳細と公開案件を確認できる", async ({ page }) => {
