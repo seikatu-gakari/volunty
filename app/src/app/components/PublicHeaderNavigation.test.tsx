@@ -33,7 +33,11 @@ describe("PublicHeaderNavigation", () => {
     const trigger = screen.getByRole("button", { name: "メニューを開く" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(trigger.className).toContain("lg:hidden");
-    expect(trigger.className).toContain("border-card-border");
+    expect(trigger.className).toContain("size-10");
+    expect(trigger.className).toContain("rounded-lg");
+    expect(trigger.className).not.toContain("border-card-border");
+    expect(trigger.querySelector("svg")?.classList.contains("size-5")).toBe(true);
+    expect(trigger.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
 
     const desktopSignup = screen.getByRole("link", { name: "無料で始める" });
     const desktopSignupClasses = desktopSignup.className.split(/\s+/);
@@ -52,6 +56,9 @@ describe("PublicHeaderNavigation", () => {
     expect(
       screen.getByRole("button", { name: "メニューを閉じる" }).getAttribute("aria-expanded"),
     ).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "メニューを閉じる" }).querySelector("svg")?.classList.contains("size-5"),
+    ).toBe(true);
     const mobileNavigation = screen.getByRole("navigation", {
       name: "モバイルナビゲーション",
     });

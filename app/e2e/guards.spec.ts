@@ -74,7 +74,7 @@ async function expectLandingPageIntegrity(
   }
 
   const images = page.locator("main img");
-  await expect(images).toHaveCount(14);
+  await expect(images).toHaveCount(13);
 
   await expect(page.locator("#voices")).toHaveCount(0);
   await expect(page.getByText("こんな使われ方", { exact: true })).toHaveCount(0);
@@ -123,6 +123,15 @@ async function expectLandingPageIntegrity(
   if (viewportWidth >= 1024) {
     await expect(page.getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/login");
   }
+  const footer = page.locator("footer");
+  await expect(footer.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
+  await expect(footer.locator('[data-testid="brand-heart"]')).toBeVisible();
+  await expect(footer.getByRole("link", { name: "使い方ガイド" })).toHaveAttribute(
+    "href",
+    "#usage",
+  );
+  await expect(footer.getByText(/© 2026 ボランティ/)).toBeVisible();
+  await expect(page.locator('img[src*="brand-mark.png"]')).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true);
@@ -201,7 +210,12 @@ test.describe("未ログインLP（モバイル）", () => {
   test("主要コンテンツと操作導線を一画面幅で利用できる", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
+    await expect(
+      page.locator("header").getByRole("link", { name: "ボランティ ホーム" }),
+    ).toBeVisible();
+    await expect(page.locator('header [data-testid="brand-heart"]')).toBeVisible();
+    await expect(page.locator('img[src*="brand-mark.png"]')).toHaveCount(0);
+    await expect(page.getByText("あなたにぴったりの活動を見つけよう").first()).toBeHidden();
     await expect(
       page.getByRole("heading", { name: "つながる、みつかる、変わっていく。" }),
     ).toBeVisible();
@@ -230,7 +244,10 @@ test.describe("未ログインLP（モバイル）", () => {
     await expect(page.getByText("スマホ・PC対応")).toBeHidden();
     await expect(page.getByRole("link", { name: "ログイン" })).toBeHidden();
 
-    await page.getByRole("button", { name: "メニューを開く" }).click();
+    const menuTrigger = page.getByRole("button", { name: "メニューを開く" });
+    await expect(menuTrigger).toHaveClass(/size-10/);
+    await expect(menuTrigger).not.toHaveClass(/border-card-border/);
+    await menuTrigger.click();
     const mobileNavigation = page.getByRole("navigation", { name: "モバイルナビゲーション" });
     await expect(mobileNavigation).toBeVisible();
     await expect(mobileNavigation.getByRole("link", { name: "無料で始める" })).toHaveAttribute(
@@ -262,6 +279,8 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
       await page.goto("/");
 
       await expectLandingPageIntegrity(page, viewport.width);
+      await expect(page.locator('header [data-testid="brand-heart"]')).toBeVisible();
+      await expect(page.getByText("あなたにぴったりの活動を見つけよう").first()).toBeVisible();
 
       const menuButton = page.getByRole("button", { name: "メニューを開く" });
       const desktopNavigation = page.locator('header > div > nav a[href="#usage"]');
@@ -344,6 +363,9 @@ test.describe("非LP未認証ヘッダー", () => {
   test("/loginではLPアンカーとモバイルメニューを表示しない", async ({ page }) => {
     await page.goto("/login");
 
+    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
+    await expect(page.locator('header [data-testid="brand-heart"]')).toBeVisible();
+    await expect(page.locator('img[src*="brand-mark.png"]')).toHaveCount(0);
     await expect(page.locator('header a[href^="#"]')).toHaveCount(0);
     for (const sectionId of LP_SECTION_IDS) {
       await expect(page.locator(`#${sectionId}`)).toHaveCount(0);
@@ -364,6 +386,8 @@ test.describe("認証済みホームヘッダー", () => {
   test("参加者ホームではLP固有要素を表示せず認証済み導線を表示する", async ({ page }) => {
     await page.goto("/");
 
+    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
+    await expect(page.locator('header [data-testid="brand-heart"]')).toBeVisible();
     await expect(page.locator('header a[href^="#"]')).toHaveCount(0);
     await expect(page.locator(LP_SECTION_IDS.map((id) => `main #${id}`).join(", "))).toHaveCount(
       0,
