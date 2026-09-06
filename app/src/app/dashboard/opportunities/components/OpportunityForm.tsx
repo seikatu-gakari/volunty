@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   FileText,
@@ -27,6 +27,36 @@ import { ACTIVITY_STYLE_TAGS } from "@/lib/recommendations/activity-style-tags";
 
 /** 選択できる活動スタイルタグの上限 */
 const MAX_ACTIVITY_STYLE_TAGS = 3;
+const JST_OFFSET_MILLISECONDS = 9 * 60 * 60 * 1000;
+const PUBLISHED_AT_HELP_ID = "publishedAt-help";
+const PUBLISHED_AT_ERROR_ID = "publishedAt-error";
+
+type PublishMode = "published" | "draft" | "scheduled";
+
+interface OpportunityFormResult {
+  success: boolean;
+  error?: string;
+  fieldErrors?: {
+    publishedAt?: string;
+  };
+}
+
+function formatJstDateTimeLocal(date: Date): string {
+  const year = String(date.getUTCFullYear()).padStart(4, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hour = String(date.getUTCHours()).padStart(2, "0");
+  const minute = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+/** 現在時刻より後になる最初の1分をJSTのdatetime-local値にする。 */
+function getNextJstMinuteValue(nowMs = Date.now()): string {
+  const nextMinuteMs = Math.floor(nowMs / 60_000) * 60_000 + 60_000;
+  return formatJstDateTimeLocal(
+    new Date(nextMinuteMs + JST_OFFSET_MILLISECONDS),
+  );
+}
 
 /** フォームの初期値 */
 export interface OpportunityFormData {
@@ -61,7 +91,7 @@ interface OpportunityFormProps {
   /** "create" = 新規作成、"edit" = 編集 */
   mode?: "create" | "edit";
   /** フォーム送信時の Server Action */
-  onSubmitAction: (formData: FormData) => Promise<{ success: boolean; error?: string }>;
+  onSubmitAction: (formData: FormData) => Promise<OpportunityFormResult>;
   /** キャンセルボタンのリンク先 */
   cancelHref: string;
 }
@@ -84,8 +114,29 @@ export function OpportunityForm({
     initialData?.status ?? "published"
   );
   const [publishMode, setPublishMode] = useState<
-    "published" | "draft" | "scheduled"
+    PublishMode
   >(initialData?.status === "draft" ? "draft" : "published");
+  const [publishedAtMin, setPublishedAtMin] = useState<string>();
+  const [fieldErrors, setFieldErrors] = useState<
+    OpportunityFormResult["fieldErrors"]
+  >({});
+  const publishedAtRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (publishMode !== "scheduled") return;
+    // SSRとクライアントで異なる現在時刻を初期HTMLへ描画しない。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPublishedAtMin(getNextJstMinuteValue());
+  }, [publishMode]);
+
+  const handlePublishModeChange = (value: PublishMode) => {
+    setPublishMode(value);
+    setFieldErrors({});
+    setError(null);
+    if (value === "scheduled") {
+      setPublishedAtMin(getNextJstMinuteValue());
+    }
+  };
 
   const handleTagToggle = (tagId: string) => {
     setSelectedTags((prev) => {
@@ -120,11 +171,16 @@ export function OpportunityForm({
 
       const result = await onSubmitAction(formData);
       if (!result.success) {
+        setFieldErrors(result.fieldErrors ?? {});
         setError(result.error ?? `案件の${isEdit ? "更新" : "作成"}に失敗しました`);
+        if (result.fieldErrors?.publishedAt) {
+          publishedAtRef.current?.focus();
+        }
         setLoading(false);
       }
       // 成功時は Server Action 内で redirect されるため、ここには到達しない
     } catch {
+      setFieldErrors({});
       setError(`案件の${isEdit ? "更新" : "作成"}中にエラーが発生しました`);
       setLoading(false);
     }
@@ -327,7 +383,7 @@ export function OpportunityForm({
                       value={value}
                       checked={publishMode === value}
                       onChange={() =>
-                        setPublishMode(value as "published" | "draft" | "scheduled")
+                        handlePublishModeChange(value as PublishMode)
                       }
                       className="accent-primary"
                     />
@@ -336,15 +392,45 @@ export function OpportunityForm({
                 ))}
               </div>
               {publishMode === "scheduled" && (
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-text-body">公開日時</span>
+                <div className="flex flex-col gap-1">
+                  <label
+                    htmlFor="publishedAt"
+                    className="text-xs text-text-body"
+                  >
+                    公開日時（日本時間）
+                  </label>
                   <input
+                    ref={publishedAtRef}
+                    id="publishedAt"
                     type="datetime-local"
                     name="publishedAt"
                     required
+                    min={publishedAtMin}
+                    step={60}
+                    aria-describedby={`${PUBLISHED_AT_HELP_ID}${
+                      fieldErrors?.publishedAt
+                        ? ` ${PUBLISHED_AT_ERROR_ID}`
+                        : ""
+                    }`}
+                    aria-invalid={fieldErrors?.publishedAt ? true : undefined}
+                    onFocus={() =>
+                      setPublishedAtMin(getNextJstMinuteValue())
+                    }
                     className="w-full rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
-                </label>
+                  {fieldErrors?.publishedAt && (
+                    <p
+                      id={PUBLISHED_AT_ERROR_ID}
+                      role="alert"
+                      className="text-sm text-red-600"
+                    >
+                      {fieldErrors.publishedAt}
+                    </p>
+                  )}
+                  <span id={PUBLISHED_AT_HELP_ID} className="text-xs text-text-body">
+                    日本時間（UTC+09:00）で指定してください。指定した時刻以降に公開されます。
+                  </span>
+                </div>
               )}
             </div>
           )}

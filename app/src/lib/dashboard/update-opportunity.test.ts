@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { UpdateOpportunityResult } from "./types";
 
 vi.mock("server-only", () => ({}));
@@ -86,6 +86,12 @@ describe("updateOpportunity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpdateResult = { error: null };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-01T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -280,6 +286,80 @@ describe("updateOpportunity", () => {
 
     const updateArg = mockUpdate.mock.calls[0][0] as Record<string, unknown>;
     expect(updateArg).not.toHaveProperty("status");
+    expect(updateArg).not.toHaveProperty("published_at");
+  });
+
+  it("statusのみの編集では既存の公開予約日時を再検証・上書きしない", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+
+    await updateOpportunity(
+      "opp-1",
+      buildFormData({
+        title: "予約済み案件の内容編集",
+        description: "既存の予約日時は維持します",
+        status: "published",
+      }),
+    );
+
+    const updateArg = mockUpdate.mock.calls[0][0] as Record<string, unknown>;
+    expect(updateArg.status).toBe("published");
+    expect(updateArg).not.toHaveProperty("published_at");
+  });
+
+  it("明示的な公開予約の更新にはJSTから変換したUTC日時を保存する", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+
+    await updateOpportunity(
+      "opp-1",
+      buildFormData({
+        title: "予約更新案件",
+        description: "JSTで予約します",
+        publishMode: "scheduled",
+        publishedAt: "2026-08-01T10:00",
+      }),
+    );
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "published",
+        published_at: "2026-08-01T01:00:00.000Z",
+      }),
+    );
+  });
+
+  it("明示的な公開予約が不正な場合は更新せずフィールドエラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+
+    const result: UpdateOpportunityResult = await updateOpportunity(
+      "opp-1",
+      buildFormData({
+        title: "不正予約案件",
+        description: "更新されません",
+        publishMode: "scheduled",
+        publishedAt: "2026-06-30T10:00",
+      }),
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: "公開予約日時は現在より後の日時を指定してください",
+      fieldErrors: {
+        publishedAt: "公開予約日時は現在より後の日時を指定してください",
+      },
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
   it("DB エラー時にエラーメッセージを返す", async () => {

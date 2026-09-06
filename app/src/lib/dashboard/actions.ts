@@ -34,6 +34,7 @@ import {
   isValidParticipationMode,
   type ParticipationMode,
 } from "@/lib/opportunities/constants";
+import { parseScheduledPublication } from "@/lib/opportunities/scheduled-publication";
 
 /**
  * 団体ダッシュボード用：自団体の募集案件一覧を取得
@@ -270,8 +271,10 @@ function parseOpportunityExtraFields(
 
 function parsePublishFields(
   formData: FormData,
-  nowIso: string
-): { data: { status: OpportunityStatus; published_at: string | null } } | { error: string } {
+  now: Date,
+):
+  | { data: { status: OpportunityStatus; published_at: string | null } }
+  | { error: string; fieldErrors?: { publishedAt?: string } } {
   const rawPublishMode = formData.get("publishMode");
   const publishMode =
     rawPublishMode === "draft" ||
@@ -285,25 +288,25 @@ function parsePublishFields(
   }
 
   if (publishMode === "scheduled") {
-    const rawPublishedAt = formData.get("publishedAt");
-    const publishedAt =
-      typeof rawPublishedAt === "string" ? rawPublishedAt.trim() : "";
-    if (!publishedAt) {
-      return { error: "公開予約日時を入力してください" };
-    }
-    const scheduledAt = new Date(publishedAt);
-    if (Number.isNaN(scheduledAt.getTime())) {
-      return { error: "公開予約日時の形式が正しくありません" };
+    const scheduledPublication = parseScheduledPublication(
+      formData.get("publishedAt"),
+      now,
+    );
+    if (!scheduledPublication.success) {
+      return {
+        error: scheduledPublication.error,
+        fieldErrors: { publishedAt: scheduledPublication.error },
+      };
     }
     return {
       data: {
         status: "published",
-        published_at: scheduledAt.toISOString(),
+        published_at: scheduledPublication.publishedAt,
       },
     };
   }
 
-  return { data: { status: "published", published_at: nowIso } };
+  return { data: { status: "published", published_at: now.toISOString() } };
 }
 
 /**
@@ -356,12 +359,6 @@ export async function createOpportunity(
     return { success: false, error: extra.error };
   }
 
-  const now = new Date().toISOString();
-  const publish = parsePublishFields(formData, now);
-  if ("error" in publish) {
-    return { success: false, error: publish.error };
-  }
-
   try {
     // 団体プロフィールIDを取得
     const { data: orgProfile, error: profileError } = await supabase
@@ -374,6 +371,18 @@ export async function createOpportunity(
       return { success: false, error: "団体プロフィールが見つかりません" };
     }
 
+    // 認証・所有確認の後、DB書き込み直前の時刻で公開予約を検証する。
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const publish = parsePublishFields(formData, now);
+    if ("error" in publish) {
+      return {
+        success: false,
+        error: publish.error,
+        fieldErrors: publish.fieldErrors,
+      };
+    }
+
     // Supabase REST経由ではPrismaの @updatedAt が適用されないため明示する。
     const { error: insertError } = await supabase
       .from("m_opportunity")
@@ -384,8 +393,8 @@ export async function createOpportunity(
         ...matching.data,
         status: publish.data.status,
         published_at: publish.data.published_at,
-        created_at: now,
-        updated_at: now,
+        created_at: nowIso,
+        updated_at: nowIso,
         ...extra.data,
       });
 
@@ -624,13 +633,6 @@ export async function updateOpportunity(
     return { success: false, error: extra.error };
   }
 
-  const publish = formData.has("publishMode")
-    ? parsePublishFields(formData, new Date().toISOString())
-    : null;
-  if (publish && "error" in publish) {
-    return { success: false, error: publish.error };
-  }
-
   try {
     // 団体プロフィールIDを取得
     const { data: orgProfile, error: profileError } = await supabase
@@ -641,6 +643,19 @@ export async function updateOpportunity(
 
     if (profileError || !orgProfile) {
       return { success: false, error: "団体プロフィールが見つかりません" };
+    }
+
+    // publishMode が送られた場合だけ公開操作として扱う。通常の内容編集は
+    // status のみを更新し、既存の公開予約日時を再検証・上書きしない。
+    const publish = formData.has("publishMode")
+      ? parsePublishFields(formData, new Date())
+      : null;
+    if (publish && "error" in publish) {
+      return {
+        success: false,
+        error: publish.error,
+        fieldErrors: publish.fieldErrors,
+      };
     }
 
     const updateData: Record<string, unknown> = {
