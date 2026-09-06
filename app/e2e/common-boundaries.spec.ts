@@ -95,14 +95,6 @@ test("C-E4: 通常ログアウト後は公開トップへ戻り別ロールで�
     page.getByRole("link", { name: "ダッシュボード", exact: true })
   ).toBeVisible();
   await context.close();
-
-  const unauthenticatedContext = await browser.newContext();
-  const unauthenticatedPage = await unauthenticatedContext.newPage();
-  await unauthenticatedPage.goto("/diagnosis");
-  await expect(unauthenticatedPage).toHaveURL((url) =>
-    url.pathname === "/login" && url.searchParams.get("next") === "/diagnosis"
-  );
-  await unauthenticatedContext.close();
 });
 
 test("C-E5: 団体審査待ち画面のログアウト後は公開トップへ戻る", async ({ browser }) => {

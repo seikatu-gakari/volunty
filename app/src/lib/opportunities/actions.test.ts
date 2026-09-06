@@ -111,6 +111,16 @@ function fetchOpportunityDetail(
   );
 }
 
+// ケース間で共通の入力値。期待値は各ケースで独立して指定する。
+const opportunityFixture = {
+  description: null,
+  activity_style_tags: null,
+  required_qualifications: null,
+  min_age: null,
+  max_age: null,
+  created_at: "2026-01-01T00:00:00Z",
+};
+
 describe("fetchOpportunityDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -154,15 +164,10 @@ describe("fetchOpportunityDetail", () => {
 
   it("公開確認後は応募者数・本人応募・お気に入りを並列に開始する", async () => {
     const mockOpp = {
+      ...opportunityFixture,
       id: "opp-1",
       title: "並列テスト案件",
-      description: null,
-      activity_style_tags: null,
-      required_qualifications: null,
-      min_age: null,
-      max_age: null,
       status: "published",
-      created_at: "2026-01-01T00:00:00Z",
       location: null,
       start_date: null,
       end_date: null,
@@ -224,15 +229,14 @@ describe("fetchOpportunityDetail", () => {
 
     // 案件データ
     const mockOpp = {
+      ...opportunityFixture,
       id: "opp-1",
       title: "環境保全ボランティア",
       description: "森林保全活動です",
       activity_style_tags: ["talk-with-new-people"],
       required_qualifications: ["普通自動車免許"],
       min_age: 18,
-      max_age: null,
       status: "published",
-      created_at: "2026-01-01T00:00:00Z",
       location: "渋谷区",
       start_date: "2026-07-01T00:00:00.000Z",
       end_date: "2026-07-10",
@@ -303,16 +307,12 @@ describe("fetchOpportunityDetail", () => {
 
     mockSingle.mockReturnValueOnce({
       data: {
+        ...opportunityFixture,
         id: "opp-scheduled",
         title: "予約案件",
         description: "未来に公開",
-        activity_style_tags: null,
-        required_qualifications: null,
-        min_age: null,
-        max_age: null,
         status: "published",
         published_at: "2999-01-01T00:00:00.000Z",
-        created_at: "2026-01-01T00:00:00Z",
         location: null,
         start_date: null,
         end_date: null,
@@ -344,16 +344,11 @@ describe("fetchOpportunityDetail", () => {
     mockMatchingCandidateCount.mockResolvedValueOnce(1);
 
     const mockOpp = {
+      ...opportunityFixture,
       id: "opp-1",
       title: "環境保全ボランティア",
-      description: null,
-      activity_style_tags: null,
-      required_qualifications: null,
-      min_age: null,
-      max_age: null,
       status: "published",
       published_at: "2026-01-01T00:00:00Z",
-      created_at: "2026-01-01T00:00:00Z",
       location: null,
       start_date: null,
       end_date: null,
@@ -395,15 +390,10 @@ describe("fetchOpportunityDetail", () => {
     });
 
     const mockOpp = {
+      ...opportunityFixture,
       id: "opp-1",
       title: "子ども支援活動",
-      description: null,
-      activity_style_tags: null,
-      required_qualifications: null,
-      min_age: null,
-      max_age: null,
       status: "published",
-      created_at: "2026-01-01T00:00:00Z",
       m_organization_profile: { id: "org-2", organization_name: "支援団体A", description: null },
     };
 
@@ -441,15 +431,10 @@ describe("fetchOpportunityDetail", () => {
     });
 
     const mockOpp = {
+      ...opportunityFixture,
       id: "opp-1",
       title: "子ども支援活動",
-      description: null,
-      activity_style_tags: null,
-      required_qualifications: null,
-      min_age: null,
-      max_age: null,
       status: "published",
-      created_at: "2026-01-01T00:00:00Z",
       m_organization_profile: {
         id: "org-2",
         organization_name: "支援団体A",
