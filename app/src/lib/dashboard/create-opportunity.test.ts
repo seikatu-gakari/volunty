@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { CreateOpportunityResult } from "./types";
 
 vi.mock("server-only", () => ({}));
@@ -73,6 +73,12 @@ describe("createOpportunity", () => {
       data: { user: { id: "org-123", email: "org@example.com" } },
       error: null,
     });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-01T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -179,6 +185,32 @@ describe("createOpportunity", () => {
         published_at: "2026-08-01T01:00:00.000Z",
       })
     );
+  });
+
+  it("過去の公開予約日時では作成せず、フィールドエラーを返す", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+
+    const result: CreateOpportunityResult = await createOpportunity(
+      buildFormData({
+        title: "過去日時の案件",
+        description: "作成されません",
+        publishMode: "scheduled",
+        publishedAt: "2026-06-30T10:00",
+      })
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: "公開予約日時は現在より後の日時を指定してください",
+      fieldErrors: {
+        publishedAt: "公開予約日時は現在より後の日時を指定してください",
+      },
+    });
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("Supabase REST経由の作成時に必須タイムスタンプを明示する", async () => {

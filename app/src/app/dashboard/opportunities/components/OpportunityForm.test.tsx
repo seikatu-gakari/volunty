@@ -220,7 +220,7 @@ describe("OpportunityForm の入力検証", () => {
       .closest("form") as HTMLFormElement;
     fireEvent.submit(form);
 
-    const publishedAt = screen.getByLabelText("公開日時") as HTMLInputElement;
+    const publishedAt = screen.getByLabelText("公開日時（日本時間）") as HTMLInputElement;
     await waitFor(() => {
       expect(
         screen.getByText("公開予約日時を確認してください", { exact: true })
@@ -229,7 +229,7 @@ describe("OpportunityForm の入力検証", () => {
     });
     expect(publishedAt.getAttribute("aria-invalid")).toBe("true");
     expect(publishedAt.getAttribute("aria-describedby")).toBe(
-      "opportunity-publishedAt-error"
+      "publishedAt-help opportunity-publishedAt-error"
     );
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });

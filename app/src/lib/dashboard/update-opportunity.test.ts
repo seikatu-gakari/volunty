@@ -466,6 +466,35 @@ describe("updateOpportunity", () => {
     );
   });
 
+  it("明示的な公開予約が過去の場合は更新せずフィールドエラーを返す", async () => {
+    const result = await updateOpportunity("opp-1", validFields({
+      publishMode: "scheduled", publishedAt: "2026-09-06T11:59",
+    }));
+    expect(result).toEqual({
+      success: false,
+      error: "公開予約日時は現在より後の日時を指定してください",
+      fieldErrors: { publishedAt: "公開予約日時は現在より後の日時を指定してください" },
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("現在状態の取得中に予約時刻へ到達した場合も更新しない", async () => {
+    mockOpportunitySingle.mockImplementation(() => {
+      vi.setSystemTime(new Date("2026-09-06T03:01:00.000Z"));
+      return { data: { status: "draft", published_at: null }, error: null };
+    });
+    const result = await updateOpportunity("opp-1", validFields({
+      publishMode: "scheduled", publishedAt: "2026-09-06T12:01",
+    }));
+    expect(result).toEqual({
+      success: false,
+      error: "公開予約日時は現在より後の日時を指定してください",
+      fieldErrors: { publishedAt: "公開予約日時は現在より後の日時を指定してください" },
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
   it("publishMode と status の不一致は保存しない", async () => {
     setReadyForUpdate("draft", null);
 
@@ -478,7 +507,7 @@ describe("updateOpportunity", () => {
       success: false,
       error: "案件ステータスと公開方法の指定が一致しません",
     });
-    expect(mockProfileSingle).not.toHaveBeenCalled();
+    expect(mockOpportunitySingle).toHaveBeenCalledTimes(1);
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 

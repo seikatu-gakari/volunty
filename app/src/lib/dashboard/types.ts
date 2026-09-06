@@ -48,6 +48,9 @@ export interface DashboardData {
 export interface CreateOpportunityResult {
   success: boolean;
   error?: string;
+  fieldErrors?: {
+    publishedAt?: string;
+  };
 }
 
 /** 編集用の案件データ（フォームプリフィル用） */
@@ -95,6 +98,9 @@ export interface OpportunityEditResult {
 export interface UpdateOpportunityResult {
   success: boolean;
   error?: string;
+  fieldErrors?: {
+    publishedAt?: string;
+  };
 }
 
 /** 応募ステータス */

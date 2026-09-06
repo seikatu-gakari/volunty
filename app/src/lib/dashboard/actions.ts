@@ -35,6 +35,7 @@ import {
   isValidParticipationMode,
   type ParticipationMode,
 } from "@/lib/opportunities/constants";
+import { parseScheduledPublication } from "@/lib/opportunities/scheduled-publication";
 import {
   resolvePublicationState,
   type OpportunityPublicationState,
@@ -300,8 +301,10 @@ function parseOpportunityExtraFields(
 
 function parsePublishFields(
   formData: FormData,
-  nowIso: string
-): { data: { status: OpportunityStatus; published_at: string | null } } | { error: string } {
+  now: Date,
+):
+  | { data: { status: OpportunityStatus; published_at: string | null } }
+  | { error: string; fieldErrors?: { publishedAt?: string } } {
   const rawPublishMode = formData.get("publishMode");
   const publishMode =
     rawPublishMode === null
@@ -321,25 +324,25 @@ function parsePublishFields(
   }
 
   if (publishMode === "scheduled") {
-    const rawPublishedAt = formData.get("publishedAt");
-    const publishedAt =
-      typeof rawPublishedAt === "string" ? rawPublishedAt.trim() : "";
-    if (!publishedAt) {
-      return { error: "公開予約日時を入力してください" };
-    }
-    const scheduledAt = new Date(publishedAt);
-    if (Number.isNaN(scheduledAt.getTime())) {
-      return { error: "公開予約日時の形式が正しくありません" };
+    const scheduledPublication = parseScheduledPublication(
+      formData.get("publishedAt"),
+      now,
+    );
+    if (!scheduledPublication.success) {
+      return {
+        error: scheduledPublication.error,
+        fieldErrors: { publishedAt: scheduledPublication.error },
+      };
     }
     return {
       data: {
         status: "published",
-        published_at: scheduledAt.toISOString(),
+        published_at: scheduledPublication.publishedAt,
       },
     };
   }
 
-  return { data: { status: "published", published_at: nowIso } };
+  return { data: { status: "published", published_at: now.toISOString() } };
 }
 
 function parseOpportunityStatusField(
@@ -360,7 +363,7 @@ function parseOpportunityStatusField(
 function parseUpdatePublicationFields(
   formData: FormData,
   now: Date
-): { data: { operation: PublicationOperation | null } } | { error: string } {
+): { data: { operation: PublicationOperation | null } } | { error: string; fieldErrors?: { publishedAt?: string } } {
   const statusResult = parseOpportunityStatusField(formData);
   if ("error" in statusResult) return statusResult;
 
@@ -374,7 +377,7 @@ function parseUpdatePublicationFields(
     };
   }
 
-  const publish = parsePublishFields(formData, now.toISOString());
+  const publish = parsePublishFields(formData, now);
   if ("error" in publish) return publish;
 
   const rawPublishMode = formData.get("publishMode");
@@ -494,12 +497,6 @@ export async function createOpportunity(
     return { success: false, error: extra.error };
   }
 
-  const now = new Date().toISOString();
-  const publish = parsePublishFields(formData, now);
-  if ("error" in publish) {
-    return { success: false, error: publish.error };
-  }
-
   try {
     // 団体プロフィールIDを取得
     const { data: orgProfile, error: profileError } = await supabase
@@ -512,6 +509,18 @@ export async function createOpportunity(
       return { success: false, error: "団体プロフィールが見つかりません" };
     }
 
+    // 認証・所有確認の後、DB書き込み直前の時刻で公開予約を検証する。
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const publish = parsePublishFields(formData, now);
+    if ("error" in publish) {
+      return {
+        success: false,
+        error: publish.error,
+        fieldErrors: publish.fieldErrors,
+      };
+    }
+
     // Supabase REST経由ではPrismaの @updatedAt が適用されないため明示する。
     const { error: insertError } = await supabase
       .from("m_opportunity")
@@ -522,8 +531,8 @@ export async function createOpportunity(
         ...matching.data,
         status: publish.data.status,
         published_at: publish.data.published_at,
-        created_at: now,
-        updated_at: now,
+        created_at: nowIso,
+        updated_at: nowIso,
         ...extra.data,
       });
 
@@ -769,12 +778,6 @@ export async function updateOpportunity(
     return { success: false, error: extra.error };
   }
 
-  const now = new Date();
-  const publication = parseUpdatePublicationFields(formData, now);
-  if ("error" in publication) {
-    return { success: false, error: publication.error };
-  }
-
   try {
     // 団体プロフィールIDを取得
     const { data: orgProfile, error: profileError } = await supabase
@@ -811,6 +814,17 @@ export async function updateOpportunity(
     const currentPublication = parseCurrentPublicationState(currentOpportunity);
     if (!currentPublication) {
       return { success: false, error: "案件の更新に失敗しました" };
+    }
+
+    // 現在状態の取得後、DB書き込み直前の時刻で明示的な公開予約を検証する。
+    const now = new Date();
+    const publication = parseUpdatePublicationFields(formData, now);
+    if ("error" in publication) {
+      return {
+        success: false,
+        error: publication.error,
+        ...(publication.fieldErrors ? { fieldErrors: publication.fieldErrors } : {}),
+      };
     }
 
     const updateData: Record<string, unknown> = {

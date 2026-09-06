@@ -34,6 +34,8 @@ import { ACTIVITY_STYLE_TAGS } from "@/lib/recommendations/activity-style-tags";
 
 /** 選択できる活動スタイルタグの上限 */
 const MAX_ACTIVITY_STYLE_TAGS = 3;
+const JST_OFFSET_MILLISECONDS = 9 * 60 * 60 * 1000;
+const PUBLISHED_AT_HELP_ID = "publishedAt-help";
 
 /** ブラウザ検証とサーバー検証で共通して扱うフィールド名 */
 export type ValidationField =
@@ -203,6 +205,23 @@ function getDescribedBy(
   return ids.length > 0 ? ids.join(" ") : undefined;
 }
 
+function formatJstDateTimeLocal(date: Date): string {
+  const year = String(date.getUTCFullYear()).padStart(4, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hour = String(date.getUTCHours()).padStart(2, "0");
+  const minute = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+/** 現在時刻より後になる最初の1分をJSTのdatetime-local値にする。 */
+function getNextJstMinuteValue(nowMs = Date.now()): string {
+  const nextMinuteMs = Math.floor(nowMs / 60_000) * 60_000 + 60_000;
+  return formatJstDateTimeLocal(
+    new Date(nextMinuteMs + JST_OFFSET_MILLISECONDS),
+  );
+}
+
 /** フォームの初期値 */
 export interface OpportunityFormData {
   title: string;
@@ -278,9 +297,22 @@ export function OpportunityForm({
     initialData?.status === "draft" ? "draft" : "published"
   );
 
+  const [publishedAtMin, setPublishedAtMin] = useState<string>();
+
+  useEffect(() => {
+    if (publishMode !== "scheduled") return;
+    // SSRとクライアントで異なる現在時刻を初期HTMLへ描画しない。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPublishedAtMin(getNextJstMinuteValue());
+  }, [publishMode]);
+
   const handlePublishModeChange = (value: PublishMode) => {
     setPublishMode(value);
-    if (value === "scheduled") return;
+    setError(null);
+    if (value === "scheduled") {
+      setPublishedAtMin(getNextJstMinuteValue());
+      return;
+    }
 
     if (pendingFocusRef.current === "publishedAt") {
       pendingFocusRef.current = null;
@@ -785,15 +817,18 @@ export function OpportunityForm({
                   className="scroll-mt-24"
                 >
                   <label className="flex flex-col gap-1">
-                    <span className="text-xs text-text-body">公開日時</span>
+                    <span className="text-xs text-text-body">公開日時（日本時間）</span>
                     <input
                       type="datetime-local"
+                      min={publishedAtMin}
+                      step="60"
+                      onFocus={() => setPublishedAtMin(getNextJstMinuteValue())}
                       name="publishedAt"
                       required
                       className="w-full rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
                       aria-invalid={fieldErrors.publishedAt !== undefined}
                       aria-describedby={getDescribedBy(
-                        undefined,
+                        PUBLISHED_AT_HELP_ID,
                         "publishedAt",
                         fieldErrors.publishedAt !== undefined
                       )}
@@ -809,6 +844,9 @@ export function OpportunityForm({
                       {fieldErrors.publishedAt}
                     </p>
                   )}
+                  <span id={PUBLISHED_AT_HELP_ID} className="text-xs text-text-body">
+                    日本時間（UTC+09:00）で指定してください。指定した時刻以降に公開されます。
+                  </span>
                 </div>
               )}
             </div>
