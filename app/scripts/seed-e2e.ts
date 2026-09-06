@@ -72,6 +72,8 @@ const CERTIFICATE_REJECTED_TITLE = "E2E 却下済み証明書案件";
 const APPROACH_ACCEPT_TITLE = "E2E 承諾対象アプローチ案件";
 const APPROACH_DECLINE_TITLE = "E2E 辞退対象アプローチ案件";
 const APPROACH_EXPIRED_TITLE = "E2E 期限切れアプローチ案件";
+const APPROACH_TEMPLATE_LAYOUT_TITLE =
+  "E2Eテンプレートレイアウト確認用非常に長い募集案件タイトル空白なしテストデータ";
 
 const lifecycleTitles = {
   recommendationHigh: "E2E 団体おすすめ高相性案件",
@@ -172,6 +174,13 @@ async function upsertPublishedOpportunity(
     category: options.category ?? "地域活性化",
     participationMode: options.participationMode ?? ("offline" as const),
     currentApplicants: options.currentApplicants ?? 0,
+    schedule: "毎週土曜日 10:00〜12:00",
+    cost: "無料（交通費は自己負担）",
+    belongings: "飲み物、動きやすい服装",
+    applicationDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    cancellationPolicy: "前日までにVolunty内でご連絡ください。",
+    insuranceDetails: "主催団体が行事保険へ加入します。",
+    contactMethod: "応募後にVolunty内でご案内します。",
     status: "published" as const,
     publishedAt: new Date(),
   };
@@ -1248,7 +1257,7 @@ export async function seedE2eUsers(): Promise<void> {
     },
   });
 
-  await prisma.organizationProfile.upsert({
+  const secondaryOrganization = await prisma.organizationProfile.upsert({
     where: { userId: orgSecondaryId },
     update: {
       organizationName: "E2E別所有者団体",
@@ -1267,6 +1276,15 @@ export async function seedE2eUsers(): Promise<void> {
       activityAreas: ["千葉県"],
       activityCategories: ["教育"],
     },
+  });
+
+  await upsertPublishedOpportunity(
+    secondaryOrganization.id,
+    APPROACH_TEMPLATE_LAYOUT_TITLE,
+    "テンプレート欄の狭幅レイアウトを確認するE2E固定案件です。"
+  );
+  await prisma.messageTemplate.deleteMany({
+    where: { organizationId: secondaryOrganization.id },
   });
 
   await prisma.user.update({

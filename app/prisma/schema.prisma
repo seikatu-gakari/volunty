@@ -250,10 +250,17 @@ model Opportunity {
   location               String?            @db.VarChar(255)
   startDate              DateTime?          @map("start_date") @db.Date
   endDate                DateTime?          @map("end_date") @db.Date
+  schedule               String?            @db.Text
   capacity               Int?
   category               String?            @db.VarChar(50) // カテゴリ
   participationMode      ParticipationMode? @map("participation_mode") // 参加形態
   currentApplicants      Int                @default(0) @map("current_applicants")
+  cost                   String?            @db.Text
+  belongings             String?            @db.Text
+  applicationDeadline    DateTime?          @map("application_deadline") @db.Date
+  cancellationPolicy     String?            @map("cancellation_policy") @db.Text
+  insuranceDetails       String?            @map("insurance_details") @db.Text
+  contactMethod          String?            @map("contact_method") @db.Text
   status                 OpportunityStatus  @default(draft)
   publishedAt            DateTime?          @map("published_at")
   createdAt              DateTime           @default(now()) @map("created_at")

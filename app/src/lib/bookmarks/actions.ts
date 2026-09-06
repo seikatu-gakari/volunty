@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
 export interface BookmarkMutationResult {
   success: boolean;
@@ -18,6 +19,12 @@ export interface BookmarkItem {
 export interface BookmarksResult {
   bookmarks: BookmarkItem[];
   error?: string;
+}
+
+function revalidateBookmarkPaths(opportunityId: string) {
+  revalidatePath("/opportunities");
+  revalidatePath(`/opportunities/${opportunityId}`);
+  revalidatePath("/mypage/bookmarks");
 }
 
 async function getParticipantUserId(): Promise<{ userId: string } | { error: string }> {
@@ -69,7 +76,10 @@ export async function addBookmark(
       },
       select: { id: true },
     });
-    if (existing) return { success: true };
+    if (existing) {
+      revalidateBookmarkPaths(opportunityId);
+      return { success: true };
+    }
 
     await prisma.engagementEvent.create({
       data: {
@@ -80,6 +90,8 @@ export async function addBookmark(
       },
       select: { id: true },
     });
+
+    revalidateBookmarkPaths(opportunityId);
 
     return { success: true };
   } catch (err) {
@@ -102,6 +114,8 @@ export async function removeBookmark(
         event: "favorite",
       },
     });
+
+    revalidateBookmarkPaths(opportunityId);
 
     return { success: true };
   } catch (err) {

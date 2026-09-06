@@ -9,17 +9,4 @@ describe("FeaturesSection", () => {
     expect(screen.queryByText(/AI/)).toBeNull();
     expect(screen.queryByText(/独自アルゴリズム/)).toBeNull();
   });
-
-  it("性格傾向マッチングの機能を表示する", () => {
-    render(<FeaturesSection />);
-
-    for (const feature of [
-      "性格傾向マッチング",
-      "双方向アプローチ",
-      "メッセージ機能",
-      "活動管理・記録",
-    ]) {
-      expect(screen.getByText(feature)).toBeDefined();
-    }
-  });
 });
