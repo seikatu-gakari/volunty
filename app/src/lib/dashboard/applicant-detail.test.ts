@@ -35,6 +35,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { fetchApplicantDetail } = await import("./actions");
+const { fetchApplicantDetailQuery } = await import("./queries");
 
 const organizationProfile = {
   id: "organization-profile-1",
@@ -63,7 +64,14 @@ const ownedApplication = {
   },
 };
 
-describe("fetchApplicantDetail", () => {
+describe.each([
+  { name: "fetchApplicantDetail", fetchDetail: fetchApplicantDetail },
+  {
+    name: "fetchApplicantDetailQuery",
+    fetchDetail: (applicationId: string) =>
+      fetchApplicantDetailQuery("organization-user-1", applicationId),
+  },
+])("$name", ({ name, fetchDetail: fetchApplicantDetail }) => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -82,7 +90,7 @@ describe("fetchApplicantDetail", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it("未認証の場合はエラーを返す", async () => {
+  it.skipIf(name === "fetchApplicantDetailQuery")("未認証の場合はエラーを返す", async () => {
     mockGetUser.mockReturnValue({
       data: { user: null },
       error: { message: "Not authenticated" },
@@ -241,7 +249,7 @@ describe("fetchApplicantDetail", () => {
     });
   });
 
-  it.each(["applied", "declined"])(
+  it.each(["queued", "applied", "declined", "completed"])(
     "%s の応募では応募者LINE IDを返さない",
     async (status) => {
       mockFindOwnedApplication.mockResolvedValue({
@@ -255,6 +263,18 @@ describe("fetchApplicantDetail", () => {
       expect(mockFindParticipantProfile).not.toHaveBeenCalled();
     }
   );
+
+  it("承認済みでも参加者プロフィールがない場合はLINE IDをnullで返す", async () => {
+    mockFindOwnedApplication.mockResolvedValue({
+      ...ownedApplication,
+      status: "accepted",
+    });
+    mockFindParticipantProfile.mockResolvedValue(null);
+
+    const result = await fetchApplicantDetail("application-1");
+
+    expect(result.data?.participant_line_id).toBeNull();
+  });
 
   it("完了済み応募の日付をミリ秒なしの既存形式で返す", async () => {
     mockFindOwnedApplication.mockResolvedValue({
