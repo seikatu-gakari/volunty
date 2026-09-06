@@ -1,6 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
-import { lpAssets } from "./lpAssets";
+import { BrandLogo } from "@/app/components/BrandLogo";
 
 const LINK_GROUPS = [
   {
@@ -25,15 +24,8 @@ export function LPFooter() {
     <footer className="mt-20 border-t border-card-border py-12">
       <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]">
         <div>
-          <Link href="/" className="inline-flex items-center gap-3" aria-label="ボランティ">
-            <Image
-              src={lpAssets.brandMark.src}
-              alt={lpAssets.brandMark.alt}
-              width={lpAssets.brandMark.width}
-              height={lpAssets.brandMark.height}
-              className="size-11 object-contain"
-            />
-            <span className="text-xl font-black tracking-tight text-text-dark">ボランティ</span>
+          <Link href="/" className="inline-flex" aria-label="ボランティ ホーム">
+            <BrandLogo />
           </Link>
           <p className="mt-4 text-sm leading-7 text-text-body">
             つながる、みつかる、変わっていく。<br />

@@ -8,7 +8,6 @@ import {
   Unlock,
   Pencil,
   BadgeCheck,
-  BarChart3,
   AlertTriangle,
   CircleDashed,
   Building2,
@@ -21,6 +20,7 @@ import {
 import { redirect } from "next/navigation";
 import { Header } from "@/app/components/Header";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import DashboardAnalytics from "@/app/dashboard/components/DashboardAnalytics";
 import { getViewerContext } from "@/lib/auth/viewer-context";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -79,10 +79,6 @@ function reviewStatusDisplay(status: "pending" | "approved" | "rejected") {
         description: "審査完了まで一部機能は利用できません。",
       };
   }
-}
-
-function shortAnalyticsTitle(title: string): string {
-  return title.length > 10 ? `${title.slice(0, 10)}...` : title;
 }
 
 export default async function DashboardPage() {
@@ -160,14 +156,6 @@ export default async function DashboardPage() {
     fetchDashboardAnalyticsQuery(viewer.identity.id),
   ]);
   const reviewDisplay = reviewStatusDisplay(organizationProfile.reviewStatus);
-  const totalViews = analytics.opportunities.reduce(
-    (sum, item) => sum + item.viewCount,
-    0
-  );
-  const totalApplications = analytics.opportunities.reduce(
-    (sum, item) => sum + item.applicationCount,
-    0
-  );
 
   return (
     <div className="min-h-screen bg-background font-sans">
@@ -279,79 +267,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
-                <BarChart3 className="size-5 text-primary" />
-              </div>
-              <h2 className="text-lg font-bold text-text-dark">分析</h2>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-4">
-              <div className="rounded-lg bg-background px-4 py-3">
-                <p className="text-xs text-text-body">閲覧数</p>
-                <p className="mt-1 text-2xl font-bold text-text-dark">
-                  {totalViews}
-                </p>
-              </div>
-              <div className="rounded-lg bg-background px-4 py-3">
-                <p className="text-xs text-text-body">応募数</p>
-                <p className="mt-1 text-2xl font-bold text-text-dark">
-                  {totalApplications}
-                </p>
-              </div>
-              <div className="rounded-lg bg-background px-4 py-3">
-                <p className="text-xs text-text-body">承認率</p>
-                <p className="mt-1 text-2xl font-bold text-text-dark">
-                  {analytics.opportunities.length > 0
-                    ? `${Math.round(
-                        analytics.opportunities.reduce(
-                          (sum, item) => sum + item.approvalRate,
-                          0
-                        ) / analytics.opportunities.length
-                      )}%`
-                    : "0%"}
-                </p>
-              </div>
-              <div className="rounded-lg bg-background px-4 py-3">
-                <p className="text-xs text-text-body">アプローチ承諾率</p>
-                <p className="mt-1 text-2xl font-bold text-text-dark">
-                  {analytics.approaches.acceptanceRate}%
-                </p>
-              </div>
-            </div>
-            {analytics.opportunities.length > 0 && (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="text-xs text-text-body">
-                    <tr>
-                      <th className="py-2 pr-3 font-medium">案件</th>
-                      <th className="py-2 pr-3 font-medium">閲覧</th>
-                      <th className="py-2 pr-3 font-medium">応募</th>
-                      <th className="py-2 pr-3 font-medium">承認率</th>
-                      <th className="py-2 pr-3 font-medium">完了</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analytics.opportunities.slice(0, 5).map((item) => (
-                      <tr key={item.opportunityId} className="border-t border-card-border">
-                        <td className="py-2 pr-3 font-medium text-text-dark">
-                          {shortAnalyticsTitle(item.title)}
-                        </td>
-                        <td className="py-2 pr-3 text-text-body">{item.viewCount}</td>
-                        <td className="py-2 pr-3 text-text-body">{item.applicationCount}</td>
-                        <td className="py-2 pr-3 text-text-body">{item.approvalRate}%</td>
-                        <td className="py-2 pr-3 text-text-body">{item.completedCount}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <DashboardAnalytics analytics={analytics} />
 
         {/* 案件一覧セクション */}
         <Card>
@@ -403,6 +319,13 @@ export default async function DashboardPage() {
                           >
                             <Copy className="size-3.5" />
                             複製
+                          </Link>
+                          <Link
+                            href={`/dashboard/opportunities/${opp.id}/edit`}
+                            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                          >
+                            <Pencil className="size-3.5" />
+                            編集
                           </Link>
                         </div>
                       </div>

@@ -71,9 +71,31 @@ export function buildOpportunityDetailHref(
   }`;
 }
 
+/** 公開詳細の応募導線で、ログイン後に同じ詳細URLへ復帰する。 */
+export function buildOpportunityLoginHref(
+  opportunityId: string,
+  params?: OpportunitySearchParams & { from?: string | string[]; rlog?: string | string[] }
+): string {
+  const query = new URLSearchParams();
+  const from = pick(params?.from);
+  const rlog = pick(params?.rlog);
+  if (from) query.set("from", from);
+  if (getOpportunityViewSource(params?.from) === "search") {
+    new URLSearchParams(serializeSearchFilters(params)).forEach((value, key) => {
+      query.set(key, value);
+    });
+  }
+  if (rlog) query.set("rlog", rlog);
+  const detailPath = `/opportunities/${encodeURIComponent(opportunityId)}${
+    query.size > 0 ? `?${query.toString()}` : ""
+  }`;
+  return `/login?next=${encodeURIComponent(detailPath)}`;
+}
+
 export function getOpportunityBackLink(
   viewSource: OpportunityViewSource,
-  params?: OpportunitySearchParams
+  params?: OpportunitySearchParams,
+  isGuest = false
 ): { href: string; label: string } {
   if (viewSource === "search") {
     const filters = serializeSearchFilters(params);
@@ -81,6 +103,10 @@ export function getOpportunityBackLink(
       href: `/opportunities${filters ? `?${filters}` : ""}`,
       label: "案件検索結果に戻る",
     };
+  }
+
+  if (isGuest && viewSource === "direct") {
+    return { href: "/opportunities", label: "募集一覧に戻る" };
   }
 
   return {

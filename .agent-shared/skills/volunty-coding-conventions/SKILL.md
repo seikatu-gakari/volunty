@@ -1,6 +1,6 @@
 ---
 name: volunty-coding-conventions
-description: 'Use when: Volunty の実装規約、型安全、use client、インポート、状態管理、Tailwind、テスト、ファイル配置ルールを確認する必要がある。'
+description: "Voluntyのコードを追加・変更し、型・状態管理・スタイリング規約を確認するときに使う。"
 argument-hint: '例: 実装規約を確認 / 新しいコンポーネントを書く / テスト配置を確認'
 ---
 
@@ -21,6 +21,6 @@ argument-hint: '例: 実装規約を確認 / 新しいコンポーネントを�
 
 - 既存パターンに合わせ、不要なリファクタリングや再フォーマットを避ける。
 - 公開 API や型を変更する場合は影響範囲を確認する。
-- ドメインロジックを追加・変更した場合はテストを追加または更新する。
-- 新機能実装前に `docs/` の該当設計書を確認する（参照先は [volunty-document-map](../volunty-document-map/SKILL.md)）。
+- ドメインロジックの追加・変更では既存テストのassertを確認し、不足する振る舞いだけ追加・更新する。
+- 新機能の仕様・設計判断に必要な該当設計書を確認する。場所が不明なら [volunty-document-map](../volunty-document-map/SKILL.md) を使う。
 - Supabase 認証は `app/src/lib/supabase/` のラッパー経由で扱い、SDK を直接呼び出さない。

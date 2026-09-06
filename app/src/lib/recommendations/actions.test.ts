@@ -157,6 +157,44 @@ describe("fetchRecommendations", () => {
     expect(result.recommendations).toHaveLength(1)
   })
 
+  it("公開日時がNULLまたは未来の案件は推薦と表示ログから除外する", async () => {
+    const now = new Date()
+    mockFindOpportunities.mockResolvedValue([
+      createOpportunity({ id: "past", publishedAt: new Date(now.getTime() - 1000) }),
+      createOpportunity({ id: "null", publishedAt: null }),
+      createOpportunity({ id: "future", publishedAt: new Date(now.getTime() + 60_000) }),
+    ])
+
+    const result = await fetchRecommendations("user-1")
+
+    expect(result.recommendations.map((recommendation) => recommendation.id)).toEqual([
+      "past",
+    ])
+    const callback = mockAfter.mock.calls[0]?.[0] as (() => Promise<void>) | undefined
+    await callback?.()
+    const createManyInput = mockRecommendationLogCreateMany.mock.calls[0]?.[0] as {
+      data: Array<{ opportunityId: string }>
+    }
+    expect(createManyInput.data).toEqual([
+      expect.objectContaining({ opportunityId: "past" }),
+    ])
+  })
+
+  it("公開案件の取得条件にNULL除外と公開日時の上限を含める", async () => {
+    mockFindOpportunities.mockResolvedValue([])
+
+    await fetchRecommendations("user-1")
+
+    expect(mockFindOpportunities).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: "published",
+          publishedAt: { not: null, lte: expect.any(Date) },
+        },
+      }),
+    )
+  })
+
   it("興味分野に一致する案件が上位になり、推薦理由が付く", async () => {
     mockFindOpportunities.mockResolvedValue([
       createOpportunity({ id: "other", category: "子ども支援" }),

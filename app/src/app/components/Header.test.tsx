@@ -7,11 +7,12 @@ const mocks = vi.hoisted(() => ({ getViewerContext: vi.fn() }));
 vi.mock("server-only", () => ({}));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, className }: {
+  default: ({ children, href, className, "aria-label": ariaLabel }: {
     children: ReactNode;
     href: string;
     className?: string;
-  }) => <a href={href} className={className}>{children}</a>,
+    "aria-label"?: string;
+  }) => <a href={href} className={className} aria-label={ariaLabel}>{children}</a>,
 }));
 
 vi.mock("@/lib/auth/viewer-context", () => ({
@@ -46,7 +47,7 @@ describe("Header", () => {
     render(await Header({ variant: "landing" }));
 
     expect(screen.getByRole("link", { name: "使い方" }).getAttribute("href")).toBe("#usage");
-    expect(screen.getByText("あなたにぴったりの活動を見つけよう").className).toContain("block");
+    expect(screen.getByRole("link", { name: "ボランティ ホーム" }).getAttribute("href")).toBe("/");
     expect(screen.queryByText("認証済みナビゲーション")).toBeNull();
   });
 

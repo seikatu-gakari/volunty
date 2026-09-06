@@ -130,7 +130,11 @@ describe("fetchRecommendedParticipants", () => {
       },
     });
     expect(mockFindOpportunities).toHaveBeenCalledWith({
-      where: { organizationId: "org-profile-1", status: "published" },
+      where: {
+        organizationId: "org-profile-1",
+        status: "published",
+        publishedAt: { not: null, lte: expect.any(Date) },
+      },
       select: { id: true, activityStyleTags: true, title: true },
     });
     expect(mockFindParticipants).toHaveBeenCalledWith({

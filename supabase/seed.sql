@@ -105,7 +105,11 @@ DROP POLICY IF EXISTS "公開済み案件は全員閲覧可能"
 CREATE POLICY "公開済み案件は全員閲覧可能"
   ON public.m_opportunity FOR SELECT
   TO anon, authenticated
-  USING (status = 'published'::public.opportunity_status);
+  USING (
+    status = 'published'::public.opportunity_status
+    AND published_at IS NOT NULL
+    AND published_at <= now()
+  );
 
 DROP POLICY IF EXISTS "団体は自分の案件を閲覧可能"
   ON public.m_opportunity;

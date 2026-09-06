@@ -48,6 +48,9 @@ export interface DashboardData {
 export interface CreateOpportunityResult {
   success: boolean;
   error?: string;
+  fieldErrors?: {
+    publishedAt?: string;
+  };
 }
 
 /** 編集用の案件データ（フォームプリフィル用） */
@@ -70,12 +73,19 @@ export interface OpportunityEditData {
   start_date: string | null;
   /** 終了日（YYYY-MM-DD） */
   end_date: string | null;
+  schedule: string | null;
   /** 定員 */
   capacity: number | null;
   /** カテゴリ */
   category: string | null;
   /** 参加形態 */
   participation_mode: ParticipationMode | null;
+  cost: string | null;
+  belongings: string | null;
+  application_deadline: string | null;
+  cancellation_policy: string | null;
+  insurance_details: string | null;
+  contact_method: string | null;
 }
 
 /** fetchOpportunityForEdit の戻り値 */
@@ -88,6 +98,9 @@ export interface OpportunityEditResult {
 export interface UpdateOpportunityResult {
   success: boolean;
   error?: string;
+  fieldErrors?: {
+    publishedAt?: string;
+  };
 }
 
 /** 応募ステータス */
@@ -202,11 +215,16 @@ export interface ApproachAnalytics {
   pendingCount: number;
 }
 
-export interface DashboardAnalyticsResult {
-  opportunities: OpportunityAnalytics[];
-  approaches: ApproachAnalytics;
-  error?: string;
-}
+export type DashboardAnalyticsResult =
+  | {
+      success: true;
+      opportunities: OpportunityAnalytics[];
+      approaches: ApproachAnalytics;
+    }
+  | {
+      success: false;
+      error: string;
+    };
 
 /** 応募者詳細情報（生の診断スコアは団体へ開示しない） */
 export interface ApplicantDetail {

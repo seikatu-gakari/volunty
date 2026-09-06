@@ -1,6 +1,6 @@
 ---
 name: volunty-document-map
-description: 'Use when: Volunty の設計書、仕様書、品質資料、用語表、MVP計画、ドキュメント参照先を探す必要がある。'
+description: "Voluntyの関連設計書・仕様書・用語表の参照先を探すときに使う。"
 argument-hint: '例: 設計書を探す / DB設計を確認 / MVP計画を確認 / 用語表を確認'
 ---
 

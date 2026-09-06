@@ -71,7 +71,7 @@ describe.each([
     fetchDetail: (applicationId: string) =>
       fetchApplicantDetailQuery("organization-user-1", applicationId),
   },
-])("$name", ({ name, fetchDetail: fetchApplicantDetail }) => {
+])("$name", ({ fetchDetail: fetchApplicantDetail }) => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -88,19 +88,6 @@ describe.each([
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
-  });
-
-  it.skipIf(name === "fetchApplicantDetailQuery")("未認証の場合はエラーを返す", async () => {
-    mockGetUser.mockReturnValue({
-      data: { user: null },
-      error: { message: "Not authenticated" },
-    });
-
-    const result: ApplicantDetailResult =
-      await fetchApplicantDetail("application-1");
-
-    expect(result).toEqual({ data: null, error: "ログインが必要です" });
-    expect(mockFindOrganizationProfile).not.toHaveBeenCalled();
   });
 
   it("団体プロフィールがない場合はエラーを返す", async () => {
@@ -173,6 +160,9 @@ describe.each([
         })
       );
       expect(mockFindParticipantProfile).not.toHaveBeenCalled();
+      expect(mockFindOwnedApplication.mock.calls[0]?.[0]).not.toHaveProperty(
+        "select.participant.select.participantProfile.select.lineId"
+      );
     }
   );
 
@@ -243,6 +233,7 @@ describe.each([
     const result = await fetchApplicantDetail("application-1");
 
     expect(result.data?.participant_line_id).toBe("participant-line-id");
+    expect(mockFindParticipantProfile).toHaveBeenCalledTimes(1);
     expect(mockFindParticipantProfile).toHaveBeenCalledWith({
       where: { userId: "participant-1" },
       select: { lineId: true },
@@ -343,4 +334,22 @@ describe.each([
       error: "予期しないエラーが発生しました",
     });
   });
+});
+
+
+describe("fetchApplicantDetail の認証", () => {
+  it("未認証の場合はエラーを返す", async () => {
+    vi.clearAllMocks();
+    mockGetUser.mockReturnValue({
+      data: { user: null },
+      error: { message: "Not authenticated" },
+    });
+
+    const result: ApplicantDetailResult =
+      await fetchApplicantDetail("application-1");
+
+    expect(result).toEqual({ data: null, error: "ログインが必要です" });
+    expect(mockFindOrganizationProfile).not.toHaveBeenCalled();
+  });
+
 });

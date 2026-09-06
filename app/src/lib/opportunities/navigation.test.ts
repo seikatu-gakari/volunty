@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOpportunityDetailHref,
+  buildOpportunityLoginHref,
   getOpportunityBackLink,
   getOpportunityViewSource,
   normalizeOpportunitySearchFilters,
@@ -89,5 +90,36 @@ describe("案件詳細のナビゲーション", () => {
       expected
     );
     expect(getOpportunityBackLink("direct", searchParams)).toEqual(expected);
+  });
+});
+
+
+describe("公開詳細からのログイン復帰", () => {
+  it("6検索条件と検索元を同じ詳細への復帰URLに保持する", () => {
+    const params = {
+      from: "search", q: "子ども & 学習?", category: "子ども支援",
+      region: "新宿区", participationMode: "online", schedule: "weekend", beginner: "true",
+    };
+    const login = new URL(buildOpportunityLoginHref("opp-1", params), "https://volunty.jp");
+    const next = new URL(login.searchParams.get("next")!, login.origin);
+    expect(login.pathname).toBe("/login");
+    expect(next.pathname).toBe("/opportunities/opp-1");
+    expect(Object.fromEntries(next.searchParams)).toEqual(params);
+  });
+
+  it("推薦ログIDは先頭値を復帰先へ引き継ぐ", () => {
+    const login = new URL(buildOpportunityLoginHref("opp-1", {
+      from: ["rec", "search"], rlog: ["log-1", "log-2"],
+    }), "https://volunty.jp");
+    expect(login.searchParams.get("next")).toBe("/opportunities/opp-1?from=rec&rlog=log-1");
+  });
+
+  it("未ログインの直接流入は公開一覧へ戻る", () => {
+    expect(getOpportunityBackLink("direct", undefined, true)).toEqual({
+      href: "/opportunities", label: "募集一覧に戻る",
+    });
+    expect(getOpportunityBackLink("recommendation", undefined, true)).toEqual({
+      href: "/recommendations", label: "おすすめ案件に戻る",
+    });
   });
 });

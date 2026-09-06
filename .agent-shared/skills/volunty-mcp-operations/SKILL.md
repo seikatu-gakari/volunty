@@ -1,6 +1,6 @@
 ---
 name: volunty-mcp-operations
-description: 'Use when: Volunty で MCP 設定、.mcp.json、GitHub MCP 認証情報、GITHUB_MCP_TOKEN の扱いを確認する必要がある。'
+description: "VoluntyのMCP設定や認証情報の取扱いを変更・調査するときに使う。"
 argument-hint: '例: MCP設定を変更 / GitHub MCPトークンの扱い / .mcp.jsonをコミットしてよいか確認'
 ---
 

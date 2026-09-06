@@ -109,15 +109,15 @@ export function ApproachForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      <div className="grid gap-3 rounded-lg border border-card-border bg-background/60 p-4 sm:grid-cols-[1fr_auto]">
-        <label className="flex flex-col gap-2">
+      <div className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-card-border bg-background/60 p-4 sm:grid-cols-2">
+        <label className="flex min-w-0 flex-col gap-2">
           <span className="text-sm font-medium text-text-dark">
             テンプレート
           </span>
           <select
             defaultValue=""
             onChange={(event) => handleTemplateSelect(event.target.value)}
-            className="h-11 rounded-lg border border-input-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary"
+            className="h-11 w-full min-w-0 max-w-full rounded-lg border border-input-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary"
           >
             <option value="">選択しない</option>
             {templates.map((template) => (
@@ -127,34 +127,38 @@ export function ApproachForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-text-dark">
+        <div className="min-w-0">
+          <label
+            htmlFor="approach-template-name"
+            className="mb-2 block text-sm font-medium text-text-dark"
+          >
             保存名
-          </span>
-          <div className="flex gap-2">
+          </label>
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
             <input
+              id="approach-template-name"
               value={templateName}
               onChange={(event) => setTemplateName(event.target.value)}
-              className="h-11 min-w-0 rounded-lg border border-input-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary"
+              className="h-11 w-full min-w-0 rounded-lg border border-input-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary sm:flex-1"
               placeholder="例: 初回案内"
             />
             <button
               type="button"
               onClick={handleSaveTemplate}
               disabled={isSavingTemplate || !message.trim()}
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-card-border bg-white px-3 text-sm font-medium text-text-dark hover:bg-background disabled:opacity-50"
+              className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-card-border bg-white px-3 text-sm font-medium text-text-dark hover:bg-background disabled:opacity-50 sm:w-auto"
             >
               {isSavingTemplate ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-4 shrink-0 animate-spin" />
               ) : (
-                <Save className="size-4" />
+                <Save className="size-4 shrink-0" />
               )}
-              保存
+              <span>保存</span>
             </button>
           </div>
-        </label>
+        </div>
         {templateMessage && (
-          <p className="text-xs text-text-body sm:col-span-2">
+          <p className="min-w-0 break-words text-xs text-text-body sm:col-span-2">
             {templateMessage}
           </p>
         )}
@@ -172,7 +176,7 @@ export function ApproachForm({
           value={opportunityId}
           onChange={(event) => setOpportunityId(event.target.value)}
           disabled={isPending || !firstAvailable}
-          className="h-11 rounded-lg border border-input-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary"
+          className="h-11 w-full min-w-0 max-w-full rounded-lg border border-input-border bg-white px-3 text-sm text-text-dark outline-none transition-colors focus:border-primary"
         >
           {!firstAvailable && (
             <option value="">送信可能な公開中案件がありません</option>
