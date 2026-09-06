@@ -47,7 +47,6 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await page.getByRole("button", { name: "絞り込む" }).click();
 
     const secondQuery = new URLSearchParams({
-      category: "",
       region: "東京都",
       participationMode: "offline",
     }).toString();
