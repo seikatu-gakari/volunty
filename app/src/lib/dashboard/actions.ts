@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import {
+  fetchDashboardAnalyticsQuery,
   fetchMatchingHistoryQuery,
   fetchRecommendedParticipantDetailQuery,
   fetchRecommendedParticipantsQuery,
@@ -1041,14 +1042,6 @@ export async function bulkCompleteApplications(
 }
 
 export async function fetchDashboardAnalytics(): Promise<DashboardAnalyticsResult> {
-  const emptyApproaches = {
-    sentTotal: 0,
-    acceptedCount: 0,
-    acceptanceRate: 0,
-    declinedCount: 0,
-    pendingCount: 0,
-  };
-
   try {
     const supabase = await createClient();
     const {
@@ -1057,111 +1050,13 @@ export async function fetchDashboardAnalytics(): Promise<DashboardAnalyticsResul
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return {
-        opportunities: [],
-        approaches: emptyApproaches,
-        error: "ログインが必要です",
-      };
+      return { success: false, error: "ログインが必要です" };
     }
 
-    const organizationProfile = await fetchApprovedOrganizationProfile(user.id);
-    if ("error" in organizationProfile) {
-      return {
-        opportunities: [],
-        approaches: emptyApproaches,
-        error: organizationProfile.error,
-      };
-    }
-
-    const opportunities = await prisma.opportunity.findMany({
-      where: { organizationId: organizationProfile.id },
-      select: { id: true, title: true },
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-    });
-    const opportunityIds = opportunities.map((opportunity) => opportunity.id);
-
-    const [matchingGroups, viewGroups, approachGroups] = await Promise.all([
-      prisma.matchingCandidate.groupBy({
-        by: ["opportunityId", "status"],
-        where: { opportunityId: { in: opportunityIds } },
-        _count: { _all: true },
-      }),
-      prisma.engagementEvent.groupBy({
-        by: ["opportunityId"],
-        where: {
-          opportunityId: { in: opportunityIds },
-          event: "view",
-        },
-        _count: { _all: true },
-      }),
-      prisma.approach.groupBy({
-        by: ["status"],
-        where: { organizationId: organizationProfile.id },
-        _count: { _all: true },
-      }),
-    ]);
-
-    const matchingByOpportunity = new Map<string, Record<string, number>>();
-    for (const group of matchingGroups) {
-      const current = matchingByOpportunity.get(group.opportunityId) ?? {};
-      current[group.status] = group._count._all;
-      matchingByOpportunity.set(group.opportunityId, current);
-    }
-
-    const viewsByOpportunity = new Map(
-      viewGroups.map((group) => [group.opportunityId, group._count._all])
-    );
-
-    const analytics = opportunities.map((opportunity) => {
-      const counts = matchingByOpportunity.get(opportunity.id) ?? {};
-      const applicationCount = Object.values(counts).reduce(
-        (total, count) => total + count,
-        0
-      );
-      const completedCount = counts.completed ?? 0;
-      const approvedCount = (counts.accepted ?? 0) + completedCount;
-      return {
-        opportunityId: opportunity.id,
-        title: opportunity.title,
-        viewCount: viewsByOpportunity.get(opportunity.id) ?? 0,
-        applicationCount,
-        approvedCount,
-        approvalRate:
-          applicationCount > 0
-            ? Math.round((approvedCount / applicationCount) * 100)
-            : 0,
-        declinedCount: counts.declined ?? 0,
-        completedCount,
-      };
-    });
-
-    const approachCounts = Object.fromEntries(
-      approachGroups.map((group) => [group.status, group._count._all])
-    ) as Record<string, number>;
-    const sentTotal = Object.values(approachCounts).reduce(
-      (total, count) => total + count,
-      0
-    );
-    const acceptedCount = approachCounts.accepted ?? 0;
-
-    return {
-      opportunities: analytics,
-      approaches: {
-        sentTotal,
-        acceptedCount,
-        acceptanceRate:
-          sentTotal > 0 ? Math.round((acceptedCount / sentTotal) * 100) : 0,
-        declinedCount: approachCounts.declined ?? 0,
-        pendingCount: approachCounts.sent ?? 0,
-      },
-    };
-  } catch (err) {
-    console.error("[fetchDashboardAnalytics] 予期しないエラー:", err);
-    return {
-      opportunities: [],
-      approaches: emptyApproaches,
-      error: "予期しないエラーが発生しました",
-    };
+    return fetchDashboardAnalyticsQuery(user.id);
+  } catch {
+    console.error("[fetchDashboardAnalytics] 分析取得の認証処理に失敗しました");
+    return { success: false, error: "予期しないエラーが発生しました" };
   }
 }
 
