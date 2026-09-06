@@ -38,6 +38,26 @@ export async function assertParticipantBirthdayLayout(
         card = card.parentElement;
       }
 
+      const measureSelectedTextFit = (select: HTMLSelectElement): boolean => {
+        const selectedLabel = select.selectedOptions[0]?.textContent?.trim() ?? "";
+        const style = getComputedStyle(select);
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          throw new Error("選択値の文字幅を計測できません");
+        }
+
+        context.font = style.font || `${style.fontSize} ${style.fontFamily}`;
+        const horizontalPadding =
+          Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+        const nativeArrowSpace = 24;
+        const availableTextWidth =
+          select.clientWidth - horizontalPadding - nativeArrowSpace;
+
+        return context.measureText(selectedLabel).width <= availableTextWidth;
+      };
+
       return {
         documentScrollWidth: document.documentElement.scrollWidth,
         bodyScrollWidth: document.body.scrollWidth,
@@ -49,6 +69,11 @@ export async function assertParticipantBirthdayLayout(
         monthWidth: month.getBoundingClientRect().width,
         dayWidth: day.getBoundingClientRect().width,
         yearGridColumn: getComputedStyle(year).gridColumn,
+        selectedTextFits: [
+          measureSelectedTextFit(year),
+          measureSelectedTextFit(month),
+          measureSelectedTextFit(day),
+        ],
         selectedLabels: [
           year.selectedOptions[0]?.textContent?.trim(),
           month.selectedOptions[0]?.textContent?.trim(),
@@ -64,6 +89,7 @@ export async function assertParticipantBirthdayLayout(
       layout.birthDateGridClientWidth,
     );
     expect(layout.selectedLabels).toEqual(["2000年", "12月", "31日"]);
+    expect(layout.selectedTextFits).toEqual([true, true, true]);
 
     if (width < 640) {
       expect(layout.yearGridColumn).toContain("span 2");
