@@ -56,7 +56,9 @@ async function expectLandingPageContent(page: Page) {
   }
 
   const images = page.locator("main img");
-  expect(await images.count()).toBeGreaterThan(0);
+  for (const sectionId of ["styles", "kadai", "usage", "benefits"]) {
+    await expect(page.locator(`#${sectionId} img`).first()).toBeAttached();
+  }
   await expect(page.getByTestId("lp-hero-photo-frame").locator("img")).toHaveCount(1);
   await expect.poll(() => images.evaluateAll((elements) => elements.every((element) => {
     const image = element as HTMLImageElement;
