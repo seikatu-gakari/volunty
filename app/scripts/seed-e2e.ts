@@ -72,6 +72,8 @@ const CERTIFICATE_REJECTED_TITLE = "E2E 却下済み証明書案件";
 const APPROACH_ACCEPT_TITLE = "E2E 承諾対象アプローチ案件";
 const APPROACH_DECLINE_TITLE = "E2E 辞退対象アプローチ案件";
 const APPROACH_EXPIRED_TITLE = "E2E 期限切れアプローチ案件";
+const APPROACH_TEMPLATE_LAYOUT_TITLE =
+  "E2Eテンプレートレイアウト確認用非常に長い募集案件タイトル空白なしテストデータ";
 
 const lifecycleTitles = {
   recommendationHigh: "E2E 団体おすすめ高相性案件",
@@ -1248,7 +1250,7 @@ export async function seedE2eUsers(): Promise<void> {
     },
   });
 
-  await prisma.organizationProfile.upsert({
+  const secondaryOrganization = await prisma.organizationProfile.upsert({
     where: { userId: orgSecondaryId },
     update: {
       organizationName: "E2E別所有者団体",
@@ -1267,6 +1269,15 @@ export async function seedE2eUsers(): Promise<void> {
       activityAreas: ["千葉県"],
       activityCategories: ["教育"],
     },
+  });
+
+  await upsertPublishedOpportunity(
+    secondaryOrganization.id,
+    APPROACH_TEMPLATE_LAYOUT_TITLE,
+    "テンプレート欄の狭幅レイアウトを確認するE2E固定案件です。"
+  );
+  await prisma.messageTemplate.deleteMany({
+    where: { organizationId: secondaryOrganization.id },
   });
 
   await prisma.user.update({
