@@ -169,12 +169,12 @@ export function ParticipantProfileForm({
               <label className="text-sm font-medium text-text-dark">
                 生年月日 <span className="text-red-500">*</span>
               </label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(7rem,1.4fr)_minmax(5rem,1fr)_minmax(5rem,1fr)]">
                 <select
                   value={birthYear}
                   onChange={(e) => setBirthYear(e.target.value)}
                   required
-                  className={`${selectClass} flex-1`}
+                  className={`${selectClass} col-span-2 w-full min-w-0 sm:col-span-1`}
                   aria-label="年"
                 >
                   <option value="">年</option>
@@ -188,7 +188,7 @@ export function ParticipantProfileForm({
                   value={birthMonth}
                   onChange={(e) => setBirthMonth(e.target.value)}
                   required
-                  className={`${selectClass} flex-1`}
+                  className={`${selectClass} w-full min-w-0`}
                   aria-label="月"
                 >
                   <option value="">月</option>
@@ -202,7 +202,7 @@ export function ParticipantProfileForm({
                   value={birthDay}
                   onChange={(e) => setBirthDay(e.target.value)}
                   required
-                  className={`${selectClass} flex-1`}
+                  className={`${selectClass} w-full min-w-0`}
                   aria-label="日"
                 >
                   <option value="">日</option>

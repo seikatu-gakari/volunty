@@ -1,7 +1,19 @@
 import { expect, test } from "@playwright/test";
+import { assertParticipantBirthdayLayout } from "./participant-profile-birthday";
 
 test.describe("参加者オンボーディング", () => {
   test.use({ storageState: "playwright/.auth/participant-fresh.json" });
+
+  test("生年月日の選択値が狭い画面でも読み取れる", async ({ page }, testInfo) => {
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: /ボランティアに参加する/ })
+      .click();
+    await page.getByRole("button", { name: "次へ" }).click();
+    await expect(page).toHaveURL(/\/onboarding\/participant$/);
+
+    await assertParticipantBirthdayLayout(page, testInfo);
+  });
 
   test("P-2: 参加者ロールを選びプロフィールを登録できる", async ({ page }) => {
     await page.goto("/");
