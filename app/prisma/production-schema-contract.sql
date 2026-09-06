@@ -10,6 +10,13 @@ BEGIN
       ('required_qualifications', 'jsonb', 'pg_catalog', 'jsonb'),
       ('min_age', 'integer', 'pg_catalog', 'int4'),
       ('max_age', 'integer', 'pg_catalog', 'int4'),
+      ('schedule', 'text', 'pg_catalog', 'text'),
+      ('cost', 'text', 'pg_catalog', 'text'),
+      ('belongings', 'text', 'pg_catalog', 'text'),
+      ('application_deadline', 'date', 'pg_catalog', 'date'),
+      ('cancellation_policy', 'text', 'pg_catalog', 'text'),
+      ('insurance_details', 'text', 'pg_catalog', 'text'),
+      ('contact_method', 'text', 'pg_catalog', 'text'),
       ('category', 'character varying', 'pg_catalog', 'varchar'),
       ('participation_mode', 'USER-DEFINED', 'public', 'participation_mode'),
       ('status', 'USER-DEFINED', 'public', 'opportunity_status')

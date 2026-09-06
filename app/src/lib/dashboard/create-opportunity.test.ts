@@ -222,6 +222,53 @@ describe("createOpportunity", () => {
     );
   });
 
+  it("参加判断に必要な公開項目を保存できる", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+    mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
+    mockInsertReturn.mockReturnValueOnce({ error: null });
+
+    await createOpportunity(buildFormData({
+      title: "公開情報付き案件",
+      description: "活動内容",
+      schedule: "毎週土曜日",
+      cost: "無料",
+      belongings: "飲み物",
+      applicationDeadline: "2026-09-10",
+      cancellationPolicy: "前日までに連絡",
+      insuranceDetails: "行事保険加入",
+      contactMethod: "Volunty内で問い合わせ",
+    }));
+
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
+      schedule: "毎週土曜日",
+      cost: "無料",
+      belongings: "飲み物",
+      application_deadline: "2026-09-10",
+      cancellation_policy: "前日までに連絡",
+      insurance_details: "行事保険加入",
+      contact_method: "Volunty内で問い合わせ",
+    }));
+  });
+
+  it("不正な応募締切は保存しない", async () => {
+    mockGetUser.mockReturnValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
+
+    const result = await createOpportunity(buildFormData({
+      title: "不正な締切",
+      description: "活動内容",
+      applicationDeadline: "2026-99-99",
+    }));
+
+    expect(result).toEqual({ success: false, error: "応募締切の形式が正しくありません" });
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
   it("不正な活動スタイルタグはエラーになる", async () => {
     const fd = buildFormData();
     fd.append("activityStyleTags", "unknown-tag");

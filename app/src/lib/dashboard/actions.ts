@@ -198,9 +198,16 @@ interface OpportunityExtraFields {
   location: string | null;
   start_date: string | null;
   end_date: string | null;
+  schedule: string | null;
   capacity: number | null;
   category: string | null;
   participation_mode: ParticipationMode | null;
+  cost: string | null;
+  belongings: string | null;
+  application_deadline: string | null;
+  cancellation_policy: string | null;
+  insurance_details: string | null;
+  contact_method: string | null;
 }
 
 /**
@@ -219,9 +226,16 @@ function parseOpportunityExtraFields(
   const location = getTrimmed("location");
   const startDate = getTrimmed("startDate");
   const endDate = getTrimmed("endDate");
+  const schedule = getTrimmed("schedule");
   const capacityRaw = getTrimmed("capacity");
   const category = getTrimmed("category");
   const participationMode = getTrimmed("participationMode");
+  const cost = getTrimmed("cost");
+  const belongings = getTrimmed("belongings");
+  const applicationDeadline = getTrimmed("applicationDeadline");
+  const cancellationPolicy = getTrimmed("cancellationPolicy");
+  const insuranceDetails = getTrimmed("insuranceDetails");
+  const contactMethod = getTrimmed("contactMethod");
 
   // 日付の検証
   if (startDate && !isValidDateString(startDate)) {
@@ -232,6 +246,9 @@ function parseOpportunityExtraFields(
   }
   if (startDate && endDate && endDate < startDate) {
     return { error: "終了日は開始日以降の日付を指定してください" };
+  }
+  if (applicationDeadline && !isValidDateString(applicationDeadline)) {
+    return { error: "応募締切の形式が正しくありません" };
   }
 
   // 定員の検証
@@ -259,11 +276,18 @@ function parseOpportunityExtraFields(
       location: location || null,
       start_date: startDate || null,
       end_date: endDate || null,
+      schedule: schedule || null,
       capacity,
       category: category || null,
       participation_mode: participationMode
         ? (participationMode as ParticipationMode)
         : null,
+      cost: cost || null,
+      belongings: belongings || null,
+      application_deadline: applicationDeadline || null,
+      cancellation_policy: cancellationPolicy || null,
+      insurance_details: insuranceDetails || null,
+      contact_method: contactMethod || null,
     },
   };
 }
@@ -513,7 +537,7 @@ export async function fetchOpportunityForEdit(
     const { data, error: fetchError } = await supabase
       .from("m_opportunity")
       .select(
-        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, location, start_date, end_date, capacity, category, participation_mode"
+        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, location, start_date, end_date, schedule, capacity, category, participation_mode, cost, belongings, application_deadline, cancellation_policy, insurance_details, contact_method"
       )
       .eq("id", id)
       .eq("organization_id", (orgProfile as unknown as { id: string }).id)
@@ -535,9 +559,16 @@ export async function fetchOpportunityForEdit(
       location: string | null;
       start_date: string | null;
       end_date: string | null;
+      schedule: string | null;
       capacity: number | null;
       category: string | null;
       participation_mode: ParticipationMode | null;
+      cost: string | null;
+      belongings: string | null;
+      application_deadline: string | null;
+      cancellation_policy: string | null;
+      insurance_details: string | null;
+      contact_method: string | null;
     };
 
     const opportunity: OpportunityEditData = {
@@ -557,9 +588,16 @@ export async function fetchOpportunityForEdit(
       // DATE カラムは YYYY-MM-DD 形式に正規化（<input type="date"> 用）
       start_date: normalizeDateOnly(row.start_date),
       end_date: normalizeDateOnly(row.end_date),
+      schedule: row.schedule ?? null,
       capacity: row.capacity ?? null,
       category: row.category ?? null,
       participation_mode: row.participation_mode ?? null,
+      cost: row.cost ?? null,
+      belongings: row.belongings ?? null,
+      application_deadline: normalizeDateOnly(row.application_deadline),
+      cancellation_policy: row.cancellation_policy ?? null,
+      insurance_details: row.insurance_details ?? null,
+      contact_method: row.contact_method ?? null,
     };
 
     return { opportunity };

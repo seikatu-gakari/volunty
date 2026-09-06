@@ -47,12 +47,19 @@ export interface OpportunityFormData {
   start_date?: string | null;
   /** 終了日（YYYY-MM-DD） */
   end_date?: string | null;
+  schedule?: string | null;
   /** 定員 */
   capacity?: number | null;
   /** カテゴリ */
   category?: string | null;
   /** 参加形態 */
   participation_mode?: ParticipationMode | null;
+  cost?: string | null;
+  belongings?: string | null;
+  application_deadline?: string | null;
+  cancellation_policy?: string | null;
+  insurance_details?: string | null;
+  contact_method?: string | null;
 }
 
 interface OpportunityFormProps {
@@ -186,6 +193,15 @@ export function OpportunityForm({
                 className="w-full rounded-lg border border-input-border bg-white py-2 pl-10 pr-3 text-sm text-text-dark placeholder:text-text-body focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
+
+            <Input
+              label="開催日時・頻度（任意）"
+              name="schedule"
+              icon={Calendar}
+              type="text"
+              placeholder="例: 毎週土曜日 10:00〜12:00"
+              defaultValue={initialData?.schedule ?? ""}
+            />
           </div>
 
           {/* 募集情報 */}
@@ -252,6 +268,24 @@ export function OpportunityForm({
                 initialData?.capacity != null ? String(initialData.capacity) : ""
               }
             />
+
+            {/* カテゴリ */}
+            <Input label="費用（任意）" name="cost" icon={FileText} type="text" placeholder="例: 無料（交通費は自己負担）" defaultValue={initialData?.cost ?? ""} />
+            <Input label="持ち物（任意）" name="belongings" icon={FileText} type="text" placeholder="例: 飲み物、軍手" defaultValue={initialData?.belongings ?? ""} />
+            <div className="flex flex-col gap-1">
+              <label htmlFor="applicationDeadline" className="text-sm font-medium text-text-dark">応募締切（任意）</label>
+              <input id="applicationDeadline" name="applicationDeadline" type="date" defaultValue={initialData?.application_deadline ?? ""} className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            {([
+              ["cancellationPolicy", "キャンセル方針（任意）", initialData?.cancellation_policy, "例: 前日までにVolunty内でご連絡ください"],
+              ["insuranceDetails", "保険・安全情報（任意）", initialData?.insurance_details, "例: 主催者負担で行事保険に加入します"],
+              ["contactMethod", "問い合わせ方法（任意）", initialData?.contact_method, "例: 応募後にVolunty内でご案内します"],
+            ] as const).map(([name, label, value, placeholder]) => (
+              <div key={name} className="flex flex-col gap-1">
+                <label htmlFor={name} className="text-sm font-medium text-text-dark">{label}</label>
+                <textarea id={name} name={name} rows={2} defaultValue={value ?? ""} placeholder={placeholder} className="rounded-lg border border-input-border bg-white px-3 py-2 text-sm text-text-dark placeholder:text-text-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+            ))}
 
             {/* カテゴリ */}
             <div className="flex flex-col gap-1">

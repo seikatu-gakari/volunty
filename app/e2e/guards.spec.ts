@@ -103,7 +103,7 @@ test.describe("未ログインLP導線", () => {
     ).toBeVisible();
   });
 
-  test("LPから公開募集一覧を閲覧でき、詳細はログインへ送る", async ({ page }) => {
+  test("LPから未認証で公開募集詳細を閲覧し、応募時はログイン後に元URLへ戻る", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "募集中の活動を見る" }).click();
 
@@ -114,10 +114,14 @@ test.describe("未ログインLP導線", () => {
     await expect(page.getByText("E2E 応募対象案件")).toBeVisible();
 
     await page.getByRole("link", { name: "E2E 応募対象案件" }).click();
+    await expect(page).toHaveURL(/\/opportunities\/[0-9a-f-]+(?:\?.*)?$/);
+    const currentDetailUrl = new URL(page.url());
+    const detailUrl = `${currentDetailUrl.pathname}${currentDetailUrl.search}`;
+    await expect(page.getByRole("heading", { name: "E2E 応募対象案件" })).toBeVisible();
+    await expect(page.getByText("主催団体")).toBeVisible();
+    await page.getByRole("link", { name: "ログインして応募する" }).click();
     await expect(page).toHaveURL(
-      (url) =>
-        url.pathname === "/login" &&
-        (url.searchParams.get("next")?.startsWith("/opportunities/") ?? false)
+      (url) => url.pathname === "/login" && url.searchParams.get("next") === detailUrl
     );
   });
 
@@ -128,6 +132,11 @@ test.describe("未ログインLP導線", () => {
       (url) =>
         url.pathname === "/login" && url.searchParams.get("next") === "/diagnosis"
     );
+  });
+
+  test("未認証の無効な募集詳細URLは404を返す", async ({ page }) => {
+    await page.goto("/opportunities/invalid-id");
+    await expect(page.getByRole("heading", { name: "ページが見つかりません" })).toBeVisible();
   });
 });
 
