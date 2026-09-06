@@ -11,6 +11,7 @@ import {
 } from "./engine";
 import type { OpportunityFeatures, ParticipantFeatures } from "./engine";
 import { toActivityStyleTagIds } from "./activity-style-tags";
+import { isOpportunityPublic } from "@/lib/opportunities/publication";
 import type {
   OpportunityRecommendation,
   RecommendationFilters,
@@ -74,6 +75,7 @@ export async function fetchRecommendations(
   filters?: RecommendationFilters,
 ): Promise<RecommendationResult> {
   try {
+    const now = new Date();
     const [participant, opportunities] = await Promise.all([
       prisma.participantProfile.findUnique({
         where: { userId },
@@ -86,7 +88,10 @@ export async function fetchRecommendations(
         },
       }),
       prisma.opportunity.findMany({
-        where: { status: "published" },
+        where: {
+          status: "published",
+          publishedAt: { not: null, lte: now },
+        },
         select: {
           id: true,
           title: true,
@@ -115,7 +120,6 @@ export async function fetchRecommendations(
         ? latestDiagnosis.scaledScores
         : null;
     const hasCompletedDiagnosis = scaledScores !== null;
-    const now = new Date();
     const participantFeatures: ParticipantFeatures = {
       interests: toStringArray(participant.interests),
       region: participant.region || null,
@@ -128,6 +132,9 @@ export async function fetchRecommendations(
     const regionFilter = normalizeFilterValue(filters?.region);
     const participationModeFilter = normalizeParticipationMode(filters?.participationMode);
     const filteredOpportunities = opportunities.filter((opp) => {
+      if (!isOpportunityPublic({ status: "published", publishedAt: opp.publishedAt }, now)) {
+        return false;
+      }
       if (categoryFilter && !matchesCategory(opp.category, categoryFilter)) return false;
       if (regionFilter && !matchesRegion(opp.location, opp.organization.activityAreas, regionFilter)) return false;
       if (participationModeFilter && !matchesParticipationMode(opp.participationMode, participationModeFilter)) return false;

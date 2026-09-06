@@ -69,6 +69,7 @@ const mockEngagementCreate = vi.fn().mockResolvedValue({});
 const mockEngagementFindFirst = vi.fn().mockResolvedValue(null);
 const mockRecommendationLogFindFirst = vi.fn().mockResolvedValue(null);
 const mockMatchingCandidateCount = vi.fn().mockResolvedValue(null);
+const mockOpportunityFindUnique = vi.fn().mockResolvedValue(null);
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     engagementEvent: {
@@ -80,6 +81,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     matchingCandidate: {
       count: (...args: unknown[]) => mockMatchingCandidateCount(...args),
+    },
+    opportunity: {
+      findUnique: (...args: unknown[]) => mockOpportunityFindUnique(...args),
     },
   },
 }));
@@ -127,6 +131,7 @@ describe("fetchOpportunityDetail", () => {
     mockAfter.mockImplementation(() => undefined);
     mockMatchingCandidateCount.mockResolvedValue(null);
     mockEngagementFindFirst.mockResolvedValue(null);
+    mockOpportunityFindUnique.mockResolvedValue(null);
   });
 
   it("未認証の場合、空のデータを返す", async () => {
@@ -168,6 +173,8 @@ describe("fetchOpportunityDetail", () => {
       id: "opp-1",
       title: "並列テスト案件",
       status: "published",
+      published_at: "2026-08-01T00:00:00Z",
+
       location: null,
       start_date: null,
       end_date: null,
@@ -237,6 +244,8 @@ describe("fetchOpportunityDetail", () => {
       required_qualifications: ["普通自動車免許"],
       min_age: 18,
       status: "published",
+      published_at: "2026-01-01T00:00:00Z",
+
       location: "渋谷区",
       start_date: "2026-07-01T00:00:00.000Z",
       end_date: "2026-07-10",
@@ -335,6 +344,23 @@ describe("fetchOpportunityDetail", () => {
     expect(mockEngagementCreate).not.toHaveBeenCalled();
   });
 
+  it("公開日時NULLの案件は参加者向け詳細として返さない", async () => {
+    mockSingle.mockReturnValueOnce({
+      data: {
+        id: "opp-inconsistent",
+        title: "不整合案件",
+        status: "published",
+        published_at: null,
+      },
+      error: null,
+    });
+
+    const result = await fetchOpportunityDetail("opp-inconsistent");
+
+    expect(result.opportunity).toBeNull();
+    expect(mockEngagementCreate).not.toHaveBeenCalled();
+  });
+
   it("応募者数は応募レコードの実件数を返す", async () => {
     const mockUser = { id: "user-123" };
     mockGetUser.mockReturnValue({
@@ -394,6 +420,8 @@ describe("fetchOpportunityDetail", () => {
       id: "opp-1",
       title: "子ども支援活動",
       status: "published",
+      published_at: "2026-01-01T00:00:00Z",
+
       m_organization_profile: { id: "org-2", organization_name: "支援団体A", description: null },
     };
 
@@ -435,6 +463,8 @@ describe("fetchOpportunityDetail", () => {
       id: "opp-1",
       title: "子ども支援活動",
       status: "published",
+      published_at: "2026-01-01T00:00:00Z",
+
       m_organization_profile: {
         id: "org-2",
         organization_name: "支援団体A",
@@ -484,6 +514,7 @@ describe("fetchOpportunityDetail", () => {
 describe("applyToOpportunity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockOpportunityFindUnique.mockResolvedValue(null);
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -563,7 +594,7 @@ describe("applyToOpportunity", () => {
     );
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe("この案件は募集を終了しています");
+    expect(result.error).toBe("この案件は現在応募を受け付けていません");
   });
 
   it("公開予約中の案件には応募できない", async () => {
@@ -593,7 +624,39 @@ describe("applyToOpportunity", () => {
     );
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe("この案件は募集を終了しています");
+    expect(result.error).toBe("この案件は現在応募を受け付けていません");
+  });
+
+  it("公開RLSで隠れた公開日時NULL案件には応募INSERTを行わない", async () => {
+    const mockUser = { id: "user-123" };
+    mockGetUser.mockReturnValue({
+      data: { user: mockUser },
+      error: null,
+    });
+
+    let callCount = 0;
+    mockSingle.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return { data: { id: "user-123" }, error: null };
+      return { data: null, error: { code: "PGRST116" } };
+    });
+    mockOpportunityFindUnique.mockResolvedValue({
+      id: "opp-inconsistent",
+      status: "published",
+      publishedAt: null,
+    });
+
+    const result = await applyToOpportunity("opp-inconsistent", "メッセージ");
+
+    expect(result).toEqual({
+      success: false,
+      error: "この案件は現在応募を受け付けていません",
+    });
+    expect(mockOpportunityFindUnique).toHaveBeenCalledWith({
+      where: { id: "opp-inconsistent" },
+      select: { id: true, status: true, publishedAt: true },
+    });
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("重複応募の場合、エラーを返す", async () => {
@@ -608,7 +671,14 @@ describe("applyToOpportunity", () => {
       callCount++;
       if (callCount === 1) return { data: { id: "user-123" }, error: null }; // m_participant_profile
       if (callCount === 2)
-        return { data: { id: "opp-1", status: "published" }, error: null }; // m_opportunity
+        return {
+          data: {
+            id: "opp-1",
+            status: "published",
+            published_at: "2026-01-01T00:00:00Z",
+          },
+          error: null,
+        }; // m_opportunity
       return { data: { id: "app-existing" }, error: null }; // t_matching_candidate (既存)
     });
 
@@ -651,7 +721,14 @@ describe("applyToOpportunity", () => {
       }
       if (callCount === 2) {
         // m_opportunity（公開中）
-        return { data: { id: "opp-1", status: "published" }, error: null };
+        return {
+          data: {
+            id: "opp-1",
+            status: "published",
+            published_at: "2026-01-01T00:00:00Z",
+          },
+          error: null,
+        };
       }
       // t_matching_candidate 重複チェック（応募なし）
       return { data: null, error: null };
@@ -685,7 +762,15 @@ describe("applyToOpportunity", () => {
     mockSingle.mockImplementation(() => {
       callCount++;
       if (callCount === 1) return { data: { id: "participant-1" }, error: null };
-      if (callCount === 2) return { data: { id: "opp-1", status: "published" }, error: null };
+      if (callCount === 2)
+        return {
+          data: {
+            id: "opp-1",
+            status: "published",
+            published_at: "2026-01-01T00:00:00Z",
+          },
+          error: null,
+        };
       return { data: null, error: null };
     });
     mockRecommendationLogFindFirst.mockResolvedValue({ id: "log-valid" });
@@ -710,7 +795,15 @@ describe("applyToOpportunity", () => {
       mockSingle.mockImplementation(() => {
         callCount++;
         if (callCount === 1) return { data: { id: "participant-1" }, error: null };
-        if (callCount === 2) return { data: { id: "opp-1", status: "published" }, error: null };
+        if (callCount === 2)
+          return {
+            data: {
+              id: "opp-1",
+              status: "published",
+              published_at: "2026-01-01T00:00:00Z",
+            },
+            error: null,
+          };
         return { data: null, error: null };
       });
       mockRecommendationLogFindFirst.mockResolvedValue(null);
@@ -738,7 +831,14 @@ describe("applyToOpportunity", () => {
         return { data: { id: "participant-1" }, error: null };
       }
       if (callCount === 2) {
-        return { data: { id: "opp-1", status: "published" }, error: null };
+        return {
+          data: {
+            id: "opp-1",
+            status: "published",
+            published_at: "2026-01-01T00:00:00Z",
+          },
+          error: null,
+        };
       }
       return { data: null, error: null };
     });

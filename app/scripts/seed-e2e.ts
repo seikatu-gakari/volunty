@@ -72,8 +72,12 @@ const CERTIFICATE_REJECTED_TITLE = "E2E 却下済み証明書案件";
 const APPROACH_ACCEPT_TITLE = "E2E 承諾対象アプローチ案件";
 const APPROACH_DECLINE_TITLE = "E2E 辞退対象アプローチ案件";
 const APPROACH_EXPIRED_TITLE = "E2E 期限切れアプローチ案件";
+const PUBLICATION_NULL_TITLE = "E2E 公開状態 公開日時NULL案件";
+const PUBLICATION_SCHEDULED_TITLE = "E2E 公開状態 予約案件";
+const PUBLICATION_CLOSED_TITLE = "E2E 公開状態 募集終了案件";
 const APPROACH_TEMPLATE_LAYOUT_TITLE =
   "E2Eテンプレートレイアウト確認用非常に長い募集案件タイトル空白なしテストデータ";
+
 
 const lifecycleTitles = {
   recommendationHigh: "E2E 団体おすすめ高相性案件",
@@ -97,6 +101,8 @@ interface OpportunitySeedOptions {
   participationMode?: "online" | "offline" | "hybrid";
   currentApplicants?: number;
   activityStyleTags?: string[];
+  status?: "draft" | "published" | "closed";
+  publishedAt?: Date | null;
 }
 
 interface DiagnosisSeedOptions {
@@ -164,6 +170,7 @@ async function upsertPublishedOpportunity(
   description: string,
   options: OpportunitySeedOptions = {}
 ): Promise<string> {
+  const status = options.status ?? "published";
   const data = {
     organizationId,
     title,
@@ -181,8 +188,14 @@ async function upsertPublishedOpportunity(
     cancellationPolicy: "前日までにVolunty内でご連絡ください。",
     insuranceDetails: "主催団体が行事保険へ加入します。",
     contactMethod: "応募後にVolunty内でご案内します。",
-    status: "published" as const,
-    publishedAt: new Date(),
+    status,
+    publishedAt:
+      options.publishedAt !== undefined
+        ? options.publishedAt
+        : status === "draft"
+          ? null
+          : new Date(),
+
   };
   const existing = await prisma.opportunity.findFirst({
     where: { organizationId, title },
@@ -730,6 +743,38 @@ export async function seedE2eUsers(): Promise<void> {
       title: { startsWith: "E2E 団体案件管理" },
     },
   });
+
+  await prisma.opportunity.deleteMany({
+    where: {
+      organizationId: lifecycleOrganization.id,
+      title: { startsWith: "E2E 公開状態" },
+    },
+  });
+
+  await upsertPublishedOpportunity(
+    lifecycleOrganization.id,
+    PUBLICATION_NULL_TITLE,
+    "公開日時NULLの既存不整合を確認するE2E固定案件です。",
+    { status: "published", publishedAt: null },
+  );
+  await upsertPublishedOpportunity(
+    lifecycleOrganization.id,
+    PUBLICATION_SCHEDULED_TITLE,
+    "将来日時の公開予約を確認するE2E固定案件です。",
+    {
+      status: "published",
+      publishedAt: new Date("2999-01-01T00:00:00.000Z"),
+    },
+  );
+  await upsertPublishedOpportunity(
+    lifecycleOrganization.id,
+    PUBLICATION_CLOSED_TITLE,
+    "募集終了からの再公開を確認するE2E固定案件です。",
+    {
+      status: "closed",
+      publishedAt: new Date("2000-01-01T00:00:00.000Z"),
+    },
+  );
 
   const organizationLifecycleOpportunityEntries = await Promise.all(
     Object.values(lifecycleTitles).map(async (title) => [

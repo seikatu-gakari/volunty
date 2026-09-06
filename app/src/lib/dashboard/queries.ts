@@ -673,8 +673,13 @@ export async function fetchApplicantDetailQuery(
 async function fetchPublishedOpportunityRequirements(
   organizationId: string
 ): Promise<RecommendedParticipantOpportunity[]> {
+  const now = new Date();
   return prisma.opportunity.findMany({
-    where: { organizationId, status: "published" },
+    where: {
+      organizationId,
+      status: "published",
+      publishedAt: { not: null, lte: now },
+    },
     select: { id: true, activityStyleTags: true, title: true },
   });
 }

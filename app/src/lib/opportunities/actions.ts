@@ -2,7 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import type { ApplyResult } from "./types";
+import { isOpportunityPublic } from "./publication";
+import type { ApplyResult, OpportunityStatus } from "./types";
 
 /**
  * 募集案件に応募する
@@ -46,15 +47,38 @@ export async function applyToOpportunity(
       .single();
 
     if (!opportunity) {
+      // 公開RLSでは非公開案件が行ごと隠れるため、存在する非公開案件だけを
+      // サーバー側の読み取り専用参照で判別する。参加者へ案件状態は返さない。
+      const hiddenOpportunity = await prisma.opportunity.findUnique({
+        where: { id: opportunityId },
+        select: { id: true, status: true, publishedAt: true },
+      });
+      if (
+        hiddenOpportunity &&
+        !isOpportunityPublic(
+          {
+            status: hiddenOpportunity.status,
+            publishedAt: hiddenOpportunity.publishedAt,
+          },
+          new Date(),
+        )
+      ) {
+        return { success: false, error: "この案件は現在応募を受け付けていません" };
+      }
       return { success: false, error: "案件が見つかりません" };
     }
 
     const publishedAt = opportunity.published_at as string | null;
     if (
-      opportunity.status !== "published" ||
-      (publishedAt && new Date(publishedAt).getTime() > Date.now())
+      !isOpportunityPublic(
+        {
+          status: opportunity.status as OpportunityStatus,
+          publishedAt,
+        },
+        new Date(),
+      )
     ) {
-      return { success: false, error: "この案件は募集を終了しています" };
+      return { success: false, error: "この案件は現在応募を受け付けていません" };
     }
 
     // 重複応募チェック
