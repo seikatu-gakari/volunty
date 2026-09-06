@@ -41,20 +41,20 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page.getByRole("link", { name: /クリア/ })).not.toHaveAttribute("aria-disabled", "true");
     await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();
 
-    await page.getByLabel("カテゴリ").selectOption("地域活性化");
+    await page.getByLabel("カテゴリ").selectOption("");
     await page.getByLabel("地域").selectOption("東京都");
     await page.getByLabel("参加形態").selectOption("offline");
     await page.getByRole("button", { name: "絞り込む" }).click();
 
     const secondQuery = new URLSearchParams({
-      category: "地域活性化",
+      category: "",
       region: "東京都",
       participationMode: "offline",
     }).toString();
     await expect
       .poll(() => new URL(page.url()).pathname + new URL(page.url()).search)
       .toBe(`/recommendations?${secondQuery}`);
-    await expect(page.getByLabel("カテゴリ")).toHaveValue("地域活性化");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
     await expect(page.getByLabel("地域")).toHaveValue("東京都");
     await expect(page.getByLabel("参加形態")).toHaveValue("offline");
     await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();
@@ -91,7 +91,7 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect
       .poll(() => new URL(page.url()).pathname + new URL(page.url()).search)
       .toBe(`/recommendations?${secondQuery}`);
-    await expect(page.getByLabel("カテゴリ")).toHaveValue("地域活性化");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
     await expect(page.getByLabel("地域")).toHaveValue("東京都");
     await expect(page.getByLabel("参加形態")).toHaveValue("offline");
     await expect(page.getByText(APPLICATION_OPPORTUNITY_TITLE)).toBeVisible();

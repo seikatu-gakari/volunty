@@ -68,7 +68,7 @@ describe("RecommendationFilters", () => {
     expect(screen.getByRole("option", { name: "オフライン" })).toBeTruthy()
   })
 
-  it("検索送信中はローディング表示に切り替える", () => {
+  it("検索条件を送信するとURL遷移を開始する", () => {
     render(<RecommendationFilters filters={{}} />)
 
     fireEvent.change(screen.getByRole("combobox", { name: "カテゴリ" }), {
@@ -81,9 +81,8 @@ describe("RecommendationFilters", () => {
       target: { value: "online" },
     })
 
-    fireEvent.submit(
-      screen.getByRole("form", { name: "おすすめ案件フィルター" })
-    )
+    const form = screen.getByRole("form", { name: "おすすめ案件フィルター" })
+    fireEvent.submit(form)
 
     const expectedParams = new URLSearchParams({
       category: "地域活動",
@@ -92,9 +91,10 @@ describe("RecommendationFilters", () => {
     }).toString()
 
     expect(pushMock).toHaveBeenCalledWith(`/recommendations?${expectedParams}`)
+    expect(form.getAttribute("aria-busy")).toBe("false")
     expect(
-      screen.getByRole("button", { name: "検索中" }).getAttribute("disabled")
-    ).not.toBeNull()
+      screen.getByRole("button", { name: "絞り込む" }).getAttribute("disabled")
+    ).toBeNull()
   })
   it("検索結果の条件更新後にクリアすると全selectを初期化する", () => {
     const { rerender } = render(<RecommendationFilters filters={{}} />)
