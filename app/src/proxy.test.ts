@@ -173,7 +173,12 @@ describe("proxy", () => {
     ).toBeNull();
   });
 
-  it.each(["/diagnosis/trial", "/opportunities", "/opportunities?q=test"] as const)(
+  it.each([
+    "/diagnosis/trial",
+    "/opportunities",
+    "/opportunities?q=test",
+    "/opportunities/00000000-0000-4000-8000-000000000001",
+  ] as const)(
     "未認証でも %s は公開ページとして通過する",
     async (path) => {
       const request = createRequest(path);
@@ -190,7 +195,6 @@ describe("proxy", () => {
   it.each([
     ["/diagnosis", "/diagnosis"],
     ["/diagnosis/result", "/diagnosis/result"],
-    ["/opportunities/opp-1", "/opportunities/opp-1"],
   ] as const)("未認証の %s はログインへリダイレクトする", async (path, next) => {
     const request = createRequest(path);
     mockGuestSession(request);
@@ -250,6 +254,21 @@ describe("proxy", () => {
       organizationVerified: false,
       organizationReviewStatus: null,
     });
+  });
+
+  it("認証済み団体も公開募集詳細を閲覧できViewer情報を引き継ぐ", async () => {
+    const request = createRequest("/opportunities/00000000-0000-4000-8000-000000000001");
+    mockAuthenticatedSession(request, "organization-1");
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: authorizationAccount("organization"),
+      error: null,
+    });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(forwardedViewerContext(response)?.role).toBe("organization");
   });
 
   it("保護ルートではクライアントの偽装ヘッダーをDB検証済みViewerで上書きする", async () => {

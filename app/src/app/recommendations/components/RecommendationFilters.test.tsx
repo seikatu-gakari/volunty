@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+import type { MouseEventHandler, ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { RecommendationFilters } from "./RecommendationFilters"
 
@@ -8,6 +9,31 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: pushMock,
   }),
+}))
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    onClick,
+    className,
+    "aria-disabled": ariaDisabled,
+  }: {
+    children: ReactNode
+    href: string
+    onClick?: MouseEventHandler<HTMLAnchorElement>
+    className?: string
+    "aria-disabled"?: boolean
+  }) => (
+    <a
+      href={href}
+      onClick={onClick}
+      className={className}
+      aria-disabled={ariaDisabled}
+    >
+      {children}
+    </a>
+  ),
 }))
 
 describe("RecommendationFilters", () => {
@@ -42,7 +68,7 @@ describe("RecommendationFilters", () => {
     expect(screen.getByRole("option", { name: "オフライン" })).toBeTruthy()
   })
 
-  it("検索送信中はローディング表示に切り替える", () => {
+  it("検索条件を送信するとURL遷移を開始する", () => {
     render(<RecommendationFilters filters={{}} />)
 
     fireEvent.change(screen.getByRole("combobox", { name: "カテゴリ" }), {
@@ -55,9 +81,8 @@ describe("RecommendationFilters", () => {
       target: { value: "online" },
     })
 
-    fireEvent.submit(
-      screen.getByRole("form", { name: "おすすめ案件フィルター" })
-    )
+    const form = screen.getByRole("form", { name: "おすすめ案件フィルター" })
+    fireEvent.submit(form)
 
     const expectedParams = new URLSearchParams({
       category: "地域活動",
@@ -66,8 +91,77 @@ describe("RecommendationFilters", () => {
     }).toString()
 
     expect(pushMock).toHaveBeenCalledWith(`/recommendations?${expectedParams}`)
+    expect(form.getAttribute("aria-busy")).toBe("false")
     expect(
-      screen.getByRole("button", { name: "検索中" }).getAttribute("disabled")
-    ).not.toBeNull()
+      screen.getByRole("button", { name: "絞り込む" }).getAttribute("disabled")
+    ).toBeNull()
   })
+  it("検索結果の条件更新後にクリアすると全selectを初期化する", () => {
+    const { rerender } = render(<RecommendationFilters filters={{}} />)
+
+    fireEvent.change(screen.getByRole("combobox", { name: "カテゴリ" }), {
+      target: { value: "環境保全" },
+    })
+    fireEvent.change(screen.getByRole("combobox", { name: "地域" }), {
+      target: { value: "新宿区" },
+    })
+    fireEvent.change(screen.getByRole("combobox", { name: "参加形態" }), {
+      target: { value: "online" },
+    })
+    fireEvent.submit(screen.getByRole("form", { name: "おすすめ案件フィルター" }))
+
+    rerender(
+      <RecommendationFilters
+        filters={{ category: "環境保全", region: "新宿区", participationMode: "online" }}
+      />
+    )
+    expect((screen.getByRole("combobox", { name: "カテゴリ" }) as HTMLSelectElement).value).toBe("環境保全")
+
+    rerender(<RecommendationFilters filters={{}} />)
+
+    expect((screen.getByRole("combobox", { name: "カテゴリ" }) as HTMLSelectElement).value).toBe("")
+    expect((screen.getByRole("combobox", { name: "地域" }) as HTMLSelectElement).value).toBe("")
+    expect((screen.getByRole("combobox", { name: "参加形態" }) as HTMLSelectElement).value).toBe("")
+    expect(screen.getByRole("button", { name: "絞り込む" }).getAttribute("disabled")).toBeNull()
+  })
+
+  it("条件ありのクリアはフォームをリセットして一覧へ遷移する", () => {
+    render(
+      <RecommendationFilters
+        filters={{ category: "環境保全", region: "新宿区", participationMode: "online" }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("link", { name: /クリア/ }))
+
+    expect(pushMock).toHaveBeenCalledWith("/recommendations")
+    expect((screen.getByRole("combobox", { name: "カテゴリ" }) as HTMLSelectElement).value).toBe("")
+    expect((screen.getByRole("combobox", { name: "地域" }) as HTMLSelectElement).value).toBe("")
+    expect((screen.getByRole("combobox", { name: "参加形態" }) as HTMLSelectElement).value).toBe("")
+  })
+
+  it("条件なしで未送信の選択だけをクリアしても遷移しない", () => {
+    render(<RecommendationFilters filters={{}} />)
+
+    fireEvent.change(screen.getByRole("combobox", { name: "カテゴリ" }), {
+      target: { value: "環境保全" },
+    })
+    fireEvent.click(screen.getByRole("link", { name: /クリア/ }))
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect((screen.getByRole("combobox", { name: "カテゴリ" }) as HTMLSelectElement).value).toBe("")
+  })
+
+  it("確定済みと同じ条件の送信では遷移しない", () => {
+    render(
+      <RecommendationFilters
+        filters={{ category: "環境保全", region: "新宿区", participationMode: "online" }}
+      />
+    )
+
+    fireEvent.submit(screen.getByRole("form", { name: "おすすめ案件フィルター" }))
+
+    expect(pushMock).not.toHaveBeenCalled()
+  })
+
 })

@@ -116,6 +116,9 @@ describe("OpportunityForm の入力検証", () => {
       .closest("form") as HTMLFormElement;
     const title = screen.getByLabelText("案件タイトル") as HTMLInputElement;
     const description = screen.getByLabelText("案件説明") as HTMLTextAreaElement;
+    fireEvent.change(screen.getByLabelText("開催日時・頻度（任意）"), {
+      target: { value: "毎週土曜日 10:00〜12:00" },
+    });
 
     // happy-dom 20ではtextarea.willValidateが未実装のため、実ブラウザの検証対象を再現する。
     Object.defineProperty(description, "willValidate", {
@@ -159,6 +162,7 @@ describe("OpportunityForm の入力検証", () => {
     const submitted = onSubmitAction.mock.calls[0]?.[0];
     expect(submitted?.get("title")).toBe("テスト案件");
     expect(submitted?.get("description")).toBe("説明です");
+    expect(submitted?.get("schedule")).toBe("毎週土曜日 10:00〜12:00");
   });
 
   it("サーバーのpublishedAtフィールドエラーも同じフォーカス処理で表示する", async () => {

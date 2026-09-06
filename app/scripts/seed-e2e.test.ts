@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Persona, PersonaKey } from "@/lib/test-auth/personas";
 
 const ORGANIZATION_FIXTURE_PARTICIPANT_ID =
   "00000000-0000-4000-8000-000000000167";
@@ -8,104 +9,64 @@ const ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID =
   "00000000-0000-4000-8000-000000000169";
 
 const mocks = vi.hoisted(() => ({
-  personas: {
-    admin: {
-      key: "admin",
-      email: "e2e-admin@example.com",
-      role: "admin",
-      description: "管理者ロール",
-    },
-  } as Record<
-    string,
-    {
-      key: string;
-      email: string;
-      role: "participant" | "organization" | "admin";
-      description: string;
-    }
-  >,
+  personas: {} as Record<string, Persona>,
   listUsers: vi.fn(),
   createUser: vi.fn(),
   updateUserById: vi.fn(),
   deleteUser: vi.fn(),
-  userUpsert: vi.fn(),
-  userUpdate: vi.fn(),
-  userFindMany: vi.fn(),
-  userDeleteMany: vi.fn(),
-  participantProfileUpsert: vi.fn(),
-  participantProfileUpdate: vi.fn(),
-  participantProfileDeleteMany: vi.fn(),
-  diagnosisResultFindFirst: vi.fn(),
-  diagnosisResultCreate: vi.fn(),
-  diagnosisResultUpsert: vi.fn(),
-  diagnosisResultUpdate: vi.fn(),
-  diagnosisResultDeleteMany: vi.fn(),
-  organizationProfileDeleteMany: vi.fn(),
-  organizationProfileUpsert: vi.fn(),
-  opportunityDeleteMany: vi.fn(),
-  opportunityFindFirst: vi.fn(),
-  opportunityCreate: vi.fn(),
-  opportunityUpdate: vi.fn(),
-  matchingCandidateDeleteMany: vi.fn(),
-  matchingCandidateUpsert: vi.fn(),
-  approachDeleteMany: vi.fn(),
-  approachUpsert: vi.fn(),
-  certificateUpsert: vi.fn(),
-  certificateDeleteMany: vi.fn(),
-  accountDeletionRequestUpsert: vi.fn(),
-  accountDeletionRequestDeleteMany: vi.fn(),
-  disconnect: vi.fn(),
-}));
-
-vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
-      upsert: mocks.userUpsert,
-      update: mocks.userUpdate,
-      findMany: mocks.userFindMany,
-      deleteMany: mocks.userDeleteMany,
+      upsert: vi.fn(),
+      update: vi.fn(),
+      findMany: vi.fn(),
+      deleteMany: vi.fn(),
     },
     participantProfile: {
-      upsert: mocks.participantProfileUpsert,
-      update: mocks.participantProfileUpdate,
-      deleteMany: mocks.participantProfileDeleteMany,
+      upsert: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
     },
     diagnosisResult: {
-      findFirst: mocks.diagnosisResultFindFirst,
-      create: mocks.diagnosisResultCreate,
-      upsert: mocks.diagnosisResultUpsert,
-      update: mocks.diagnosisResultUpdate,
-      deleteMany: mocks.diagnosisResultDeleteMany,
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
     },
     organizationProfile: {
-      deleteMany: mocks.organizationProfileDeleteMany,
-      upsert: mocks.organizationProfileUpsert,
+      deleteMany: vi.fn(),
+      upsert: vi.fn(),
     },
     opportunity: {
-      deleteMany: mocks.opportunityDeleteMany,
-      findFirst: mocks.opportunityFindFirst,
-      create: mocks.opportunityCreate,
-      update: mocks.opportunityUpdate,
+      deleteMany: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    messageTemplate: {
+      deleteMany: vi.fn(),
     },
     matchingCandidate: {
-      deleteMany: mocks.matchingCandidateDeleteMany,
-      upsert: mocks.matchingCandidateUpsert,
+      deleteMany: vi.fn(),
+      upsert: vi.fn(),
     },
     approach: {
-      deleteMany: mocks.approachDeleteMany,
-      upsert: mocks.approachUpsert,
+      deleteMany: vi.fn(),
+      upsert: vi.fn(),
     },
     certificate: {
-      upsert: mocks.certificateUpsert,
-      deleteMany: mocks.certificateDeleteMany,
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
     },
     accountDeletionRequest: {
-      upsert: mocks.accountDeletionRequestUpsert,
-      deleteMany: mocks.accountDeletionRequestDeleteMany,
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
     },
-    $disconnect: mocks.disconnect,
+    $disconnect: vi.fn(),
   },
 }));
+
+vi.mock("@/lib/prisma", () => ({ prisma: mocks.prisma }));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -126,146 +87,37 @@ vi.mock("@/lib/test-auth/personas", () => ({
 
 import { seedE2eUsers } from "./seed-e2e";
 
-const personaDefinitions = {
-  "participant-fresh": {
-    key: "participant-fresh",
-    email: "e2e-participant-fresh@example.com",
-    role: "participant",
-    description: "fresh",
-  },
-  "participant-onboarded": {
-    key: "participant-onboarded",
-    email: "e2e-participant-onboarded@example.com",
-    role: "participant",
-    description: "onboarded",
-  },
-  "participant-diagnosis": {
-    key: "participant-diagnosis",
-    email: "e2e-participant-diagnosis@example.com",
-    role: "participant",
-    description: "diagnosis",
-  },
-  "participant-lifecycle": {
-    key: "participant-lifecycle",
-    email: "e2e-participant-lifecycle@example.com",
-    role: "participant",
-    description: "lifecycle",
-  },
-  "participant-delete": {
-    key: "participant-delete",
-    email: "e2e-participant-delete@example.com",
-    role: "participant",
-    description: "delete",
-  },
-  "participant-deletion-pending": {
-    key: "participant-deletion-pending",
-    email: "e2e-participant-deletion-pending@example.com",
-    role: "participant",
-    description: "deletion pending",
-  },
-  "participant-logout": {
-    key: "participant-logout",
-    email: "e2e-participant-logout@example.com",
-    role: "participant",
-    description: "logout",
-  },
-  "user-suspendable": {
-    key: "user-suspendable",
-    email: "e2e-user-suspendable@example.com",
-    role: "participant",
-    description: "suspendable",
-  },
-  "participant-suspended": {
-    key: "participant-suspended",
-    email: "e2e-participant-suspended@example.com",
-    role: "participant",
-    description: "suspended",
-  },
-  "organization-approved": {
-    key: "organization-approved",
-    email: "e2e-org-approved@example.com",
-    role: "organization",
-    description: "approved",
-  },
-  "organization-pending": {
-    key: "organization-pending",
-    email: "e2e-org-pending@example.com",
-    role: "organization",
-    description: "pending",
-  },
-  "organization-review-approve": {
-    key: "organization-review-approve",
-    email: "e2e-org-review-approve@example.com",
-    role: "organization",
-    description: "review approve",
-  },
-  "organization-review-reject": {
-    key: "organization-review-reject",
-    email: "e2e-org-review-reject@example.com",
-    role: "organization",
-    description: "review reject",
-  },
-  "organization-fresh": {
-    key: "organization-fresh",
-    email: "e2e-org-fresh@example.com",
-    role: "organization",
-    description: "fresh",
-  },
-  "organization-reapply": {
-    key: "organization-reapply",
-    email: "e2e-org-reapply@example.com",
-    role: "organization",
-    description: "reapply",
-  },
-  "organization-profile-review": {
-    key: "organization-profile-review",
-    email: "e2e-org-profile-review@example.com",
-    role: "organization",
-    description: "profile review",
-  },
-  "organization-lifecycle": {
-    key: "organization-lifecycle",
-    email: "e2e-org-lifecycle@example.com",
-    role: "organization",
-    description: "lifecycle",
-  },
-  "organization-foreign": {
-    key: "organization-foreign",
-    email: "e2e-org-foreign@example.com",
-    role: "organization",
-    description: "foreign",
-  },
-  "organization-pending-readonly": {
-    key: "organization-pending-readonly",
-    email: "e2e-org-pending-readonly@example.com",
-    role: "organization",
-    description: "pending readonly",
-  },
-  "organization-rejected": {
-    key: "organization-rejected",
-    email: "e2e-org-rejected@example.com",
-    role: "organization",
-    description: "rejected",
-  },
-  "organization-secondary": {
-    key: "organization-secondary",
-    email: "e2e-org-secondary@example.com",
-    role: "organization",
-    description: "secondary",
-  },
-  admin: {
-    key: "admin",
-    email: "e2e-admin@example.com",
-    role: "admin",
-    description: "管理者ロール",
-  },
-  "admin-review": {
-    key: "admin-review",
-    email: "e2e-admin-review@example.com",
-    role: "admin",
-    description: "admin review",
-  },
-} as const;
+// seedへ渡す入力fixture。期待値は下のassertで独立して指定する。
+const personaCases = [
+  ["participant-fresh", "participant", "e2e-participant-fresh@example.com", "fresh"],
+  ["participant-onboarded", "participant", "e2e-participant-onboarded@example.com", "onboarded"],
+  ["participant-diagnosis", "participant", "e2e-participant-diagnosis@example.com", "diagnosis"],
+  ["participant-lifecycle", "participant", "e2e-participant-lifecycle@example.com", "lifecycle"],
+  ["participant-delete", "participant", "e2e-participant-delete@example.com", "delete"],
+  ["participant-deletion-pending", "participant", "e2e-participant-deletion-pending@example.com", "deletion pending"],
+  ["participant-logout", "participant", "e2e-participant-logout@example.com", "logout"],
+  ["user-suspendable", "participant", "e2e-user-suspendable@example.com", "suspendable"],
+  ["participant-suspended", "participant", "e2e-participant-suspended@example.com", "suspended"],
+  ["organization-approved", "organization", "e2e-org-approved@example.com", "approved"],
+  ["organization-pending", "organization", "e2e-org-pending@example.com", "pending"],
+  ["organization-review-approve", "organization", "e2e-org-review-approve@example.com", "review approve"],
+  ["organization-review-reject", "organization", "e2e-org-review-reject@example.com", "review reject"],
+  ["organization-fresh", "organization", "e2e-org-fresh@example.com", "fresh"],
+  ["organization-reapply", "organization", "e2e-org-reapply@example.com", "reapply"],
+  ["organization-profile-review", "organization", "e2e-org-profile-review@example.com", "profile review"],
+  ["organization-lifecycle", "organization", "e2e-org-lifecycle@example.com", "lifecycle"],
+  ["organization-foreign", "organization", "e2e-org-foreign@example.com", "foreign"],
+  ["organization-pending-readonly", "organization", "e2e-org-pending-readonly@example.com", "pending readonly"],
+  ["organization-rejected", "organization", "e2e-org-rejected@example.com", "rejected"],
+  ["organization-secondary", "organization", "e2e-org-secondary@example.com", "secondary"],
+  ["organization-analytics-empty", "organization", "e2e-org-analytics-empty@example.com", "analytics-empty"],
+  ["admin", "admin", "e2e-admin@example.com", "管理者ロール"],
+  ["admin-review", "admin", "e2e-admin-review@example.com", "admin review"],
+] as const satisfies readonly (readonly [PersonaKey, Persona["role"], string, string])[];
+
+const personaDefinitions = Object.fromEntries(
+  personaCases.map(([key, role, email, description]) => [key, { key, role, email, description }]),
+);
 
 function personaId(key: string): string {
   return `${key}-id`;
@@ -298,11 +150,11 @@ describe("seedE2eUsers", () => {
     );
     mocks.updateUserById.mockResolvedValue({ data: { user: {} }, error: null });
     mocks.deleteUser.mockResolvedValue({ data: { user: null }, error: null });
-    mocks.userUpsert.mockResolvedValue({});
-    mocks.userUpdate.mockResolvedValue({});
-    mocks.userFindMany.mockResolvedValue([]);
-    mocks.userDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.participantProfileUpsert.mockImplementation(
+    mocks.prisma.user.upsert.mockResolvedValue({});
+    mocks.prisma.user.update.mockResolvedValue({});
+    mocks.prisma.user.findMany.mockResolvedValue([]);
+    mocks.prisma.user.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.participantProfile.upsert.mockImplementation(
       async ({
         where,
         create,
@@ -313,21 +165,21 @@ describe("seedE2eUsers", () => {
         id: create.id ?? `${where.userId}-profile-id`,
       })
     );
-    mocks.participantProfileUpdate.mockResolvedValue({});
-    mocks.participantProfileDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.diagnosisResultFindFirst.mockResolvedValue(null);
-    mocks.diagnosisResultCreate.mockImplementation(
+    mocks.prisma.participantProfile.update.mockResolvedValue({});
+    mocks.prisma.participantProfile.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.diagnosisResult.findFirst.mockResolvedValue(null);
+    mocks.prisma.diagnosisResult.create.mockImplementation(
       async ({ data }: { data: { userId: string } }) => ({
         id: `diagnosis-${data.userId}`,
       })
     );
-    mocks.diagnosisResultUpsert.mockImplementation(
+    mocks.prisma.diagnosisResult.upsert.mockImplementation(
       async ({ where }: { where: { id: string } }) => ({ id: where.id })
     );
-    mocks.diagnosisResultUpdate.mockResolvedValue({});
-    mocks.diagnosisResultDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.organizationProfileDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.organizationProfileUpsert.mockImplementation(
+    mocks.prisma.diagnosisResult.update.mockResolvedValue({});
+    mocks.prisma.diagnosisResult.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.organizationProfile.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.organizationProfile.upsert.mockImplementation(
       async ({ where }: { where: { userId: string } }) => {
         const ids: Record<string, string> = {
           [personaId("organization-approved")]: "approved-org-id",
@@ -337,18 +189,19 @@ describe("seedE2eUsers", () => {
         return { id: ids[where.userId] ?? `${where.userId}-profile-id` };
       }
     );
-    mocks.opportunityDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.opportunityFindFirst.mockResolvedValue(null);
-    mocks.opportunityCreate.mockImplementation(
+    mocks.prisma.opportunity.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.opportunity.findFirst.mockResolvedValue(null);
+    mocks.prisma.opportunity.create.mockImplementation(
       async ({ data }: { data: { title: string } }) => ({
         id: `opportunity-${data.title}`,
       })
     );
-    mocks.opportunityUpdate.mockImplementation(
+    mocks.prisma.opportunity.update.mockImplementation(
       async ({ where }: { where: { id: string } }) => ({ id: where.id })
     );
-    mocks.matchingCandidateDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.matchingCandidateUpsert.mockImplementation(
+    mocks.prisma.messageTemplate.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.matchingCandidate.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.matchingCandidate.upsert.mockImplementation(
       async ({
         where,
       }: {
@@ -362,12 +215,12 @@ describe("seedE2eUsers", () => {
         id: `candidate-${where.participantId_opportunityId.participantId}-${where.participantId_opportunityId.opportunityId}`,
       })
     );
-    mocks.approachDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.approachUpsert.mockResolvedValue({});
-    mocks.certificateUpsert.mockResolvedValue({});
-    mocks.certificateDeleteMany.mockResolvedValue({ count: 0 });
-    mocks.accountDeletionRequestUpsert.mockResolvedValue({});
-    mocks.accountDeletionRequestDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.approach.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.approach.upsert.mockResolvedValue({});
+    mocks.prisma.certificate.upsert.mockResolvedValue({});
+    mocks.prisma.certificate.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.accountDeletionRequest.upsert.mockResolvedValue({});
+    mocks.prisma.accountDeletionRequest.deleteMany.mockResolvedValue({ count: 0 });
   });
 
   afterEach(() => {
@@ -442,14 +295,14 @@ describe("seedE2eUsers", () => {
   });
 
   it("前回の cleanup 保留 persona を台帳と業務ユーザーから清掃する", async () => {
-    mocks.userFindMany.mockResolvedValue([{ id: "stale-pending-id" }]);
+    mocks.prisma.user.findMany.mockResolvedValue([{ id: "stale-pending-id" }]);
 
     await seedE2eUsers();
 
-    expect(mocks.accountDeletionRequestDeleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.accountDeletionRequest.deleteMany).toHaveBeenCalledWith({
       where: { userId: { in: ["stale-pending-id"] } },
     });
-    expect(mocks.userDeleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.user.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ["stale-pending-id"] } },
     });
   });
@@ -468,17 +321,17 @@ describe("seedE2eUsers", () => {
   it("統合済みE2E fixtureを新schemaで作成する", async () => {
     await seedE2eUsers();
 
-    expect(mocks.participantProfileDeleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.participantProfile.deleteMany).toHaveBeenCalledWith({
       where: { userId: personaId("participant-fresh") },
     });
-    expect(mocks.diagnosisResultDeleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.diagnosisResult.deleteMany).toHaveBeenCalledWith({
       where: { userId: personaId("participant-fresh") },
     });
-    expect(mocks.organizationProfileDeleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.organizationProfile.deleteMany).toHaveBeenCalledWith({
       where: { userId: personaId("organization-fresh") },
     });
 
-    expect(mocks.userUpsert).toHaveBeenCalledWith({
+    expect(mocks.prisma.user.upsert).toHaveBeenCalledWith({
       where: { id: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
       update: expect.objectContaining({
         email: "e2e-organization-fixture-participant@example.com",
@@ -489,7 +342,7 @@ describe("seedE2eUsers", () => {
         role: "participant",
       }),
     });
-    expect(mocks.userUpsert).toHaveBeenCalledWith({
+    expect(mocks.prisma.user.upsert).toHaveBeenCalledWith({
       where: { id: personaId("admin-review") },
       update: {
         role: "admin",
@@ -503,7 +356,7 @@ describe("seedE2eUsers", () => {
         role: "admin",
       },
     });
-    expect(mocks.participantProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.participantProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
         create: expect.objectContaining({
@@ -511,7 +364,7 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.participantProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.participantProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: personaId("user-suspendable") },
         update: expect.objectContaining({
@@ -522,7 +375,7 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.diagnosisResultUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.diagnosisResult.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID },
         create: expect.objectContaining({
@@ -531,12 +384,12 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.participantProfileUpdate).toHaveBeenCalledWith({
+    expect(mocks.prisma.participantProfile.update).toHaveBeenCalledWith({
       where: { userId: ORGANIZATION_FIXTURE_PARTICIPANT_ID },
       data: { latestDiagnosisResultId: ORGANIZATION_FIXTURE_DIAGNOSIS_RESULT_ID },
     });
 
-    expect(mocks.diagnosisResultCreate).toHaveBeenCalledWith({
+    expect(mocks.prisma.diagnosisResult.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         scaleCode: expect.any(String),
         scaleVersion: expect.any(String),
@@ -550,7 +403,7 @@ describe("seedE2eUsers", () => {
       }),
       select: { id: true },
     });
-    const diagnosisCreatePayloads = mocks.diagnosisResultCreate.mock.calls.map(
+    const diagnosisCreatePayloads = mocks.prisma.diagnosisResult.create.mock.calls.map(
       ([arg]) => arg.data
     );
     for (const payload of diagnosisCreatePayloads) {
@@ -559,25 +412,25 @@ describe("seedE2eUsers", () => {
       expect(payload).not.toHaveProperty("diagnosisMode");
     }
 
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: personaId("organization-reapply") },
         create: expect.objectContaining({ reviewStatus: "rejected" }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: personaId("organization-lifecycle") },
         create: expect.objectContaining({ reviewStatus: "approved" }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: personaId("organization-pending-readonly") },
         create: expect.objectContaining({ reviewStatus: "pending" }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: personaId("organization-pending") },
         update: expect.objectContaining({
@@ -589,7 +442,7 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: personaId("organization-review-approve") },
         update: expect.objectContaining({
@@ -604,7 +457,7 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: personaId("organization-review-reject") },
         update: expect.objectContaining({
@@ -621,7 +474,7 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: "00000000-0000-4000-8000-000000000173" },
         update: expect.objectContaining({
@@ -632,34 +485,48 @@ describe("seedE2eUsers", () => {
         }),
       })
     );
-    expect(mocks.organizationProfileUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: personaId("organization-secondary") },
         create: expect.objectContaining({ reviewStatus: "approved" }),
       })
     );
+    expect(mocks.prisma.messageTemplate.deleteMany).toHaveBeenCalledWith({
+      where: { organizationId: "organization-secondary-id-profile-id" },
+    });
+    expect(mocks.prisma.organizationProfile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: personaId("organization-analytics-empty") },
+        create: expect.objectContaining({ reviewStatus: "approved" }),
+      })
+    );
+    expect(mocks.prisma.opportunity.create).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        organizationId: "organization-analytics-empty-id-profile-id",
+      }),
+    });
 
-    expect(mocks.opportunityDeleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.opportunity.deleteMany).toHaveBeenCalledWith({
       where: {
         organizationId: "lifecycle-org-id",
         title: { startsWith: "E2E 団体案件管理" },
       },
     });
-    expect(mocks.opportunityCreate).toHaveBeenCalledWith({
+    expect(mocks.prisma.opportunity.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         organizationId: "lifecycle-org-id",
         title: "E2E 団体おすすめ高相性案件",
         activityStyleTags: ["empathy-support"],
       }),
     });
-    for (const [arg] of mocks.opportunityCreate.mock.calls) {
+    for (const [arg] of mocks.prisma.opportunity.create.mock.calls) {
       expect(arg.data).not.toHaveProperty("requirementTraits");
     }
-    for (const [arg] of mocks.opportunityUpdate.mock.calls) {
+    for (const [arg] of mocks.prisma.opportunity.update.mock.calls) {
       expect(arg.data).not.toHaveProperty("requirementTraits");
     }
 
-    expect(mocks.matchingCandidateDeleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.matchingCandidate.deleteMany).toHaveBeenCalledWith({
       where: {
         participantId: {
           not: ORGANIZATION_FIXTURE_PARTICIPANT_ID,
@@ -672,14 +539,14 @@ describe("seedE2eUsers", () => {
         },
       },
     });
-    for (const [arg] of mocks.matchingCandidateUpsert.mock.calls) {
+    for (const [arg] of mocks.prisma.matchingCandidate.upsert.mock.calls) {
       expect(arg.create).not.toHaveProperty("matchScore");
       expect(arg.create).not.toHaveProperty("diagnosisResultId");
       expect(arg.update).not.toHaveProperty("matchScore");
       expect(arg.update).not.toHaveProperty("diagnosisResultId");
     }
 
-    expect(mocks.approachDeleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.approach.deleteMany).toHaveBeenCalledWith({
       where: {
         organizationId: "lifecycle-org-id",
         participantProfileId: {
@@ -692,12 +559,12 @@ describe("seedE2eUsers", () => {
         }),
       },
     });
-    for (const [arg] of mocks.approachUpsert.mock.calls) {
+    for (const [arg] of mocks.prisma.approach.upsert.mock.calls) {
       expect(arg.create).not.toHaveProperty("matchScore");
       expect(arg.update).not.toHaveProperty("matchScore");
     }
 
-    expect(mocks.certificateUpsert).toHaveBeenCalledWith(
+    expect(mocks.prisma.certificate.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           applicationId:
@@ -706,11 +573,11 @@ describe("seedE2eUsers", () => {
         create: expect.objectContaining({ status: "pending" }),
       })
     );
-    expect(mocks.userUpdate).toHaveBeenCalledWith({
+    expect(mocks.prisma.user.update).toHaveBeenCalledWith({
       where: { id: personaId("user-suspendable") },
       data: expect.objectContaining({ isActive: true, suspendReason: null }),
     });
-    expect(mocks.userUpdate).toHaveBeenCalledWith({
+    expect(mocks.prisma.user.update).toHaveBeenCalledWith({
       where: { id: personaId("participant-suspended") },
       data: expect.objectContaining({
         isActive: false,

@@ -1,6 +1,6 @@
 ---
 name: volunty-dev-commands
-description: 'Use when: Volunty の開発・検証コマンド、lint/test/build、Vitest 単体テスト、Docker Compose 操作を実行または案内する必要がある。'
+description: "Voluntyの開発・検証・Docker操作コマンドを確認するときに使う。"
 argument-hint: '例: テストを実行 / lintを実行 / Dockerを起動 / build確認'
 ---
 

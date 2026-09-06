@@ -81,6 +81,10 @@ function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATH_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
 }
 
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/opportunities/");
+}
+
 function isOnboardingPath(pathname: string): boolean {
   return pathname.startsWith("/onboarding");
 }
@@ -186,7 +190,7 @@ export async function proxy(request: NextRequest) {
       : continueWithRequestHeaders(request, response);
   }
 
-  if (PUBLIC_PATHS.has(pathname) || !isProtectedPath(pathname)) {
+  if ((!identity && isPublicPath(pathname)) || !isProtectedPath(pathname)) {
     return continueWithRequestHeaders(request, response);
   }
 
@@ -241,6 +245,10 @@ export async function proxy(request: NextRequest) {
       organizationProfile?.review_status,
     ),
   };
+
+  if (isPublicPath(pathname)) {
+    return continueWithRequestHeaders(request, response, forwardedViewer);
+  }
 
   if (isOnboardingPath(pathname)) {
     return continueWithRequestHeaders(request, response, forwardedViewer);
