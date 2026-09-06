@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { assertParticipantBirthdayLayout } from "./participant-profile-birthday";
 
 const APPLICATION_OPPORTUNITY_TITLE = "E2E 応募対象案件";
 const FILTER_OPPORTUNITY_TITLE = "E2E オンライン環境保全案件";
@@ -199,6 +200,14 @@ test.describe.serial("参加者の案件探索と応募", () => {
     ).toHaveValue("新宿区");
     await expect(page.getByLabel("参加形態")).toHaveValue("online");
     await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
+  });
+
+
+  test("プロフィール編集の生年月日も各幅で選択値を確認できる", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/mypage/profile/edit");
+    await assertParticipantBirthdayLayout(page, testInfo);
   });
 
   test("案件を後で見るへ追加し、一覧と詳細から解除できる", async ({ page }) => {
