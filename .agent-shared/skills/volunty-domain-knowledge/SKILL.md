@@ -1,6 +1,6 @@
 ---
 name: volunty-domain-knowledge
-description: 'Use when: Volunty の BIG5 特性、活動スタイル参考タイプ、Participant/Organization/Opportunity/Application/Role 用語、主要 TypeScript 型を確認する必要がある。'
+description: "VoluntyのBIG5、活動スタイル、ドメイン用語・型を確認するときに使う。"
 argument-hint: '例: BIG5の定義を確認 / 参考タイプ一覧 / ドメイン型を確認'
 ---
 
