@@ -16,15 +16,16 @@ test.describe("公開文書と登録前同意", () => {
     for (const [path, heading] of PUBLIC_DOCUMENTS) {
       await page.goto(path);
       await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
-      await expect(page.getByRole("link", { name: "利用規約", exact: true })).toHaveAttribute(
+      const footer = page.locator("footer");
+      await expect(footer.getByRole("link", { name: "利用規約", exact: true })).toHaveAttribute(
         "href",
         "/terms",
       );
-      await expect(page.getByRole("link", { name: "プライバシーポリシー", exact: true })).toHaveAttribute(
+      await expect(footer.getByRole("link", { name: "プライバシーポリシー", exact: true })).toHaveAttribute(
         "href",
         "/privacy",
       );
-      await expect(page.getByRole("link", { name: "退会・データ削除", exact: true })).toHaveAttribute(
+      await expect(footer.getByRole("link", { name: "退会・データ削除", exact: true })).toHaveAttribute(
         "href",
         "/account-deletion",
       );

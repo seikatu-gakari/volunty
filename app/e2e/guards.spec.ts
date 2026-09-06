@@ -325,7 +325,9 @@ test.describe("非LP未認証ヘッダー", () => {
   test("/loginではLPアンカーとモバイルメニューを表示しない", async ({ page }) => {
     await page.goto("/login");
 
-    await expect(page.getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByRole("link", { name: "ボランティ ホーム" }),
+    ).toBeVisible();
     await expect(page.locator('header a[href^="#"]')).toHaveCount(0);
     for (const sectionId of LP_SECTION_IDS) {
       await expect(page.locator(`#${sectionId}`)).toHaveCount(0);
