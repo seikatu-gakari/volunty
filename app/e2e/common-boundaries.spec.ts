@@ -2,9 +2,13 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 
 const AUTH_STATE = {
   participant: "playwright/.auth/participant.json",
+  participantFresh: "playwright/.auth/participant-fresh.json",
+  participantSuspended: "playwright/.auth/participant-suspended.json",
   participantDiagnosis: "playwright/.auth/participant-diagnosis.json",
   participantLogout: "playwright/.auth/participant-logout.json",
   organization: "playwright/.auth/organization.json",
+  organizationFresh: "playwright/.auth/organization-fresh.json",
+  organizationReapply: "playwright/.auth/organization-reapply.json",
   organizationPendingReadonly:
     "playwright/.auth/organization-pending-readonly.json",
   organizationRejected: "playwright/.auth/organization-rejected.json",
@@ -22,6 +26,52 @@ async function expectForbidden(page: Page, hiddenText: string) {
     page.getByRole("heading", { name: "このページにはアクセスできません" })
   ).toBeVisible();
   await expect(page.getByText(hiddenText, { exact: true })).toHaveCount(0);
+}
+
+interface NotFoundRecoveryCase {
+  storageState?: string;
+  primaryLabel: string;
+  primaryHref: string;
+  destinationUrl: RegExp;
+  destinationHeading: string;
+  showHomeLink: boolean;
+}
+
+async function expectNotFoundRecoveryActions(
+  page: Page,
+  recovery: NotFoundRecoveryCase,
+) {
+  await expect(
+    page.getByRole("heading", { name: "ページが見つかりません" }),
+  ).toBeVisible();
+
+  const actions = page.getByTestId("not-found-actions");
+  const links = actions.getByRole("link");
+  await expect(links).toHaveCount(recovery.showHomeLink ? 2 : 1);
+  await expect(links.nth(0)).toHaveText(recovery.primaryLabel);
+  await expect(links.nth(0)).toHaveAttribute("href", recovery.primaryHref);
+  await expect(
+    actions.getByRole("link", { name: "トップへ戻る" }),
+  ).toHaveCount(recovery.showHomeLink ? 1 : 0);
+  await expect(
+    actions.getByRole("link", { name: "診断を始める" }),
+  ).toHaveCount(0);
+}
+
+async function followNotFoundPrimaryByKeyboard(
+  page: Page,
+  recovery: NotFoundRecoveryCase,
+) {
+  const primary = page.getByTestId("not-found-actions").getByRole("link").nth(0);
+  await primary.focus();
+  await expect(primary).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(recovery.destinationUrl);
+  await expect(page).not.toHaveURL(/\/forbidden(?:\/|$)/);
+  await expect(page).not.toHaveURL(/\/qa-not-found-270(?:\/|$)/);
+  await expect(
+    page.getByRole("heading", { name: recovery.destinationHeading }),
+  ).toBeVisible();
 }
 
 test("C-E1: 保護ルートは未認証ユーザーを復帰先付きログインへ戻す", async ({ page }) => {
@@ -288,4 +338,148 @@ test("C-E9: モバイル表示で各ロールの主要導線を操作できる",
   await adminPage.getByRole("link", { name: "団体審査一覧" }).click();
   await expect(adminPage).toHaveURL(/\/admin\/organizations$/);
   await adminContext.close();
+});
+
+test("C-E10: 404から各ロール・状態の利用可能な復帰先へ戻れる", async ({
+  browser,
+  page,
+}) => {
+  const cases: NotFoundRecoveryCase[] = [
+    {
+      primaryLabel: "トップへ戻る",
+      primaryHref: "/",
+      destinationUrl: /\/$/,
+      destinationHeading: "つながる、みつかる、変わっていく。",
+      showHomeLink: false,
+    },
+    {
+      storageState: AUTH_STATE.participant,
+      primaryLabel: "マイページへ戻る",
+      primaryHref: "/mypage",
+      destinationUrl: /\/mypage$/,
+      destinationHeading: "マイページ",
+      showHomeLink: true,
+    },
+    {
+      storageState: AUTH_STATE.participantFresh,
+      primaryLabel: "プロフィール登録へ進む",
+      primaryHref: "/onboarding/role",
+      destinationUrl: /\/onboarding\/role$/,
+      destinationHeading: "利用方法を選択",
+      showHomeLink: true,
+    },
+    {
+      storageState: AUTH_STATE.organization,
+      primaryLabel: "ダッシュボードへ戻る",
+      primaryHref: "/dashboard",
+      destinationUrl: /\/dashboard$/,
+      destinationHeading: "ダッシュボード",
+      showHomeLink: true,
+    },
+    {
+      storageState: AUTH_STATE.organizationFresh,
+      primaryLabel: "プロフィール登録へ進む",
+      primaryHref: "/onboarding/role",
+      destinationUrl: /\/onboarding\/role$/,
+      destinationHeading: "利用方法を選択",
+      showHomeLink: true,
+    },
+    {
+      storageState: AUTH_STATE.organizationPendingReadonly,
+      primaryLabel: "審査状況を確認する",
+      primaryHref: "/onboarding/pending",
+      destinationUrl: /\/onboarding\/pending$/,
+      destinationHeading: "審査中です",
+      showHomeLink: true,
+    },
+    {
+      storageState: AUTH_STATE.organizationRejected,
+      primaryLabel: "審査状況を確認する",
+      primaryHref: "/onboarding/pending",
+      destinationUrl: /\/onboarding\/pending$/,
+      destinationHeading: "申請は否認されました",
+      showHomeLink: true,
+    },
+    {
+      storageState: AUTH_STATE.organizationReapply,
+      primaryLabel: "審査状況を確認する",
+      primaryHref: "/onboarding/pending",
+      destinationUrl: /\/onboarding\/pending$/,
+      destinationHeading: "申請は否認されました",
+      showHomeLink: true,
+    },
+    {
+      storageState: AUTH_STATE.admin,
+      primaryLabel: "管理ダッシュボードへ戻る",
+      primaryHref: "/admin",
+      destinationUrl: /\/admin$/,
+      destinationHeading: "管理ダッシュボード",
+      showHomeLink: true,
+    },
+    {
+      storageState: AUTH_STATE.participantSuspended,
+      primaryLabel: "トップへ戻る",
+      primaryHref: "/",
+      destinationUrl: /\/login\?error=suspended$/,
+      destinationHeading: "ログイン",
+      showHomeLink: false,
+    },
+  ];
+
+  for (const recovery of cases) {
+    const context = recovery.storageState
+      ? await browser.newContext({ storageState: recovery.storageState })
+      : page.context();
+    const recoveryPage = recovery.storageState ? await context.newPage() : page;
+
+    await recoveryPage.goto("/qa-not-found-270");
+    await expectNotFoundRecoveryActions(recoveryPage, recovery);
+    await followNotFoundPrimaryByKeyboard(recoveryPage, recovery);
+
+    if (recovery.showHomeLink) {
+      await recoveryPage.goto("/qa-not-found-270");
+      const homeLink = recoveryPage
+        .getByTestId("not-found-actions")
+        .getByRole("link", { name: "トップへ戻る" });
+      await homeLink.focus();
+      await expect(homeLink).toBeFocused();
+      await recoveryPage.keyboard.press("Enter");
+      await expect(recoveryPage).toHaveURL(/\/$/);
+      await expect(recoveryPage).not.toHaveURL(/\/forbidden(?:\/|$)/);
+      await expect(
+        recoveryPage.getByRole("heading", {
+          name: "ページが見つかりません",
+        }),
+      ).toHaveCount(0);
+    }
+
+    if (recovery.storageState) {
+      await context.close();
+    }
+  }
+});
+
+test("C-E11: 保護ルートとページ内notFoundの404も同じ復帰先を表示する", async ({
+  browser,
+}) => {
+  const { context, page } = await openAuthenticatedPage(
+    browser,
+    AUTH_STATE.organization,
+  );
+
+  for (const path of [
+    "/dashboard/qa-not-found",
+    "/dashboard/opportunities/00000000-0000-4000-8000-000000000270/edit",
+  ]) {
+    await page.goto(path);
+    await expectNotFoundRecoveryActions(page, {
+      primaryLabel: "ダッシュボードへ戻る",
+      primaryHref: "/dashboard",
+      destinationUrl: /\/dashboard$/,
+      destinationHeading: "ダッシュボード",
+      showHomeLink: true,
+    });
+  }
+
+  await context.close();
 });

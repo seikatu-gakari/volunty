@@ -5,6 +5,7 @@ const personas = [
   { key: "participant-onboarded", file: "participant" },
   { key: "participant-fresh", file: "participant-fresh" },
   { key: "participant-diagnosis", file: "participant-diagnosis" },
+  { key: "participant-suspended", file: "participant-suspended" },
   { key: "participant-lifecycle", file: "participant-lifecycle" },
   { key: "participant-delete", file: "participant-delete" },
   { key: "participant-logout", file: "participant-logout" },
