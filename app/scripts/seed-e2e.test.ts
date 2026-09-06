@@ -43,6 +43,9 @@ const mocks = vi.hoisted(() => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    messageTemplate: {
+      deleteMany: vi.fn(),
+    },
     matchingCandidate: {
       deleteMany: vi.fn(),
       upsert: vi.fn(),
@@ -195,6 +198,7 @@ describe("seedE2eUsers", () => {
     mocks.prisma.opportunity.update.mockImplementation(
       async ({ where }: { where: { id: string } }) => ({ id: where.id })
     );
+    mocks.prisma.messageTemplate.deleteMany.mockResolvedValue({ count: 0 });
     mocks.prisma.matchingCandidate.deleteMany.mockResolvedValue({ count: 0 });
     mocks.prisma.matchingCandidate.upsert.mockImplementation(
       async ({
@@ -486,6 +490,9 @@ describe("seedE2eUsers", () => {
         create: expect.objectContaining({ reviewStatus: "approved" }),
       })
     );
+    expect(mocks.prisma.messageTemplate.deleteMany).toHaveBeenCalledWith({
+      where: { organizationId: "organization-secondary-id-profile-id" },
+    });
 
     expect(mocks.prisma.opportunity.deleteMany).toHaveBeenCalledWith({
       where: {
