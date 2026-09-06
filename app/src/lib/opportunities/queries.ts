@@ -6,7 +6,12 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { findActivityStyleTag, toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
 import { isOpportunityPublic } from "./publication";
-import type { ExistingApplication, OpportunityDetail, OpportunityDetailResult } from "./types";
+import type {
+  ExistingApplication,
+  OpportunityDetail,
+  OpportunityDetailResult,
+  OpportunityViewerState,
+} from "./types";
 
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
@@ -39,6 +44,64 @@ function isActiveParticipant(viewer: ViewerContext): viewer is Extract<ViewerCon
 /** 閲覧イベントの流入元 */
 export type OpportunityViewSource = "recommendation" | "search" | "direct";
 
+/** 公開DTOとは分離して、参加者本人の応募・保存・閲覧状態だけを取得する。 */
+export async function fetchOpportunityViewerState(
+  opportunityId: string,
+  viewer: ViewerContext,
+  viewSource: OpportunityViewSource = "direct",
+): Promise<OpportunityViewerState> {
+  if (!isActiveParticipant(viewer)) {
+    return { existingApplication: null, isParticipant: false, isBookmarked: false };
+  }
+
+  const userId = viewer.identity.id;
+  const [application, bookmark] = await Promise.all([
+    prisma.matchingCandidate.findUnique({
+      where: {
+        participantId_opportunityId: { participantId: userId, opportunityId },
+      },
+      select: {
+        id: true,
+        status: true,
+        message: true,
+        appliedAt: true,
+        statusChangedAt: true,
+      },
+    }),
+    prisma.engagementEvent.findFirst({
+      where: { userId, opportunityId, event: "favorite" },
+      select: { id: true },
+    }),
+  ]);
+
+  after(async () => {
+    try {
+      await prisma.engagementEvent.create({
+        data: { userId, opportunityId, event: "view", source: viewSource },
+      });
+    } catch (error) {
+      console.error("[fetchOpportunityViewerState] 閲覧イベントの記録に失敗:", error);
+    }
+  });
+
+  return {
+    existingApplication: application
+      ? {
+          id: application.id,
+          status: mapMatchingStatus(application.status),
+          message: application.message,
+          created_at: application.appliedAt?.toISOString() ?? "",
+          completed_at:
+            application.status === "completed"
+              ? application.statusChangedAt.toISOString()
+              : null,
+        }
+      : null,
+    isParticipant: true,
+    isBookmarked: Boolean(bookmark),
+  };
+}
+
 /** 検証済み ViewerContext を用いて公開案件詳細を取得する。 */
 export async function fetchOpportunityDetail(
   opportunityId: string,
@@ -50,7 +113,7 @@ export async function fetchOpportunityDetail(
     const { data: oppData, error: oppError } = await supabase
       .from("m_opportunity")
       .select(
-        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, published_at, created_at, location, start_date, end_date, capacity, current_applicants, category, participation_mode, m_organization_profile(id, organization_name, description)",
+        "id, title, description, activity_style_tags, required_qualifications, min_age, max_age, status, published_at, created_at, location, start_date, end_date, schedule, capacity, current_applicants, category, participation_mode, cost, belongings, application_deadline, cancellation_policy, insurance_details, contact_method, m_organization_profile(id, organization_name, description, website_url, verified)",
       )
       .eq("id", opportunityId)
       .single();
@@ -82,15 +145,25 @@ export async function fetchOpportunityDetail(
         id: (org?.id as string) ?? "",
         name: (org?.organization_name as string) ?? "",
         description: (org?.description as string | null) ?? null,
+        website_url: (org?.website_url as string | null) ?? null,
+        verified: (org?.verified as boolean | null) ?? false,
       },
       created_at: oppData.created_at as string,
       location: (oppData.location as string | null) ?? null,
       start_date: ((oppData.start_date as string | null) ?? null)?.slice(0, 10) ?? null,
       end_date: ((oppData.end_date as string | null) ?? null)?.slice(0, 10) ?? null,
+      schedule: (oppData.schedule as string | null) ?? null,
       capacity: (oppData.capacity as number | null) ?? null,
       current_applicants: (oppData.current_applicants as number | null) ?? 0,
       category: (oppData.category as string | null) ?? null,
       participation_mode: (oppData.participation_mode as OpportunityDetail["participation_mode"]) ?? null,
+      cost: (oppData.cost as string | null) ?? null,
+      belongings: (oppData.belongings as string | null) ?? null,
+      application_deadline:
+        ((oppData.application_deadline as string | null) ?? null)?.slice(0, 10) ?? null,
+      cancellation_policy: (oppData.cancellation_policy as string | null) ?? null,
+      insurance_details: (oppData.insurance_details as string | null) ?? null,
+      contact_method: (oppData.contact_method as string | null) ?? null,
     };
     const participant = isActiveParticipant(viewer);
     const userId = participant ? viewer.identity.id : null;

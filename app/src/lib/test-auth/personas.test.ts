@@ -28,10 +28,6 @@ describe("resolvePersona", () => {
     });
   });
 
-  it("古い participant-suspendable key は解決しない", () => {
-    expect(resolvePersona("participant-suspendable")).toBeNull();
-  });
-
   it("E2E persona の email は重複しない", () => {
     const emails = Object.values(PERSONAS).map((persona) => persona.email);
     expect(new Set(emails).size).toBe(emails.length);
@@ -68,6 +64,7 @@ describe("resolvePersona", () => {
   });
 
   it("不明なキーは null を返す", () => {
+    expect(resolvePersona("participant-suspendable")).toBeNull();
     expect(resolvePersona("unknown-key")).toBeNull();
     expect(resolvePersona("")).toBeNull();
   });

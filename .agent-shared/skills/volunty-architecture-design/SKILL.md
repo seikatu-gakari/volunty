@@ -1,6 +1,6 @@
 ---
 name: volunty-architecture-design
-description: 'Use when: Volunty のアーキテクチャ、Server Components 方針、XState 診断フロー、BIG5 スコア計算、デザインカラーを確認する必要がある。'
+description: "Voluntyの診断・推薦設計、Server/Client境界、デザイン色を確認するときに使う。"
 argument-hint: '例: 診断フローを変更 / Server Component方針を確認 / デザイン色を確認'
 ---
 

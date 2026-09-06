@@ -223,6 +223,35 @@ describe("updateOpportunity", () => {
     expect(mockProfileSingle).not.toHaveBeenCalled();
   });
 
+  it("追加募集項目も保持して案件を更新し、詳細ページへリダイレクトする", async () => {
+    await updateOpportunity("opp-1", validFields({
+      title: "更新された案件",
+      description: "更新された説明",
+      status: "closed",
+      schedule: "毎週土曜日 10:00〜12:00",
+      cost: "無料",
+      belongings: "軍手",
+      applicationDeadline: "2026-09-10",
+      cancellationPolicy: "前日までに連絡",
+      insuranceDetails: "行事保険に加入",
+      contactMethod: "Volunty内で連絡",
+    }));
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      title: "更新された案件",
+      description: "更新された説明",
+      status: "closed",
+      schedule: "毎週土曜日 10:00〜12:00",
+      cost: "無料",
+      belongings: "軍手",
+      application_deadline: "2026-09-10",
+      cancellation_policy: "前日までに連絡",
+      insurance_details: "行事保険に加入",
+      contact_method: "Volunty内で連絡",
+    }));
+    expect(mockUpdateOrganizationEq).toHaveBeenCalledWith("organization_id", "profile-123");
+    expect(mockRedirect).toHaveBeenCalledWith("/dashboard/opportunities/opp-1");
+  });
+
   it("活動スタイルタグ・参加要件付きで案件を更新できる", async () => {
     const formData = validFields({ maxAge: "65" });
     formData.append("activityStyleTags", "empathy-support");

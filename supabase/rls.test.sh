@@ -315,7 +315,9 @@ SQL
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830010000_issue245_repair_opportunity_schema.sql" >/dev/null
 # ADD COLUMN IF NOT EXISTSによる再実行相当の安全性を検証する。
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830010000_issue245_repair_opportunity_schema.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260901000000_issue250_public_opportunity_detail.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260906000000_issue265_publication_visibility.sql" >/dev/null
+
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
 DO $$
@@ -1100,6 +1102,7 @@ BEGIN
     AND published_at IS NOT NULL
     AND published_at <= CURRENT_TIMESTAMP;
 
+
   SELECT COUNT(*)
   INTO visible_count
   FROM public.m_opportunity;
@@ -1130,6 +1133,7 @@ BEGIN
     )
   ) THEN
     RAISE EXCEPTION 'anon can read a non-public opportunity fixture';
+
   END IF;
 END;
 $$;

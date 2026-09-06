@@ -20,6 +20,8 @@ export interface OrganizationInfo {
   id: string;
   name: string;
   description: string | null;
+  website_url: string | null;
+  verified: boolean;
 }
 
 /** 募集案件の詳細情報 */
@@ -43,6 +45,8 @@ export interface OpportunityDetail {
   start_date: string | null;
   /** 終了日（YYYY-MM-DD） */
   end_date: string | null;
+  /** 開催日時・頻度の補足 */
+  schedule: string | null;
   /** 定員 */
   capacity: number | null;
   /** 現在の応募者数 */
@@ -51,6 +55,12 @@ export interface OpportunityDetail {
   category: string | null;
   /** 参加形態 */
   participation_mode: ParticipationMode | null;
+  cost: string | null;
+  belongings: string | null;
+  application_deadline: string | null;
+  cancellation_policy: string | null;
+  insurance_details: string | null;
+  contact_method: string | null;
 }
 
 /** 既存の応募情報 */
@@ -71,6 +81,13 @@ export interface OpportunityDetailResult {
   /** ログインユーザーが参加者であるか */
   isParticipant: boolean;
   /** ログイン中の参加者がお気に入りに追加済みか */
+  isBookmarked: boolean;
+}
+
+/** 公開詳細に重ねる参加者本人だけの状態。 */
+export interface OpportunityViewerState {
+  existingApplication: ExistingApplication | null;
+  isParticipant: boolean;
   isBookmarked: boolean;
 }
 

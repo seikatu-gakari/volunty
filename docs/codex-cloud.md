@@ -5,15 +5,15 @@
 Codex Cloud は設計、実装、検証、Pull Request 作成までを担当する。`main` へのマージは人間が行う。
 
 1. Codex Cloudで `seikatu-gakari/volunty` と `main` を対象にタスクを開始する。
-2. Codexが関連コードと設計書を調査し、設計案を提示する。
+2. 設計が未承認の場合、Codexが必要な関連コード・設計書を調査し、設計案を提示する。
 3. 人間が設計案を承認する。
 4. Codexが実装計画を提示する。
 5. 人間が実装計画を承認する。
-6. Codexが `codex/<topic>` ブランチで実装し、lint、UT、buildを実行する。
+6. Codexが `codex/<topic>` ブランチで実装し、変更に必要な検証を実行する。会話やIssueで設計・計画が承認済みなら、承認内容を引き継いでこの段階から進める。
 7. ブランチpushでVercel Previewが自動デプロイされる。
 8. Codexが `main` 向けPull Requestを作成する。
 9. GitHub Actionsのquality/e2e、Codex Review、Vercel Previewを確認する。
-10. 失敗があればCodexに同じPRブランチの修正を依頼する。
+10. Codexが変更に起因する失敗を同じPRブランチで修正し、影響する検証を再実行する。追加権限や設計拡張が必要な場合は確認する。
 11. 全チェック成功後、人間が `main` にマージする。
 
 ## Codex Cloud Environment
@@ -114,21 +114,33 @@ Codex Cloudのブランチpush後、PR画面またはVercel dashboardからPrevi
 
 ## Cloudへの依頼テンプレート
 
+設計から相談する場合:
+
 ```text
-Issue #123を対応してください。
-まず関連コードと設計書を調査し、設計案を提示してください。
-設計承認までは実装しないでください。
-設計承認後に実装計画を提示し、計画承認後に実装してください。
-作業ブランチは codex/cloud-setup とし、必要なUT/E2Eを追加・実行してください。
-lint、UT、build、E2E、Vercel Preview、Codex Reviewを確認したうえでmain向けPRを作成してください。
-mainへのマージは行わないでください。
+Issue #123の関連コードと設計を必要な範囲で調査し、設計案と実装計画を提示してください。
+今回は調査・提案までとし、ファイルの作成・編集やGitHubへの書き込みは行わないでください。
 ```
+
+承認済みの内容を実装する場合:
+
+```text
+Issue #123を、この会話で承認した設計・実装計画に従ってReady PRまで進めてください。
+既存変更を保護し、codex/<topic>ブランチで実装してください。
+必要な既存テストを実行し、カバレッジが不足するケースだけ追加・更新してください。
+実装後は作業ブランチへpushし、main向けPRを作成してください。
+PR作成後の最新HEADについてCI、Vercel Preview、Codex Reviewと指摘対応を確認し、
+変更に起因する失敗の修正・再検証まで続けてください。
+このPRへの @codex review 依頼は1回まで許可します。既存の依頼があれば再利用してください。
+追加権限・本番操作・承認済み設計の拡張が必要なときに確認し、mainにはマージしないでください。
+```
+
+完了条件は実装・必要な検証・PR作成・作成後の各ゲート成功まで。CIでのみ実行できるE2Eはその結果で確認し、待機中・未実行・失敗を完了と扱わない。第三者への完了通知が必要な場合は、宛先と通知内容を依頼に追加する。
 
 ## 失敗時の対応
 
 - Setup失敗: Node.jsが22.12以上か、`app/package-lock.json`が存在するかを確認し、必要ならCloud EnvironmentのcacheをResetする。
-- Quality失敗: Cloudの同じタスクで修正し、lint、UT、buildを再実行する。
-- E2E失敗: GitHub ActionsのPlaywright artifact、trace、screenshotを確認し、同じPRブランチへ修正を依頼する。
+- Quality失敗: Cloudの同じタスクで原因を修正し、影響する検証を再実行する。
+- E2E失敗: GitHub ActionsのPlaywright artifact、trace、screenshotを確認し、変更に起因する失敗を同じPRブランチで修正する。
 - Preview失敗: Vercelのbuild logと環境変数設定を確認する。本番値をCloudへコピーしない。
 - PR作成失敗: GitHub接続、repository write権限、main branch protectionを確認する。mainの保護を解除して回避しない。
 
