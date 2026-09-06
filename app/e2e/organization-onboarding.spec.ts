@@ -16,10 +16,31 @@ test.describe("団体オンボーディング", () => {
 
     await page.getByLabel("団体名").fill("E2E新規団体");
     await page.getByLabel("代表者名").fill("E2E 新規代表者");
-    await page
-      .getByLabel("連絡先メールアドレス")
-      .fill("e2e-org-fresh@example.com");
-    await page.getByText("東京都", { exact: true }).click();
+    const contactEmail = page.getByLabel("連絡先メールアドレス");
+    await contactEmail.fill("e2e-org-fresh@example.com");
+    const hokkaido = page.getByRole("checkbox", { name: "北海道" });
+    await contactEmail.press("Tab");
+    await expect(hokkaido).toBeFocused();
+    await hokkaido.press("Space");
+    await expect(hokkaido).toBeChecked();
+    await hokkaido.press("Shift+Tab");
+    await expect(contactEmail).toBeFocused();
+
+    const tokyo = page.getByRole("checkbox", { name: "東京都" });
+    await tokyo.focus();
+    await tokyo.press("Space");
+    await expect(tokyo).toBeChecked();
+    await page.locator("label").filter({ hasText: "東京都" }).click();
+    await expect(tokyo).not.toBeChecked();
+    await page.locator("label").filter({ hasText: "東京都" }).click();
+    await expect(tokyo).toBeChecked();
+
+    const okinawa = page.getByRole("checkbox", { name: "沖縄県" });
+    await okinawa.focus();
+    await okinawa.press("Tab");
+    await expect(
+      page.getByRole("checkbox", { name: "環境保全" }),
+    ).toBeFocused();
     await page.getByLabel("LINE公式アカウントID").fill("@e2e-fresh");
     await page.getByRole("button", { name: "登録して審査を申請する" }).click();
 
@@ -48,6 +69,13 @@ test.describe("否認された団体の再申請", () => {
       page.getByRole("heading", { name: "申請内容の修正" }),
     ).toBeVisible();
 
+    const tokyo = page.getByRole("checkbox", { name: "東京都" });
+    await expect(tokyo).toBeChecked();
+    await tokyo.press("Space");
+    await expect(tokyo).not.toBeChecked();
+    await tokyo.press("Space");
+    await expect(tokyo).toBeChecked();
+
     await page.getByLabel("団体名").fill("E2E再申請団体 更新済み");
     await page
       .getByRole("button", { name: "内容を更新して再申請する" })
@@ -74,6 +102,14 @@ test.describe("承認済み団体プロフィールの再審査", () => {
     await expect(
       page.getByRole("heading", { name: "団体プロフィールの編集" }),
     ).toBeVisible();
+
+    const tokyo = page.getByRole("checkbox", { name: "東京都" });
+    await expect(tokyo).toBeChecked();
+    await tokyo.press("Space");
+    await expect(tokyo).not.toBeChecked();
+    await tokyo.press("Space");
+    await expect(tokyo).toBeChecked();
+
     await page.getByLabel("団体名").fill("E2Eプロフィール再審査団体 更新済み");
     await page
       .getByRole("button", { name: "内容を更新して再申請する" })

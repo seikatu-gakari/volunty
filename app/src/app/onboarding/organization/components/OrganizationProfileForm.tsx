@@ -186,31 +186,40 @@ export function OrganizationProfileForm({
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className={labelClass}>
-                  主な活動地域（複数選択可） <span className="text-red-500">*</span>
-                </label>
+              <fieldset className="flex min-w-0 flex-col gap-2 border-0 p-0">
+                <legend className={labelClass}>
+                  主な活動地域（複数選択可・必須）{" "}
+                  <span aria-hidden="true" className="text-red-500">
+                    *
+                  </span>
+                </legend>
                 <div className="grid grid-cols-3 gap-2 rounded-lg border border-card-border bg-background p-3 sm:grid-cols-4 md:grid-cols-6">
                   {PREFECTURES.map((area) => (
                     <label
                       key={area}
-                      className={`flex cursor-pointer items-center justify-center rounded-md border py-1.5 text-xs transition-colors ${
+                      className="relative flex h-full cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        name="activityAreas"
+                        value={area}
+                        className="peer sr-only"
+                        checked={activityAreas.includes(area)}
+                        onChange={() => toggleArea(area)}
+                      />
+                      <span
+                        className={`flex h-full w-full items-center justify-center rounded-md border py-1.5 text-xs transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 ${
                         activityAreas.includes(area)
                           ? "border-primary bg-primary/5 text-primary"
                           : "border-card-border bg-white text-text-body hover:bg-gray-50"
                       }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="hidden"
-                        checked={activityAreas.includes(area)}
-                        onChange={() => toggleArea(area)}
-                      />
-                      {area}
+                      >
+                        {area}
+                      </span>
                     </label>
                   ))}
                 </div>
-              </div>
+              </fieldset>
             </section>
 
             {/* 詳細情報セクション */}
