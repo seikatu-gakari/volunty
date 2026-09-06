@@ -132,6 +132,7 @@ test.describe("未ログインLP導線", () => {
     const searchUrl = `/opportunities?${filters.toString()}`;
     await page.goto(searchUrl);
     await page.getByRole("link", { name: "E2E オンライン環境保全案件", exact: true }).click();
+    await expect(page).toHaveURL(/\/opportunities\/[0-9a-f-]+\?from=search/);
     const detailUrl = new URL(page.url());
     const detailPath = `${detailUrl.pathname}${detailUrl.search}`;
     await expect(page.getByRole("link", { name: "案件検索結果に戻る" })).toHaveAttribute("href", searchUrl);
