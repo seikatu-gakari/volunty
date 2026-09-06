@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { User } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
@@ -30,6 +30,43 @@ const YEARS = Array.from({ length: 150 }, (_, i) => CURRENT_YEAR - i);
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
+type RequiredField =
+  | "name"
+  | "birthYear"
+  | "birthMonth"
+  | "birthDay"
+  | "region";
+type BirthdayField = "birthYear" | "birthMonth" | "birthDay";
+type RequiredFieldElement = HTMLInputElement | HTMLSelectElement;
+
+const REQUIRED_FIELD_IDS: Record<RequiredField, string> = {
+  name: "participant-name",
+  birthYear: "participant-birth-year",
+  birthMonth: "participant-birth-month",
+  birthDay: "participant-birth-day",
+  region: "participant-region",
+};
+
+const REQUIRED_FIELD_ERROR_IDS: Record<RequiredField, string> = {
+  name: "participant-name-error",
+  birthYear: "participant-birth-year-error",
+  birthMonth: "participant-birth-month-error",
+  birthDay: "participant-birth-day-error",
+  region: "participant-region-error",
+};
+
+const REQUIRED_FIELD_MESSAGES: Record<RequiredField, string> = {
+  name: "表示名を入力してください",
+  birthYear: "生年を選択してください",
+  birthMonth: "生月を選択してください",
+  birthDay: "生日を選択してください",
+  region: "都道府県を選択してください",
+};
+
+const BIRTHDAY_ERROR_ID = "participant-birthday-error";
+const BIRTHDAY_ERROR_MESSAGE =
+  "有効な生年月日を入力してください（未来の日付や存在しない日付は無効です）";
+
 /** 生年月日が有効かどうかをチェック（存在する日付かつ現在以前） */
 function isValidBirthday(year: string, month: string, day: string): boolean {
   const y = Number(year);
@@ -49,6 +86,82 @@ function isValidBirthday(year: string, month: string, day: string): boolean {
     return false;
   }
   return true;
+}
+
+function isRequiredField(value: string | undefined): value is RequiredField {
+  return (
+    value === "name" ||
+    value === "birthYear" ||
+    value === "birthMonth" ||
+    value === "birthDay" ||
+    value === "region"
+  );
+}
+
+function isRequiredFieldElement(
+  target: EventTarget | null
+): target is RequiredFieldElement {
+  return target instanceof HTMLInputElement || target instanceof HTMLSelectElement;
+}
+
+function getRequiredField(
+  element: RequiredFieldElement
+): RequiredField | undefined {
+  const field = element.dataset.requiredField;
+  return isRequiredField(field) ? field : undefined;
+}
+
+function getFirstInvalidRequiredField(
+  form: HTMLFormElement
+): RequiredFieldElement | undefined {
+  const elements = Array.from(
+    form.querySelectorAll("input:invalid, select:invalid")
+  );
+
+  return elements.find(
+    (element): element is RequiredFieldElement =>
+      isRequiredFieldElement(element) && getRequiredField(element) !== undefined
+  );
+}
+
+function getRequiredErrors(
+  form: HTMLFormElement
+): Partial<Record<RequiredField, string>> {
+  const errors: Partial<Record<RequiredField, string>> = {};
+  const elements = Array.from(form.querySelectorAll("[data-required-field]"));
+
+  for (const element of elements) {
+    if (!isRequiredFieldElement(element)) continue;
+
+    const field = getRequiredField(element);
+    if (field && !element.validity.valid) {
+      errors[field] = REQUIRED_FIELD_MESSAGES[field];
+    }
+  }
+
+  return errors;
+}
+
+function getBirthdayError(
+  year: string,
+  month: string,
+  day: string
+): string | null {
+  if (!year || !month || !day) return null;
+  return isValidBirthday(year, month, day) ? null : BIRTHDAY_ERROR_MESSAGE;
+}
+
+function getDescribedBy(
+  errors: Partial<Record<RequiredField, string>>,
+  field: RequiredField,
+  additionalId?: string
+): string | undefined {
+  const ids = [
+    errors[field] ? REQUIRED_FIELD_ERROR_IDS[field] : undefined,
+    additionalId,
+  ].filter((id): id is string => Boolean(id));
+
+  return ids.length > 0 ? ids.join(" ") : undefined;
 }
 
 export interface ParticipantProfileFormProps {
@@ -83,7 +196,108 @@ export function ParticipantProfileForm({
   const [lineId, setLineId] = useState(defaultValues?.lineId || "");
   const [interests, setInterests] = useState<string[]>(defaultValues?.interests || []);
   const [error, setError] = useState<string | null>(null);
+  const [requiredErrors, setRequiredErrors] = useState<
+    Partial<Record<RequiredField, string>>
+  >({});
+  const [birthdayError, setBirthdayError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const pendingFocusFieldRef = useRef<RequiredField | null>(null);
+  const focusFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (focusFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusFrameRef.current);
+      }
+      focusFrameRef.current = null;
+      pendingFocusFieldRef.current = null;
+    };
+  }, []);
+
+  const clearRequiredError = (field: RequiredField, value: string) => {
+    if (!value) return;
+
+    setRequiredErrors((previous) => {
+      if (!previous[field]) return previous;
+
+      const next = { ...previous };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const scheduleFocus = (field: RequiredField) => {
+    if (
+      pendingFocusFieldRef.current !== null ||
+      focusFrameRef.current !== null
+    ) {
+      return;
+    }
+
+    pendingFocusFieldRef.current = field;
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusFrameRef.current = null;
+      const pendingField = pendingFocusFieldRef.current;
+      pendingFocusFieldRef.current = null;
+      if (!pendingField) return;
+
+      const form = formRef.current;
+      const fieldElement = form?.querySelector<RequiredFieldElement>(
+        `[data-required-field="${pendingField}"]`
+      );
+      if (!fieldElement) return;
+
+      fieldElement.focus({ preventScroll: true });
+
+      const fieldWrapper =
+        fieldElement.closest<HTMLElement>("[data-participant-field]") ??
+        fieldElement;
+      const fieldRect = fieldWrapper.getBoundingClientRect();
+      const headerRect = document
+        .querySelector<HTMLElement>("header")
+        ?.getBoundingClientRect();
+      const headerBottom = headerRect?.bottom ?? 0;
+      const scrollTop = Math.max(
+        0,
+        window.scrollY +
+          fieldRect.top -
+          Math.max(0, headerBottom) -
+          16
+      );
+
+      window.scrollTo({ top: scrollTop, behavior: "auto" });
+    });
+  };
+
+  const handleInvalidCapture = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!isRequiredFieldElement(event.target)) return;
+
+    const requiredField = getRequiredField(event.target);
+    if (!requiredField) return;
+
+    const firstInvalidField = getFirstInvalidRequiredField(event.currentTarget);
+    setRequiredErrors(getRequiredErrors(event.currentTarget));
+
+    if (firstInvalidField === event.target) {
+      scheduleFocus(requiredField);
+    }
+  };
+
+  const handleBirthdayChange = (field: BirthdayField, value: string) => {
+    const nextYear = field === "birthYear" ? value : birthYear;
+    const nextMonth = field === "birthMonth" ? value : birthMonth;
+    const nextDay = field === "birthDay" ? value : birthDay;
+
+    if (field === "birthYear") setBirthYear(value);
+    if (field === "birthMonth") setBirthMonth(value);
+    if (field === "birthDay") setBirthDay(value);
+
+    clearRequiredError(field, value);
+    setBirthdayError(getBirthdayError(nextYear, nextMonth, nextDay));
+  };
 
   const toggleInterest = (interest: string) => {
     setInterests((prev) =>
@@ -93,10 +307,14 @@ export function ParticipantProfileForm({
     );
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+
+    const form = e.currentTarget;
+    if (!form.checkValidity()) {
+      return;
+    }
 
     const birthday =
       birthYear && birthMonth && birthDay
@@ -105,10 +323,13 @@ export function ParticipantProfileForm({
 
     // 生年月日の日付整合性チェック
     if (birthYear && birthMonth && birthDay && !isValidBirthday(birthYear, birthMonth, birthDay)) {
-      setError("有効な生年月日を入力してください（未来の日付や存在しない日付は無効です）");
-      setLoading(false);
+      setBirthdayError(BIRTHDAY_ERROR_MESSAGE);
+      scheduleFocus("birthDay");
       return;
     }
+
+    setBirthdayError(null);
+    setLoading(true);
 
     try {
       const result = await registerParticipant({
@@ -151,68 +372,184 @@ export function ParticipantProfileForm({
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <form
+            ref={formRef}
+            onSubmit={handleSubmit}
+            onInvalidCapture={handleInvalidCapture}
+            className="flex flex-col gap-5"
+          >
             {/* 表示名 */}
-            <Input
-              label="表示名"
-              icon={User}
-              type="text"
-              placeholder="山田 太郎"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoComplete="name"
-            />
+            <div data-participant-field="name" className="flex flex-col gap-1">
+              <Input
+                id={REQUIRED_FIELD_IDS.name}
+                label="表示名"
+                icon={User}
+                type="text"
+                placeholder="山田 太郎"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  clearRequiredError("name", e.target.value);
+                }}
+                required
+                data-required-field="name"
+                aria-invalid={requiredErrors.name ? true : undefined}
+                aria-describedby={getDescribedBy(requiredErrors, "name")}
+                autoComplete="name"
+              />
+              {requiredErrors.name && (
+                <p
+                  id={REQUIRED_FIELD_ERROR_IDS.name}
+                  role="alert"
+                  className="text-xs text-red-600"
+                >
+                  {requiredErrors.name}
+                </p>
+              )}
+            </div>
 
             {/* 生年月日 */}
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-text-dark">
+            <div
+              data-participant-field="birthday"
+              className="flex flex-col gap-1"
+            >
+              <label
+                htmlFor={REQUIRED_FIELD_IDS.birthYear}
+                className="text-sm font-medium text-text-dark"
+              >
                 生年月日 <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-2">
-                <select
-                  value={birthYear}
-                  onChange={(e) => setBirthYear(e.target.value)}
-                  required
-                  className={`${selectClass} flex-1`}
-                  aria-label="年"
-                >
-                  <option value="">年</option>
-                  {YEARS.map((y) => (
-                    <option key={y} value={String(y)}>
-                      {y}年
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={birthMonth}
-                  onChange={(e) => setBirthMonth(e.target.value)}
-                  required
-                  className={`${selectClass} flex-1`}
-                  aria-label="月"
-                >
-                  <option value="">月</option>
-                  {MONTHS.map((m) => (
-                    <option key={m} value={String(m)}>
-                      {m}月
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={birthDay}
-                  onChange={(e) => setBirthDay(e.target.value)}
-                  required
-                  className={`${selectClass} flex-1`}
-                  aria-label="日"
-                >
-                  <option value="">日</option>
-                  {DAYS.map((d) => (
-                    <option key={d} value={String(d)}>
-                      {d}日
-                    </option>
-                  ))}
-                </select>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <select
+                    id={REQUIRED_FIELD_IDS.birthYear}
+                    name="birthYear"
+                    value={birthYear}
+                    onChange={(e) =>
+                      handleBirthdayChange("birthYear", e.target.value)
+                    }
+                    required
+                    data-required-field="birthYear"
+                    className={`${selectClass} w-full`}
+                    aria-label="年"
+                    aria-invalid={
+                      requiredErrors.birthYear || birthdayError
+                        ? true
+                        : undefined
+                    }
+                    aria-describedby={getDescribedBy(
+                      requiredErrors,
+                      "birthYear",
+                      birthdayError ? BIRTHDAY_ERROR_ID : undefined
+                    )}
+                  >
+                    <option value="">年</option>
+                    {YEARS.map((y) => (
+                      <option key={y} value={String(y)}>
+                        {y}年
+                      </option>
+                    ))}
+                  </select>
+                  {requiredErrors.birthYear && (
+                    <p
+                      id={REQUIRED_FIELD_ERROR_IDS.birthYear}
+                      role="alert"
+                      className="text-xs text-red-600"
+                    >
+                      {requiredErrors.birthYear}
+                    </p>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <select
+                    id={REQUIRED_FIELD_IDS.birthMonth}
+                    name="birthMonth"
+                    value={birthMonth}
+                    onChange={(e) =>
+                      handleBirthdayChange("birthMonth", e.target.value)
+                    }
+                    required
+                    data-required-field="birthMonth"
+                    className={`${selectClass} w-full`}
+                    aria-label="月"
+                    aria-invalid={
+                      requiredErrors.birthMonth || birthdayError
+                        ? true
+                        : undefined
+                    }
+                    aria-describedby={getDescribedBy(
+                      requiredErrors,
+                      "birthMonth",
+                      birthdayError ? BIRTHDAY_ERROR_ID : undefined
+                    )}
+                  >
+                    <option value="">月</option>
+                    {MONTHS.map((m) => (
+                      <option key={m} value={String(m)}>
+                        {m}月
+                      </option>
+                    ))}
+                  </select>
+                  {requiredErrors.birthMonth && (
+                    <p
+                      id={REQUIRED_FIELD_ERROR_IDS.birthMonth}
+                      role="alert"
+                      className="text-xs text-red-600"
+                    >
+                      {requiredErrors.birthMonth}
+                    </p>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <select
+                    id={REQUIRED_FIELD_IDS.birthDay}
+                    name="birthDay"
+                    value={birthDay}
+                    onChange={(e) =>
+                      handleBirthdayChange("birthDay", e.target.value)
+                    }
+                    required
+                    data-required-field="birthDay"
+                    className={`${selectClass} w-full`}
+                    aria-label="日"
+                    aria-invalid={
+                      requiredErrors.birthDay || birthdayError
+                        ? true
+                        : undefined
+                    }
+                    aria-describedby={getDescribedBy(
+                      requiredErrors,
+                      "birthDay",
+                      birthdayError ? BIRTHDAY_ERROR_ID : undefined
+                    )}
+                  >
+                    <option value="">日</option>
+                    {DAYS.map((d) => (
+                      <option key={d} value={String(d)}>
+                        {d}日
+                      </option>
+                    ))}
+                  </select>
+                  {requiredErrors.birthDay && (
+                    <p
+                      id={REQUIRED_FIELD_ERROR_IDS.birthDay}
+                      role="alert"
+                      className="text-xs text-red-600"
+                    >
+                      {requiredErrors.birthDay}
+                    </p>
+                  )}
+                </div>
               </div>
+              {birthdayError && (
+                <p
+                  id={BIRTHDAY_ERROR_ID}
+                  role="alert"
+                  className="text-xs text-red-600"
+                >
+                  {birthdayError}
+                </p>
+              )}
             </div>
 
             {/* 性別 */}
@@ -241,16 +578,30 @@ export function ParticipantProfileForm({
             </div>
 
             {/* 都道府県 */}
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-text-dark">
+            <div
+              data-participant-field="region"
+              className="flex flex-col gap-1"
+            >
+              <label
+                htmlFor={REQUIRED_FIELD_IDS.region}
+                className="text-sm font-medium text-text-dark"
+              >
                 お住まいの都道府県 <span className="text-red-500">*</span>
               </label>
               <select
+                id={REQUIRED_FIELD_IDS.region}
+                name="region"
                 value={region}
-                onChange={(e) => setRegion(e.target.value)}
+                onChange={(e) => {
+                  setRegion(e.target.value);
+                  clearRequiredError("region", e.target.value);
+                }}
                 required
+                data-required-field="region"
                 className={selectClass}
                 aria-label="都道府県"
+                aria-invalid={requiredErrors.region ? true : undefined}
+                aria-describedby={getDescribedBy(requiredErrors, "region")}
               >
                 <option value="">選択してください</option>
                 {PREFECTURES.map((pref) => (
@@ -259,6 +610,15 @@ export function ParticipantProfileForm({
                   </option>
                 ))}
               </select>
+              {requiredErrors.region && (
+                <p
+                  id={REQUIRED_FIELD_ERROR_IDS.region}
+                  role="alert"
+                  className="text-xs text-red-600"
+                >
+                  {requiredErrors.region}
+                </p>
+              )}
             </div>
 
             {/* 自己紹介 */}

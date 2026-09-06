@@ -1,4 +1,27 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function expectRequiredErrorPosition(
+  page: Page,
+  fieldId: string,
+  errorId: string,
+  message: string
+) {
+  const field = page.locator(`#${fieldId}`);
+  await expect(field).toBeFocused();
+  await expect(field).toHaveAttribute("aria-invalid", "true");
+  await expect(field).toHaveAttribute("aria-describedby", errorId);
+  await expect(page.locator(`#${errorId}`)).toHaveText(message);
+
+  const position = await field.evaluate((element) => {
+    const header = document.querySelector("header")?.getBoundingClientRect();
+    return {
+      inputTop: element.getBoundingClientRect().top,
+      headerBottom: header?.bottom ?? 0,
+    };
+  });
+
+  expect(position.inputTop).toBeGreaterThanOrEqual(position.headerBottom + 16);
+}
 
 const APPLICATION_OPPORTUNITY_TITLE = "E2E 応募対象案件";
 const FILTER_OPPORTUNITY_TITLE = "E2E オンライン環境保全案件";
@@ -169,6 +192,65 @@ test.describe.serial("参加者の案件探索と応募", () => {
 
     await expect(page.getByText("審査中", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "応募する" })).toHaveCount(0);
+  });
+
+  test("登録済みプロフィールの必須エラーをPC・スマートフォンで確認できる", async ({
+    page,
+  }) => {
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/mypage/profile/edit");
+
+      await page.getByLabel("表示名").fill("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-name",
+        "participant-name-error",
+        "表示名を入力してください"
+      );
+      await expect(page).toHaveURL(/\/mypage\/profile\/edit$/);
+
+      await page.getByLabel("表示名").fill("E2E 参加者");
+      await page.getByLabel("年").selectOption("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-birth-year",
+        "participant-birth-year-error",
+        "生年を選択してください"
+      );
+
+      await page.getByLabel("年").selectOption("1998");
+      await page.getByLabel("月").selectOption("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-birth-month",
+        "participant-birth-month-error",
+        "生月を選択してください"
+      );
+
+      await page.getByLabel("月").selectOption("4");
+      await page.getByLabel("日").selectOption("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-birth-day",
+        "participant-birth-day-error",
+        "生日を選択してください"
+      );
+
+      await page.getByLabel("日").selectOption("1");
+      await page.getByLabel("都道府県").selectOption("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-region",
+        "participant-region-error",
+        "都道府県を選択してください"
+      );
+    }
   });
 
   test("登録済みプロフィールを編集できる", async ({ page }) => {
