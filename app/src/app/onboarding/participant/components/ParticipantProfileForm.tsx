@@ -278,7 +278,9 @@ export function ParticipantProfileForm({
     const requiredField = getRequiredField(event.target);
     if (!requiredField) return;
 
-    const firstInvalidField = getFirstInvalidRequiredField(event.currentTarget);
+    const firstInvalidField =
+      getFirstInvalidRequiredField(event.currentTarget) ??
+      (event.target.validity.valid ? undefined : event.target);
     setRequiredErrors(getRequiredErrors(event.currentTarget));
 
     if (firstInvalidField === event.target) {
