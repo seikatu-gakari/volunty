@@ -91,7 +91,7 @@ jobs:
         with:
           github-token: ${{ github.token }}
           # latest 解決時の GitHub API rate limit を避け、E2E セットアップを再現可能にする。
-          version: 2.39.2
+          version: 2.116.0
 
       - name: Install dependencies
         working-directory: app
