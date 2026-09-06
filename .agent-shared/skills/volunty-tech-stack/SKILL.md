@@ -1,6 +1,6 @@
 ---
 name: volunty-tech-stack
-description: 'Use when: Volunty の技術スタック、主要ライブラリ、バージョン、重要設定、Next.js/React/Prisma/Supabase/Tailwind/Vitest/Vercel 構成を確認する必要がある。'
+description: "Voluntyの採用技術・バージョン・重要設定を確認するときに使う。"
 argument-hint: '例: 技術スタックを確認 / Next.jsの構成を確認 / テスト環境を確認'
 ---
 
