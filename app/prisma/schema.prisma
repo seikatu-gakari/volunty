@@ -134,10 +134,28 @@ model User {
   certificates        Certificate[]
   recommendationLogs  RecommendationLog[]
   engagementEvents    EngagementEvent[]
+  legalConsents       LegalConsent[]
 
   @@index([email])
   @@index([role])
   @@map("m_user")
+}
+
+/// 登録時に同意した公開文書の版を記録する履歴。
+/// 同一ユーザー・同一版の再送は一意制約で冪等に扱う。
+model LegalConsent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  termsVersion   String   @map("terms_version") @db.VarChar(50)
+  privacyVersion String   @map("privacy_version") @db.VarChar(50)
+  agreedAt       DateTime @map("agreed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, termsVersion, privacyVersion])
+  @@index([userId, agreedAt])
+  @@map("t_legal_consent")
 }
 
 /// アカウント削除の部分失敗を再処理するための一時台帳。

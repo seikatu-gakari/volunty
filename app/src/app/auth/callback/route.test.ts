@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 
 import { GET } from "./route";
+import { createSignupConsentToken } from "@/lib/legal/consent-token";
+import {
+  LEGAL_DOCUMENT_VERSIONS,
+  SIGNUP_CONSENT_COOKIE,
+} from "@/lib/legal/documents";
 
 const mocks = vi.hoisted(() => ({
   exchangeCodeForSession: vi.fn(),
   getUser: vi.fn(),
   ensureUserRecord: vi.fn(),
+  recordLegalConsent: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -21,8 +28,13 @@ vi.mock("@/lib/auth/ensure-user-record", () => ({
   ensureUserRecord: mocks.ensureUserRecord,
 }));
 
+vi.mock("@/lib/legal/consent", () => ({
+  recordLegalConsent: mocks.recordLegalConsent,
+}));
+
 describe("auth callback route", () => {
   beforeEach(() => {
+    vi.stubEnv("LEGAL_CONSENT_SECRET", "test-consent-secret");
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.getUser.mockResolvedValue({
@@ -39,10 +51,12 @@ describe("auth callback route", () => {
       role: "participant",
       hasParticipantProfile: true,
       hasOrganizationProfile: false,
+      created: false,
     });
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -224,4 +238,55 @@ describe("auth callback route", () => {
       );
     }
   );
+
+  it("新規登録のOAuth成功時だけ現行版の同意履歴を保存する", async () => {
+    mocks.exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    mocks.ensureUserRecord.mockResolvedValueOnce({
+      role: "participant",
+      hasParticipantProfile: false,
+      hasOrganizationProfile: false,
+      created: true,
+    });
+    const token = createSignupConsentToken();
+    const request = new NextRequest("http://0.0.0.0:3000/auth/callback?code=ok");
+    request.cookies.set(SIGNUP_CONSENT_COOKIE, token);
+    const response = await GET(request);
+
+    expect(mocks.recordLegalConsent).toHaveBeenCalledWith({
+      userId: "user-123",
+      termsVersion: LEGAL_DOCUMENT_VERSIONS.terms,
+      privacyVersion: LEGAL_DOCUMENT_VERSIONS.privacy,
+      agreedAt: expect.any(Date),
+    });
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/onboarding/role?toast=login-success",
+    );
+  });
+
+  it("既存ユーザーのOAuthログインでは同意履歴を追加しない", async () => {
+    mocks.exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    const token = createSignupConsentToken();
+    const request = new NextRequest("http://0.0.0.0:3000/auth/callback?code=ok");
+    request.cookies.set(SIGNUP_CONSENT_COOKIE, token);
+
+    await GET(request);
+
+    expect(mocks.recordLegalConsent).not.toHaveBeenCalled();
+  });
+
+  it("OAuth交換に失敗した場合は同意履歴を作成しない", async () => {
+    mocks.exchangeCodeForSession.mockResolvedValueOnce({
+      error: { name: "AuthApiError", message: "cancelled", status: 400 },
+    });
+    const token = createSignupConsentToken();
+    const request = new NextRequest(
+      "http://0.0.0.0:3000/auth/callback?code=cancelled",
+    );
+    request.cookies.set(SIGNUP_CONSENT_COOKIE, token);
+
+    await GET(request);
+
+    expect(mocks.recordLegalConsent).not.toHaveBeenCalled();
+    expect(mocks.ensureUserRecord).not.toHaveBeenCalled();
+  });
 });
