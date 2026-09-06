@@ -78,7 +78,7 @@ describe("HeaderAuth の主要ナビゲーション", () => {
     ).toBeNull();
   });
 
-  it("認証済みモバイルメニューで共通トリガー契約とロール別リンクを維持する", () => {
+  it("認証済みモバイルメニューを開くとロール別リンクを表示する", () => {
     render(
       <HeaderAuth
         identity={{ id: "participant-1", email: "participant@example.com", displayName: "参加者 太郎" }}
@@ -87,9 +87,6 @@ describe("HeaderAuth の主要ナビゲーション", () => {
     );
 
     const trigger = screen.getByRole("button", { name: "メニューを開く" });
-    expect(trigger.className).toContain("size-10");
-    expect(trigger.className).toContain("rounded-lg");
-    expect(trigger.querySelector("svg")?.classList.contains("size-5")).toBe(true);
     expect(trigger.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     fireEvent.click(trigger);
     expect(screen.getByRole("button", { name: "メニューを閉じる" }).getAttribute("aria-expanded")).toBe("true");

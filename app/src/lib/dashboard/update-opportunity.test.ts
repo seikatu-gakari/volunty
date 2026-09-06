@@ -3,7 +3,7 @@ import type { UpdateOpportunityResult } from "./types";
 
 vi.mock("server-only", () => ({}));
 
-// Variable to store the final return value (error object)
+// UPDATEの成功・失敗をケースごとに設定する。
 let mockUpdateResult: { error: unknown } = { error: null };
 
 // Supabase クライアントのモック
@@ -74,9 +74,9 @@ vi.mock("next/navigation", () => ({
 const { updateOpportunity } = await import("./actions");
 
 /** テスト用 FormData を生成するヘルパー */
-function buildFormData(fields: Record<string, string>): FormData {
+function buildFormData(fields: Record<string, string> = {}): FormData {
   const fd = new FormData();
-  for (const [key, value] of Object.entries(fields)) {
+  for (const [key, value] of Object.entries({ title: "テスト案件", description: "テスト説明", ...fields })) {
     fd.set(key, value);
   }
   return fd;
@@ -85,7 +85,13 @@ function buildFormData(fields: Record<string, string>): FormData {
 describe("updateOpportunity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSingle.mockReset();
+    mockGetUser.mockReset().mockResolvedValue({
+      data: { user: { id: "org-123", email: "org@example.com" } },
+      error: null,
+    });
     mockUpdateResult = { error: null };
+    mockUpdateEq2.mockReset().mockImplementation(() => mockUpdateResult);
   });
 
   it("未認証の場合、エラーを返す", async () => {
@@ -94,10 +100,7 @@ describe("updateOpportunity", () => {
       error: { message: "Not authenticated" },
     });
 
-    const fd = buildFormData({
-      title: "テスト案件",
-      description: "テスト説明",
-    });
+    const fd = buildFormData();
 
     const result: UpdateOpportunityResult = await updateOpportunity(
       "opp-1",
@@ -109,12 +112,6 @@ describe("updateOpportunity", () => {
   });
 
   it("タイトルが空の場合、バリデーションエラーを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-
     const fd = buildFormData({ title: "", description: "テスト説明" });
 
     const result: UpdateOpportunityResult = await updateOpportunity(
@@ -127,12 +124,6 @@ describe("updateOpportunity", () => {
   });
 
   it("説明が空の場合、バリデーションエラーを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-
     const fd = buildFormData({ title: "テスト案件", description: "" });
 
     const result: UpdateOpportunityResult = await updateOpportunity(
@@ -145,12 +136,6 @@ describe("updateOpportunity", () => {
   });
 
   it("正常に案件を更新し、詳細ページへリダイレクトする", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-    
     // 1回目: m_organization_profile を取得
     mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
     // 2回目: m_opportunity を更新
@@ -182,12 +167,6 @@ describe("updateOpportunity", () => {
   });
 
   it("活動スタイルタグ・参加要件付きで案件を更新できる", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-
     mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
     mockUpdateResult = { error: null };
 
@@ -210,9 +189,6 @@ describe("updateOpportunity", () => {
   });
 
   it("追加項目（場所・日程・定員・カテゴリ・参加形態）を更新できる", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
     mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
     mockUpdateResult = { error: null };
 
@@ -242,9 +218,6 @@ describe("updateOpportunity", () => {
   });
 
   it("終了日が開始日より前の場合、バリデーションエラーを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({ data: { user: mockUser }, error: null });
-
     const fd = buildFormData({
       title: "テスト案件",
       description: "テスト説明",
@@ -262,19 +235,10 @@ describe("updateOpportunity", () => {
   });
 
   it("ステータスが未指定の場合はステータスを更新しない", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-    
     mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
     mockUpdateResult = { error: null };
 
-    const fd = buildFormData({
-      title: "テスト案件",
-      description: "テスト説明",
-    });
+    const fd = buildFormData();
 
     await updateOpportunity("opp-1", fd);
 
@@ -283,19 +247,10 @@ describe("updateOpportunity", () => {
   });
 
   it("DB エラー時にエラーメッセージを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-    
     mockSingle.mockReturnValueOnce({ data: { id: "profile-123" }, error: null });
     mockUpdateResult = { error: { message: "DB error" } };
 
-    const fd = buildFormData({
-      title: "テスト案件",
-      description: "テスト説明",
-    });
+    const fd = buildFormData();
 
     const result: UpdateOpportunityResult = await updateOpportunity(
       "opp-1",
@@ -307,13 +262,7 @@ describe("updateOpportunity", () => {
   });
 
   it("予期しないエラー時もクラッシュせずエラーを返す", async () => {
-    const mockUser = { id: "org-123", email: "org@example.com" };
-    mockGetUser.mockReturnValue({
-      data: { user: mockUser },
-      error: null,
-    });
-    
-    // Profile lookup throws unexpected error
+    // 団体プロフィールの取得で例外が発生するケース。
     mockSingle.mockImplementationOnce(() => {
       throw new Error("Unexpected error");
     });
@@ -321,10 +270,7 @@ describe("updateOpportunity", () => {
       throw new Error("Unexpected error");
     });
 
-    const fd = buildFormData({
-      title: "テスト案件",
-      description: "テスト説明",
-    });
+    const fd = buildFormData();
 
     const result: UpdateOpportunityResult = await updateOpportunity(
       "opp-1",
