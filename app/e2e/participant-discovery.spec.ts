@@ -1,4 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  assertParticipantBirthdayErrorLayout,
+  assertParticipantBirthdayLayout,
+} from "./participant-profile-birthday";
 
 async function expectRequiredErrorPosition(
   page: Page,
@@ -197,7 +201,7 @@ test.describe.serial("参加者の案件探索と応募", () => {
   test("登録済みプロフィールの必須エラーをPC・スマートフォンで確認できる", async ({
     page,
   }) => {
-    for (const width of [390, 1280]) {
+    for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/mypage/profile/edit");
 
@@ -250,6 +254,9 @@ test.describe.serial("参加者の案件探索と応募", () => {
         "participant-region-error",
         "都道府県を選択してください"
       );
+      if (width === 320) {
+        await assertParticipantBirthdayErrorLayout(page, "更新する");
+      }
     }
   });
 
@@ -283,6 +290,13 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
   });
 
+
+  test("プロフィール編集の生年月日も各幅で選択値を確認できる", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/mypage/profile/edit");
+    await assertParticipantBirthdayLayout(page, testInfo);
+  });
 
   test("活動検索の条件解除後に選択条件が復活しない", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 844 });

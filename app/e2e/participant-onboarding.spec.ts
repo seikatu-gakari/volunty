@@ -1,4 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  assertParticipantBirthdayErrorLayout,
+  assertParticipantBirthdayLayout,
+} from "./participant-profile-birthday";
 
 async function expectRequiredErrorPosition(
   page: Page,
@@ -26,6 +30,17 @@ async function expectRequiredErrorPosition(
 test.describe("参加者オンボーディング", () => {
   test.use({ storageState: "playwright/.auth/participant-fresh.json" });
 
+  test("生年月日の選択値が狭い画面でも読み取れる", async ({ page }, testInfo) => {
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: /ボランティアに参加する/ })
+      .click();
+    await page.getByRole("button", { name: "次へ" }).click();
+    await expect(page).toHaveURL(/\/onboarding\/participant$/);
+
+    await assertParticipantBirthdayLayout(page, testInfo);
+  });
+
   test("P-2: 参加者ロールを選びプロフィールを登録できる", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/onboarding\/role$/);
@@ -48,7 +63,7 @@ test.describe("参加者オンボーディング", () => {
     await page.getByRole("button", { name: "次へ" }).click();
     await expect(page).toHaveURL(/\/onboarding\/participant$/);
 
-    for (const width of [390, 1280]) {
+    for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 900 });
 
       await page.getByLabel("表示名").fill("");
@@ -102,6 +117,9 @@ test.describe("参加者オンボーディング", () => {
       );
 
       await page.getByLabel("都道府県").selectOption("東京都");
+      if (width === 320) {
+        await assertParticipantBirthdayErrorLayout(page, "登録して診断へ進む");
+      }
     }
 
     await page.getByLabel("表示名").fill("E2E 新規参加者");

@@ -421,8 +421,11 @@ export function ParticipantProfileForm({
               >
                 生年月日 <span className="text-red-500">*</span>
               </label>
-              <div className="flex gap-2">
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div
+                data-participant-birthday-grid
+                className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(7rem,1.4fr)_minmax(5rem,1fr)_minmax(5rem,1fr)]"
+              >
+                <div className="col-span-2 flex min-w-0 flex-col gap-1 sm:col-span-1">
                   <select
                     id={REQUIRED_FIELD_IDS.birthYear}
                     name="birthYear"
@@ -432,7 +435,7 @@ export function ParticipantProfileForm({
                     }
                     required
                     data-required-field="birthYear"
-                    className={`${selectClass} w-full`}
+                    className={`${selectClass} w-full min-w-0`}
                     aria-label="年"
                     aria-invalid={
                       requiredErrors.birthYear || birthdayError
@@ -462,7 +465,7 @@ export function ParticipantProfileForm({
                     </p>
                   )}
                 </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex min-w-0 flex-col gap-1">
                   <select
                     id={REQUIRED_FIELD_IDS.birthMonth}
                     name="birthMonth"
@@ -472,7 +475,7 @@ export function ParticipantProfileForm({
                     }
                     required
                     data-required-field="birthMonth"
-                    className={`${selectClass} w-full`}
+                    className={`${selectClass} w-full min-w-0`}
                     aria-label="月"
                     aria-invalid={
                       requiredErrors.birthMonth || birthdayError
@@ -502,7 +505,7 @@ export function ParticipantProfileForm({
                     </p>
                   )}
                 </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex min-w-0 flex-col gap-1">
                   <select
                     id={REQUIRED_FIELD_IDS.birthDay}
                     name="birthDay"
@@ -512,7 +515,7 @@ export function ParticipantProfileForm({
                     }
                     required
                     data-required-field="birthDay"
-                    className={`${selectClass} w-full`}
+                    className={`${selectClass} w-full min-w-0`}
                     aria-label="日"
                     aria-invalid={
                       requiredErrors.birthDay || birthdayError
