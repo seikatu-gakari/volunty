@@ -1,5 +1,31 @@
-import { expect, test } from "@playwright/test";
-import { assertParticipantBirthdayLayout } from "./participant-profile-birthday";
+import { expect, test, type Page } from "@playwright/test";
+import {
+  assertParticipantBirthdayErrorLayout,
+  assertParticipantBirthdayLayout,
+} from "./participant-profile-birthday";
+
+async function expectRequiredErrorPosition(
+  page: Page,
+  fieldId: string,
+  errorId: string,
+  message: string
+) {
+  const field = page.locator(`#${fieldId}`);
+  await expect(field).toBeFocused();
+  await expect(field).toHaveAttribute("aria-invalid", "true");
+  await expect(field).toHaveAttribute("aria-describedby", errorId);
+  await expect(page.locator(`#${errorId}`)).toHaveText(message);
+
+  const position = await field.evaluate((element) => {
+    const header = document.querySelector("header")?.getBoundingClientRect();
+    return {
+      inputTop: element.getBoundingClientRect().top,
+      headerBottom: header?.bottom ?? 0,
+    };
+  });
+
+  expect(position.inputTop).toBeGreaterThanOrEqual(position.headerBottom + 16);
+}
 
 const APPLICATION_OPPORTUNITY_TITLE = "E2E 応募対象案件";
 const FILTER_OPPORTUNITY_TITLE = "E2E オンライン環境保全案件";
@@ -172,6 +198,68 @@ test.describe.serial("参加者の案件探索と応募", () => {
     await expect(page.getByRole("button", { name: "応募する" })).toHaveCount(0);
   });
 
+  test("登録済みプロフィールの必須エラーをPC・スマートフォンで確認できる", async ({
+    page,
+  }) => {
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/mypage/profile/edit");
+
+      await page.getByLabel("表示名").fill("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-name",
+        "participant-name-error",
+        "表示名を入力してください"
+      );
+      await expect(page).toHaveURL(/\/mypage\/profile\/edit$/);
+
+      await page.getByLabel("表示名").fill("E2E 参加者");
+      await page.getByLabel("年").selectOption("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-birth-year",
+        "participant-birth-year-error",
+        "生年を選択してください"
+      );
+
+      await page.getByLabel("年").selectOption("1998");
+      await page.getByLabel("月").selectOption("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-birth-month",
+        "participant-birth-month-error",
+        "生月を選択してください"
+      );
+
+      await page.getByLabel("月").selectOption("4");
+      await page.getByLabel("日").selectOption("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-birth-day",
+        "participant-birth-day-error",
+        "生日を選択してください"
+      );
+
+      await page.getByLabel("日").selectOption("1");
+      await page.getByLabel("都道府県").selectOption("");
+      await page.getByRole("button", { name: "更新する" }).click();
+      await expectRequiredErrorPosition(
+        page,
+        "participant-region",
+        "participant-region-error",
+        "都道府県を選択してください"
+      );
+      if (width === 320) {
+        await assertParticipantBirthdayErrorLayout(page, "更新する");
+      }
+    }
+  });
+
   test("登録済みプロフィールを編集できる", async ({ page }) => {
     await page.goto("/mypage/profile/edit");
     await page.getByLabel("表示名").fill("E2E 参加者(編集済み)");
@@ -208,6 +296,120 @@ test.describe.serial("参加者の案件探索と応募", () => {
   }, testInfo) => {
     await page.goto("/mypage/profile/edit");
     await assertParticipantBirthdayLayout(page, testInfo);
+  });
+
+  test("活動検索の条件解除後に選択条件が復活しない", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+    const complexQuery = new URLSearchParams({
+      q: "ゴミ",
+      category: "環境保全",
+      region: "東京都",
+      participationMode: "hybrid",
+      schedule: "weekend",
+      beginner: "true",
+    }).toString();
+
+    await page.goto(`/opportunities?${complexQuery}`);
+    await expect(page.getByText("条件に一致する募集案件はありません。")).toBeVisible();
+    await expect(page.getByLabel("キーワード")).toHaveValue("ゴミ");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("環境保全");
+    await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue(
+      "東京都"
+    );
+    await expect(page.getByLabel("参加形態")).toHaveValue("hybrid");
+    await expect(page.getByRole("checkbox", { name: "週末に参加できる" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "初心者歓迎" })).toBeChecked();
+
+    await page.getByRole("link", { name: "条件を解除" }).click();
+    await expect(page).toHaveURL(/\/opportunities$/);
+    await expect(page.getByLabel("キーワード")).toHaveValue("");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
+    await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue("");
+    await expect(page.getByLabel("参加形態")).toHaveValue("");
+    await expect(page.getByRole("checkbox", { name: "週末に参加できる" })).not.toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "初心者歓迎" })).not.toBeChecked();
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
+
+    await page.getByLabel("キーワード").press("Enter");
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("category") ?? "")
+      .toBe("");
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("participationMode") ?? "")
+      .toBe("");
+    const resubmittedUrl = new URL(page.url());
+    expect(resubmittedUrl.searchParams.get("q") ?? "").toBe("");
+    expect(resubmittedUrl.searchParams.get("region") ?? "").toBe("");
+    expect(resubmittedUrl.searchParams.has("schedule")).toBe(false);
+    expect(resubmittedUrl.searchParams.has("beginner")).toBe(false);
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
+    await expect(page.getByLabel("参加形態")).toHaveValue("");
+    await expect(page.getByRole("checkbox", { name: "週末に参加できる" })).not.toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "初心者歓迎" })).not.toBeChecked();
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
+  });
+
+  test("活動検索の直接URLと戻る進むで条件と結果が一致する", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const complexQuery = new URLSearchParams({
+      q: "ゴミ",
+      category: "環境保全",
+      region: "東京都",
+      participationMode: "hybrid",
+      schedule: "weekend",
+      beginner: "true",
+    }).toString();
+
+    await page.goto(`/opportunities?${complexQuery}`);
+    await expect(page.getByLabel("キーワード")).toHaveValue("ゴミ");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("環境保全");
+    await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue(
+      "東京都"
+    );
+    await expect(page.getByLabel("参加形態")).toHaveValue("hybrid");
+    await expect(page.getByRole("checkbox", { name: "週末に参加できる" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "初心者歓迎" })).toBeChecked();
+    await expect(page.getByText("条件に一致する募集案件はありません。")).toBeVisible();
+
+    await page.goto("/opportunities");
+    await expect(page.getByLabel("キーワード")).toHaveValue("");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
+    await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue("");
+    await expect(page.getByLabel("参加形態")).toHaveValue("");
+    await expect(page.getByRole("checkbox", { name: "週末に参加できる" })).not.toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "初心者歓迎" })).not.toBeChecked();
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === "/opportunities" &&
+        url.searchParams.get("q") === "ゴミ" &&
+        url.searchParams.get("category") === "環境保全" &&
+        url.searchParams.get("region") === "東京都" &&
+        url.searchParams.get("participationMode") === "hybrid" &&
+        url.searchParams.get("schedule") === "weekend" &&
+        url.searchParams.get("beginner") === "true"
+    );
+    await expect(page.getByLabel("キーワード")).toHaveValue("ゴミ");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("環境保全");
+    await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue(
+      "東京都"
+    );
+    await expect(page.getByLabel("参加形態")).toHaveValue("hybrid");
+    await expect(page.getByRole("checkbox", { name: "週末に参加できる" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "初心者歓迎" })).toBeChecked();
+    await expect(page.getByText("条件に一致する募集案件はありません。")).toBeVisible();
+
+    await page.goForward();
+    await expect(page).toHaveURL(/\/opportunities$/);
+    await expect(page.getByLabel("キーワード")).toHaveValue("");
+    await expect(page.getByLabel("カテゴリ")).toHaveValue("");
+    await expect(page.getByRole("textbox", { name: "地域", exact: true })).toHaveValue("");
+    await expect(page.getByLabel("参加形態")).toHaveValue("");
+    await expect(page.getByRole("checkbox", { name: "週末に参加できる" })).not.toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "初心者歓迎" })).not.toBeChecked();
+    await expect(page.getByText(FILTER_OPPORTUNITY_TITLE)).toBeVisible();
   });
 
   test("案件を後で見るへ追加し、一覧と詳細から解除できる", async ({ page }) => {

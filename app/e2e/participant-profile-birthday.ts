@@ -2,6 +2,55 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 
 const BIRTHDAY_VIEWPORTS = [320, 360, 390, 1280] as const;
 
+/** 日付エラーがgridの外に表示され、狭い画面でも入力を修正できることを確認する。 */
+export async function assertParticipantBirthdayErrorLayout(
+  page: Page,
+  submitLabel: string,
+): Promise<void> {
+  const originalUrl = page.url();
+  await page.getByLabel("年").selectOption("2000");
+  await page.getByLabel("月").selectOption("2");
+  await page.getByLabel("日").selectOption("30");
+  await page.getByLabel("都道府県").selectOption("東京都");
+  await page.getByRole("button", { name: submitLabel, exact: true }).click();
+
+  const day = page.getByLabel("日");
+  const error = page.locator("#participant-birthday-error");
+  await expect(page).toHaveURL(originalUrl);
+  await expect(day).toBeFocused();
+  await expect(day).toHaveAttribute("aria-describedby", "participant-birthday-error");
+  await expect(error).toHaveText(
+    "有効な生年月日を入力してください（未来の日付や存在しない日付は無効です）",
+  );
+  await expect(error).toBeInViewport();
+
+  const position = await page.evaluate(() => {
+    const grid = document.querySelector("[data-participant-birthday-grid]");
+    const year = document.querySelector("#participant-birth-year");
+    const month = document.querySelector("#participant-birth-month");
+    const day = document.querySelector("#participant-birth-day");
+    const error = document.querySelector("#participant-birthday-error");
+    if (!grid || !year || !month || !day || !error) {
+      throw new Error("生年月日の入力欄または日付エラーが見つかりません");
+    }
+    return {
+      gridBottom: grid.getBoundingClientRect().bottom,
+      errorTop: error.getBoundingClientRect().top,
+      yearBottom: year.getBoundingClientRect().bottom,
+      monthTop: month.getBoundingClientRect().top,
+      dayTop: day.getBoundingClientRect().top,
+      headerBottom: document.querySelector("header")?.getBoundingClientRect().bottom ?? 0,
+    };
+  });
+  expect(position.errorTop).toBeGreaterThanOrEqual(position.gridBottom);
+  expect(position.monthTop).toBeGreaterThanOrEqual(position.yearBottom);
+  expect(position.dayTop).toBe(position.monthTop);
+  expect(position.dayTop).toBeGreaterThanOrEqual(position.headerBottom + 16);
+
+  await day.selectOption("29");
+  await expect(error).toHaveCount(0);
+}
+
 /** 生年月日の選択値が各対象幅で読み取れるレイアウトか確認する。 */
 export async function assertParticipantBirthdayLayout(
   page: Page,
@@ -27,9 +76,10 @@ export async function assertParticipantBirthdayLayout(
       const year = document.querySelector<HTMLSelectElement>('select[aria-label="年"]');
       const month = document.querySelector<HTMLSelectElement>('select[aria-label="月"]');
       const day = document.querySelector<HTMLSelectElement>('select[aria-label="日"]');
-      const birthDateGrid = year?.parentElement;
+      const yearCell = year?.parentElement;
+      const birthDateGrid = year?.closest<HTMLElement>("[data-participant-birthday-grid]");
 
-      if (!year || !month || !day || !birthDateGrid) {
+      if (!year || !month || !day || !yearCell || !birthDateGrid) {
         throw new Error("生年月日のselectまたはwrapperが見つかりません");
       }
 
@@ -68,7 +118,7 @@ export async function assertParticipantBirthdayLayout(
         yearWidth: year.getBoundingClientRect().width,
         monthWidth: month.getBoundingClientRect().width,
         dayWidth: day.getBoundingClientRect().width,
-        yearGridColumn: getComputedStyle(year).gridColumn,
+        yearGridColumn: getComputedStyle(yearCell).gridColumn,
         selectedTextFits: [
           measureSelectedTextFit(year),
           measureSelectedTextFit(month),
