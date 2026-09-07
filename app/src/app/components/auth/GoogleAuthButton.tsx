@@ -3,14 +3,16 @@
 interface GoogleAuthButtonProps {
   label: string;
   onClick: () => void;
+  disabled?: boolean;
 }
 
-export function GoogleAuthButton({ label, onClick }: GoogleAuthButtonProps) {
+export function GoogleAuthButton({ label, onClick, disabled = false }: GoogleAuthButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded-lg border border-transparent bg-background text-sm font-medium text-text-dark transition-colors hover:bg-tab-bg"
+      disabled={disabled}
+      className="flex h-10 w-full cursor-pointer items-center justify-center gap-2.5 rounded-lg border border-transparent bg-background text-sm font-medium text-text-dark transition-colors hover:bg-tab-bg disabled:cursor-not-allowed disabled:opacity-50"
     >
       <GoogleIcon />
       {label}

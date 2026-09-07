@@ -24,6 +24,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
       update: (...args: unknown[]) => mockPrismaUserUpdate(...args),
+      create: (...args: unknown[]) => mockPrismaUserUpsert(...args),
       upsert: (...args: unknown[]) => mockPrismaUserUpsert(...args),
       findUnique: (...args: unknown[]) => mockPrismaUserFindUnique(...args),
     },
@@ -79,15 +80,7 @@ describe("selectRole", () => {
 
     expect(mockUpdateUser).toHaveBeenCalledWith({ data: { role: "participant" } });
     expect(mockPrismaUserUpsert).toHaveBeenCalledWith({
-      where: { id: "user-123" },
-      update: expect.objectContaining({
-        email: "participant@example.com",
-        name: "参加 太郎",
-        avatarUrl: "https://example.com/avatar.png",
-        lastLoginAt: expect.any(Date),
-        role: "participant",
-      }),
-      create: expect.objectContaining({
+      data: expect.objectContaining({
         id: "user-123",
         email: "participant@example.com",
         name: "参加 太郎",
@@ -125,9 +118,10 @@ describe("selectRole", () => {
     expect(mockUpdateUser).toHaveBeenCalledWith({ data: { role: "organization" } });
     expect(mockPrismaUserUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "user-456" },
-        update: expect.objectContaining({ role: "organization" }),
-        create: expect.objectContaining({ role: "organization" }),
+        data: expect.objectContaining({
+          id: "user-456",
+          role: "organization",
+        }),
       })
     );
   });

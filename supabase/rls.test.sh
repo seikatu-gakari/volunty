@@ -251,6 +251,7 @@ SQL
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830000000_issue230_opportunity_data_api_authz_repair.sql" >/dev/null
 psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260830050000_account_deletion_saga.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20260907000000_issue249_legal_consent.sql" >/dev/null
 
 psql "$database_url" -v ON_ERROR_STOP=1 -X <<'SQL' >/dev/null
 DO $$
@@ -272,6 +273,17 @@ BEGIN
       AND contype = 'f'
   ) THEN
     RAISE EXCEPTION '削除処理台帳は m_user への外部キーを持ってはいけません';
+  END IF;
+
+  IF has_table_privilege('anon', 'public.t_legal_consent', 'SELECT')
+    OR has_table_privilege('authenticated', 'public.t_legal_consent', 'SELECT')
+    OR has_table_privilege('anon', 'public.t_legal_consent', 'INSERT')
+    OR has_table_privilege('authenticated', 'public.t_legal_consent', 'INSERT')
+    OR has_table_privilege('anon', 'public.t_legal_consent', 'UPDATE')
+    OR has_table_privilege('authenticated', 'public.t_legal_consent', 'UPDATE')
+    OR has_table_privilege('anon', 'public.t_legal_consent', 'DELETE')
+    OR has_table_privilege('authenticated', 'public.t_legal_consent', 'DELETE') THEN
+    RAISE EXCEPTION '同意履歴を Data API ロールから操作できてはいけません';
   END IF;
 END
 $$;

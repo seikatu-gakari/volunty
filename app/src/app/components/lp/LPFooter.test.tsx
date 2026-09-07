@@ -32,6 +32,12 @@ describe("LPFooter", () => {
       ["団体の方へ", "/signup"],
       ["使い方ガイド", "#usage"],
       ["よくある質問", "#faq"],
+      ["利用規約", "/terms"],
+      ["プライバシーポリシー", "/privacy"],
+      ["運営者情報", "/operator"],
+      ["お問い合わせ", "/contact"],
+      ["安全・通報方針", "/safety"],
+      ["退会・データ削除", "/account-deletion"],
     ]) {
       expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(href);
     }

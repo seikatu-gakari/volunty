@@ -1,12 +1,14 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockPrismaUserUpsert = vi.fn();
+const mockPrismaUserCreate = vi.fn();
+const mockPrismaUserUpdate = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
-      upsert: (...args: unknown[]) => mockPrismaUserUpsert(...args),
+      create: (...args: unknown[]) => mockPrismaUserCreate(...args),
+      update: (...args: unknown[]) => mockPrismaUserUpdate(...args),
     },
   },
 }));
@@ -38,7 +40,7 @@ describe("ensureUserRecord", () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
     vi.clearAllMocks();
-    mockPrismaUserUpsert.mockResolvedValue({
+    mockPrismaUserCreate.mockResolvedValue({
       role: "participant",
       participantProfile: null,
       organizationProfile: null,
@@ -61,15 +63,8 @@ describe("ensureUserRecord", () => {
 
     await ensureUserRecord(user);
 
-    expect(mockPrismaUserUpsert).toHaveBeenCalledWith({
-      where: { id: "user-123" },
-      update: {
-        email: "user@example.com",
-        name: "山田 太郎",
-        avatarUrl: "https://example.com/avatar.png",
-        lastLoginAt: now,
-      },
-      create: {
+    expect(mockPrismaUserCreate).toHaveBeenCalledWith({
+      data: {
         id: "user-123",
         email: "user@example.com",
         name: "山田 太郎",
@@ -93,17 +88,10 @@ describe("ensureUserRecord", () => {
 
     await ensureUserRecord(user);
 
-    expect(mockPrismaUserUpsert).toHaveBeenCalledWith({
-      where: { id: "user-456" },
-      update: {
-        email: null,
-        lastLoginAt: now,
-      },
-      create: {
+    expect(mockPrismaUserCreate).toHaveBeenCalledWith({
+      data: {
         id: "user-456",
         email: null,
-        name: null,
-        avatarUrl: null,
         lastLoginAt: now,
       },
       select: {
@@ -123,15 +111,8 @@ describe("ensureUserRecord", () => {
 
     await ensureUserRecord(user, { role: "organization" });
 
-    expect(mockPrismaUserUpsert).toHaveBeenCalledWith({
-      where: { id: "user-789" },
-      update: {
-        email: "role@example.com",
-        name: "表示名",
-        avatarUrl: "https://example.com/pic.png",
-        lastLoginAt: now,
-      },
-      create: {
+    expect(mockPrismaUserCreate).toHaveBeenCalledWith({
+      data: {
         id: "user-789",
         email: "role@example.com",
         name: "表示名",
@@ -156,10 +137,9 @@ describe("ensureUserRecord", () => {
 
     await ensureUserRecord(user, { role: "admin", updateRole: true });
 
-    expect(mockPrismaUserUpsert).toHaveBeenCalledWith(
+    expect(mockPrismaUserCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: expect.objectContaining({ role: "admin" }),
-        create: expect.objectContaining({ role: "admin" }),
+        data: expect.objectContaining({ role: "admin" }),
         select: {
           role: true,
           participantProfile: { select: { id: true } },
@@ -170,7 +150,7 @@ describe("ensureUserRecord", () => {
   });
 
   it("upsert結果からDBロールと両プロフィールの有無を返す", async () => {
-    mockPrismaUserUpsert.mockResolvedValueOnce({
+    mockPrismaUserCreate.mockResolvedValueOnce({
       role: "organization",
       participantProfile: { id: "participant-profile-1" },
       organizationProfile: null,
@@ -184,6 +164,25 @@ describe("ensureUserRecord", () => {
       role: "organization",
       hasParticipantProfile: true,
       hasOrganizationProfile: false,
+      created: true,
     });
+  });
+
+  it("同時ログインで作成競合した場合は既存更新として扱う", async () => {
+    mockPrismaUserCreate.mockRejectedValueOnce({ code: "P2002" });
+    mockPrismaUserUpdate.mockResolvedValueOnce({
+      role: "participant",
+      participantProfile: null,
+      organizationProfile: null,
+    });
+
+    const result = await ensureUserRecord(
+      createSupabaseUser({ id: "user-existing" }),
+    );
+
+    expect(mockPrismaUserUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "user-existing" } }),
+    );
+    expect(result.created).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/app/components/BrandLogo";
+import { LegalLinks } from "@/app/components/legal/LegalLinks";
 
 const LINK_GROUPS = [
   {
@@ -22,7 +23,7 @@ const LINK_GROUPS = [
 export function LPFooter() {
   return (
     <footer className="mt-20 border-t border-card-border py-12">
-      <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]">
+      <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
         <div>
           <Link href="/" className="inline-flex" aria-label="ボランティ ホーム">
             <BrandLogo />
@@ -47,6 +48,8 @@ export function LPFooter() {
             </ul>
           </div>
         ))}
+
+        <LegalLinks />
       </div>
 
       <div className="mt-10 border-t border-card-border pt-6">

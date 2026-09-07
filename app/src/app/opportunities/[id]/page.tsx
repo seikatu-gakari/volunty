@@ -17,6 +17,7 @@ import {
   Globe,
 } from "lucide-react";
 import { Header } from "@/app/components/Header";
+import { LegalFooter } from "@/app/components/legal/LegalFooter";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { getViewerContext } from "@/lib/auth/viewer-context";
 import { fetchOpportunityViewerState } from "@/lib/opportunities/queries";
@@ -477,6 +478,7 @@ export default async function OpportunityDetailPage({
           </Card>
         )}
       </main>
+      <LegalFooter />
     </div>
   );
 }

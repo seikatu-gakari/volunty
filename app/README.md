@@ -86,6 +86,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<Publishable key>
 # Prisma 接続用
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 DIRECT_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+# 登録時同意tokenの署名鍵（未設定時はSUPABASE_SERVICE_ROLE_KEYを使用）
+LEGAL_CONSENT_SECRET=<十分な長さのランダムな秘密値>
 ```
 
 ### 3. Google OAuth のローカル設定
