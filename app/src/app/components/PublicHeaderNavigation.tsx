@@ -21,7 +21,7 @@ export function PublicHeaderNavigation() {
         className="hidden h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary-dark lg:inline-flex"
       >
         <Mail className="size-4" aria-hidden />
-        開始通知を受け取る
+        無料で事前登録
       </a>
 
       <MobileMenuButton
@@ -48,7 +48,7 @@ export function PublicHeaderNavigation() {
               onClick={() => setMenuOpen(false)}
               className="mt-2 inline-flex h-12 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary-dark"
             >
-              開始通知を受け取る
+              無料で事前登録
             </a>
           </nav>
         </div>

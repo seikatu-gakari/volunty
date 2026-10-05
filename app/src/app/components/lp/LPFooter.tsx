@@ -5,7 +5,7 @@ const LINK_GROUPS = [
   {
     heading: "サービス",
     links: [
-      { label: "開始通知を受け取る", href: "#waitlist" },
+      { label: "無料で事前登録", href: "#waitlist" },
       { label: "活動スタイル", href: "#types" },
       { label: "団体の方へ", href: "#waitlist" },
     ],

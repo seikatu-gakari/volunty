@@ -98,7 +98,7 @@ export function WaitlistForm() {
               className="inline-flex h-14 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-dark px-6 text-sm font-bold text-white transition-colors hover:bg-primary-dark/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-dark disabled:cursor-wait disabled:opacity-60"
             >
               <Mail className="size-4" aria-hidden />
-              {status === "pending" ? "登録中…" : "開始通知を受け取る"}
+              {status === "pending" ? "登録中…" : "無料で事前登録"}
             </button>
           </div>
           {/* 自動登録対策。通常の入力・読み上げ・キーボード操作の対象から除外する。 */}

@@ -46,7 +46,7 @@ export function LPHeroSection() {
             href="#waitlist"
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-primary-dark lg:h-12 lg:w-auto lg:flex-[2_1_0%] lg:min-w-0 lg:px-3 lg:text-sm lg:whitespace-nowrap xl:h-14 xl:w-[320px] xl:flex-none xl:px-6 xl:text-base"
           >
-            無料で開始通知を受け取る
+            無料で事前登録
             <ArrowRight className="size-5" aria-hidden />
           </Link>
           <Link

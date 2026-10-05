@@ -92,7 +92,7 @@ export function DiagnosisTypesCarousel() {
                 href="#waitlist"
                 className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-primary-dark"
               >
-                開始通知を受け取る
+                無料で事前登録
                 <ArrowUpRight className="size-4" aria-hidden />
               </Link>
             </div>

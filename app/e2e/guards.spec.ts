@@ -66,17 +66,17 @@ async function expectLandingPageContent(page: Page) {
   }))).toBe(true);
 
   for (const [name, href] of [
-    ["無料で開始通知を受け取る", "#waitlist"],
+    ["無料で事前登録", "#waitlist"],
     ["活動例を見る", "#styles"],
   ]) {
-    await expect(page.getByRole("link", { name, exact: true })).toHaveAttribute("href", href);
+    await expect(page.locator("main > section").first().getByRole("link", { name, exact: true })).toHaveAttribute("href", href);
   }
-  const styleLinks = page.locator("#styles").getByRole("link", { name: "開始通知を受け取る" });
+  const styleLinks = page.locator("#styles").getByRole("link", { name: "無料で事前登録" });
   expect(await styleLinks.count()).toBeGreaterThan(0);
   for (const link of await styleLinks.all()) {
     await expect(link).toHaveAttribute("href", "#waitlist");
   }
-  await expect(page.locator("#waitlist").getByRole("button", { name: "開始通知を受け取る" })).toBeVisible();
+  await expect(page.locator("#waitlist").getByRole("button", { name: "無料で事前登録" })).toBeVisible();
   await expect(page.locator('a[href^="/login"], a[href^="/signup"], a[href^="/diagnosis"], a[href^="/opportunities"]')).toHaveCount(0);
   await expect(page.locator("footer").getByRole("link", { name: "ボランティ ホーム" })).toBeVisible();
 }
@@ -189,7 +189,7 @@ test.describe("未ログインLP（モバイル）", () => {
     await expectLandingPageLayout(page, 390);
     await expectLandingPageContent(page);
 
-    const primaryCTA = page.getByRole("link", { name: "無料で開始通知を受け取る" });
+    const primaryCTA = page.locator("main > section").first().getByRole("link", { name: "無料で事前登録" });
     const secondaryCTA = page.getByRole("link", { name: "活動例を見る" });
     const photoFrame = page.getByTestId("lp-hero-photo-frame");
     const trustItem = page.getByText("事前登録は無料").first();
@@ -213,7 +213,7 @@ test.describe("未ログインLP（モバイル）", () => {
     await menuTrigger.click();
     const mobileNavigation = page.getByRole("navigation", { name: "モバイルナビゲーション" });
     await expect(mobileNavigation).toBeVisible();
-    await expect(mobileNavigation.getByRole("link", { name: "開始通知を受け取る" })).toHaveAttribute(
+    await expect(mobileNavigation.getByRole("link", { name: "無料で事前登録" })).toHaveAttribute(
       "href",
       "#waitlist",
     );
@@ -242,7 +242,7 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
 
       const menuButton = page.getByRole("button", { name: "メニューを開く" });
       const desktopNavigation = page.locator('header > div > nav a[href="#usage"]');
-      const desktopWaitlist = page.locator("header").getByRole("link", { name: "開始通知を受け取る", exact: true });
+      const desktopWaitlist = page.locator("header").getByRole("link", { name: "無料で事前登録", exact: true });
       if (viewport.headerMode === "mobile") {
         await expect(menuButton).toBeVisible();
         await expect(desktopNavigation).toBeHidden();
@@ -258,8 +258,8 @@ test.describe("未ログインLP（タブレット・デスクトップ）", () 
         const headingBox = await page
           .getByRole("heading", { name: "つながる、みつかる、変わっていく。" })
           .boundingBox();
-        const primaryBox = await page
-          .getByRole("link", { name: "無料で開始通知を受け取る" })
+        const primaryBox = await page.locator("main > section").first()
+          .getByRole("link", { name: "無料で事前登録" })
           .boundingBox();
         const trustBox = await page.getByText("事前登録は無料").first().boundingBox();
         const assuranceBox = await page.getByTestId("lp-hero-assurance").boundingBox();
@@ -290,7 +290,7 @@ test.describe("未ログインLP（横向き短高）", () => {
       name: "モバイルナビゲーション",
     });
     const mobileMenu = mobileNavigation.locator("xpath=..");
-    const waitlist = mobileNavigation.getByRole("link", { name: "開始通知を受け取る" });
+    const waitlist = mobileNavigation.getByRole("link", { name: "無料で事前登録" });
     await expect(mobileNavigation).toBeVisible();
 
     const menuMetrics = await mobileMenu.evaluate((element) => {
@@ -392,7 +392,7 @@ test.describe("公開ヘッダーのブレークポイント", () => {
 
     await expect(page.getByRole("button", { name: "メニューを開く" })).toBeHidden();
     await expect(page.locator('header > div > nav a[href="#usage"]')).toBeVisible();
-    await expect(page.locator("header").getByRole("link", { name: "開始通知を受け取る", exact: true })).toHaveAttribute(
+    await expect(page.locator("header").getByRole("link", { name: "無料で事前登録", exact: true })).toHaveAttribute(
       "href",
       "#waitlist",
     );
@@ -415,7 +415,7 @@ test.describe("公開ヘッダーのブレークポイント", () => {
 
     const heroBox = await page.locator("main > section").first().boundingBox();
     const [primaryBox, secondaryBox, frameBox] = await Promise.all([
-      page.getByRole("link", { name: "無料で開始通知を受け取る" }).boundingBox(),
+      page.locator("main > section").first().getByRole("link", { name: "無料で事前登録" }).boundingBox(),
       page.getByRole("link", { name: "活動例を見る" }).boundingBox(),
       page.getByTestId("lp-hero-photo-frame").boundingBox(),
     ]);

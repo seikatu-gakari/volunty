@@ -91,7 +91,7 @@ describe("WaitlistForm", () => {
     submitEmail("person@example.com");
 
     expect((await screen.findByRole("alert")).textContent).toBe("時間をおいて再度お試しください。");
-    expect(screen.getByRole("button", { name: "開始通知を受け取る" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: "無料で事前登録" }).hasAttribute("disabled")).toBe(false);
     expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("person@example.com");
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true })));

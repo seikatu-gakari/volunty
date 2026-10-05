@@ -27,7 +27,7 @@ describe("LPFooter", () => {
 
     for (const [name, href] of [
       ["ボランティ ホーム", "/"],
-      ["開始通知を受け取る", "#waitlist"],
+      ["無料で事前登録", "#waitlist"],
       ["活動スタイル", "#types"],
       ["団体の方へ", "#waitlist"],
       ["使い方ガイド", "#usage"],
