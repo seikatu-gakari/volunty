@@ -13,8 +13,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("VERCEL", "");
-  vi.stubEnv("WAITLIST_RATE_LIMIT_SECRET", "");
-  mocks.register.mockResolvedValue("accepted");
+  mocks.register.mockResolvedValue(undefined);
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("待機リストAPI", () => {
@@ -22,7 +21,7 @@ describe("待機リストAPI", () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
-    expect(mocks.register).toHaveBeenCalledWith("person@example.com", expect.stringMatching(/^[a-f0-9]{64}$/));
+    expect(mocks.register).toHaveBeenCalledWith("person@example.com");
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
   it.each([null, [], {}, { email: "bad" }, { email: "a@example.com", website: 123 }, "{"])("不正入力を保存しない", async (body) => {
@@ -50,12 +49,6 @@ describe("待機リストAPI", () => {
     expect(await (await POST(request({ email: "a@example.com", website: "bot" }))).json()).toEqual({ ok: true });
     expect(mocks.register).not.toHaveBeenCalled();
   });
-  it("制限超過に再試行時刻を返す", async () => {
-    mocks.register.mockResolvedValue("limited");
-    const response = await POST(request());
-    expect(response.status).toBe(429);
-    expect(response.headers.get("retry-after")).toBe("900");
-  });
   it("DB障害の情報を漏らさない", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.register.mockRejectedValue(new Error("secret@example.com"));
@@ -65,20 +58,14 @@ describe("待機リストAPI", () => {
     expect(log).toHaveBeenCalledWith("[waitlist] 登録処理に失敗しました");
     log.mockRestore();
   });
-  it("本番では秘密値と信頼できる送信元が必須", async () => {
+  it("本番でもIPヘッダーや追加の秘密値なしで登録できる", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    expect((await POST(request())).status).toBe(503);
-    vi.stubEnv("WAITLIST_RATE_LIMIT_SECRET", "test-secret");
-    expect((await POST(request(undefined, { "x-forwarded-for": "192.0.2.1" }))).status).toBe(503);
-    vi.stubEnv("VERCEL", "1");
-    expect((await POST(request(undefined, { "x-vercel-forwarded-for": "invalid" }))).status).toBe(503);
-    expect((await POST(request(undefined, { "x-vercel-forwarded-for": "192.0.2.1" }))).status).toBe(200);
-  });
-  it("任意の転送ヘッダーで制限キーが変わらない", async () => {
-    await POST(request(undefined, { "x-forwarded-for": "192.0.2.1" }));
-    await POST(request());
-    // 不正メールは保存されないため、有効入力で比較する。
-    await POST(request({ email: "a@example.com" }, { "x-forwarded-for": "192.0.2.1" }));
-    expect(mocks.register.mock.calls[0][1]).toBe(mocks.register.mock.calls[1][1]);
+    for (const vercel of ["", "1"]) {
+      vi.stubEnv("VERCEL", vercel);
+      const response = await POST(request());
+      expect(response.status).toBe(200);
+      expect(response.headers.get("retry-after")).toBeNull();
+    }
+    expect(mocks.register).toHaveBeenCalledWith("person@example.com");
   });
 });

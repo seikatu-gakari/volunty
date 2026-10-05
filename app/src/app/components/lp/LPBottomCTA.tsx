@@ -30,6 +30,11 @@ export function LPBottomCTA() {
           <p className="mt-2 text-xs leading-6 text-white">
             ご登録のメールアドレスは、ボランティのサービス開始のお知らせのために使用します。
             この登録で会員アカウントは作成されません。
+            メールアドレスは開始案内後30日以内に削除し、サービス未開始の場合も登録から1年で削除します。
+          </p>
+          <p className="mt-2 text-xs leading-6 text-white">
+            運営: SAGARAKA<br />
+            登録情報の削除に関するお問い合わせ: <a href="mailto:sagaraka.office@gmail.com" className="underline underline-offset-4">sagaraka.office@gmail.com</a>
           </p>
         </div>
       </div>

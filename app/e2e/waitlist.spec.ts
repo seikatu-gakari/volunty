@@ -20,30 +20,30 @@ test.describe("公開LPの待機リスト", () => {
       await field.fill(email);
       await page.locator("#waitlist").getByRole("button", { name: "無料で事前登録", exact: true }).click();
       await expect(page.locator("#waitlist").getByRole("status")).toContainText("開始通知の登録を受け付けました");
-      expect(await prisma.waitlistEntry.count({ where: { email } })).toBe(1);
+      const firstEntry = await prisma.waitlistEntry.findUniqueOrThrow({ where: { email } });
+      expect(firstEntry.notifiedAt).toBeNull();
       await page.reload();
       await field.fill(email.toUpperCase());
       await page.locator("#waitlist").getByRole("button", { name: "無料で事前登録", exact: true }).click();
       await expect(page.locator("#waitlist").getByRole("status")).toContainText("開始通知の登録を受け付けました");
       expect(await prisma.waitlistEntry.count({ where: { email } })).toBe(1);
+      expect(await prisma.waitlistEntry.findUniqueOrThrow({ where: { email } })).toEqual(firstEntry);
+      await expect(page.getByText(/運営: SAGARAKA/)).toBeVisible();
+      await expect(page.getByRole("link", { name: "sagaraka.office@gmail.com" })).toHaveAttribute("href", "mailto:sagaraka.office@gmail.com");
       await page.locator("#waitlist").screenshot({ path: testInfo.outputPath(`waitlist-${width}-success.png`) });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await prisma.waitlistEntry.deleteMany({ where: { email } });
     });
   }
-  test("同時送信でも上限10件を超えず重複行を作らない", async ({ request }, testInfo) => {
+  test("12件の同時送信を受け付け重複行を作らない", async ({ request }, testInfo) => {
     const email = `waitlist-concurrent-${randomUUID()}@example.com`;
     const origin = new URL(testInfo.project.use.baseURL!).origin;
-    // このdescribeのbeforeAllでローカルDBに限定済み。専用E2Eの制限だけを初期化する。
-    await prisma.waitlistRateLimit.deleteMany();
     const responses = await Promise.all(Array.from({ length: 12 }, () => request.post("/api/waitlist", {
       headers: { origin }, data: { email, website: "" },
     })));
-    expect(responses.filter((response) => response.status() === 200)).toHaveLength(10);
-    expect(responses.filter((response) => response.status() === 429)).toHaveLength(2);
+    expect(responses.filter((response) => response.status() === 200)).toHaveLength(12);
     expect(await prisma.waitlistEntry.count({ where: { email } })).toBe(1);
     await prisma.waitlistEntry.deleteMany({ where: { email } });
-    await prisma.waitlistRateLimit.deleteMany();
   });
   test("一時エラー後に入力を保持して再試行できる", async ({ page }) => {
     await page.route("**/api/waitlist", async (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "時間をおいてもう一度お試しください。" }) }));
