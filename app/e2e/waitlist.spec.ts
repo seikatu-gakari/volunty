@@ -9,13 +9,14 @@ test.describe("公開LPの待機リスト", () => {
     if (!["localhost", "127.0.0.1", "::1"].includes(db.hostname)) throw new Error("待機リストE2EはローカルDB専用です");
   });
   for (const width of [390, 1440]) {
-    test(`${width}pxでメールを登録し重複でも同じ結果になる`, async ({ page }) => {
+    test(`${width}pxでメールを登録し重複でも同じ結果になる`, async ({ page }, testInfo) => {
       const email = `waitlist-${randomUUID()}@example.com`;
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/");
       await expect(page.locator('a[href^="/login"], a[href^="/signup"], a[href^="/diagnosis"], a[href^="/opportunities"]')).toHaveCount(0);
       await page.getByRole("link", { name: "無料で開始通知を受け取る", exact: true }).click();
       const field = page.getByRole("textbox", { name: /メールアドレス/ });
+      await page.locator("#waitlist").screenshot({ path: testInfo.outputPath(`waitlist-${width}-form.png`) });
       await field.fill(email);
       await page.locator("#waitlist").getByRole("button", { name: "開始通知を受け取る", exact: true }).click();
       await expect(page.locator("#waitlist").getByRole("status")).toContainText("開始通知の登録を受け付けました");
@@ -25,6 +26,7 @@ test.describe("公開LPの待機リスト", () => {
       await page.locator("#waitlist").getByRole("button", { name: "開始通知を受け取る", exact: true }).click();
       await expect(page.locator("#waitlist").getByRole("status")).toContainText("開始通知の登録を受け付けました");
       expect(await prisma.waitlistEntry.count({ where: { email } })).toBe(1);
+      await page.locator("#waitlist").screenshot({ path: testInfo.outputPath(`waitlist-${width}-success.png`) });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await prisma.waitlistEntry.deleteMany({ where: { email } });
     });
@@ -49,8 +51,11 @@ test.describe("公開LPの待機リスト", () => {
     const field = page.getByRole("textbox", { name: /メールアドレス/ });
     await field.fill("retry@example.com");
     await page.locator("#waitlist").getByRole("button", { name: "開始通知を受け取る", exact: true }).click();
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.locator("#waitlist").getByRole("alert")).toHaveText("時間をおいてもう一度お試しください。");
     await expect(field).toHaveValue("retry@example.com");
     await expect(page.locator("#waitlist").getByRole("button", { name: "開始通知を受け取る", exact: true })).toBeEnabled();
+    await page.route("**/api/waitlist", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+    await page.locator("#waitlist").getByRole("button", { name: "開始通知を受け取る", exact: true }).click();
+    await expect(page.locator("#waitlist").getByRole("status")).toContainText("開始通知の登録を受け付けました");
   });
 });

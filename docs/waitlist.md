@@ -15,7 +15,7 @@
 
 ## 公開前の作業（このPRでは実行しない）
 
-1. 対象DB・バックアップ・影響を確認して承認を得た後、`20261005004718_waitlist_landing` を既存のmigration手順で適用する。Prisma/Supabase両方に同じSQLを置くが、同一DBへ二重適用しない。
+1. 既存の [本番DB手順](branch-workflow.md#本番dbマイグレーション) では、mainへのマージを契機に `Production DB Migration` が `app/` で `npx prisma migrate deploy` を自動実行する。対象DB・バックアップ・未適用migration・`PRODUCTION_DATABASE_URL` / `PRODUCTION_DIRECT_URL` の設定を確認し、この本番変更を含めてマージ承認を得る。`20261005004718_waitlist_landing` のSQLはPrisma/Supabase両方に置くが、Supabaseへ手動で先に二重適用しない。
 2. Vercelの対象環境に、十分にランダムなサーバー専用 `WAITLIST_RATE_LIMIT_SECRET` を設定する（32バイト以上推奨）。値はコミット/クライアント変数/ログに保存しない。既存の `DATABASE_URL` を利用するため新しいDBやサービス権限は不要。
 3. Previewで登録動作を試す場合は、本番とは分離したテストDBと秘密値を設定する。本番DBを参照するPreviewへテスト登録しない。
 4. 担当者が利用目的表示・保存/削除窓口・保存期間を確認する。現在のLPのリンクは利用目的説明であり、未整備のプライバシーポリシーへのリンクを捏造しない。
