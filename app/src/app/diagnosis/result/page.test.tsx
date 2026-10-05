@@ -112,7 +112,7 @@ describe("DiagnosisResultPage", () => {
     expect(container.querySelector("img")?.getAttribute("alt")).toBe("");
   });
 
-  it("新分類の3方向混合と実測5軸を表示し、動物に戻さない", async () => {
+  it("新分類の3方向混合を同じ大きさの動物で示し、実測5軸を表示する", async () => {
     const result = await mocks.fetchDiagnosisResult();
     const scores = { extraversion: 90, agreeableness: 90, conscientiousness: 10, emotionalStability: 50, intellect: 50 };
     const style = classifyActivityStyle(scores);
@@ -126,7 +126,7 @@ describe("DiagnosisResultPage", () => {
     expect(screen.queryByText("力を発揮しやすい活動の例")).toBeNull();
     expect(screen.queryByText("発揮しやすい傾向の例")).toBeNull();
     expect(screen.getByRole("heading", { name: "今回の回答で近い方向" })).toBeDefined();
-    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelectorAll("img")).toHaveLength(3);
   });
 
   it("中立結果には方向一覧や活動適性の空カードを出さない", async () => {

@@ -1,3 +1,4 @@
+import { findDirectionCharacter } from "@/lib/diagnosis-scale/style-characters";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ACTIVITY_STYLE_DIRECTIONS } from "@/lib/diagnosis-scale/activity-styles";
@@ -9,10 +10,12 @@ describe("DiagnosisTypesGrid", () => {
 
     expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(10);
     for (const direction of ACTIVITY_STYLE_DIRECTIONS) {
-      expect(screen.getByRole("heading", { name: direction.name })).toBeDefined();
+      expect(screen.getByRole("heading", { name: findDirectionCharacter(direction.id)!.name })).toBeDefined();
       expect(screen.getByText(direction.description)).toBeDefined();
     }
-    expect(screen.queryAllByRole("img")).toHaveLength(0);
+    const images = document.querySelectorAll("#types img");
+    expect(images).toHaveLength(10);
+    expect(Array.from(images).every((image) => image.getAttribute("alt") === "")).toBe(true);
     expect(screen.queryByText("活動例")).toBeNull();
   });
 

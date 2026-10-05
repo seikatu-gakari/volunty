@@ -64,3 +64,24 @@ export const STYLE_CHARACTERS: Readonly<Record<LegacyActivityStyleId, StyleChara
 export function findStyleCharacter(id: string): StyleCharacter | undefined {
   return Object.hasOwn(STYLE_CHARACTERS, id) ? STYLE_CHARACTERS[id as LegacyActivityStyleId] : undefined;
 }
+
+/** v2専用の装飾。旧タイプの意味・名称は引き継がず、画像だけを再利用する。 */
+export const DIRECTION_CHARACTERS = {
+  "e-high": { name: "交流のイルカ", imagePath: STYLE_CHARACTERS["charisma-entertainer"].imagePath },
+  "e-low": { name: "静かな関わりのネコ", imagePath: STYLE_CHARACTERS["creative-solo"].imagePath },
+  "a-high": { name: "調和のクマ", imagePath: STYLE_CHARACTERS["supporter-care"].imagePath },
+  "a-low": { name: "自分の立場重視のキツネ", imagePath: STYLE_CHARACTERS["innovator-leader"].imagePath },
+  "c-high": { name: "計画・秩序のビーバー", imagePath: STYLE_CHARACTERS["strategist-planner"].imagePath },
+  "c-low": { name: "計画・秩序へのこだわり弱めのカワウソ", imagePath: STYLE_CHARACTERS["harmony-mediator"].imagePath },
+  "s-high": { name: "穏やかな反応のイヌ", imagePath: STYLE_CHARACTERS["conservative-guardian"].imagePath },
+  "s-low": { name: "反応が出やすいシカ", imagePath: STYLE_CHARACTERS["sensitive-artist"].imagePath },
+  "i-high": { name: "新しい発想のツバメ", imagePath: STYLE_CHARACTERS["adventure-explorer"].imagePath },
+  "i-low": { name: "慣れた方法のフクロウ", imagePath: STYLE_CHARACTERS["perfectionist-analyst"].imagePath },
+} as const;
+
+/** 方向IDだけを受け取る。中立・混合から代表の動物を選ばない。 */
+export function findDirectionCharacter(id: string) {
+  return Object.hasOwn(DIRECTION_CHARACTERS, id)
+    ? DIRECTION_CHARACTERS[id as keyof typeof DIRECTION_CHARACTERS]
+    : undefined;
+}

@@ -40,6 +40,7 @@ describe("お試し診断の活動スタイル表示", () => {
     const mixed = classifyActivityStyle({ extraversion: 100, agreeableness: 100, conscientiousness: 100, emotionalStability: 100, intellect: 100 });
     expect(screen.getByRole("heading", { name: mixed.name })).toBeDefined();
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
+    expect(container.querySelectorAll("img")).toHaveLength(5);
     expect(screen.getAllByRole("meter").every((meter) => meter.getAttribute("aria-valuenow") === "100")).toBe(true);
   });
 });

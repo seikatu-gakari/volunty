@@ -56,7 +56,7 @@ test.describe("参加者性格診断", () => {
     const neutral = classifyActivityStyle({ extraversion: 50, agreeableness: 50, conscientiousness: 50, emotionalStability: 50, intellect: 50 });
     await expect(page.getByRole("heading", { name: neutral.name })).toBeVisible();
     await expect(page.getByText(/性格を決めつけるものではなく/)).toBeVisible();
-    await expect(page.locator('img[src*="/characters/"]')).toHaveCount(0);
+    await expect(page.locator('img[src*="characters"]')).toHaveCount(0);
     await expect(page.locator('[role="meter"][aria-valuenow="50"]')).toHaveCount(5);
     await page.reload();
     await expect(page.getByRole("heading", { name: neutral.name })).toBeVisible();
@@ -126,10 +126,12 @@ test.describe("参加者性格診断", () => {
     const mixed = classifyActivityStyle({ extraversion: 75, agreeableness: 75, conscientiousness: 75, emotionalStability: 75, intellect: 75 });
     await expect(page.getByRole("heading", { name: mixed.name })).toBeVisible();
     await expect(page.getByRole("list", { name: "近い方向の一覧" }).getByRole("listitem")).toHaveCount(5);
+    await expect(page.locator('img[src*="characters"]')).toHaveCount(5);
     await expect(page.locator('[role="meter"][aria-valuenow="75"]')).toHaveCount(5);
     await page.reload();
     await expect(page.getByRole("heading", { name: mixed.name })).toBeVisible();
     await expect(page.getByRole("list", { name: "近い方向の一覧" }).getByRole("listitem")).toHaveCount(5);
+    await expect(page.locator('img[src*="characters"]')).toHaveCount(5);
     await expect(page.locator('[role="meter"][aria-valuenow="75"]')).toHaveCount(5);
   });
 });

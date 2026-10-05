@@ -1,3 +1,4 @@
+import { findDirectionCharacter } from "@/lib/diagnosis-scale/style-characters";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ACTIVITY_STYLE_DIRECTIONS } from "@/lib/diagnosis-scale/activity-styles";
@@ -14,16 +15,18 @@ describe("DiagnosisTypesCarousel", () => {
     }
   });
 
-  it("特性の両方向を中立な共通定義で紹介し、動物画像を表示しない", () => {
+  it("特性の両方向を中立な共通定義で紹介し、同じ対応の動物画像を装飾として表示する", () => {
     render(<DiagnosisTypesCarousel />);
 
     const featuredIds = ["e-high", "e-low", "i-high", "i-low"];
     expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(4);
     for (const direction of ACTIVITY_STYLE_DIRECTIONS.filter(({ id }) => featuredIds.includes(id))) {
-      expect(screen.getByRole("heading", { name: direction.name })).toBeDefined();
+      expect(screen.getByRole("heading", { name: findDirectionCharacter(direction.id)!.name })).toBeDefined();
       expect(screen.getByText(direction.description)).toBeDefined();
     }
-    expect(screen.queryAllByRole("img")).toHaveLength(0);
+    const images = document.querySelectorAll("article img");
+    expect(images).toHaveLength(4);
+    expect(Array.from(images).every((image) => image.getAttribute("alt") === "")).toBe(true);
     expect(screen.getByText(/回答を理解するための補助ラベル/)).toBeDefined();
     expect(screen.getByText(/科学的に確立された10類型ではありません/)).toBeDefined();
     expect(screen.getByText(/中央付近（中立）や複数の方向（混合）/)).toBeDefined();

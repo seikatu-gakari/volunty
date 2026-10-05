@@ -55,7 +55,7 @@ async function expectLandingPageContent(page: Page) {
     await expect(usageSection.getByRole("heading", { name: title })).toBeVisible();
   }
 
-  await expect(page.locator("#styles img")).toHaveCount(0);
+  await expect(page.locator("#styles img")).toHaveCount(4);
   await expect(page.locator("#styles article")).toHaveCount(4);
   await expect(page.locator("#styles").getByText(/回答を理解するための補助ラベル/)).toBeVisible();
   const images = page.locator("main img");

@@ -1,11 +1,12 @@
+import Image from "next/image";
+import { findDirectionCharacter } from "@/lib/diagnosis-scale/style-characters";
 import Link from "next/link";
-import { ArrowUpRight, Users, Lightbulb } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { ACTIVITY_STYLE_DIRECTIONS } from "@/lib/diagnosis-scale/activity-styles";
 import { BIG5_DOMAIN_LABELS } from "@/lib/diagnosis-scale/types";
 
 interface FeaturedDirection {
   id: string;
-  icon: typeof Users;
   accent: string;
 }
 
@@ -13,22 +14,18 @@ interface FeaturedDirection {
 const FEATURED_DIRECTIONS = [
   {
     id: "e-high",
-    icon: Users,
     accent: "bg-pop-coral-soft text-text-dark border-primary/20",
   },
   {
     id: "e-low",
-    icon: Users,
     accent: "bg-pop-coral-soft text-text-dark border-primary/20",
   },
   {
     id: "i-high",
-    icon: Lightbulb,
     accent: "bg-pop-purple-soft text-text-dark border-pop-purple/20",
   },
   {
     id: "i-low",
-    icon: Lightbulb,
     accent: "bg-pop-purple-soft text-text-dark border-pop-purple/20",
   },
 ] as const satisfies readonly FeaturedDirection[];
@@ -63,14 +60,14 @@ export function DiagnosisTypesCarousel() {
       >
         {FEATURED_DIRECTIONS.map((featured) => {
           const direction = getActivityStyleDirection(featured.id);
-          const Icon = featured.icon;
+          const character = findDirectionCharacter(direction.id);
           return (
             <article
               key={direction.id}
               className="lp-carousel-card w-[78vw] max-w-[300px] shrink-0 snap-center overflow-hidden rounded-[28px] border border-card-border bg-white shadow-sm sm:w-auto sm:max-w-none"
             >
-              <div className={`flex aspect-[4/3] flex-col items-center justify-center gap-4 ${featured.accent}`}>
-                <Icon className="size-16" aria-hidden />
+              <div className={`flex aspect-[4/3] min-h-56 flex-col items-center justify-center gap-2 py-4 ${featured.accent}`}>
+                {character && <Image src={character.imagePath} alt="" width={128} height={128} sizes="128px" className="size-32 object-contain" />}
                 <span className="text-sm font-bold">{BIG5_DOMAIN_LABELS[direction.domain]}</span>
               </div>
               <div className="p-5">
@@ -78,8 +75,9 @@ export function DiagnosisTypesCarousel() {
                   活動スタイルの補助ラベル
                 </div>
                 <h3 className="min-h-12 text-base font-bold leading-6 text-text-dark">
-                  {direction.name}
+                  {character?.name ?? direction.name}
                 </h3>
+                <p className="mt-2 text-xs text-text-body">{direction.name}</p>
                 <p className="mt-2 text-sm leading-6 text-text-body">{direction.description}</p>
                 <Link
                   href="#waitlist"
@@ -97,6 +95,7 @@ export function DiagnosisTypesCarousel() {
       <p className="mt-5 text-xs leading-5 text-text-body">
         ※ 科学的に確立された10類型ではありません。中央付近（中立）や複数の方向（混合）になる場合もあります。
         能力や適性を保証したり、応募できる活動を限定したりするものではありません。
+        動物は装飾用のイラストで、動物と性格に科学的な対応関係はありません。
       </p>
     </section>
   );
