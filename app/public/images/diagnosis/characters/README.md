@@ -1,7 +1,7 @@
 # 活動スタイルのキャラクター
 
 Volunty の診断結果を親しみやすく伝えるためのオリジナル動物キャラクターです。
-承認済みのシンプルな多角形タッチをもとに生成した、背景透過 PNG を使用しています。
+承認済みの丸い輪郭をもとに、幾何学的な面を使わないやわらかなタッチで生成した背景透過 PNG を使用しています。
 
 - 表示名・キャッチコピー・対応関係: `app/src/lib/diagnosis-scale/style-characters.ts`
 - 本診断・お試し診断の共通表示: `app/src/app/diagnosis/components/ActivityStyleHero.tsx`

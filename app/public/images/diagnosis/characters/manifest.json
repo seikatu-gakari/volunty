@@ -4,79 +4,79 @@
     "filename": "innovator-leader.png",
     "width": 512,
     "height": 512,
-    "bytes": 125675,
-    "sha256": "326bf97ebfb9a3c91d82f6cb0b81bc9b6a69a8863ba51daca62a29ae6d355d60"
+    "bytes": 130533,
+    "sha256": "a3de00e4bf2be30e0e6af68dc0f1f248d9ee446d6f617f44103dff1c57c2ae5b"
   },
   {
     "id": "supporter-care",
     "filename": "supporter-care.png",
     "width": 512,
     "height": 512,
-    "bytes": 129601,
-    "sha256": "0cffa0ff17f814635b358b9a76231cde942aaf874c969bcb448f3ce5f03c483f"
+    "bytes": 135481,
+    "sha256": "93dbe4edcc82e436be31b6a3dca4f61f4709d971cba1325ab19eacb6b029e137"
   },
   {
     "id": "creative-solo",
     "filename": "creative-solo.png",
     "width": 512,
     "height": 512,
-    "bytes": 115434,
-    "sha256": "cfed9c47a3cd18860e7d16054c1afd73e3cd4f2599bb4d935d956f4b7e22b7f9"
+    "bytes": 135408,
+    "sha256": "ae984f22136ff6241dd48514717202a994f9725d2c3f2a0b94f311d4bb327d1e"
   },
   {
     "id": "perfectionist-analyst",
     "filename": "perfectionist-analyst.png",
     "width": 512,
     "height": 512,
-    "bytes": 177392,
-    "sha256": "e7ddabbacc2c06cd68876dc99d40b83202130e3302c4a67c6a5aa9360e577f71"
+    "bytes": 168347,
+    "sha256": "aada875094af89394e258953ffdf1b90404b5bb2dd9d6c0b7db8f9c93c4cbb42"
   },
   {
     "id": "charisma-entertainer",
     "filename": "charisma-entertainer.png",
     "width": 512,
     "height": 512,
-    "bytes": 119266,
-    "sha256": "8b6375d614752528506fa48a7c7e09dbc8fc68c86ce77cbaf34f478903831e0c"
+    "bytes": 124807,
+    "sha256": "705fbbe07605ae37d7bf9108e5b7d0b1bdf2b3bd240ab09810bec7b4e74e667c"
   },
   {
     "id": "strategist-planner",
     "filename": "strategist-planner.png",
     "width": 512,
     "height": 512,
-    "bytes": 165608,
-    "sha256": "acf7acc52056ff69dcd15459037e6a58f9eaa09015b50d3c9fa56c4e406c4b98"
+    "bytes": 167780,
+    "sha256": "f4bec8f302d89c511799a83cb290b08fcb5f12cd92c12006295bb99e94530b8d"
   },
   {
     "id": "harmony-mediator",
     "filename": "harmony-mediator.png",
     "width": 512,
     "height": 512,
-    "bytes": 139998,
-    "sha256": "b5f54a9462037987c82e765c29eef44a443e1df66e6c028f5568df0c0a3d2534"
+    "bytes": 144578,
+    "sha256": "a06622ff164d35f74e47f3438b169d67fdd490e0f64050064a22bf2938ca7d6e"
   },
   {
     "id": "adventure-explorer",
     "filename": "adventure-explorer.png",
     "width": 512,
     "height": 512,
-    "bytes": 124072,
-    "sha256": "f7a395aaa3de9ce4f30309f0f852c391a516fbfc22466ca14e4f5d55e3e00dc2"
+    "bytes": 121914,
+    "sha256": "4f850a0e801c02257548b5fbab22410ab1f3625c04a1fa20ccbc833fe5e124f3"
   },
   {
     "id": "conservative-guardian",
     "filename": "conservative-guardian.png",
     "width": 512,
     "height": 512,
-    "bytes": 137745,
-    "sha256": "dccf002f61d1dfedccdfcfb66452c772869c61fc3b55a9e5ac49524591d66f85"
+    "bytes": 140694,
+    "sha256": "57d99847d8ae139c2f2ca60b11eb1bfda426e4b1c0d5e1575a7ce3dabe9af2dd"
   },
   {
     "id": "sensitive-artist",
     "filename": "sensitive-artist.png",
     "width": 512,
     "height": 512,
-    "bytes": 108557,
-    "sha256": "c231a93db2e881f78451399ee21bc8e3cb6538489abbe8a8f9c261fa012bd7c0"
+    "bytes": 133089,
+    "sha256": "e8c5df32a220069e2a4b7bd25eab4e4566e8a03a00ac5d0b4ab2a3cef00e5cef"
   }
 ]
