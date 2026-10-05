@@ -1,0 +1,82 @@
+[
+  {
+    "id": "innovator-leader",
+    "filename": "innovator-leader.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 125675,
+    "sha256": "326bf97ebfb9a3c91d82f6cb0b81bc9b6a69a8863ba51daca62a29ae6d355d60"
+  },
+  {
+    "id": "supporter-care",
+    "filename": "supporter-care.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 129601,
+    "sha256": "0cffa0ff17f814635b358b9a76231cde942aaf874c969bcb448f3ce5f03c483f"
+  },
+  {
+    "id": "creative-solo",
+    "filename": "creative-solo.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 115434,
+    "sha256": "cfed9c47a3cd18860e7d16054c1afd73e3cd4f2599bb4d935d956f4b7e22b7f9"
+  },
+  {
+    "id": "perfectionist-analyst",
+    "filename": "perfectionist-analyst.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 177392,
+    "sha256": "e7ddabbacc2c06cd68876dc99d40b83202130e3302c4a67c6a5aa9360e577f71"
+  },
+  {
+    "id": "charisma-entertainer",
+    "filename": "charisma-entertainer.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 119266,
+    "sha256": "8b6375d614752528506fa48a7c7e09dbc8fc68c86ce77cbaf34f478903831e0c"
+  },
+  {
+    "id": "strategist-planner",
+    "filename": "strategist-planner.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 165608,
+    "sha256": "acf7acc52056ff69dcd15459037e6a58f9eaa09015b50d3c9fa56c4e406c4b98"
+  },
+  {
+    "id": "harmony-mediator",
+    "filename": "harmony-mediator.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 139998,
+    "sha256": "b5f54a9462037987c82e765c29eef44a443e1df66e6c028f5568df0c0a3d2534"
+  },
+  {
+    "id": "adventure-explorer",
+    "filename": "adventure-explorer.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 124072,
+    "sha256": "f7a395aaa3de9ce4f30309f0f852c391a516fbfc22466ca14e4f5d55e3e00dc2"
+  },
+  {
+    "id": "conservative-guardian",
+    "filename": "conservative-guardian.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 137745,
+    "sha256": "dccf002f61d1dfedccdfcfb66452c772869c61fc3b55a9e5ac49524591d66f85"
+  },
+  {
+    "id": "sensitive-artist",
+    "filename": "sensitive-artist.png",
+    "width": 512,
+    "height": 512,
+    "bytes": 108557,
+    "sha256": "c231a93db2e881f78451399ee21bc8e3cb6538489abbe8a8f9c261fa012bd7c0"
+  }
+]

@@ -22,7 +22,7 @@ test.describe("参加者性格診断", () => {
 
   test("P-3/P-4: 全50問を回答して結果を確認し、再診断できる", async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.goto("/diagnosis");
 
     // 開始画面: 非臨床の説明が表示される
@@ -52,6 +52,15 @@ test.describe("参加者性格診断", () => {
     await expect(
       page.getByText(/性格傾向チェック（全50問）による診断/)
     ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "よりそいクマ" })).toBeVisible();
+    await expect(page.getByText(/性格を決めつけるものではなく/)).toBeVisible();
+    const characterImage = page.locator('img[src*="supporter-care"]');
+    await expect(characterImage).toBeVisible();
+    await expect.poll(() => characterImage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+    await testInfo.attach("full-diagnosis-character", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
     // 全問同一選択肢のため回答品質の注記が表示される（性格の評価ではない旨も明示）
     await expect(page.getByText("回答について")).toBeVisible();
     await expect(
