@@ -25,6 +25,7 @@ test.describe("お試し診断の活動スタイル", () => {
     await expect(page.locator('img[src*="characters"]')).toHaveCount(0);
     for (const width of [1280, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => window.scrollTo(0, 0));
       await expect(page.getByRole("heading", { name: neutral.name })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await testInfo.attach(`trial-neutral-${width}`, {
@@ -52,6 +53,7 @@ test.describe("お試し診断の活動スタイル", () => {
     await expect(page.locator('img[src*="characters"]')).toHaveCount(5);
     for (const width of [1280, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => window.scrollTo(0, 0));
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await testInfo.attach(`trial-mixed-${width}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
     }
@@ -71,6 +73,7 @@ test.describe("お試し診断の活動スタイル", () => {
     }
     for (const width of [1280, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => window.scrollTo(0, 0));
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await testInfo.attach(`trial-mixed-low-${width}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
     }
@@ -82,7 +85,11 @@ test.describe("お試し診断の活動スタイル", () => {
       await page.getByRole("button", { name: answer, exact: true }).click();
     }
     await expect(page.getByRole("heading", { name: "交流のイルカ" })).toBeVisible();
-    await expect(page.locator('img[src*="characters"]')).toHaveCount(1);
+    const singleImage = page.locator('img[src*="characters"]');
+    await expect(singleImage).toHaveCount(1);
+    await singleImage.scrollIntoViewIfNeeded();
+    await expect.poll(() => singleImage.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page.getByRole("meter", { name: "外向性" })).toHaveAttribute("aria-valuenow", "75");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await testInfo.attach("trial-single-320", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
