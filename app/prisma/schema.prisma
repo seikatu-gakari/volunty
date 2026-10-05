@@ -483,3 +483,16 @@ model Certificate {
   @@index([issuedAt(sort: Desc)])
   @@map("t_certificate")
 }
+
+/// 公開開始通知の待機リスト（アプリサーバーのみアクセス）
+model WaitlistEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique @db.VarChar(254)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  notifiedAt DateTime? @map("notified_at") @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@index([notifiedAt])
+  @@map("t_waitlist_entry")
+}

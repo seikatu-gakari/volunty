@@ -32,9 +32,9 @@ export function FeaturesSection() {
   return (
     <section id="features" className="py-20 sm:py-28">
       <LPSectionHeading
-        eyebrow="主な機能"
+        eyebrow="公開に向けて準備中の機能"
         title="続けやすさまで、まるごと設計。"
-        description="出会うだけで終わらない。安心して参加し、実績を積み上げられる機能がそろっています。"
+        description="出会うだけで終わらない。安心して参加し、実績を積み上げられる機能を準備しています。"
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

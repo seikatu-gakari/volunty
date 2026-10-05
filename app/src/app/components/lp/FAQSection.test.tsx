@@ -6,9 +6,9 @@ describe("FAQSection", () => {
   it("最初の質問を初期表示し、質問を開閉できる", () => {
     render(<FAQSection />);
 
-    const first = screen.getByRole("button", { name: "診断や登録は無料ですか？" });
+    const first = screen.getByRole("button", { name: "今すぐサービスを使えますか？" });
     const second = screen.getByRole("button", {
-      name: "診断はどのくらい時間がかかりますか？",
+      name: "事前登録は無料ですか？",
     });
 
     expect(first.getAttribute("aria-expanded")).toBe("true");
@@ -18,7 +18,7 @@ describe("FAQSection", () => {
 
     expect(first.getAttribute("aria-expanded")).toBe("false");
     expect(second.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText(/簡易診断（15問・約2分）/)).toBeDefined();
+    expect(screen.getByText(/メールアドレスだけで開始通知に登録/)).toBeDefined();
 
     fireEvent.click(second);
     expect(second.getAttribute("aria-expanded")).toBe("false");

@@ -137,7 +137,8 @@ test("C-E4: 通常ログアウト後は公開トップへ戻り別ロールで�
   await expect(page).toHaveURL((url) =>
     url.pathname === "/" && !url.searchParams.has("next")
   );
-  await expect(page.getByRole("link", { name: "ログイン" })).toBeVisible();
+  await expect(page.locator("main > section").first().getByRole("link", { name: "無料で事前登録", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "ログイン", exact: true })).toHaveCount(0);
 
   await page.goto("/api/test-auth/login?persona=organization-approved");
   await expect(page).toHaveURL(/\/$/);
@@ -162,7 +163,8 @@ test("C-E5: 団体審査待ち画面のログアウト後は公開トップへ�
   await expect(page).toHaveURL((url) =>
     url.pathname === "/" && !url.searchParams.has("next")
   );
-  await expect(page.getByRole("link", { name: "ログイン" })).toBeVisible();
+  await expect(page.locator("main > section").first().getByRole("link", { name: "無料で事前登録", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "ログイン", exact: true })).toHaveCount(0);
   await context.close();
 });
 

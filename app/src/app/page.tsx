@@ -91,10 +91,8 @@ export default async function Home() {
             <FAQSection />
           </Reveal>
 
-          {/* ボトム CTA */}
-          <Reveal>
-            <LPBottomCTA />
-          </Reveal>
+          {/* 開始通知の事前登録フォームはスクロール演出に依存せず表示する。 */}
+          <LPBottomCTA />
 
           {/* フッター */}
           <LPFooter />
