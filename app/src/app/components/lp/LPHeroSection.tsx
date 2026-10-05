@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { ArrowRight, Brain, CheckCircle2, Clock3, Smartphone } from "lucide-react";
+import { ArrowRight, Brain, CheckCircle2, Mail, Smartphone } from "lucide-react";
 import { HeroPhotoFrame } from "./HeroPhotoFrame";
 
 const TRUST_ITEMS = [
-  { icon: CheckCircle2, text: "登録・診断は無料" },
-  { icon: Clock3, text: "約2分でできる" },
+  { icon: CheckCircle2, text: "事前登録は無料" },
+  { icon: Mail, text: "メールだけで登録" },
   { icon: Smartphone, text: "スマホ対応", desktopText: "スマホ・PC対応" },
 ] as const;
 
@@ -33,7 +33,8 @@ export function LPHeroSection() {
         </h1>
 
         <p className="relative top-0 mt-1 max-w-xl text-sm leading-7 font-medium text-text-body sm:text-base lg:col-start-1 lg:row-start-3 lg:mt-2 lg:top-12 lg:text-lg lg:leading-8">
-          約2分の簡易診断で、あなたらしく続けやすい活動のヒントを見つけよう。
+          あなたらしく続けやすい活動に出会うために、ただいまサービス公開に向けて準備中です。
+          メールを登録して、開始のお知らせを受け取りませんか。
         </p>
 
         <div className="lg:col-start-2 lg:row-span-5 lg:row-start-1 lg:-mt-8 lg:flex lg:items-start">
@@ -42,10 +43,10 @@ export function LPHeroSection() {
 
         <div className="relative top-0 grid w-full gap-1.5 lg:col-start-1 lg:row-start-4 lg:top-12 lg:flex lg:flex-row lg:items-stretch lg:gap-3 lg:justify-start xl:gap-4">
           <Link
-            href="/diagnosis/trial"
+            href="#waitlist"
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-primary-dark lg:h-12 lg:w-auto lg:flex-[2_1_0%] lg:min-w-0 lg:px-3 lg:text-sm lg:whitespace-nowrap xl:h-14 xl:w-[320px] xl:flex-none xl:px-6 xl:text-base"
           >
-            2分で自分の活動タイプを知る
+            無料で開始通知を受け取る
             <ArrowRight className="size-5" aria-hidden />
           </Link>
           <Link

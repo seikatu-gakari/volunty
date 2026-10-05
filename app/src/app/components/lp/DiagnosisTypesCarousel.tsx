@@ -89,10 +89,10 @@ export function DiagnosisTypesCarousel() {
               </h3>
               <p className="mt-2 text-sm leading-6 text-text-body">{style.description}</p>
               <Link
-                href="/diagnosis/trial"
+                href="#waitlist"
                 className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-primary-dark"
               >
-                診断で詳しく見る
+                開始通知を受け取る
                 <ArrowUpRight className="size-4" aria-hidden />
               </Link>
             </div>

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { LogIn, UserPlus } from "lucide-react";
+import { Mail } from "lucide-react";
 import { MobileMenuButton } from "@/app/components/MobileMenuButton";
 
 const MOBILE_LINKS = [
@@ -17,21 +16,13 @@ export function PublicHeaderNavigation() {
 
   return (
     <div className="relative flex items-center gap-2">
-      <Link
-        href="/login"
-        className="hidden h-10 items-center gap-2 rounded-xl border border-card-border bg-white px-3 text-sm font-bold text-text-dark transition-colors hover:border-primary/40 hover:text-text-dark lg:inline-flex"
-      >
-        <LogIn className="hidden size-4 sm:block" aria-hidden />
-        ログイン
-      </Link>
-
-      <Link
-        href="/signup"
+      <a
+        href="#waitlist"
         className="hidden h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary-dark lg:inline-flex"
       >
-        <UserPlus className="size-4" aria-hidden />
-        無料で始める
-      </Link>
+        <Mail className="size-4" aria-hidden />
+        開始通知を受け取る
+      </a>
 
       <MobileMenuButton
         menuOpen={menuOpen}
@@ -52,21 +43,13 @@ export function PublicHeaderNavigation() {
                 {item.label}
               </a>
             ))}
-            <Link
-              href="/login"
-              onClick={() => setMenuOpen(false)}
-              className="mt-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-card-border bg-white px-4 text-sm font-bold text-text-dark transition-colors hover:border-primary/40 hover:bg-primary/5"
-            >
-              <LogIn className="size-4" aria-hidden />
-              ログイン
-            </Link>
-            <Link
-              href="/signup"
+            <a
+              href="#waitlist"
               onClick={() => setMenuOpen(false)}
               className="mt-2 inline-flex h-12 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-bold text-white transition-colors hover:bg-primary-dark"
             >
-              無料で始める
-            </Link>
+              開始通知を受け取る
+            </a>
           </nav>
         </div>
       )}

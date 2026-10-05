@@ -5,9 +5,9 @@ const LINK_GROUPS = [
   {
     heading: "サービス",
     links: [
-      { label: "性格傾向チェック", href: "/diagnosis" },
-      { label: "活動を探す", href: "/opportunities" },
-      { label: "団体の方へ", href: "/signup" },
+      { label: "開始通知を受け取る", href: "#waitlist" },
+      { label: "活動スタイル", href: "#types" },
+      { label: "団体の方へ", href: "#waitlist" },
     ],
   },
   {

@@ -22,14 +22,14 @@ vi.mock("next/link", () => ({
 }));
 
 describe("LPFooter", () => {
-  it("ホーム・各機能・ページ内セクションへの導線を持つ", () => {
+  it("ホーム・開始通知・ページ内セクションへの導線を持つ", () => {
     render(<LPFooter />);
 
     for (const [name, href] of [
       ["ボランティ ホーム", "/"],
-      ["性格傾向チェック", "/diagnosis"],
-      ["活動を探す", "/opportunities"],
-      ["団体の方へ", "/signup"],
+      ["開始通知を受け取る", "#waitlist"],
+      ["活動スタイル", "#types"],
+      ["団体の方へ", "#waitlist"],
       ["使い方ガイド", "#usage"],
       ["よくある質問", "#faq"],
     ]) {

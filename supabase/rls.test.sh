@@ -1954,3 +1954,8 @@ if [ "$race_status" != "accepted" ]; then
 fi
 
 printf 'RLS DML tests passed\n'
+
+# 待機リストはAPI経由だけで受け付け、公開ロールからの読み書きを禁止する。
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/migrations/20261005004718_waitlist_landing.sql" >/dev/null
+psql "$database_url" -v ON_ERROR_STOP=1 -X -f "$repo_root/supabase/waitlist.test.sql" >/dev/null
+printf 'Waitlist DB contract tests passed\n'

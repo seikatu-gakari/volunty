@@ -1,11 +1,10 @@
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowRight, Search } from "lucide-react";
 import { lpAssets } from "./lpAssets";
+import { WaitlistForm } from "@/app/components/lp/WaitlistForm";
 
 export function LPBottomCTA() {
   return (
-    <section id="start" className="relative overflow-hidden rounded-[40px] bg-primary-dark px-6 py-16 text-center text-white shadow-xl sm:px-12 sm:py-20">
+    <section id="waitlist" aria-labelledby="waitlist-heading" className="relative scroll-mt-28 overflow-hidden rounded-[40px] bg-primary-dark px-5 py-14 text-center text-white shadow-xl sm:px-12 sm:py-20">
       <Image
         src={lpAssets.orbitMotif.src}
         alt={lpAssets.orbitMotif.alt}
@@ -15,28 +14,23 @@ export function LPBottomCTA() {
       />
 
       <div className="relative mx-auto max-w-3xl">
-        <p className="text-xs font-bold tracking-[0.2em] text-white">START YOUR ACTION</p>
-        <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight sm:text-4xl">
-          あなたらしい活動を、<br />ボランティで見つけよう。
+        <p className="text-xs font-bold tracking-[0.2em] text-white">ただいま公開準備中</p>
+        <h2 id="waitlist-heading" className="mt-4 text-3xl font-black leading-tight tracking-tight sm:text-4xl">
+          サービス開始を、<br />メールでお知らせ。
         </h2>
         <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-white sm:text-base">
-          まずは約2分の簡易診断から。興味や性格傾向をヒントに、無理なく始められる活動をご案内します。
+          自分らしく続けられるボランティアとの出会いを準備しています。
+          無料の事前登録で、ボランティの開始通知を受け取れます。
         </p>
-        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link
-            href="/diagnosis/trial"
-            className="inline-flex h-14 w-full max-w-[320px] items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-black text-primary-dark shadow-md transition-transform hover:-translate-y-0.5 sm:w-auto"
-          >
-            無料で簡易診断を試す
-            <ArrowRight className="size-4" aria-hidden />
-          </Link>
-          <Link
-            href="/opportunities"
-            className="inline-flex h-14 w-full max-w-[320px] items-center justify-center gap-2 rounded-full border border-white/80 px-7 text-sm font-black text-white transition-colors hover:bg-white/10 sm:w-auto"
-          >
-            <Search className="size-4" aria-hidden />
-            募集中の活動を見る
-          </Link>
+        <div className="mx-auto mt-8 max-w-2xl">
+          <WaitlistForm />
+        </div>
+        <div id="waitlist-privacy" className="mx-auto mt-6 max-w-2xl scroll-mt-28 text-left">
+          <h3 className="text-sm font-bold">メールアドレスの利用目的</h3>
+          <p className="mt-2 text-xs leading-6 text-white">
+            ご登録のメールアドレスは、ボランティのサービス開始のお知らせのために使用します。
+            この登録で会員アカウントは作成されません。
+          </p>
         </div>
       </div>
     </section>

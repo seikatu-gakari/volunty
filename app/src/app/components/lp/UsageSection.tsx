@@ -35,7 +35,7 @@ export function UsageSection() {
       <LPSectionHeading
         eyebrow="HOW IT WORKS"
         title="はじめるのは、かんたん3ステップ。"
-        description="自分を知ることから、活動への参加まで。迷わず進める体験をひとつにつなぎました。"
+        description="公開後のご利用イメージです。自分を知ることから、活動への参加までをつなぐ体験を準備しています。"
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

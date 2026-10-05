@@ -483,3 +483,24 @@ model Certificate {
   @@index([issuedAt(sort: Desc)])
   @@map("t_certificate")
 }
+
+/// 公開開始通知の待機リスト（アプリサーバーのみアクセス）
+model WaitlistEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique @db.VarChar(254)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("t_waitlist_entry")
+}
+
+/// 生IPを保存しない短期送信制限
+model WaitlistRateLimit {
+  key         String   @db.VarChar(64)
+  windowStart DateTime @map("window_start") @db.Timestamptz(6)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  count       Int
+
+  @@id([key, windowStart])
+  @@index([expiresAt])
+  @@map("t_waitlist_rate_limit")
+}

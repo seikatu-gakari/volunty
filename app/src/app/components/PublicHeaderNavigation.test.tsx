@@ -22,23 +22,24 @@ vi.mock("next/link", () => ({
 }));
 
 describe("PublicHeaderNavigation", () => {
-  it("初期状態ではメニューを閉じ、ログインと登録の導線を持つ", () => {
+  it("初期状態ではメニューを閉じ、開始通知への導線を持つ", () => {
     render(<PublicHeaderNavigation />);
 
-    expect(screen.getByRole("link", { name: "ログイン" }).getAttribute("href")).toBe("/login");
-    expect(screen.getByRole("link", { name: "無料で始める" }).getAttribute("href")).toBe("/signup");
+    expect(screen.getByRole("link", { name: "開始通知を受け取る" }).getAttribute("href")).toBe("#waitlist");
+    expect(screen.queryByRole("link", { name: "ログイン" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "無料で始める" })).toBeNull();
     expect(screen.getByRole("button", { name: "メニューを開く" }).getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("navigation", { name: "モバイルナビゲーション" })).toBeNull();
   });
 
-  it("メニューを開閉し、ログイン・登録・ページ内リンクを利用できる", () => {
+  it("メニューを開閉し、開始通知・ページ内リンクを利用できる", () => {
     render(<PublicHeaderNavigation />);
     fireEvent.click(screen.getByRole("button", { name: "メニューを開く" }));
 
     const closeButton = screen.getByRole("button", { name: "メニューを閉じる" });
     expect(closeButton.getAttribute("aria-expanded")).toBe("true");
     const navigation = within(screen.getByRole("navigation", { name: "モバイルナビゲーション" }));
-    for (const [name, href] of [["ログイン", "/login"], ["無料で始める", "/signup"], ["使い方", "#usage"]]) {
+    for (const [name, href] of [["開始通知を受け取る", "#waitlist"], ["使い方", "#usage"]]) {
       expect(navigation.getByRole("link", { name }).getAttribute("href")).toBe(href);
     }
 
@@ -52,7 +53,7 @@ describe("PublicHeaderNavigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "メニューを開く" }));
     fireEvent.click(
       within(screen.getByRole("navigation", { name: "モバイルナビゲーション" }))
-        .getByRole("link", { name: "よくある質問" }),
+        .getByRole("link", { name: "開始通知を受け取る" }),
     );
 
     expect(screen.getByRole("button", { name: "メニューを開く" }).getAttribute("aria-expanded")).toBe("false");
