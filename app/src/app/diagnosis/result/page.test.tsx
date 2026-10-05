@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   fetchDiagnosisResult: vi.fn(),
@@ -44,6 +44,9 @@ vi.mock("@/app/components/Header", () => ({
 }));
 
 import DiagnosisResultPage from "./page";
+import { ACTIVITY_STYLE_TYPES } from "@/lib/diagnosis-scale/style-types";
+
+afterEach(cleanup);
 
 describe("DiagnosisResultPage", () => {
   beforeEach(() => {
@@ -90,4 +93,22 @@ describe("DiagnosisResultPage", () => {
     expect(mocks.fetchDiagnosisResult).toHaveBeenCalledWith("user-1");
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
+  it("本診断のキャラクターと既存のスコア・詳細・尺度情報を表示する", async () => {
+    const result = await mocks.fetchDiagnosisResult();
+    mocks.fetchDiagnosisResult.mockResolvedValue({
+      ...result,
+      styleType: ACTIVITY_STYLE_TYPES[0],
+      scaleCode: "ipip-bfm-50-ja",
+    });
+    const { container } = render(await DiagnosisResultPage());
+    expect(screen.getByRole("heading", { name: "ひらめきキツネ" })).toBeDefined();
+    expect(screen.getByText("イノベーター・リーダータイプ")).toBeDefined();
+    expect(screen.getByText("あなたに近い活動スタイル（参考）")).toBeDefined();
+    expect(screen.getByText("5つの性格特性スコア")).toBeDefined();
+    expect(screen.getByText(/性格傾向チェック（全50問）による診断/)).toBeDefined();
+    expect(screen.getByText("発揮しやすい傾向の例")).toBeDefined();
+    expect(screen.getByText("力を発揮しやすい活動の例")).toBeDefined();
+    expect(container.querySelector("img")?.getAttribute("alt")).toBe("");
+  });
+
 });

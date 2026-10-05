@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowRight, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/Card";
+import { ActivityStyleHero } from "@/app/diagnosis/components/ActivityStyleHero";
 import { QuestionCard } from "@/app/diagnosis/components/QuestionCard";
 import {
   getItemsInDisplayOrder,
@@ -42,16 +43,9 @@ export function TrialDiagnosisClient() {
     return (
       <Card>
         <CardContent className="flex flex-col gap-6 py-10">
-          <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
-              <Sparkles className="size-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-text-body">お試し結果</p>
-              <h1 className="text-2xl font-bold text-text-dark">
-                {style.name}
-              </h1>
-            </div>
+          <div>
+            <p className="mb-4 text-center text-sm font-medium text-text-body">お試し結果</p>
+            <ActivityStyleHero styleType={style} />
           </div>
           <p className="text-sm leading-6 text-text-body">{style.description}</p>
           <div className="grid gap-3 sm:grid-cols-2">

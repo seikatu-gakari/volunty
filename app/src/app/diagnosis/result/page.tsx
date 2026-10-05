@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActivityStyleHero } from "@/app/diagnosis/components/ActivityStyleHero";
 import { redirect } from "next/navigation";
 import { RefreshCw, Search, Info, AlertTriangle } from "lucide-react";
 import { fetchDiagnosisResultQuery } from "@/lib/diagnosis/queries";
@@ -144,19 +145,7 @@ export default async function DiagnosisResultPage() {
         <Card className="mb-6">
           <CardContent className="py-10 text-center">
             <h1 className="mb-4 text-2xl font-bold text-text-dark">診断結果</h1>
-            {styleType && (
-              <>
-                <div className="mb-4 inline-block rounded-full bg-primary/10 px-4 py-1 text-sm font-medium text-primary">
-                  あなたに近い活動スタイル（参考）
-                </div>
-                <h2 className="mb-2 text-4xl font-extrabold text-primary">
-                  {styleType.name}
-                </h2>
-                <p className="text-lg font-medium text-text-body">
-                  {styleType.nameEn}
-                </p>
-              </>
-            )}
+            {styleType && <ActivityStyleHero styleType={styleType} />}
             <p className="mx-auto mt-4 max-w-xl text-xs leading-5 text-text-body">
               {scaleDisplay.label} / 実施日: {answeredDate}
             </p>
