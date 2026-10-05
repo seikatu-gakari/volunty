@@ -214,7 +214,7 @@ describe.each([
             participantProfile: expect.objectContaining({
               select: expect.objectContaining({
                 latestDiagnosisResult: {
-                  select: { styleTypeId: true },
+                  select: { styleTypeId: true, styleTypeVersion: true },
                 },
               }),
             }),

@@ -3,7 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { fetchParticipantProfileByUserIdWithDebug } from "@/lib/participant-profile/server";
-import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import { findStyleTypeLabel } from "@/lib/diagnosis-scale/style-types";
 import type {
   ApplicationWithDetails,
   ApplicationDetailResult,
@@ -57,7 +57,7 @@ async function fetchProfile(userId: string): Promise<{
           region: profileData.region,
           diagnosis_completed: latestDiagnosis !== null,
           diagnosis_style_type_label: latestDiagnosis?.styleTypeId
-            ? (findStyleTypeById(latestDiagnosis.styleTypeId)?.name ?? null)
+            ? (findStyleTypeLabel(latestDiagnosis.styleTypeId, latestDiagnosis.styleTypeVersion) ?? null)
             : null,
           diagnosis_answered_at: latestDiagnosis?.answeredAt.toISOString() ?? null,
         }

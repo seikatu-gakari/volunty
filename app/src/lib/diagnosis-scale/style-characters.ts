@@ -1,4 +1,4 @@
-import type { ActivityStyleId } from "@/lib/diagnosis-scale/types";
+import type { LegacyActivityStyleId } from "@/lib/diagnosis-scale/types";
 
 /** 活動スタイルを親しみやすく伝える表示用キャラクター。採点・分類には使わない。 */
 export interface StyleCharacter {
@@ -7,7 +7,7 @@ export interface StyleCharacter {
   imagePath: string;
 }
 
-export const STYLE_CHARACTERS: Readonly<Record<ActivityStyleId, StyleCharacter>> = {
+export const STYLE_CHARACTERS: Readonly<Record<LegacyActivityStyleId, StyleCharacter>> = {
   "innovator-leader": {
     name: "ひらめきキツネ",
     strength: "ひらめきで、新しい一歩をつくる",
@@ -62,5 +62,5 @@ export const STYLE_CHARACTERS: Readonly<Record<ActivityStyleId, StyleCharacter>>
 
 /** 未知のタイプは従来のタイプ名だけで表示する。 */
 export function findStyleCharacter(id: string): StyleCharacter | undefined {
-  return Object.hasOwn(STYLE_CHARACTERS, id) ? STYLE_CHARACTERS[id as ActivityStyleId] : undefined;
+  return Object.hasOwn(STYLE_CHARACTERS, id) ? STYLE_CHARACTERS[id as LegacyActivityStyleId] : undefined;
 }

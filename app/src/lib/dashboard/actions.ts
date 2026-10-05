@@ -28,7 +28,7 @@ import type {
   RecommendedParticipantDetailResult,
   RecommendedParticipantsResult,
 } from "./types";
-import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import { findStyleTypeById, findStyleTypeLabel } from "@/lib/diagnosis-scale/style-types";
 import { toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
 import {
   isValidCategory,
@@ -958,7 +958,7 @@ export async function fetchApplicantsForOpportunity(
           participantProfile: {
             select: {
               name: true,
-              latestDiagnosisResult: { select: { styleTypeId: true } },
+              latestDiagnosisResult: { select: { styleTypeId: true, styleTypeVersion: true } },
             },
           },
         },
@@ -970,7 +970,7 @@ export async function fetchApplicantsForOpportunity(
         profileMap[participant.id] = {
           name: profile?.name ?? participant.name ?? "不明",
           styleTypeLabel: styleTypeId
-            ? (findStyleTypeById(styleTypeId)?.name ?? null)
+            ? (findStyleTypeLabel(styleTypeId, profile?.latestDiagnosisResult?.styleTypeVersion) ?? null)
             : null,
         };
       }
@@ -1330,7 +1330,7 @@ export async function fetchApplicantDetail(
               select: {
                 name: true,
                 latestDiagnosisResult: {
-                  select: { styleTypeId: true },
+                  select: { styleTypeId: true, styleTypeVersion: true },
                 },
               },
             },
@@ -1359,7 +1359,7 @@ export async function fetchApplicantDetail(
     const styleTypeId =
       participantProfile?.latestDiagnosisResult?.styleTypeId ?? null;
     const styleType = styleTypeId
-      ? (findStyleTypeById(styleTypeId) ?? null)
+      ? (findStyleTypeById(styleTypeId, participantProfile?.latestDiagnosisResult?.styleTypeVersion) ?? null)
       : null;
 
     return {
@@ -1379,7 +1379,7 @@ export async function fetchApplicantDetail(
         ...(application.status === "accepted"
           ? { participant_line_id: participantLineId }
           : {}),
-        style_type_label: styleType?.name ?? null,
+        style_type_label: styleType ? (findStyleTypeLabel(styleType.id) ?? null) : null,
         opportunity_id: application.opportunity.id,
         opportunity_title: application.opportunity.title,
         style_type_detail: styleType

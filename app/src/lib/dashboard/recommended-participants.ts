@@ -1,6 +1,6 @@
 import type { DomainScores } from "@/lib/diagnosis-scale/types";
 import { isDomainScores } from "@/lib/diagnosis-scale/scoring";
-import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import { findStyleTypeLabel } from "@/lib/diagnosis-scale/style-types";
 import { findActivityStyleTag, toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
 
 /** 性格適合の方向判定閾値（推薦エンジンと同じ値） */
@@ -17,7 +17,7 @@ export interface RecommendedParticipantCandidate {
   preferredLocation: string | null;
   publicProfile: boolean;
   latestDiagnosisResult: {
-    styleTypeId: string | null;
+    styleTypeId: string | null; styleTypeVersion?: string;
     scaledScores: unknown;
   } | null;
   bio?: string | null;
@@ -172,7 +172,7 @@ export function buildRecommendedParticipants(
             availabilitySummary: summarizeAvailability(participant.availability),
             preferredLocation: participant.preferredLocation,
             styleTypeLabel: styleTypeId
-              ? (findStyleTypeById(styleTypeId)?.name ?? null)
+              ? (findStyleTypeLabel(styleTypeId, participant.latestDiagnosisResult?.styleTypeVersion) ?? null)
               : null,
             ...rest,
           },

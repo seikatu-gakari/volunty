@@ -4,7 +4,7 @@ import {
   IPIP_BFM_50_JA_BRIEF15,
   SCORING_ALGORITHM_VERSION,
 } from "@/lib/diagnosis-scale/scale";
-import { STYLE_TYPE_VERSION } from "@/lib/diagnosis-scale/style-types";
+import { ACTIVITY_STYLE_VERSION } from "@/lib/diagnosis-scale/activity-styles";
 import { QUALITY_RULE_VERSION } from "@/lib/diagnosis-scale/quality";
 import type { DiagnosisAnswer } from "@/lib/diagnosis-scale/types";
 
@@ -272,7 +272,7 @@ describe("submitDiagnosis", () => {
           scaleVersion: IPIP_BFM_50_JA.scaleVersion,
           scoringAlgorithmVersion: SCORING_ALGORITHM_VERSION,
           normsVersion: null,
-          styleTypeVersion: STYLE_TYPE_VERSION,
+          styleTypeVersion: ACTIVITY_STYLE_VERSION,
           qualityRuleVersion: QUALITY_RULE_VERSION,
           // 全問3: 全ドメイン raw 30 / scaled 50
           rawScores: {
@@ -286,7 +286,8 @@ describe("submitDiagnosis", () => {
           qualityFlags: expect.arrayContaining(["straight_lining"]),
           totalDurationMs: 200_000,
           resumedCount: 1,
-          styleTypeId: expect.any(String),
+          styleTypeId: "v2:neutral",
+          scaledScores: { extraversion: 50, agreeableness: 50, conscientiousness: 50, emotionalStability: 50, intellect: 50 },
         }),
       })
     );
@@ -305,6 +306,26 @@ describe("submitDiagnosis", () => {
       where: { userId: "user-123" },
       data: { latestDiagnosisResultId: "result-id" },
     });
+  });
+
+  it.each(["full", "brief"] as const)("%s の混合5方向と実測値を保存・再読込し、スコアから再分類しない", async (mode) => {
+    mockGetUser.mockReturnValue({ data: { user: { id: "user-123" } }, error: null });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ id: "profile-id" });
+    const scale = mode === "full" ? IPIP_BFM_50_JA : IPIP_BFM_50_JA_BRIEF15;
+    const answers = scale.items.map((item) => ({ itemCode: item.itemCode, value: item.keyed === "+" ? 4 : 2 }));
+    expect(await submitDiagnosis({ answers, mode })).toEqual({ success: true });
+    const saved = mockPrismaDiagnosisResultCreate.mock.calls[0][0].data;
+    expect(saved.styleTypeId).toBe("v2:e-high,a-high,c-high,s-high,i-high");
+    expect(saved.styleTypeVersion).toBe(ACTIVITY_STYLE_VERSION);
+    expect(saved.scaledScores).toEqual({ extraversion: 75, agreeableness: 75, conscientiousness: 75, emotionalStability: 75, intellect: 75 });
+    mockPrismaParticipantFindUnique.mockResolvedValue({ latestDiagnosisResult: { ...saved, answeredAt: new Date("2026-10-05T00:00:00Z") } });
+    const loaded = await fetchDiagnosisResult();
+    expect(loaded?.styleType?.directions).toHaveLength(5);
+    expect(loaded?.scaledScores).toEqual(saved.scaledScores);
+    expect(loaded?.rawScores).toEqual(saved.rawScores);
+    // 保存IDが真実。後から別のスコアを渡されても再分類しない。
+    mockPrismaParticipantFindUnique.mockResolvedValue({ latestDiagnosisResult: { ...saved, styleTypeId: "v2:neutral", answeredAt: new Date("2026-10-05T00:00:00Z") } });
+    expect((await fetchDiagnosisResult())?.styleType?.classificationKind).toBe("neutral");
   });
 
   it("生回答は常に t_diagnosis_response へ保存する", async () => {

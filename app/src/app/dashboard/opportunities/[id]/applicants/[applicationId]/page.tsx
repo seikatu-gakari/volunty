@@ -177,10 +177,10 @@ export default async function ApplicantDetailPage({
               </CardContent>
             </Card>
 
-            <Card>
+            {typeDetail.tendencies.length > 0 && <Card>
               <CardHeader>
                 <h3 className="text-lg font-bold text-text-dark">
-                  発揮しやすい傾向の例
+                  回答から見える傾向（参考）
                 </h3>
               </CardHeader>
               <CardContent>
@@ -193,9 +193,9 @@ export default async function ApplicantDetailPage({
                   ))}
                 </ul>
               </CardContent>
-            </Card>
+            </Card>}
 
-            <Card>
+            {typeDetail.activityExamples.length > 0 && <Card>
               <CardHeader>
                 <h3 className="text-lg font-bold text-text-dark">
                   力を発揮しやすい活動の例
@@ -211,7 +211,7 @@ export default async function ApplicantDetailPage({
                   ))}
                 </ul>
               </CardContent>
-            </Card>
+            </Card>}
           </div>
         ) : (
           /* 診断未実施 */

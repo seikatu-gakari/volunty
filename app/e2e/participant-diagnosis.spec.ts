@@ -1,7 +1,8 @@
+import { getItemsInDisplayOrder, getScaleDefinition } from "../src/lib/diagnosis-scale/scale";
+import { classifyActivityStyle } from "../src/lib/diagnosis-scale/activity-styles";
 import { expect, type Page, test } from "@playwright/test";
 
 const TOTAL_QUESTIONS = 50;
-const BRIEF_TOTAL_QUESTIONS = 15;
 
 async function answerQuestions(
   page: Page,
@@ -52,12 +53,15 @@ test.describe("参加者性格診断", () => {
     await expect(
       page.getByText(/性格傾向チェック（全50問）による診断/)
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "よりそいクマ" })).toBeVisible();
+    const neutral = classifyActivityStyle({ extraversion: 50, agreeableness: 50, conscientiousness: 50, emotionalStability: 50, intellect: 50 });
+    await expect(page.getByRole("heading", { name: neutral.name })).toBeVisible();
     await expect(page.getByText(/性格を決めつけるものではなく/)).toBeVisible();
-    const characterImage = page.locator('img[src*="supporter-care"]');
-    await expect(characterImage).toBeVisible();
-    await expect.poll(() => characterImage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
-    await testInfo.attach("full-diagnosis-character", {
+    await expect(page.locator('img[src*="/characters/"]')).toHaveCount(0);
+    await expect(page.locator('[role="meter"][aria-valuenow="50"]')).toHaveCount(5);
+    await page.reload();
+    await expect(page.getByRole("heading", { name: neutral.name })).toBeVisible();
+    await expect(page.locator('[role="meter"][aria-valuenow="50"]')).toHaveCount(5);
+    await testInfo.attach("full-diagnosis-neutral", {
       body: await page.screenshot({ fullPage: true }),
       contentType: "image/png",
     });
@@ -105,16 +109,27 @@ test.describe("参加者性格診断", () => {
     await page
       .getByRole("button", { name: /簡易診断を始める（15問）|最初からやり直す/ })
       .click();
-    await answerQuestions(page, {
-      from: 1,
-      to: BRIEF_TOTAL_QUESTIONS,
-      totalQuestions: BRIEF_TOTAL_QUESTIONS,
-    });
+    const items = getItemsInDisplayOrder(getScaleDefinition("brief"));
+    for (const [index, item] of items.entries()) {
+      await expect(page.getByText(`質問 ${index + 1} / 15`)).toBeVisible();
+      await page.getByRole("button", {
+        name: item.keyed === "+" ? "やや当てはまる" : "あまり当てはまらない",
+        exact: true,
+      }).click();
+    }
 
     await expect(page).toHaveURL(/\/diagnosis\/result$/);
     await expect(
       page.getByText(/性格傾向チェック（簡易15問）による診断/)
     ).toBeVisible();
     await expect(page.getByText("簡易診断について")).toBeVisible();
+    const mixed = classifyActivityStyle({ extraversion: 75, agreeableness: 75, conscientiousness: 75, emotionalStability: 75, intellect: 75 });
+    await expect(page.getByRole("heading", { name: mixed.name })).toBeVisible();
+    await expect(page.getByRole("list", { name: "近い方向の一覧" }).getByRole("listitem")).toHaveCount(5);
+    await expect(page.locator('[role="meter"][aria-valuenow="75"]')).toHaveCount(5);
+    await page.reload();
+    await expect(page.getByRole("heading", { name: mixed.name })).toBeVisible();
+    await expect(page.getByRole("list", { name: "近い方向の一覧" }).getByRole("listitem")).toHaveCount(5);
+    await expect(page.locator('[role="meter"][aria-valuenow="75"]')).toHaveCount(5);
   });
 });

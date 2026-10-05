@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
-import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import { findStyleTypeLabel } from "@/lib/diagnosis-scale/style-types";
 import { APPROACH_MESSAGE_MAX_LENGTH } from "./constants";
 import {
   fetchApproachSendDataQuery,
@@ -43,7 +43,7 @@ interface ParticipantRecord {
   interests: unknown;
   preferredLocation: string | null;
   publicProfile: boolean;
-  latestDiagnosisResult: { styleTypeId: string | null } | null;
+  latestDiagnosisResult: { styleTypeId: string | null; styleTypeVersion?: string } | null;
 }
 
 async function getCurrentUserId(): Promise<{ userId: string } | { error: string }> {
@@ -148,7 +148,7 @@ function mapParticipant(participant: ParticipantRecord): ApproachParticipant {
     interests: toStringArray(participant.interests),
     preferredLocation: participant.preferredLocation,
     styleTypeLabel: styleTypeId
-      ? (findStyleTypeById(styleTypeId)?.name ?? null)
+      ? (findStyleTypeLabel(styleTypeId, participant.latestDiagnosisResult?.styleTypeVersion) ?? null)
       : null,
   };
 }
@@ -174,7 +174,7 @@ export async function fetchApproachableParticipants(): Promise<ApproachableParti
         interests: true,
         preferredLocation: true,
         publicProfile: true,
-        latestDiagnosisResult: { select: { styleTypeId: true } },
+        latestDiagnosisResult: { select: { styleTypeId: true, styleTypeVersion: true } },
         approaches: {
           where: { organizationId: organization.id },
           select: { id: true },
@@ -315,7 +315,7 @@ export async function sendApproach(input: {
         interests: true,
         preferredLocation: true,
         publicProfile: true,
-        latestDiagnosisResult: { select: { styleTypeId: true } },
+        latestDiagnosisResult: { select: { styleTypeId: true, styleTypeVersion: true } },
       },
     });
 

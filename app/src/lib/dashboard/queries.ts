@@ -2,7 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import { findStyleTypeById, findStyleTypeLabel } from "@/lib/diagnosis-scale/style-types";
 import { toActivityStyleTagIds } from "@/lib/recommendations/activity-style-tags";
 import { shouldFailDashboardAnalyticsForE2E } from "@/lib/e2e/dashboard-analytics-failure";
 import {
@@ -279,7 +279,7 @@ export async function fetchApplicantsForOpportunityQuery(
           participantProfile: {
             select: {
               name: true,
-              latestDiagnosisResult: { select: { styleTypeId: true } },
+              latestDiagnosisResult: { select: { styleTypeId: true, styleTypeVersion: true } },
             },
           },
         },
@@ -291,7 +291,7 @@ export async function fetchApplicantsForOpportunityQuery(
         profileMap[participant.id] = {
           name: profile?.name ?? participant.name ?? "不明",
           styleTypeLabel: styleTypeId
-            ? (findStyleTypeById(styleTypeId)?.name ?? null)
+            ? (findStyleTypeLabel(styleTypeId, profile?.latestDiagnosisResult?.styleTypeVersion) ?? null)
             : null,
         };
       }
@@ -610,7 +610,7 @@ export async function fetchApplicantDetailQuery(
             participantProfile: {
               select: {
                 name: true,
-                latestDiagnosisResult: { select: { styleTypeId: true } },
+                latestDiagnosisResult: { select: { styleTypeId: true, styleTypeVersion: true } },
               },
             },
           },
@@ -635,7 +635,7 @@ export async function fetchApplicantDetailQuery(
         : undefined;
     const styleTypeId = participantProfile?.latestDiagnosisResult?.styleTypeId ?? null;
     const styleType = styleTypeId
-      ? (findStyleTypeById(styleTypeId) ?? null)
+      ? (findStyleTypeById(styleTypeId, participantProfile?.latestDiagnosisResult?.styleTypeVersion) ?? null)
       : null;
 
     return {
@@ -655,7 +655,7 @@ export async function fetchApplicantDetailQuery(
         ...(application.status === "accepted"
           ? { participant_line_id: participantLineId }
           : {}),
-        style_type_label: styleType?.name ?? null,
+        style_type_label: styleType ? (findStyleTypeLabel(styleType.id) ?? null) : null,
         opportunity_id: application.opportunity.id,
         opportunity_title: application.opportunity.title,
         style_type_detail: styleType
@@ -704,7 +704,7 @@ async function fetchPublicParticipantCandidates(): Promise<
       availability: true,
       preferredLocation: true,
       publicProfile: true,
-      latestDiagnosisResult: { select: { styleTypeId: true, scaledScores: true } },
+      latestDiagnosisResult: { select: { styleTypeId: true, styleTypeVersion: true, scaledScores: true } },
     },
   });
 }
@@ -724,7 +724,7 @@ async function fetchRecommendedParticipantCandidate(
       availability: true,
       preferredLocation: true,
       publicProfile: true,
-      latestDiagnosisResult: { select: { styleTypeId: true, scaledScores: true } },
+      latestDiagnosisResult: { select: { styleTypeId: true, styleTypeVersion: true, scaledScores: true } },
     },
   });
 }

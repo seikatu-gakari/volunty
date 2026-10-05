@@ -36,10 +36,24 @@ export function ActivityStyleHero({ styleType }: { styleType: ActivityStyleType 
           </p>
         </>
       )}
-      <p className="mt-1 text-xs text-text-body">{styleType.nameEn}</p>
+      <p className="mt-1 break-words text-xs text-text-body">{styleType.nameEn}</p>
+      {styleType.classificationKind === "mixed" && (
+        <ul aria-label="近い方向の一覧" className="mt-4 flex flex-wrap justify-center gap-2">
+          {styleType.directions?.map((direction) => (
+            <li key={direction.id} className="max-w-full break-words rounded-lg bg-primary/10 px-3 py-2 text-sm text-text-dark">
+              {direction.name}
+            </li>
+          ))}
+        </ul>
+      )}
       <p className="mx-auto mt-4 max-w-lg text-xs leading-5 text-text-body">
-        キャラクターは活動スタイルを親しみやすく表すためのものです。性格を決めつけるものではなく、回答によって変わることがあります。
+        {character
+          ? "キャラクターは活動スタイルを親しみやすく表すためのものです。性格を決めつけるものではなく、回答によって変わることがあります。"
+          : "活動スタイルは5つの連続スコアを読みやすくするための補助ラベルで、科学的に確立した性格タイプではありません。性格を決めつけるものではなく、回答によって変わることがあります。"}
       </p>
+      {!character && <p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-text-body">
+        分類の境界は暫定的なものです。境界付近では小さな回答差で表示が変わります。特に15問版は1問の影響が大きいため、5つのスコアを合わせて確認してください。
+      </p>}
     </div>
   );
 }
