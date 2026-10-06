@@ -6,20 +6,8 @@ import { fetchDiagnosisResultQuery } from "@/lib/diagnosis/queries";
 import { Header } from "@/app/components/Header";
 import { getViewerContext } from "@/lib/auth/viewer-context";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
-import {
-  BIG5_DOMAINS,
-  BIG5_DOMAIN_LABELS,
-  BIG5_DOMAIN_DESCRIPTIONS,
-} from "@/lib/diagnosis-scale/types";
-import type { Big5Domain, DomainScores, QualityFlag } from "@/lib/diagnosis-scale/types";
-
-const DOMAIN_COLORS: Record<Big5Domain, string> = {
-  extraversion: "bg-red-500",
-  agreeableness: "bg-green-500",
-  conscientiousness: "bg-blue-500",
-  emotionalStability: "bg-yellow-500",
-  intellect: "bg-purple-500",
-};
+import type { QualityFlag } from "@/lib/diagnosis-scale/types";
+import { ScoreSection } from "@/app/diagnosis/components/ScoreSection";
 
 /** scaleCode ごとの表示名・注記（新しい尺度を追加する場合はここに登録する） */
 const SCALE_DISPLAY_INFO: Record<string, { label: string; briefNotice?: string }> = {
@@ -40,65 +28,6 @@ const QUALITY_FLAG_MESSAGES: Record<QualityFlag, string> = {
   inconsistent:
     "内容の近い質問への回答にばらつきが見られました。結果は参考程度に見てください。",
 };
-
-/** ドメインスコアバー（サーバーコンポーネント） */
-function ScoreBar({
-  domain,
-  score,
-}: {
-  domain: Big5Domain;
-  score: number;
-}) {
-  const rounded = Math.round(score);
-  const description =
-    score >= 60
-      ? BIG5_DOMAIN_DESCRIPTIONS[domain].high
-      : score <= 40
-        ? BIG5_DOMAIN_DESCRIPTIONS[domain].low
-        : "どちらの場面にも合わせやすい中間的な傾向";
-  return (
-    <div>
-      <div className="mb-1 flex justify-between">
-        <span className="text-sm font-medium text-text-body">
-          {BIG5_DOMAIN_LABELS[domain]}
-        </span>
-        <span className="text-sm font-bold text-text-dark">{rounded}</span>
-      </div>
-      <div className="h-2.5 w-full rounded-full bg-primary/20">
-        <div
-          className={`h-2.5 rounded-full ${DOMAIN_COLORS[domain]}`}
-          style={{ width: `${rounded}%` }}
-        />
-      </div>
-      <p className="mt-1 text-xs leading-5 text-text-body">{description}</p>
-    </div>
-  );
-}
-
-/** ドメインスコア一覧 */
-function ScoreSection({ scores }: { scores: DomainScores }) {
-  return (
-    <Card>
-      <CardHeader>
-        <h3 className="text-lg font-bold text-text-dark">5つの性格特性スコア</h3>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-5">
-          {BIG5_DOMAINS.map((domain) => (
-            <ScoreBar key={domain} domain={domain} score={scores[domain]} />
-          ))}
-        </div>
-        <div className="mt-6 rounded-lg bg-background p-4 text-xs leading-5 text-text-body">
-          <p>
-            ※ スコアはあなたの回答を0〜100に換算したもので、「他の人の中での順位」や「上位◯%」を表すものではありません。
-          </p>
-          <p>※ 性格に良し悪しはなく、どの傾向にも活きる場面があります。</p>
-          <p>※ 自己報告に基づく結果のため、±数点程度の揺らぎがあります。</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 /**
  * 診断結果ページ（/diagnosis/result）
@@ -193,8 +122,8 @@ export default async function DiagnosisResultPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="leading-relaxed text-text-body">
-                      あなたの回答は「{styleType.name}」に近い傾向がありました。
-                      {styleType.description}。
+                      今回の回答をまとめた参考ラベルは「{styleType.name}」です。
+                      {styleType.description}
                     </p>
                     <p className="mt-3 text-xs leading-5 text-text-body">
                       ※ タイプ分類は結果を分かりやすくするための参考情報で、5つのスコアが診断の本体です。
@@ -202,7 +131,7 @@ export default async function DiagnosisResultPage() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                {!styleType.classificationKind && <Card>
                   <CardHeader>
                     <h3 className="text-lg font-bold text-text-dark">
                       発揮しやすい傾向の例
@@ -218,9 +147,9 @@ export default async function DiagnosisResultPage() {
                       ))}
                     </ul>
                   </CardContent>
-                </Card>
+                </Card>}
 
-                <Card>
+                {!styleType.classificationKind && <Card>
                   <CardHeader>
                     <h3 className="text-lg font-bold text-text-dark">
                       力を発揮しやすい活動の例
@@ -239,7 +168,18 @@ export default async function DiagnosisResultPage() {
                       ※ あくまで傾向にもとづく例です。どの活動にも応募できます。
                     </p>
                   </CardContent>
-                </Card>
+                </Card>}
+                {!!styleType.directions?.length && <Card>
+                  <CardHeader><h3 className="text-lg font-bold text-text-dark">今回の回答で近い方向</h3></CardHeader>
+                  <CardContent>
+                    <ul className="space-y-4">
+                      {styleType.directions.map((direction) => <li key={direction.id}>
+                        <p className="font-medium text-text-dark">{direction.name}</p>
+                        <p className="mt-1 text-sm leading-6 text-text-body">{direction.description}</p>
+                      </li>)}
+                    </ul>
+                  </CardContent>
+                </Card>}
               </>
             )}
           </div>

@@ -1,8 +1,10 @@
+import { ACTIVITY_STYLE_VERSION, findActivityStyleById } from './activity-styles'
 import type { ActivityStyleType, DomainScores } from './types'
 import { BIG5_DOMAINS } from './types'
 
 /**
- * 活動スタイルの参考タイプ定義。
+ * 旧1.0.0保存結果を表示するための参考タイプ定義（変更しない）。
+ * 新規診断には activity-styles.ts の classifyActivityStyle を使用する。
  *
  * これは心理測定の本体ではなく、診断結果を理解しやすくするための
  * 補助的なナラティブである。判定は「代表プロファイルとの近さによる参考分類」
@@ -112,7 +114,8 @@ export interface ClosestStyleType {
 }
 
 /**
- * scaled score (0-100) に最も近い参考タイプを返す。
+ * @deprecated 旧分類の再現・互換テスト専用。新規診断には使用しない。
+ * scaled score (0-100) に最も近い旧参考タイプを返す。
  * 必ず1タイプを返し、等距離の場合は定義順で先のタイプを返す（決定的）。
  */
 export function findClosestStyleType(scores: DomainScores): ClosestStyleType {
@@ -135,6 +138,20 @@ export function findClosestStyleType(scores: DomainScores): ClosestStyleType {
 }
 
 /** タイプIDから参考タイプを引く（存在しない場合 undefined） */
-export function findStyleTypeById(id: string): ActivityStyleType | undefined {
+export function findStyleTypeById(id: string, version?: string): ActivityStyleType | undefined {
+  if (id.startsWith('v2:')) {
+    if (version !== undefined && version !== ACTIVITY_STYLE_VERSION) return undefined
+    return findActivityStyleById(id)
+  }
+  if (version !== undefined && version !== STYLE_TYPE_VERSION && version !== 'legacy') return undefined
   return ACTIVITY_STYLE_TYPES.find((type) => type.id === id)
+}
+
+/** 一覧表示でも混合の全方向を省略せず伝える。 */
+export function findStyleTypeLabel(id: string, version?: string): string | undefined {
+  const style = findStyleTypeById(id, version)
+  if (!style) return undefined
+  return style.classificationKind === 'mixed'
+    ? `${style.name}: ${style.directions?.map(({ name }) => name).join(' / ')}`
+    : style.name
 }

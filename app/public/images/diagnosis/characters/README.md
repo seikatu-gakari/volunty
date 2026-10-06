@@ -5,7 +5,8 @@ Volunty の診断結果を親しみやすく伝えるためのオリジナル動
 
 - 表示名・キャッチコピー・対応関係: `app/src/lib/diagnosis-scale/style-characters.ts`
 - 本診断・お試し診断の共通表示: `app/src/app/diagnosis/components/ActivityStyleHero.tsx`
-- 画像のファイル名は既存の活動スタイル ID と一致します
+- 画像のファイル名は旧活動スタイル ID と一致します。旧表示は `STYLE_CHARACTERS`、v2方向の表示は `DIRECTION_CHARACTERS` で分離します
+- v2は画像のみ再利用し、旧ID・旧名称を新しい意味へ再定義しません。中立では動物なし、混合では全方向を同サイズで表示します
 - 動物との科学的な対応関係を示すものではありません。採点・参考タイプの分類・尺度のバージョンには影響しません
 - 画像内に文字は含めず、表示名や説明は UI のテキストとして表示します
 - 配信用画像は512×512のRGBA PNGで、各200KB未満に最適化しています

@@ -34,6 +34,7 @@ export async function fetchDiagnosisResultQuery(
             rawScores: true,
             scaledScores: true,
             styleTypeId: true,
+            styleTypeVersion: true,
             qualityFlags: true,
             answeredAt: true,
           },
@@ -55,7 +56,7 @@ export async function fetchDiagnosisResultQuery(
       answeredAt: result.answeredAt.toISOString(),
       qualityFlags: toQualityFlags(result.qualityFlags),
       styleType: result.styleTypeId
-        ? (findStyleTypeById(result.styleTypeId) ?? null)
+        ? (findStyleTypeById(result.styleTypeId, result.styleTypeVersion) ?? null)
         : null,
     };
   } catch (error) {

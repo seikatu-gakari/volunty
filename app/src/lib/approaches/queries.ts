@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
+import { findStyleTypeLabel } from "@/lib/diagnosis-scale/style-types";
 import type {
   ApproachContact,
   ApproachDetail,
@@ -32,7 +32,7 @@ interface ParticipantRecord {
   interests: unknown;
   preferredLocation: string | null;
   publicProfile: boolean;
-  latestDiagnosisResult: { styleTypeId: string | null } | null;
+  latestDiagnosisResult: { styleTypeId: string | null; styleTypeVersion?: string } | null;
 }
 
 interface OrganizationContactRecord {
@@ -130,7 +130,7 @@ function mapParticipant(participant: ParticipantRecord): ApproachParticipant {
     interests: toStringArray(participant.interests),
     preferredLocation: participant.preferredLocation,
     styleTypeLabel: styleTypeId
-      ? (findStyleTypeById(styleTypeId)?.name ?? null)
+      ? (findStyleTypeLabel(styleTypeId, participant.latestDiagnosisResult?.styleTypeVersion) ?? null)
       : null,
   };
 }
@@ -211,7 +211,7 @@ export async function fetchApproachSendDataQuery(
         interests: true,
         preferredLocation: true,
         publicProfile: true,
-        latestDiagnosisResult: { select: { styleTypeId: true } },
+        latestDiagnosisResult: { select: { styleTypeId: true, styleTypeVersion: true } },
       },
     });
     if (!participant || !participant.publicProfile) {

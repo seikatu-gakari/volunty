@@ -14,10 +14,9 @@ import {
   QUALITY_RULE_VERSION,
 } from "@/lib/diagnosis-scale/quality";
 import {
-  findClosestStyleType,
   findStyleTypeById,
-  STYLE_TYPE_VERSION,
 } from "@/lib/diagnosis-scale/style-types";
+import { classifyActivityStyle, ACTIVITY_STYLE_VERSION } from "@/lib/diagnosis-scale/activity-styles";
 import type { QualityFlag } from "@/lib/diagnosis-scale/types";
 import type {
   DiagnosisResultData,
@@ -66,6 +65,7 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
             rawScores: true,
             scaledScores: true,
             styleTypeId: true,
+            styleTypeVersion: true,
             qualityFlags: true,
             answeredAt: true,
           },
@@ -90,7 +90,7 @@ export async function fetchDiagnosisResult(): Promise<DiagnosisResultData | null
       answeredAt: result.answeredAt.toISOString(),
       qualityFlags: toQualityFlags(result.qualityFlags),
       styleType: result.styleTypeId
-        ? (findStyleTypeById(result.styleTypeId) ?? null)
+        ? (findStyleTypeById(result.styleTypeId, result.styleTypeVersion) ?? null)
         : null,
     };
   } catch (err) {
@@ -150,7 +150,7 @@ export async function submitDiagnosis(
     );
 
     // 活動スタイルの参考タイプ（補助情報）
-    const styleType = findClosestStyleType(scoring.score.scaledScores);
+    const styleType = classifyActivityStyle(scoring.score.scaledScores);
 
     await prisma.$transaction(async (tx) => {
       const created = await tx.diagnosisResult.create({
@@ -160,11 +160,11 @@ export async function submitDiagnosis(
           scaleVersion: scoring.score.scaleVersion,
           scoringAlgorithmVersion: SCORING_ALGORITHM_VERSION,
           normsVersion: NORMS_VERSION,
-          styleTypeVersion: STYLE_TYPE_VERSION,
+          styleTypeVersion: ACTIVITY_STYLE_VERSION,
           qualityRuleVersion: QUALITY_RULE_VERSION,
           rawScores: scoring.score.rawScores as unknown as Prisma.InputJsonValue,
           scaledScores: scoring.score.scaledScores as unknown as Prisma.InputJsonValue,
-          styleTypeId: styleType.type.id,
+          styleTypeId: styleType.id,
           qualityFlags: quality.flags,
           totalDurationMs: input.totalDurationMs ?? null,
           resumedCount: input.resumedCount ?? 0,

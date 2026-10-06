@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ACTIVITY_STYLE_TYPES } from "@/lib/diagnosis-scale/style-types";
-import { findStyleCharacter, STYLE_CHARACTERS } from "@/lib/diagnosis-scale/style-characters";
+import { findDirectionCharacter, DIRECTION_CHARACTERS, findStyleCharacter, STYLE_CHARACTERS } from "@/lib/diagnosis-scale/style-characters";
 
 const manifest: Array<{ id: string; filename: string; width: number; height: number; bytes: number; sha256: string }> = JSON.parse(
   readFileSync(join(process.cwd(), "public/images/diagnosis/characters/manifest.json"), "utf8"),
@@ -42,5 +42,31 @@ describe("活動スタイルの表示用キャラクター", () => {
 
   it.each(["unknown", "toString", "__proto__"])("未知のID %s は画像を表示しない", (id) => {
     expect(findStyleCharacter(id)).toBeUndefined();
+  });
+});
+
+
+describe("v2の方向専用キャラクター", () => {
+  const expected = [
+    ["e-high", "交流のイルカ", "charisma-entertainer"],
+    ["e-low", "静かな関わりのネコ", "creative-solo"],
+    ["a-high", "調和のクマ", "supporter-care"],
+    ["a-low", "自分の立場重視のキツネ", "innovator-leader"],
+    ["c-high", "計画・秩序のビーバー", "strategist-planner"],
+    ["c-low", "計画・秩序へのこだわり弱めのカワウソ", "harmony-mediator"],
+    ["s-high", "穏やかな反応のイヌ", "conservative-guardian"],
+    ["s-low", "反応が出やすいシカ", "sensitive-artist"],
+    ["i-high", "新しい発想のツバメ", "adventure-explorer"],
+    ["i-low", "慣れた方法のフクロウ", "perfectionist-analyst"],
+  ];
+  it("10方向を過不足なく別定義する", () => {
+    expect(Object.keys(DIRECTION_CHARACTERS)).toEqual(expected.map(([id]) => id));
+  });
+  it.each(expected)("%sは方向名と指定された既存画像だけを使う", (id, name, legacyId) => {
+    expect(findDirectionCharacter(id)).toEqual({ name, imagePath: `/images/diagnosis/characters/${legacyId}.png` });
+    expect(findStyleCharacter(id)).toBeUndefined();
+  });
+  it.each(["unknown", "toString", "__proto__", "v2:neutral", "v2:e-high,a-high", "innovator-leader"])("%sから代表画像を推測しない", (id) => {
+    expect(findDirectionCharacter(id)).toBeUndefined();
   });
 });

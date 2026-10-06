@@ -173,19 +173,19 @@ export function HeaderAuth({
 
   // --- 未ログイン ---
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-1 sm:gap-2">
       <Link
         href="/login"
-        className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-primary hover:bg-primary/5"
+        className="flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2 text-xs font-medium text-primary hover:bg-primary/5 sm:h-9 sm:px-3 sm:text-sm"
       >
-        <LogIn className="size-4" />
+        <LogIn className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
         ログイン
       </Link>
       <Link
         href="/signup"
-        className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-white hover:bg-primary-dark"
+        className="flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-primary px-2 text-xs font-medium text-white hover:bg-primary-dark sm:h-9 sm:px-3 sm:text-sm"
       >
-        <UserPlus className="size-4" />
+        <UserPlus className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
         新規登録
       </Link>
     </div>

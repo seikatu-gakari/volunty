@@ -142,7 +142,7 @@ describe("fetchRecommendedParticipants", () => {
       select: expect.objectContaining({
         publicProfile: true,
         latestDiagnosisResult: {
-          select: { styleTypeId: true, scaledScores: true },
+          select: { styleTypeId: true, styleTypeVersion: true, scaledScores: true },
         },
       }),
     });
@@ -194,7 +194,7 @@ describe("fetchRecommendedParticipantDetail", () => {
       select: expect.objectContaining({
         publicProfile: true,
         latestDiagnosisResult: {
-          select: { styleTypeId: true, scaledScores: true },
+          select: { styleTypeId: true, styleTypeVersion: true, scaledScores: true },
         },
       }),
     });

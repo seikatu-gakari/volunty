@@ -18,6 +18,7 @@ interface RawParticipantProfile {
 /** 最新診断のサマリ（マイページ表示用。生スコアは含めない） */
 export interface LatestDiagnosisSummary {
   styleTypeId: string | null;
+  styleTypeVersion?: string;
   answeredAt: Date;
 }
 
@@ -82,7 +83,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
         interests: true,
         updatedAt: true,
         latestDiagnosisResult: {
-          select: { styleTypeId: true, answeredAt: true },
+          select: { styleTypeId: true, styleTypeVersion: true, answeredAt: true },
         },
       },
     });
@@ -102,6 +103,7 @@ export async function fetchParticipantProfileByUserIdWithDebug(
           latestDiagnosis: profile.latestDiagnosisResult
             ? {
                 styleTypeId: profile.latestDiagnosisResult.styleTypeId,
+                styleTypeVersion: profile.latestDiagnosisResult.styleTypeVersion,
                 answeredAt: profile.latestDiagnosisResult.answeredAt,
               }
             : null,
@@ -178,12 +180,13 @@ export async function fetchParticipantProfileByUserIdWithDebug(
     if (raw.latest_diagnosis_result_id) {
       const { data: diagnosisData } = await supabase
         .from("t_diagnosis_result")
-        .select("style_type_id, answered_at")
+        .select("style_type_id, style_type_version, answered_at")
         .eq("id", raw.latest_diagnosis_result_id)
         .maybeSingle();
       if (diagnosisData) {
         latestDiagnosis = {
           styleTypeId: (diagnosisData.style_type_id as string | null) ?? null,
+          styleTypeVersion: typeof diagnosisData.style_type_version === "string" ? diagnosisData.style_type_version : undefined,
           answeredAt: new Date(diagnosisData.answered_at as string),
         };
       }

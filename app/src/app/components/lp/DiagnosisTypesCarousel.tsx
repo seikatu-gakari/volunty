@@ -1,50 +1,41 @@
 import Image from "next/image";
+import { findDirectionCharacter } from "@/lib/diagnosis-scale/style-characters";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { findStyleTypeById } from "@/lib/diagnosis-scale/style-types";
-import type { ActivityStyleId } from "@/lib/diagnosis-scale/types";
-import { lpAssets } from "./lpAssets";
+import { ACTIVITY_STYLE_DIRECTIONS } from "@/lib/diagnosis-scale/activity-styles";
+import { BIG5_DOMAIN_LABELS } from "@/lib/diagnosis-scale/types";
 
-interface FeaturedStyle {
-  id: ActivityStyleId;
-  description: string;
-  image: (typeof lpAssets)[keyof typeof lpAssets];
+interface FeaturedDirection {
+  id: string;
   accent: string;
 }
 
-const FEATURED_STYLES = [
+/** 2つの特性の両方向を対にして紹介する。 */
+const FEATURED_DIRECTIONS = [
   {
-    id: "supporter-care",
-    description: "そっと寄り添い、誰かの安心を支える。",
-    image: lpAssets.styleSupporter,
+    id: "e-high",
     accent: "bg-pop-coral-soft text-text-dark border-primary/20",
   },
   {
-    id: "adventure-explorer",
-    description: "新しい場所へ飛び込み、体験を楽しむ。",
-    image: lpAssets.styleExplorer,
-    accent: "bg-pop-teal-soft text-secondary-dark border-pop-teal/20",
+    id: "e-low",
+    accent: "bg-pop-coral-soft text-text-dark border-primary/20",
   },
   {
-    id: "harmony-mediator",
-    description: "対話をつなぎ、チームの空気を整える。",
-    image: lpAssets.styleMediator,
-    accent: "bg-pop-yellow-soft text-warning border-pop-yellow/30",
-  },
-  {
-    id: "creative-solo",
-    description: "得意な表現で、静かに力を発揮する。",
-    image: lpAssets.styleCreative,
+    id: "i-high",
     accent: "bg-pop-purple-soft text-text-dark border-pop-purple/20",
   },
-] as const satisfies readonly FeaturedStyle[];
+  {
+    id: "i-low",
+    accent: "bg-pop-purple-soft text-text-dark border-pop-purple/20",
+  },
+] as const satisfies readonly FeaturedDirection[];
 
-function getActivityStyleName(id: ActivityStyleId) {
-  const style = findStyleTypeById(id);
-  if (!style) {
-    throw new Error(`活動スタイルが見つかりません: ${id}`);
+function getActivityStyleDirection(id: string) {
+  const direction = ACTIVITY_STYLE_DIRECTIONS.find((direction) => direction.id === id);
+  if (!direction) {
+    throw new Error(`活動スタイルの方向が見つかりません: ${id}`);
   }
-  return style.name.replace(/タイプ$/, "傾向");
+  return direction;
 }
 
 export function DiagnosisTypesCarousel() {
@@ -52,56 +43,59 @@ export function DiagnosisTypesCarousel() {
     <section id="styles" className="relative -mx-4 bg-pop-yellow-soft/60 px-4 py-20 sm:-mx-6 sm:px-6 sm:py-28 lg:mx-0 lg:rounded-[40px] lg:px-10">
       <div className="mb-8 max-w-2xl">
         <p className="mb-3 inline-flex rounded-full bg-primary/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-text-dark">
-          10の活動スタイル
+          5つの特性・10の方向
         </p>
         <h2 className="text-3xl font-black tracking-tight text-text-dark sm:text-4xl">
           あなたらしい一歩のヒント。
         </h2>
         <p className="mt-4 text-sm leading-7 text-text-body sm:text-base">
-          性格傾向から、心地よく力を発揮しやすい活動スタイルを見つけます。
+          性格傾向チェックの回答を理解するための補助ラベルです。
+          10の方向のうち、2つの特性の両方向を紹介します。
         </p>
       </div>
 
       <div
-        aria-label="代表的な活動スタイル"
+        aria-label="活動スタイルの方向の例"
         className="lp-carousel -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4"
       >
-        {FEATURED_STYLES.map((style) => (
-          <article
-            key={style.id}
-            className="lp-carousel-card w-[78vw] max-w-[300px] shrink-0 snap-center overflow-hidden rounded-[28px] border border-card-border bg-white shadow-sm sm:w-auto sm:max-w-none"
-          >
-            <div className="relative aspect-[4/3] overflow-hidden">
-              <Image
-                src={style.image.src}
-                alt={style.image.alt}
-                fill
-                sizes="(max-width: 640px) 78vw, (max-width: 1024px) 45vw, 25vw"
-                className="object-cover transition-transform duration-500 hover:scale-[1.03]"
-              />
-            </div>
-            <div className="p-5">
-              <div className={`mb-4 inline-flex rounded-full border px-3 py-1.5 text-[11px] font-bold ${style.accent}`}>
-                活動スタイル
+        {FEATURED_DIRECTIONS.map((featured) => {
+          const direction = getActivityStyleDirection(featured.id);
+          const character = findDirectionCharacter(direction.id);
+          return (
+            <article
+              key={direction.id}
+              className="lp-carousel-card w-[78vw] max-w-[300px] shrink-0 snap-center overflow-hidden rounded-[28px] border border-card-border bg-white shadow-sm sm:w-auto sm:max-w-none"
+            >
+              <div className={`flex aspect-[4/3] min-h-56 flex-col items-center justify-center gap-2 py-4 ${featured.accent}`}>
+                {character && <Image src={character.imagePath} alt="" width={128} height={128} sizes="128px" className="size-32 object-contain" />}
+                <span className="text-sm font-bold">{BIG5_DOMAIN_LABELS[direction.domain]}</span>
               </div>
-              <h3 className="min-h-12 text-base font-bold leading-6 text-text-dark">
-                {getActivityStyleName(style.id)}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-text-body">{style.description}</p>
-              <Link
-                href="#waitlist"
-                className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-primary-dark"
-              >
-                無料で事前登録
-                <ArrowUpRight className="size-4" aria-hidden />
-              </Link>
-            </div>
-          </article>
-        ))}
+              <div className="p-5">
+                <div className={`mb-4 inline-flex rounded-full border px-3 py-1.5 text-[11px] font-bold ${featured.accent}`}>
+                  活動スタイルの補助ラベル
+                </div>
+                <h3 className="min-h-12 text-base font-bold leading-6 text-text-dark">
+                  {character?.name ?? direction.name}
+                </h3>
+                <p className="mt-2 text-xs text-text-body">{direction.name}</p>
+                <p className="mt-2 text-sm leading-6 text-text-body">{direction.description}</p>
+                <Link
+                  href="#waitlist"
+                  className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-primary-dark"
+                >
+                  無料で事前登録
+                  <ArrowUpRight className="size-4" aria-hidden />
+                </Link>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       <p className="mt-5 text-xs leading-5 text-text-body">
-        ※ 表示されるスタイルは性格傾向をもとにした参考情報です。診断結果で可能性を限定するものではありません。
+        ※ 科学的に確立された10類型ではありません。中央付近（中立）や複数の方向（混合）になる場合もあります。
+        能力や適性を保証したり、応募できる活動を限定したりするものではありません。
+        動物は装飾用のイラストで、動物と性格に科学的な対応関係はありません。
       </p>
     </section>
   );

@@ -121,3 +121,22 @@ describe("buildRecommendedParticipants", () => {
     expect(first).toEqual(second);
   });
 });
+
+
+describe("v2分類と推薦の分離", () => {
+  it("分類ラベルではなく実測スコアで推薦し、混合全方向を表示する", () => {
+    const opportunity = [{ id: "opp-1", title: "案件", activityStyleTags: ["talk-with-new-people"] }];
+    const mixed = participant({ latestDiagnosisResult: { styleTypeId: "v2:e-high,a-high,c-high", styleTypeVersion: "2.0.0", scaledScores: { ...neutralScores, extraversion: 80 } } });
+    const neutral = participant({ latestDiagnosisResult: { styleTypeId: "v2:neutral", styleTypeVersion: "2.0.0", scaledScores: { ...neutralScores, extraversion: 80 } } });
+    const result = buildRecommendedParticipants([mixed], opportunity)[0];
+    expect(result.styleTypeLabel).toContain("交流 / 調和 / 計画・秩序");
+    expect(result.matchReasons).toEqual(buildRecommendedParticipants([neutral], opportunity)[0].matchReasons);
+    expect(result).not.toHaveProperty("scaledScores");
+  });
+  it("未知の保存版はラベルを出さず、推薦と参加機会は維持する", () => {
+    const future = participant({ latestDiagnosisResult: { styleTypeId: "v2:e-high", styleTypeVersion: "3.0.0", scaledScores: neutralScores } });
+    const result = buildRecommendedParticipants([future], [{ id: "opp-1", title: "案件", activityStyleTags: [] }]);
+    expect(result).toHaveLength(1);
+    expect(result[0].styleTypeLabel).toBeNull();
+  });
+});

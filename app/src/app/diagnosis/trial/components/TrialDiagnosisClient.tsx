@@ -11,7 +11,8 @@ import {
   getScaleDefinition,
 } from "@/lib/diagnosis-scale/scale";
 import { scoreDiagnosis } from "@/lib/diagnosis-scale/scoring";
-import { findClosestStyleType } from "@/lib/diagnosis-scale/style-types";
+import { classifyActivityStyle } from "@/lib/diagnosis-scale/activity-styles";
+import { ScoreSection } from "@/app/diagnosis/components/ScoreSection";
 import type { DiagnosisAnswer } from "@/lib/diagnosis-scale/types";
 
 export function TrialDiagnosisClient() {
@@ -24,7 +25,7 @@ export function TrialDiagnosisClient() {
     answers.length === items.length ? scoreDiagnosis(answers, scale) : null;
   const style =
     scoring?.success === true
-      ? findClosestStyleType(scoring.score.scaledScores).type
+      ? classifyActivityStyle(scoring.score.scaledScores)
       : null;
 
   function handleAnswer(value: number) {
@@ -47,17 +48,19 @@ export function TrialDiagnosisClient() {
             <p className="mb-4 text-center text-sm font-medium text-text-body">お試し結果</p>
             <ActivityStyleHero styleType={style} />
           </div>
+          <ScoreSection scores={scoring.score.scaledScores} />
           <p className="text-sm leading-6 text-text-body">{style.description}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {style.tendencies.map((item) => (
+          {!!style.directions?.length && <div className="grid gap-3 sm:grid-cols-2">
+            {style.directions.map((item) => (
               <div
-                key={item}
+                key={item.id}
                 className="rounded-lg border border-card-border bg-background px-4 py-3 text-sm text-text-dark"
               >
-                {item}
+                <p className="font-medium">{item.name}</p>
+                <p className="mt-1 text-xs leading-5 text-text-body">{item.description}</p>
               </div>
             ))}
-          </div>
+          </div>}
           <div className="rounded-lg bg-primary/5 p-4 text-xs leading-6 text-text-body">
             簡易15問のお試し結果です。保存やおすすめ精度の反映には、参加者登録後に診断を完了してください。
           </div>

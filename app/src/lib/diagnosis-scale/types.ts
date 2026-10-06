@@ -38,24 +38,24 @@ export const BIG5_DOMAIN_DESCRIPTIONS: Record<
   { high: string; low: string }
 > = {
   extraversion: {
-    high: '人と関わる場でエネルギーを得やすい傾向',
-    low: '少人数や静かな環境で力を発揮しやすい傾向',
+    high: '人との交流を好みやすい傾向',
+    low: '静かな関わりを好みやすい傾向',
   },
   agreeableness: {
-    high: '相手に寄り添った協力を大切にしやすい傾向',
-    low: '自分の考えを率直に伝えやすい傾向',
+    high: '相手との調和を重視しやすい傾向',
+    low: '相手との調和より自分の立場を重視しやすい傾向',
   },
   conscientiousness: {
-    high: '計画的に物事を進めやすい傾向',
-    low: '状況に合わせて柔軟に動きやすい傾向',
+    high: '計画や秩序を重視しやすい傾向',
+    low: '計画や秩序へのこだわりが比較的弱い傾向',
   },
   emotionalStability: {
-    high: 'プレッシャーのある場面でも落ち着きを保ちやすい傾向',
-    low: '感情の変化に敏感で、細やかな気配りにつながりやすい傾向',
+    high: '心配や気分の変化への反応が比較的穏やかな傾向',
+    low: '心配や気分の変化などの反応が出やすい傾向',
   },
   intellect: {
     high: '新しい考えや工夫を楽しみやすい傾向',
-    low: '実績のある確実なやり方を大切にしやすい傾向',
+    low: '慣れた方法を好みやすい傾向',
   },
 }
 
@@ -157,7 +157,7 @@ export interface QualityAssessment {
  * 心理測定の本体ではなく、結果を理解しやすくするための補助的なナラティブ。
  * 断定（「あなたはこのタイプです」）や適性保証には使用しない。
  */
-export type ActivityStyleId =
+export type LegacyActivityStyleId =
   | 'innovator-leader'
   | 'supporter-care'
   | 'creative-solo'
@@ -169,7 +169,12 @@ export type ActivityStyleId =
   | 'conservative-guardian'
   | 'sensitive-artist'
 
+export type ActivityStyleId = LegacyActivityStyleId | `v2:${string}`
+
 export interface ActivityStyleType {
+  /** 新分類の表示状態。旧結果では未設定 */
+  classificationKind?: 'neutral' | 'single' | 'mixed'
+  directions?: ActivityStyleDirection[]
   id: ActivityStyleId
   name: string
   nameEn: string
@@ -181,4 +186,14 @@ export interface ActivityStyleType {
   activityExamples: string[]
   /** 代表プロファイル（scaled score 0-100） */
   profile: DomainScores
+}
+
+/** v2 の方向。能力や適性を表すものではない。 */
+export interface ActivityStyleDirection {
+  id: string
+  name: string
+  domain: Big5Domain
+  direction: 'high' | 'low'
+  profile: DomainScores
+  description: string
 }

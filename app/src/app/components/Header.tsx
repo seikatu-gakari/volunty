@@ -61,7 +61,7 @@ export async function Header({ variant = "default", viewerContext }: HeaderProps
 
   return (
     <header className="sticky top-0 z-20 border-b border-header-border bg-background/60 backdrop-blur-sm">
-      <div className="mx-auto flex h-[77px] max-w-7xl items-center justify-between px-8 pt-4 pb-px">
+      <div className="mx-auto flex h-[77px] max-w-7xl items-center justify-between gap-2 px-4 pt-4 pb-px sm:px-8">
         <Link
           href="/"
           className="shrink-0"

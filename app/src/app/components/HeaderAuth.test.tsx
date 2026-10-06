@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ linkPending: false }));
 
@@ -28,6 +28,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { HeaderAuth } from "./HeaderAuth";
+
+afterEach(cleanup);
 
 describe("HeaderAuth の主要ナビゲーション", () => {
   beforeEach(() => {
@@ -93,4 +95,16 @@ describe("HeaderAuth の主要ナビゲーション", () => {
     expect(screen.getAllByRole("link", { name: "マイページ" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "ログアウト" })).toHaveLength(2);
   });
+});
+
+
+it("未ログインの狭幅でもログインと登録の遷移先・非折返しラベルを保持する", () => {
+  render(<HeaderAuth identity={null} userState={{ role: null, onboardingCompleted: false, verified: false }} />);
+  for (const [name, href] of [["ログイン", "/login"], ["新規登録", "/signup"]]) {
+    const link = screen.getByRole("link", { name });
+    expect(link.getAttribute("href")).toBe(href);
+    expect(link.className).toContain("whitespace-nowrap");
+    expect(link.className).toContain("shrink-0");
+    expect(link.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  }
 });

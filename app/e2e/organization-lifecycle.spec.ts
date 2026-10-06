@@ -210,7 +210,7 @@ test.describe("団体業務ライフサイクル", () => {
       page.getByRole("heading", { name: "活動スタイル（参考タイプ）" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "発揮しやすい傾向の例" }),
+      page.getByRole("heading", { name: "回答から見える傾向（参考）" }),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "力を発揮しやすい活動の例" }),
